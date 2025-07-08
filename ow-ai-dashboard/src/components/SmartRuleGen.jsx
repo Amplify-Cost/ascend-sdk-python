@@ -1,3 +1,5 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 // SmartRuleGen.jsx
 import React, { useEffect, useState } from "react";
 
@@ -8,7 +10,7 @@ const SmartRuleGen = ({ getAuthHeaders }) => {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch("http://localhost:8000/rules", {
+      const res = await fetch("${API_BASE_URL}/rules", {
         headers: await getAuthHeaders(),
       });
       if (!res.ok) throw new Error("Failed to fetch rules");
@@ -24,7 +26,7 @@ const SmartRuleGen = ({ getAuthHeaders }) => {
     if (!window.confirm("Are you sure you want to delete this rule?")) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`http://localhost:8000/rules/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/rules/${id}`, {
         method: "DELETE",
         headers: await getAuthHeaders(),
       });

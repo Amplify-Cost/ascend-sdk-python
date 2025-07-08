@@ -15,11 +15,12 @@ ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearS
 const Analytics = ({ getAuthHeaders }) => {
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState(null);
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const res = await fetch("http://localhost:8000/logs", {
+        const res = await fetch(`${API_BASE_URL}/logs`, {
           headers: getAuthHeaders(),
         });
         const data = await res.json();
@@ -49,12 +50,7 @@ const Analytics = ({ getAuthHeaders }) => {
         label,
         data: Object.values(dataObj),
         backgroundColor: [
-          "#4F46E5",
-          "#10B981",
-          "#F59E0B",
-          "#EF4444",
-          "#6366F1",
-          "#14B8A6",
+          "#4F46E5", "#10B981", "#F59E0B", "#EF4444", "#6366F1", "#14B8A6"
         ],
         borderRadius: 6,
         borderSkipped: false,
@@ -99,10 +95,7 @@ const Analytics = ({ getAuthHeaders }) => {
     },
   };
 
-  if (error) {
-    return <p className="text-red-500 mt-6 text-center">❌ {error}</p>;
-  }
-
+  if (error) return <p className="text-red-500 mt-6 text-center">❌ {error}</p>;
   if (logs.length === 0) {
     return (
       <div className="text-center text-gray-400 mt-12 text-base">
@@ -119,22 +112,17 @@ const Analytics = ({ getAuthHeaders }) => {
         </h3>
         <Pie data={buildChartData(countByField("risk_level"), "Risk Level")} options={chartOptions} />
       </div>
-
       <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 w-full aspect-square max-w-full overflow-auto">
         <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
           📈 Logs by Status
         </h3>
         <Pie data={buildChartData(countByField("status"), "Status")} options={chartOptions} />
       </div>
-
       <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-md border border-gray-200 dark:border-gray-700 w-full h-[350px] md:col-span-2 overflow-auto">
         <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-white">
           🔧 Logs by Tool Name
         </h3>
-        <Bar
-          data={buildChartData(countByField("tool_name"), "Tool Usage")}
-          options={chartOptions}
-        />
+        <Bar data={buildChartData(countByField("tool_name"), "Tool Usage")} options={chartOptions} />
       </div>
     </div>
   );

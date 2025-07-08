@@ -15,11 +15,13 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
   const [toolFilter, setToolFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     const fetchAlerts = async () => {
       setLoading(true);
       try {
-        const res = await fetch("http://localhost:8000/alerts", {
+        const res = await fetch(`${API_BASE_URL}/alerts`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch alerts");
@@ -37,28 +39,18 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
 
   useEffect(() => {
     let filtered = [...alerts];
-    if (riskFilter !== "all") {
-      filtered = filtered.filter((a) => a.risk_level === riskFilter);
-    }
-    if (toolFilter !== "all") {
-      filtered = filtered.filter((a) => a.tool_name === toolFilter);
-    }
-    if (agentFilter !== "all") {
-      filtered = filtered.filter((a) => a.agent_id === agentFilter);
-    }
+    if (riskFilter !== "all") filtered = filtered.filter((a) => a.risk_level === riskFilter);
+    if (toolFilter !== "all") filtered = filtered.filter((a) => a.tool_name === toolFilter);
+    if (agentFilter !== "all") filtered = filtered.filter((a) => a.agent_id === agentFilter);
     setFilteredAlerts(filtered);
   }, [alerts, riskFilter, toolFilter, agentFilter]);
 
   const statusColor = (status) => {
     switch (status) {
-      case "new":
-        return "bg-yellow-100 text-yellow-800";
-      case "in_review":
-        return "bg-blue-100 text-blue-800";
-      case "resolved":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case "new": return "bg-yellow-100 text-yellow-800";
+      case "in_review": return "bg-blue-100 text-blue-800";
+      case "resolved": return "bg-green-100 text-green-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
@@ -71,7 +63,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
       const alertTexts = filteredAlerts.map(
         (a) => `Agent ${a.agent_id} using ${a.tool_name} triggered: ${a.message} (Risk: ${a.risk_level})`
       );
-      const res = await fetch("http://localhost:8000/alerts/summary", {
+      const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -92,7 +84,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
 
   const handleStatusChange = async (alertId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:8000/alerts/${alertId}`, {
+      const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
         method: "PATCH",
         headers: {
           ...getAuthHeaders(),
@@ -155,7 +147,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
           <div key={alert.id} className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition duration-150">
             <div className="flex justify-between items-center mb-2">
               <div className="text-sm font-semibold text-gray-700">
-                Agent <span className="text-blue-600">{alert.agent_id}</span> triggered a {" "}
+                Agent <span className="text-blue-600">{alert.agent_id}</span> triggered a{" "}
                 <span className="font-bold text-red-600">{alert.risk_level}</span> alert
               </div>
               <div className="flex items-center gap-2">

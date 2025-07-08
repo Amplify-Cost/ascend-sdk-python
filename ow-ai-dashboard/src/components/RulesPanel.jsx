@@ -1,3 +1,5 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 import React, { useEffect, useState } from "react";
 
 const Rules = ({ getAuthHeaders, user }) => {
@@ -15,7 +17,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch("http://localhost:8000/rules", {
+      const res = await fetch("${API_BASE_URL}/rules", {
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
@@ -27,7 +29,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchVersionHistory = async () => {
     try {
-      const res = await fetch("http://localhost:8000/rules/history", {
+      const res = await fetch("${API_BASE_URL}/rules/history", {
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
@@ -39,7 +41,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const rollbackRules = async (filename) => {
     try {
-      await fetch("http://localhost:8000/rules/rollback", {
+      await fetch("${API_BASE_URL}/rules/rollback", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -55,7 +57,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const updateRules = async (updatedRules) => {
     try {
-      const res = await fetch("http://localhost:8000/rules", {
+      const res = await fetch("${API_BASE_URL}/rules", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -94,7 +96,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchAuditLog = async (ruleId) => {
     try {
-      const res = await fetch(`http://localhost:8000/feedback/${ruleId}`, {
+      const res = await fetch(`${API_BASE_URL}/feedback/${ruleId}`, {
         headers: await getAuthHeaders(),
       });
       const log = await res.json();

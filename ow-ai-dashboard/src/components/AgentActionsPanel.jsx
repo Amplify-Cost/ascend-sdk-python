@@ -15,10 +15,11 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   });
 
   const actionsPerPage = 5;
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   const fetchAgentActions = async () => {
     try {
-      const response = await fetch("http://localhost:8000/agent-actions", {
+      const response = await fetch(`${API_BASE_URL}/agent-actions`, {
         headers: await getAuthHeaders(),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -31,13 +32,10 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
 
   const updateActionStatus = async (id, statusType) => {
     try {
-      const res = await fetch(
-        `http://localhost:8000/agent-action/${id}/${statusType}`,
-        {
-          method: "POST",
-          headers: await getAuthHeaders(),
-        }
-      );
+      const res = await fetch(`${API_BASE_URL}/agent-action/${id}/${statusType}`, {
+        method: "POST",
+        headers: await getAuthHeaders(),
+      });
       if (res.ok) {
         await fetchAgentActions();
       } else {
@@ -50,7 +48,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
 
   const generateSmartRule = async (action) => {
     try {
-      const res = await fetch("http://localhost:8000/rules/generate-smart-rule", {
+      const res = await fetch(`${API_BASE_URL}/rules/generate-smart-rule`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -75,7 +73,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
 
   const approveRule = async () => {
     try {
-      const res = await fetch("http://localhost:8000/rules", {
+      const res = await fetch(`${API_BASE_URL}/rules`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -164,14 +162,12 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
                       </>
                     )}
                     {user?.role === "admin" && (
-                      <>
-                        <button
-                          onClick={() => generateSmartRule(action)}
-                          className="px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600"
-                        >
-                          Smart Rule
-                        </button>
-                      </>
+                      <button
+                        onClick={() => generateSmartRule(action)}
+                        className="px-2 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600"
+                      >
+                        Smart Rule
+                      </button>
                     )}
                   </td>
                 </tr>

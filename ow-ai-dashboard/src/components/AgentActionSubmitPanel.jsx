@@ -8,15 +8,20 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
     setError(null);
 
     try {
-      const res = await fetch("http://localhost:8000/agent-actions", {
+      const res = await fetch(`${API_BASE_URL}/agent-actions`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           agent_id: agentId,
           action_type: actionType,
@@ -27,12 +32,14 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       });
 
       if (!res.ok) throw new Error("Failed to submit agent action");
+
       setMessage("✅ Agent action submitted successfully.");
       setAgentId("");
       setActionType("");
       setToolName("");
       setDescription("");
     } catch (err) {
+      console.error("Submit error:", err);
       setError("❌ Submission failed.");
     }
   };

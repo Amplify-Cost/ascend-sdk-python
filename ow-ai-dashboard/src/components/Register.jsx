@@ -1,3 +1,5 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 import React, { useState } from "react";
 
 const Register = ({ onRegisterSuccess, switchToLogin }) => {
@@ -17,7 +19,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
     }
 
     try {
-      const registerRes = await fetch("http://localhost:8000/auth/register", {
+      const registerRes = await fetch("${API_BASE_URL}/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, role }), // 🆕 Include role
@@ -31,7 +33,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
       }
 
       // Auto-login after successful registration
-      const loginRes = await fetch("http://localhost:8000/auth/token", {
+      const loginRes = await fetch("${API_BASE_URL}/auth/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
