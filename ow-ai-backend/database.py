@@ -1,14 +1,12 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Database URL (default: SQLite for local dev; can be replaced with PostgreSQL/MySQL)
-SQLALCHEMY_DATABASE_URL = "sqlite:///./owai.db"
+# Use the PostgreSQL URL from Railway environment variables
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Create SQLAlchemy engine
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}  # Only needed for SQLite
-)
+# Create SQLAlchemy engine (PostgreSQL does not need special connect args)
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -23,3 +21,4 @@ def get_db():
         yield db
     finally:
         db.close()
+
