@@ -1,0 +1,69 @@
+import React from "react";
+import {
+  Home,
+  Activity,
+  AlertCircle,
+  LogOut,
+  BarChart,
+  FileText,
+  ClipboardList,
+  LifeBuoy,
+  User,
+  Settings,
+  Zap,
+} from "lucide-react";
+
+const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
+  const navItems = [
+    { label: "Dashboard", icon: <Home size={18} />, tab: "dashboard" },
+    { label: "Alerts", icon: <AlertCircle size={18} />, tab: "alerts" },
+    { label: "Agent Actions", icon: <ClipboardList size={18} />, tab: "actions" },
+    { label: "Activity Feed", icon: <Activity size={18} />, tab: "activity" },
+    { label: "Rules", icon: <FileText size={18} />, tab: "rules" },
+    { label: "Smart Rule Gen", icon: <Zap size={18} />, tab: "smartRules" },
+    { label: "Security Insights", icon: <BarChart size={18} />, tab: "analytics" },
+    { label: "Submit Action", icon: <LifeBuoy size={18} />, tab: "support" },
+    { label: "Profile", icon: <User size={18} />, tab: "profile" },
+  ];
+
+  return (
+    <aside className="w-64 bg-gray-900 text-white flex flex-col">
+      <div className="text-2xl font-bold px-6 py-4 border-b border-gray-700">
+        OW-AI
+      </div>
+      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
+        {navItems.map((item) => (
+          <button
+            key={item.tab}
+            className={`flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition ${
+              activeTab === item.tab
+                ? "bg-blue-600 text-white"
+                : "text-gray-300 hover:bg-gray-800 hover:text-white"
+            }`}
+            onClick={() => onNavigate(item.tab)}
+          >
+            {item.icon}
+            <span className="ml-3">{item.label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="border-t border-gray-700 p-4">
+        <p className="text-sm text-gray-400 mb-2">Logged in as:</p>
+        <p className="text-sm font-medium">{user?.email}</p>
+        {user?.role === "admin" && (
+          <span className="inline-block mt-1 text-xs text-blue-400 bg-gray-800 px-2 py-1 rounded-full">
+            🛡️ Admin
+          </span>
+        )}
+        <button
+          onClick={onLogout}
+          className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-2 rounded-md transition"
+        >
+          <LogOut size={16} className="inline mr-2" /> Logout
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;

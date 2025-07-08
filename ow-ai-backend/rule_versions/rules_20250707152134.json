@@ -1,0 +1,23 @@
+[
+  {
+    "id": "agent-087-data_exfiltration test",
+    "agent_id": "agent-087",
+    "action_type": "data_exfiltration test",
+    "description": "one",
+    "condition": "agent_id == 'agent-087' and action_type == 'data_exfiltration test'",
+    "action": "alert",
+    "risk_level": "medium",
+    "recommendation": "Review this behavior pattern for anomalies.",
+    "justification": "Review this behavior pattern for anomalies."
+  },
+  {
+    "id": "agent-002-data_exfiltration",
+    "agent_id": "agent-002",
+    "action_type": "data_exfiltration",
+    "description": "test123",
+    "condition": "agent_id == 'agent-002' and action_type == 'data_exfiltration'",
+    "action": "alert",
+    "risk_level": "medium",
+    "recommendation": "Review this behavior pattern for anomalies."
+  }
+]
