@@ -34,7 +34,7 @@ app = FastAPI(
 )
 
 # Initialize DB
-Base.metadata.create_all(bind=engine)
+#Base.metadata.create_all(bind=engine)
 
 # CORS settings
 origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
@@ -56,15 +56,20 @@ app.add_middleware(SlowAPIMiddleware)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again soon."})
 
+import logging
+logging.basicConfig(level=logging.INFO)
+logging.info("✅ FastAPI app started successfully.")
+
+
 # Include all routers
-app.include_router(auth_router)
-app.include_router(main_router)
-app.include_router(analytics_router)
-app.include_router(agent_router)
-app.include_router(rule_router)
-app.include_router(alert_summary_router)
-app.include_router(alerts_router)
-app.include_router(smart_rule_router)
+#app.include_router(auth_router)
+#pp.include_router(main_router)
+#app.include_router(analytics_router)
+#app.include_router(agent_router)
+#app.include_router(rule_router)
+#app.include_router(alert_summary_router)
+#app.include_router(alerts_router)
+#app.include_router(smart_rule_router)
 
 # Health check
 @app.get("/")
@@ -105,3 +110,9 @@ def get_analytics_trends():
             }
         ]
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    print("🚀 Launching FastAPI with uvicorn manually...")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
