@@ -63,13 +63,13 @@ logging.info("✅ FastAPI app started successfully.")
 
 # Include all routers
 app.include_router(auth_router)
-#pp.include_router(main_router)
-#app.include_router(analytics_router)
-#app.include_router(agent_router)
-#app.include_router(rule_router)
-#app.include_router(alert_summary_router)
-#app.include_router(alerts_router)
-#app.include_router(smart_rule_router)
+app.include_router(main_router)
+app.include_router(analytics_router)
+app.include_router(agent_router)
+app.include_router(rule_router)
+app.include_router(alert_summary_router)
+app.include_router(alerts_router)
+app.include_router(smart_rule_router)
 
 # Health check
 @app.get("/")
