@@ -24,29 +24,24 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 
-# Setup OAuth2 security scheme so Swagger shows the "Authorize" button
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+# ✅ CORS must be applied before app.include_router(...)
+origins = [
+    "https://passionate-elegance-production.up.railway.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+]
 
+# Initialize FastAPI
 app = FastAPI(
     title="OW-AI Backend API",
     description="Use the Authorize button above to authenticate with your Bearer token.",
     version="1.0.0"
 )
 
-# Initialize DB
-Base.metadata.create_all(bind=engine)
-
-# CORS settings
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://passionate-elegance-production.up.railway.app"
-]
-
-
+# ✅ Apply CORS here before including any routers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now — switch to strict for prod
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,11 +56,13 @@ app.add_middleware(SlowAPIMiddleware)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again soon."})
 
-import logging
-logging.basicConfig(level=logging.INFO)
-logging.info("✅ FastAPI app started successfully.")
+# Setup OAuth2 security scheme
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# Include all routers
+# Initialize DB
+Base.metadata.create_all(bind=engine)
+
+# ✅ Routers after middleware
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router)
@@ -115,6 +112,7 @@ def get_analytics_trends():
         ]
     }
 
+# Local dev entrypoint
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Launching FastAPI with uvicorn manually...")
