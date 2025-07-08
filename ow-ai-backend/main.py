@@ -62,7 +62,7 @@ logging.info("✅ FastAPI app started successfully.")
 
 
 # Include all routers
-#app.include_router(auth_router)
+app.include_router(auth_router)
 #pp.include_router(main_router)
 #app.include_router(analytics_router)
 #app.include_router(agent_router)
