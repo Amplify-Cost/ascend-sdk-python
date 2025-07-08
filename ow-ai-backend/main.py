@@ -34,10 +34,15 @@ app = FastAPI(
 )
 
 # Initialize DB
-#Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 # CORS settings
-origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://passionate-elegance-production.up.railway.app",  # ✅ Allow deployed frontend
+    "https://*.railway.app"  # Optional: wildcard for previews
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,7 +64,6 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 import logging
 logging.basicConfig(level=logging.INFO)
 logging.info("✅ FastAPI app started successfully.")
-
 
 # Include all routers
 app.include_router(auth_router)
@@ -115,4 +119,3 @@ if __name__ == "__main__":
     import uvicorn
     print("🚀 Launching FastAPI with uvicorn manually...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-
