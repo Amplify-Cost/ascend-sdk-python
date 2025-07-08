@@ -7,4 +7,3 @@ psycopg2-binary
 openai
 slowapi
 passlib[bcrypt]
-
