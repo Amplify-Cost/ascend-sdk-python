@@ -6,14 +6,14 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // ✅ Added
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
 
     try {
-      const res = await fetch("${API_BASE_URL}/auth/token", {
+      const res = await fetch(`${API_BASE_URL}/auth/token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -49,7 +49,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
             required
           />
           <input
-            type={showPassword ? "text" : "password"} // ✅ toggle visibility
+            type={showPassword ? "text" : "password"}
             placeholder="Password"
             className="w-full px-4 py-2 border rounded-lg"
             value=REDACTED-CREDENTIAL

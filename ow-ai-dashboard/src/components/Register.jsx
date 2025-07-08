@@ -6,7 +6,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("user"); // 🆕 Role state
+  const [role, setRole] = useState("user");
   const [error, setError] = useState("");
 
   const handleRegister = async (e) => {
@@ -19,10 +19,10 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
     }
 
     try {
-      const registerRes = await fetch("${API_BASE_URL}/auth/register", {
+      const registerRes = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }), // 🆕 Include role
+        body: JSON.stringify({ email, password, role }),
       });
 
       const registerData = await registerRes.json();
@@ -32,8 +32,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
         return;
       }
 
-      // Auto-login after successful registration
-      const loginRes = await fetch("${API_BASE_URL}/auth/token", {
+      const loginRes = await fetch(`${API_BASE_URL}/auth/token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -83,7 +82,6 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
             required
           />
 
-          {/* 🆕 Role Dropdown */}
           <select
             value={role}
             onChange={(e) => setRole(e.target.value)}
