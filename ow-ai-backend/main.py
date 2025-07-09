@@ -2,9 +2,6 @@ from dotenv import load_dotenv
 import openai
 import os
 
-load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -24,7 +21,11 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 
-# ✅ Load allowed frontend origins from .env or Railway variable
+# ✅ Load env and API key
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# ✅ Set CORS origins (Production-safe)
 allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS")
 if allowed_origins:
     origins = [origin.strip() for origin in allowed_origins.split(",")]
@@ -42,7 +43,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ✅ Apply CORS settings
+# ✅ Apply CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -51,7 +52,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Rate limiting setup
+# ✅ Apply rate limiting
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
@@ -63,10 +64,10 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
 # ✅ OAuth2 token setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# ✅ Initialize DB schema
+# ✅ Initialize database
 Base.metadata.create_all(bind=engine)
 
-# ✅ Include routers
+# ✅ Route registration
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router)
@@ -76,12 +77,12 @@ app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
 
-# ✅ Health check endpoint
+# ✅ Health check
 @app.get("/")
 def health_check():
     return {"status": "OW-AI Backend is running"}
 
-# ✅ Mock analytics data (optional)
+# ✅ Mock analytics (demo)
 @app.get("/analytics/trends")
 def get_analytics_trends():
     return {
@@ -116,7 +117,7 @@ def get_analytics_trends():
         ]
     }
 
-# ✅ Local dev entrypoint
+# ✅ Local dev launch
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Launching FastAPI with uvicorn manually...")
