@@ -24,18 +24,25 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 
-# ✅ Fallback to allow all origins temporarily for CORS troubleshooting
-origins = ["*"]
-print("✅ CORS Allowed Origins (debug mode):", origins)
+# ✅ Load allowed frontend origins from .env or Railway variable
+allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS")
+if allowed_origins:
+    origins = [origin.strip() for origin in allowed_origins.split(",")]
+else:
+    origins = [
+        "https://passionate-elegance-production.up.railway.app"
+    ]
 
-# Initialize FastAPI
+print("✅ CORS Allowed Origins:", origins)
+
+# ✅ Initialize FastAPI
 app = FastAPI(
     title="OW-AI Backend API",
     description="Use the Authorize button above to authenticate with your Bearer token.",
     version="1.0.0"
 )
 
-# ✅ Apply CORS before routers
+# ✅ Apply CORS settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -44,7 +51,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Rate limiting
+# ✅ Rate limiting setup
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
@@ -53,13 +60,13 @@ app.add_middleware(SlowAPIMiddleware)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again soon."})
 
-# OAuth2 token dependency
+# ✅ OAuth2 token setup
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# Initialize database schema
+# ✅ Initialize DB schema
 Base.metadata.create_all(bind=engine)
 
-# ✅ Routers
+# ✅ Include routers
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router)
@@ -69,12 +76,12 @@ app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
 
-# Health check
+# ✅ Health check endpoint
 @app.get("/")
 def health_check():
     return {"status": "OW-AI Backend is running"}
 
-# Mock analytics data
+# ✅ Mock analytics data (optional)
 @app.get("/analytics/trends")
 def get_analytics_trends():
     return {
@@ -109,7 +116,7 @@ def get_analytics_trends():
         ]
     }
 
-# Local run
+# ✅ Local dev entrypoint
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Launching FastAPI with uvicorn manually...")
