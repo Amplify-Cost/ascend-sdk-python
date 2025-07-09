@@ -24,12 +24,9 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 
-# ✅ CORS must be applied before app.include_router(...)
-origins = [
-    "https://passionate-elegance-production.up.railway.app",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173"
-]
+# ✅ Fallback to allow all origins temporarily for CORS troubleshooting
+origins = ["*"]
+print("✅ CORS Allowed Origins (debug mode):", origins)
 
 # Initialize FastAPI
 app = FastAPI(
@@ -38,7 +35,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# ✅ Apply CORS here before including any routers
+# ✅ Apply CORS before routers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -56,13 +53,13 @@ app.add_middleware(SlowAPIMiddleware)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again soon."})
 
-# Setup OAuth2 security scheme
+# OAuth2 token dependency
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# Initialize DB
+# Initialize database schema
 Base.metadata.create_all(bind=engine)
 
-# ✅ Routers after middleware
+# ✅ Routers
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router)
@@ -77,7 +74,7 @@ app.include_router(smart_rule_router)
 def health_check():
     return {"status": "OW-AI Backend is running"}
 
-# Analytics mock data endpoint
+# Mock analytics data
 @app.get("/analytics/trends")
 def get_analytics_trends():
     return {
@@ -112,7 +109,7 @@ def get_analytics_trends():
         ]
     }
 
-# Local dev entrypoint
+# Local run
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Launching FastAPI with uvicorn manually...")
