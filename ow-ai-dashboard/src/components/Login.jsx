@@ -1,6 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
 import React, { useState } from "react";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
   const [email, setEmail] = useState("");
@@ -27,7 +27,14 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         return;
       }
 
-      localStorage.setItem("token", data.access_token);
+      // ✅ Store as access_token to match fetchWithAuth.js
+      localStorage.setItem("access_token", data.access_token);
+      
+      // ✅ Store refresh token if provided
+      if (data.refresh_token) {
+        localStorage.setItem("refresh_token", data.refresh_token);
+      }
+
       onLoginSuccess(data.access_token);
     } catch (err) {
       console.error("Login error:", err);

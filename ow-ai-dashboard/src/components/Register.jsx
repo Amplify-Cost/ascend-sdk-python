@@ -1,6 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
-
 import React, { useState } from "react";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const Register = ({ onRegisterSuccess, switchToLogin }) => {
   const [email, setEmail] = useState("");
@@ -43,6 +43,14 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
       if (!loginRes.ok) {
         setError("Registered but login failed. Please try logging in manually.");
         return;
+      }
+
+      // ✅ Store as access_token to match fetchWithAuth.js
+      localStorage.setItem("access_token", loginData.access_token);
+      
+      // ✅ Store refresh token if provided
+      if (loginData.refresh_token) {
+        localStorage.setItem("refresh_token", loginData.refresh_token);
       }
 
       onRegisterSuccess(loginData.access_token);

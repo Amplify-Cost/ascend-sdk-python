@@ -12,10 +12,11 @@ import Analytics from "./components/Analytics";
 import SubmitActionForm from "./components/SubmitActionForm";
 import AlertPanel from "./components/AlertPanel";
 import SmartRuleGen from "./components/SmartRuleGen";
-import RulesPanel from "./components/RulesPanel"; // ✅ NEW import
-import { fetchWithAuth } from "./utils/fetchWithAuth";
+import RulesPanel from "./components/RulesPanel";
 import SecurityInsights from "./components/SecurityInsights";
+import { fetchWithAuth } from "./utils/fetchWithAuth"; // ✅ Keep this import
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
 const Profile = ({ user, onUpdateProfile }) => {
   const [email, setEmail] = useState(user?.email || "");
@@ -63,13 +64,13 @@ const Profile = ({ user, onUpdateProfile }) => {
 
 const App = () => {
   const [view, setView] = useState("login");
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [token, setToken] = useState(localStorage.getItem("access_token") || ""); // ✅ Changed to access_token
   const [user, setUser] = useState(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
+    const storedToken = localStorage.getItem("access_token"); // ✅ Changed to access_token
     if (storedToken) {
       try {
         const decoded = jwtDecode(storedToken);
@@ -94,7 +95,7 @@ const App = () => {
         }
       } catch (err) {
         console.error("Invalid token", err);
-        localStorage.removeItem("token");
+        localStorage.removeItem("access_token"); // ✅ Changed to access_token
         setToken("");
         setUser(null);
         setView("login");
@@ -103,7 +104,7 @@ const App = () => {
   }, []);
 
   const handleLoginSuccess = (receivedToken) => {
-    localStorage.setItem("token", receivedToken);
+    localStorage.setItem("access_token", receivedToken); // ✅ Changed to access_token
     const decoded = jwtDecode(receivedToken);
     setUser({
       id: decoded.sub,
@@ -115,7 +116,8 @@ const App = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("access_token"); // ✅ Changed to access_token
+    localStorage.removeItem("refresh_token"); // ✅ Also clear refresh token
     setToken("");
     setUser(null);
     setView("login");
@@ -123,7 +125,7 @@ const App = () => {
 
   const handleProfileUpdate = async ({ email, password }) => {
     try {
-      const res = await fetchWithAuth(`${import.meta.env.VITE_API_URL}/auth/update-profile`, {
+      const res = await fetchWithAuth(`${API_BASE_URL}/auth/update-profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })
@@ -149,14 +151,13 @@ const App = () => {
       case "alerts":
         return user?.role === "admin" ? <AlertPanel getAuthHeaders={getAuthHeaders} /> : null;
       case "rules":
-        return user?.role === "admin" ? <RulesPanel getAuthHeaders={getAuthHeaders} /> : null; // ✅ Real panel
+        return user?.role === "admin" ? <RulesPanel getAuthHeaders={getAuthHeaders} /> : null;
       case "support":
         return <SubmitActionForm getAuthHeaders={getAuthHeaders} user={user} />;
       case "profile":
         return <Profile user={user} onUpdateProfile={handleProfileUpdate} />;
       case "insights":
         return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
-
       case "smartRules":
         return user?.role === "admin" ? <SmartRuleGen getAuthHeaders={getAuthHeaders} /> : null;
       default:
@@ -209,5 +210,3 @@ const App = () => {
 };
 
 export default App;
-
-
