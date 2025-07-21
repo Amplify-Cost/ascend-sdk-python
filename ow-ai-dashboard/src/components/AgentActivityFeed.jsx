@@ -41,7 +41,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
 
   const toggleFalsePositive = async (id) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/agent-action/false-positive/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/agent-action/${id}/false-positive`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -233,4 +233,4 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   );
 };
 
-export default AgentActivityFeed; 
+export default AgentActivityFeed;
