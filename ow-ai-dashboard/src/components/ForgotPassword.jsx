@@ -5,13 +5,14 @@ const ForgotPassword = ({ switchToLogin }) => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   const handleRequestReset = async (e) => {
     e.preventDefault();
     setError("");
     setMessage("");
     try {
-      const response = await fetch("http://localhost:8000/auth/request-reset", {
+      const response = await fetch(`${API_BASE_URL}/auth/request-reset`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

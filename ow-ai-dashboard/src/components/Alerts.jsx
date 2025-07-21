@@ -16,10 +16,12 @@ const Alerts = ({ getAuthHeaders }) => {
   const [summaryError, setSummaryError] = useState("");
   const [summaryResult, setSummaryResult] = useState("");
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
-        const res = await fetch("http://localhost:8000/alerts", {
+        const res = await fetch(`${API_BASE_URL}/alerts`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch alerts");
@@ -51,7 +53,7 @@ const Alerts = ({ getAuthHeaders }) => {
         (a) =>
           `Agent ${a.agent_id} using ${a.tool_name} triggered: ${a.message} (Risk: ${a.risk_level})`
       );
-      const res = await fetch("http://localhost:8000/alerts/summary", {
+      const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),

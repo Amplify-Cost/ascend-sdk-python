@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 
 const AuditTrailModal = ({ token, actionId, onClose }) => {
   const [auditLogs, setAuditLogs] = useState([]);
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   const fetchAuditLogs = async () => {
     try {
-      const res = await fetch("http://localhost:8000/audit-trail", {
+      const res = await fetch(`${API_BASE_URL}/audit-trail`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

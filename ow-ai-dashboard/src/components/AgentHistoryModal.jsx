@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 
 const AgentHistoryModal = ({ agentId, onClose, getAuthHeaders }) => {
   const [actions, setActions] = useState([]);
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     if (agentId) {
-      fetch(`http://localhost:8000/agent-actions?agent_id=${agentId}`, {
+      fetch(`${API_BASE_URL}/agent-actions?agent_id=${agentId}`, {
         headers: getAuthHeaders(),
       })
         .then((res) => res.json())
