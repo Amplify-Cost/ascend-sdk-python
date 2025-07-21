@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from database import get_db
 from models import AgentAction
 from datetime import datetime, timedelta
@@ -7,7 +8,6 @@ from collections import defaultdict, Counter
 
 router = APIRouter()
 
-# ✅ FIXED: Route is now just "/trends" so with prefix="/analytics" it's "/analytics/trends"
 @router.get("/trends")
 def get_trend_data(db: Session = Depends(get_db)):
     now = datetime.utcnow()
@@ -25,26 +25,14 @@ def get_trend_data(db: Session = Depends(get_db)):
     tool_counter = Counter()
 
     for action in raw_actions:
-        date_str = action.timestamp.strftime("%Y-%m-%d")
-        if action.risk_level == "high":
+        # 🔧 Fix: normalize risk_level comparison to lowercase
+        if action.risk_level and action.risk_level.lower() == "high":
+            date_str = action.timestamp.strftime("%Y-%m-%d")
             daily_counts[date_str] += 1
         if action.agent_id:
             agent_counter[action.agent_id] += 1
         if action.tool_name:
             tool_counter[action.tool_name] += 1
-
-    high_risk_actions_by_day = [
-        {"date": date, "count": count}
-        for date, count in sorted(daily_counts.items())
-    ]
-    top_agents = [
-        {"agent": agent, "count": count}
-        for agent, count in agent_counter.most_common(5)
-    ]
-    top_tools = [
-        {"tool": tool, "count": count}
-        for tool, count in tool_counter.most_common(5)
-    ]
 
     enriched_actions = (
         db.query(AgentAction)
@@ -66,16 +54,29 @@ def get_trend_data(db: Session = Depends(get_db)):
     ]
 
     return {
-        "high_risk_actions_by_day": high_risk_actions_by_day,
-        "top_agents": top_agents,
-        "top_tools": top_tools,
-        "enriched_actions": enriched_data,
+        "high_risk_actions_by_day": [
+            {"date": date, "count": count}
+            for date, count in sorted(daily_counts.items())
+        ],
+        "top_agents": [
+            {"agent": agent, "count": count}
+            for agent, count in agent_counter.most_common(5)
+        ],
+        "top_tools": [
+            {"tool": tool, "count": count}
+            for tool, count in tool_counter.most_common(5)
+        ],
+        "enriched_actions": enriched_data
     }
 
-# ✅ Also fix this route to be just "/debug"
 @router.get("/debug")
 def debug_enriched_actions(db: Session = Depends(get_db)):
-    actions = db.query(AgentAction).order_by(AgentAction.timestamp.desc()).limit(5).all()
+    actions = (
+        db.query(AgentAction)
+        .order_by(AgentAction.timestamp.desc())
+        .limit(5)
+        .all()
+    )
     return [
         {
             "id": a.id,

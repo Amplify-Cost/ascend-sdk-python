@@ -4,8 +4,6 @@ from models import SmartRule
 from schemas import SmartRuleOut
 from database import get_db
 from datetime import datetime
-# If you ever need raw SQL, import this:
-# from sqlalchemy import text
 
 router = APIRouter()
 
@@ -22,24 +20,19 @@ def delete_smart_rule(rule_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Smart rule deleted"}
 
-@router.post("/test-add-smart-rule")
-def add_test_rule(db: Session = Depends(get_db)):
-    rule = SmartRule(
-        agent_id="test-agent",
-        action_type="network_access",
-        description="Agent accessed external domain",
-        condition="if domain not in allowlist",
-        action="flag for review",
+@router.post("/smart-rules/seed")
+def seed_smart_rules(db: Session = Depends(get_db)):
+    demo_rule = SmartRule(
+        agent_id="demo-agent",
+        action_type="login_failure",
+        description="Multiple failed logins",
+        condition="login_attempts > 5",
+        action="lock account",
         risk_level="High",
-        recommendation="Block unapproved domains",
-        justification="Unusual outbound traffic",
+        recommendation="Monitor failed logins",
+        justification="Suspicious login activity",
         created_at=datetime.utcnow()
     )
-    db.add(rule)
+    db.add(demo_rule)
     db.commit()
-    return {"message": "Test rule added"}
-
-# 🛠️ NOTE: If you ever use raw SQL like this:
-# db.execute("INSERT INTO smart_rules (...) VALUES (...)")
-# You must do:
-# db.execute(text("INSERT INTO smart_rules (...) VALUES (...)"))
+    return {"message": "✅ Demo SmartRule seeded"}

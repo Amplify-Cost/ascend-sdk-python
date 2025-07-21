@@ -88,3 +88,16 @@ class SmartRule(Base):
     recommendation = Column(Text)
     justification = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)    
+
+
+class Rule(Base):
+    __tablename__ = "rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(String)
+    condition = Column(String)
+    action = Column(String)
+    risk_level = Column(String)
+    recommendation = Column(String)
+    justification = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
