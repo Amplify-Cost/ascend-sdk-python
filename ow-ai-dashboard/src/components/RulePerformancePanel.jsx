@@ -4,11 +4,12 @@ const RulePerformancePanel = ({ getAuthHeaders }) => {
   const [performance, setPerformance] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const fetchPerformance = async () => {
       try {
-        const res = await fetch("http://localhost:8000/rules/performance", {
+        const res = await fetch(`${API_BASE_URL}/rules/performance`, {
           headers: await getAuthHeaders(),
         });
         const data = await res.json();

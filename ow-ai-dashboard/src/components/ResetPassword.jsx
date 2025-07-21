@@ -3,13 +3,14 @@ import React, { useState } from "react";
 const ResetPassword = ({ token, switchToLogin }) => {
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   const handleReset = async (e) => {
     e.preventDefault();
     setMessage("");
 
     try {
-      const res = await fetch("http://localhost:8000/auth/reset-password", {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, new_password: newPassword }),

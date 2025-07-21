@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 
 const ManageUsers = () => {
   const [users, setUsers] = useState([]);
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   const fetchUsers = async () => {
     const token = localStorage.getItem("token");
-    const res = await fetch("http://localhost:8000/users", {
+    const res = await fetch(`${API_BASE_URL}/users`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

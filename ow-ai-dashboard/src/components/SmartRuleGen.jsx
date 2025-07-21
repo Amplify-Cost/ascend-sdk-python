@@ -10,7 +10,7 @@ const SmartRuleGen = ({ getAuthHeaders }) => {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules", {
+      const res = await fetch(`${API_BASE_URL}/rules`, {
         headers: await getAuthHeaders(),
       });
       if (!res.ok) throw new Error("Failed to fetch rules");

@@ -3,10 +3,11 @@ import React, { useEffect, useState } from "react";
 const SecurityDetails = ({ log, onClose }) => {
   const [auditTrail, setAuditTrail] = useState([]);
   const [error, setError] = useState(null);
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     if (log?.id) {
-      fetch(`http://localhost:8000/log/${log.id}/audit`, {
+      fetch(`${API_BASE_URL}/log/${log.id}/audit`, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,

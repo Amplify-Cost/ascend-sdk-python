@@ -11,6 +11,8 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     setTimestamp(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   }, []);
@@ -37,7 +39,7 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
 
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:8000/agent-action", {
+      const res = await fetch(`${API_BASE_URL}/agent-action`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

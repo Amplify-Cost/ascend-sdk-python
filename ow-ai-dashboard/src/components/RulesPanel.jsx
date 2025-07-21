@@ -17,7 +17,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchRules = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules", {
+      const res = await fetch(`${API_BASE_URL}/rules`, {
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
@@ -29,7 +29,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchVersionHistory = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules/history", {
+      const res = await fetch(`${API_BASE_URL}/rules/history`, {
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
@@ -41,7 +41,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const rollbackRules = async (filename) => {
     try {
-      await fetch("${API_BASE_URL}/rules/rollback", {
+      await fetch(`${API_BASE_URL}/rules/rollback`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -57,7 +57,7 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const updateRules = async (updatedRules) => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules", {
+      const res = await fetch(`${API_BASE_URL}/rules`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

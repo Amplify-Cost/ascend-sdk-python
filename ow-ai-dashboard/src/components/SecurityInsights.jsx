@@ -18,12 +18,12 @@ const SecurityInsights = ({ getAuthHeaders }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const BASE_URL = "http://localhost:8000";
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const fetchInsights = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/analytics/trends`, {
+        const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch insights data");

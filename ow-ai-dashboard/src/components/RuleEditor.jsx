@@ -13,7 +13,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
   useEffect(() => {
     const fetchRules = async () => {
       try {
-        const res = await fetch("${API_BASE_URL}/rules", {
+        const res = await fetch(`${API_BASE_URL}/rules`, {
           headers: getAuthHeaders(),
         });
         const data = await res.json();
@@ -25,7 +25,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
 
     const fetchHistory = async () => {
       try {
-        const res = await fetch("${API_BASE_URL}/rules/history", {
+        const res = await fetch(`${API_BASE_URL}/rules/history`, {
           headers: getAuthHeaders(),
         });
         const data = await res.json();
@@ -57,7 +57,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
 
   const saveRules = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules", {
+      const res = await fetch(`${API_BASE_URL}/rules`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(rules),
@@ -65,7 +65,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       const data = await res.json();
       setMessage(data.message || "✅ Rules updated");
 
-      const historyRes = await fetch("${API_BASE_URL}/rules/history", {
+      const historyRes = await fetch(`${API_BASE_URL}/rules/history`, {
         headers: getAuthHeaders(),
       });
       const historyData = await historyRes.json();
@@ -78,7 +78,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
   const rollbackRules = async (index) => {
     const filename = versionHistory[index];
     try {
-      const res = await fetch("${API_BASE_URL}/rules/rollback", {
+      const res = await fetch(`${API_BASE_URL}/rules/rollback`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({ filename }),
@@ -86,7 +86,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       const data = await res.json();
       setMessage(data.message || "✅ Rolled back");
 
-      const updatedRules = await fetch("${API_BASE_URL}/rules", {
+      const updatedRules = await fetch(`${API_BASE_URL}/rules`, {
         headers: getAuthHeaders(),
       });
       const rulesData = await updatedRules.json();
@@ -98,7 +98,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
 
   const previewRules = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules/preview", {
+      const res = await fetch(`${API_BASE_URL}/rules/preview`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(rules),
@@ -112,7 +112,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
 
   const generateSmartRule = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules/generate-smart-rule", {
+      const res = await fetch(`${API_BASE_URL}/rules/generate-smart-rule`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -148,7 +148,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
 
   const approveSmartRule = async () => {
     try {
-      const res = await fetch("${API_BASE_URL}/rules/approve", {
+      const res = await fetch(`${API_BASE_URL}/rules/approve`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
