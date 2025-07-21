@@ -14,12 +14,14 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const [uploadStatus, setUploadStatus] = useState("");
   const itemsPerPage = 5;
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
   const fetchActivity = async () => {
     try {
       const url =
         selectedRisk === "all"
-          ? "http://localhost:8000/agent-activity"
-          : `http://localhost:8000/agent-activity?risk=${selectedRisk}`;
+          ? `${API_BASE_URL}/agent-activity`
+          : `${API_BASE_URL}/agent-activity?risk=${selectedRisk}`;
       const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error("Failed to fetch agent activity");
       const data = await res.json();
@@ -39,7 +41,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
 
   const toggleFalsePositive = async (id) => {
     try {
-      const res = await fetch(`http://localhost:8000/agent-action/false-positive/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/agent-action/false-positive/${id}`, {
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -52,7 +54,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const handleSupportSubmit = async () => {
     setSupportStatus("");
     try {
-      const res = await fetch("http://localhost:8000/support/submit", {
+      const res = await fetch(`${API_BASE_URL}/support/submit`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -80,7 +82,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
     formData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/agent-actions/upload-json", {
+      const res = await fetch(`${API_BASE_URL}/agent-actions/upload-json`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: formData,
@@ -231,4 +233,4 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   );
 };
 
-export default AgentActivityFeed;
+export default AgentActivityFeed; 

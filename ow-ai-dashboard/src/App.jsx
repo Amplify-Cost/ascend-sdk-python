@@ -123,7 +123,7 @@ const App = () => {
 
   const handleProfileUpdate = async ({ email, password }) => {
     try {
-      const res = await fetchWithAuth("http://localhost:8000/auth/update-profile", {
+      const res = await fetchWithAuth(`${import.meta.env.VITE_API_URL}/auth/update-profile`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password })

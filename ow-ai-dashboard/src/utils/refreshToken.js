@@ -3,7 +3,7 @@ export async function refreshToken() {
     if (!token) return null;
   
     try {
-      const response = await fetch("http://localhost:8000/auth/refresh", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/refresh`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

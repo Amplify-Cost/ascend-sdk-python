@@ -13,7 +13,7 @@ export async function fetchWithAuth(url, options = {}) {
   let response = await fetch(url, options);
 
   if (response.status === 401 && refreshToken) {
-    const refreshResponse = await fetch("http://127.0.0.1:8000/auth/refresh-token", {
+    const refreshResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/refresh-token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
