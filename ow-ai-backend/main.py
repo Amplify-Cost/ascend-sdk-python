@@ -21,29 +21,25 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 
-# ✅ Load env and API key
+# ✅ Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# ✅ Set CORS origins (Production-safe)
-allowed_origins = os.getenv("CORS_ALLOWED_ORIGINS")
-if allowed_origins:
-    origins = [origin.strip() for origin in allowed_origins.split(",")]
-else:
-    origins = [
-        "https://passionate-elegance-production.up.railway.app"
-    ]
+# ✅ Define allowed origins explicitly
+origins = [
+    "https://passionate-elegance-production.up.railway.app"
+]
 
 print("✅ CORS Allowed Origins:", origins)
 
-# ✅ Initialize FastAPI
+# ✅ Initialize FastAPI app
 app = FastAPI(
     title="OW-AI Backend API",
     description="Use the Authorize button above to authenticate with your Bearer token.",
     version="1.0.0"
 )
 
-# ✅ Apply hardened CORS middleware
+# 🔐 CORS middleware must be added BEFORE any routes are included!
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -52,7 +48,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# ✅ Apply rate limiting
+# ✅ Add rate limiting middleware
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
@@ -61,13 +57,13 @@ app.add_middleware(SlowAPIMiddleware)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again soon."})
 
-# ✅ OAuth2 token setup
+# ✅ OAuth2 token scheme for protected routes
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
-# ✅ Initialize database
+# ✅ DB initialization
 Base.metadata.create_all(bind=engine)
 
-# ✅ Route registration
+# ✅ Register routers
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router)
@@ -77,47 +73,12 @@ app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
 
-# ✅ Health check
+# ✅ Health check route
 @app.get("/")
 def health_check():
     return {"status": "OW-AI Backend is running"}
 
-# ✅ Mock analytics (demo)
-@app.get("/analytics/trends")
-def get_analytics_trends():
-    return {
-        "high_risk_daily": [
-            {"date": "2025-06-18", "count": 4},
-            {"date": "2025-06-19", "count": 7},
-            {"date": "2025-06-20", "count": 5}
-        ],
-        "top_agents": [
-            {"agent": "Agent001", "count": 10},
-            {"agent": "Agent002", "count": 8}
-        ],
-        "top_tools": [
-            {"tool": "ToolA", "count": 6},
-            {"tool": "ToolB", "count": 4}
-        ],
-        "enriched_actions": [
-            {
-                "agent_id": "Agent001",
-                "risk_level": "High",
-                "mitre_tactic": "Initial Access",
-                "nist_control": "AC-2",
-                "recommendation": "Review and limit access controls"
-            },
-            {
-                "agent_id": "Agent002",
-                "risk_level": "Medium",
-                "mitre_tactic": "Privilege Escalation",
-                "nist_control": "AU-6",
-                "recommendation": "Monitor privilege use"
-            }
-        ]
-    }
-
-# ✅ Local dev launch
+# ✅ Local dev launcher
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Launching FastAPI with uvicorn manually...")
