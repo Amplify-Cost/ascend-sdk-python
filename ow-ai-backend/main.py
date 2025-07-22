@@ -65,7 +65,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # CORS middleware - must be added BEFORE routes
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=["*"], #temp for testing
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
@@ -165,3 +165,13 @@ app.include_router(alerts_router)
 app.include_router(smart_rule_router)  # This should use the prefix="/smart-rules"
 app.include_router(admin_router)  # Add this new line
 """
+
+# Add to main.py - temporary debug endpoint
+@app.get("/debug/env")
+async def debug_env():
+    return {
+        "allowed_origins": os.getenv("ALLOWED_ORIGINS", "NOT SET"),
+        "environment": os.getenv("ENVIRONMENT", "NOT SET"),
+        "has_secret": bool(os.getenv("SECRET_KEY")),
+        "has_openai": bool(os.getenv("OPENAI_API_KEY"))
+    }
