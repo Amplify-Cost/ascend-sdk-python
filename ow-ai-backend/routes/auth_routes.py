@@ -1,3 +1,4 @@
+# auth_routes.py - FIXED IMPORTS
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from slowapi import Limiter
@@ -10,8 +11,10 @@ from auth_utils import (
     verify_password,
     create_access_token,
     create_refresh_token,
-    decode_refresh_token,
+    decode_refresh_token
+    # ✅ REMOVED verify_token - it's now in dependencies.py
 )
+from dependencies import get_current_user  # ✅ ADD THIS IMPORT
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, LOGIN_RATE_LIMIT, REGISTER_RATE_LIMIT
 from datetime import timedelta
 import logging
@@ -20,6 +23,10 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# Keep all your existing route functions exactly the same, just change:
+# - Replace any `Depends(verify_token)` with `Depends(get_current_user)`
+# - Replace any `verify_token(token)` calls with `get_current_user(credentials)`
 
 @router.post("/register", response_model=TokenResponse)
 @limiter.limit(REGISTER_RATE_LIMIT)
@@ -195,7 +202,9 @@ async def reset_password(
                 detail="Token and new password are required"
             )
 
-        payload = verify_token(token)
+        # Use decode_access_token directly instead of verify_token
+        from auth_utils import decode_access_token
+        payload = decode_access_token(token)
         if not payload.get("reset"):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -228,7 +237,7 @@ async def reset_password(
 @limiter.limit("5/minute")
 async def update_profile(
     request: Request,
-    current_user: dict = Depends(verify_token),
+    current_user: dict = Depends(get_current_user),  # ✅ CHANGED: Use get_current_user instead of verify_token
     db: Session = Depends(get_db)
 ):
     """Update user profile"""
@@ -243,7 +252,7 @@ async def update_profile(
                 detail="Email or password required"
             )
 
-        user = db.query(User).filter(User.id == int(current_user["sub"])).first()
+        user = db.query(User).filter(User.id == int(current_user["user_id"])).first()  # ✅ CHANGED: Use user_id instead of sub
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
