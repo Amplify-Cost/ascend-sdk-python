@@ -27,7 +27,8 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ✅ Define allowed origins explicitly
 origins = [
-    "https://passionate-elegance-production.up.railway.app"
+    "https://passionate-elegance-production.up.railway.app", 
+    "https://owai-production.up.railway.app"
 ]
 
 print("✅ CORS Allowed Origins:", origins)
