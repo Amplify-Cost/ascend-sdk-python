@@ -63,10 +63,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 # ✅ DB initialization
 Base.metadata.create_all(bind=engine)
 
-# ✅ Register routers
+# ✅ Register routers with correct prefixes
 app.include_router(auth_router)
 app.include_router(main_router)
-app.include_router(analytics_router)
+app.include_router(analytics_router, prefix="/analytics")  # <-- ensure prefix here
 app.include_router(agent_router)
 app.include_router(rule_router)
 app.include_router(alert_summary_router)
