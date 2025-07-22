@@ -1,17 +1,21 @@
 from dotenv import load_dotenv
 import openai
 import os
+import logging
+from datetime import datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordBearer
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from database import Base, engine
+from database import Base, engine, get_db
+from config import ALLOWED_ORIGINS, OPENAI_API_KEY
 from routes.auth_routes import router as auth_router
 from routes.main_routes import router as main_router
 from routes.analytics_routes import router as analytics_router
@@ -21,66 +25,127 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 
-# ✅ Load environment variables
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("app.log") if os.getenv("LOG_TO_FILE") == "true" else logging.NullHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = OPENAI_API_KEY
 
-# ✅ Define allowed origins explicitly
-origins = [
-    "https://passionate-elegance-production.up.railway.app", 
-    "https://owai-production.up.railway.app"
-]
-
-print("✅ CORS Allowed Origins:", origins)
-
-# ✅ Initialize FastAPI app
+# Initialize FastAPI app with security settings
 app = FastAPI(
     title="OW-AI Backend API",
-    description="Use the Authorize button above to authenticate with your Bearer token.",
-    version="1.0.0"
+    description="AI-powered security monitoring platform with NIST/MITRE compliance",
+    version="1.0.0",
+    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,  # Hide docs in production
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
 )
 
-# 🔐 CORS middleware must be added BEFORE any routes are included!
+# Security middleware (ORDER MATTERS!)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["*"] if os.getenv("ENVIRONMENT") == "development" else [
+        "passionate-elegance-production.up.railway.app",
+        "owai-production.up.railway.app",
+        "localhost"
+    ]
+)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# CORS middleware - must be added BEFORE routes
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+    expose_headers=["*"]
 )
 
-# ✅ Add rate limiting middleware
+# Rate limiting
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Try again soon."})
+    logger.warning(f"Rate limit exceeded for {request.client.host}")
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please try again later."}
+    )
 
-# ✅ OAuth2 token scheme for protected routes
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    logger.error(f"HTTP {exc.status_code} error on {request.url}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
 
-# ✅ DB initialization
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.url}: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
+
+# Database initialization
 Base.metadata.create_all(bind=engine)
 
-# ✅ Register routers with correct prefixes
+# Register routers
 app.include_router(auth_router)
 app.include_router(main_router)
-app.include_router(analytics_router, prefix="/analytics")  # <-- ensure prefix here
+app.include_router(analytics_router, prefix="/analytics")
 app.include_router(agent_router)
 app.include_router(rule_router)
 app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
 
-# ✅ Health check route
-@app.get("/")
-def health_check():
-    return {"status": "OW-AI Backend is running"}
+# Enhanced health check
+@app.get("/health")
+async def health_check():
+    try:
+        # Test database connection
+        from sqlalchemy.orm import Session
+        db: Session = next(get_db())
+        db.execute("SELECT 1")
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.0.0",
+            "database": "connected",
+            "environment": os.getenv("ENVIRONMENT", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": "Database connection failed"
+            }
+        )
 
-# ✅ Local dev launcher
+@app.get("/")
+async def root():
+    return {"message": "OW-AI Backend API is running", "status": "ok"}
+
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Launching FastAPI with uvicorn manually...")
+    logger.info("Starting OW-AI Backend API...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

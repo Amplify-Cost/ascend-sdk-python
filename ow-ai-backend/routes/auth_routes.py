@@ -1,138 +1,309 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from database import get_db
 from models import User
-from passlib.context import CryptContext
-from config import SECRET_KEY, ALGORITHM
-from token_utils import create_access_token, create_refresh_token, decode_token
+from schemas import UserCreate, LoginInput, TokenResponse, TokenRefreshRequest
+from auth_utils import hash_password, verify_password, create_access_token, create_refresh_token, decode_refresh_token
+from config import ACCESS_TOKEN_EXPIRE_MINUTES, LOGIN_RATE_LIMIT, REGISTER_RATE_LIMIT
 from datetime import timedelta
-from pydantic import BaseModel
+import logging
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-class UserRegister(BaseModel):
-    email: str
-    password: str
-    role: str = "user"
+@router.post("/register", response_model=TokenResponse)
+@limiter.limit(REGISTER_RATE_LIMIT)
+async def register_user(
+    request: Request,
+    data: UserCreate,
+    db: Session = Depends(get_db)
+):
+    """Register a new user"""
+    try:
+        # Check if user already exists
+        existing_user = db.query(User).filter(User.email == data.email.lower()).first()
+        if existing_user:
+            logger.warning(f"Registration attempt for existing email: {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User with this email already exists"
+            )
 
-class UserLogin(BaseModel):
-    email: str
-    password: str
+        # Create new user (role is always 'user' - admin assigned separately)
+        hashed_password = hash_password(data.password)
+        new_user = User(
+            email=data.email.lower(),
+            password=hashed_password,
+            role="user"  # Always user by default
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        logger.info(f"New user registered: {data.email}")
 
-class TokenRefreshRequest(BaseModel):
-    refresh_token: str
+        # Generate tokens
+        user_data = {
+            "sub": str(new_user.id),
+            "email": new_user.email,
+            "role": new_user.role
+        }
 
-@router.post("/register")
-async def register_user(data: UserRegister, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == data.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="User already exists")
+        access_token = create_access_token(user_data)
+        refresh_token = create_refresh_token(user_data)
 
-    hashed_password = pwd_context.hash(data.password)
-    new_user = User(
-        email=data.email,
-        password=hashed_password,
-        role=data.role
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
 
-    user_data = {
-        "sub": str(new_user.id),
-        "email": new_user.email,
-        "role": new_user.role
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Registration failed"
+        )
 
-    access_token = create_access_token(user_data)
-    refresh_token = create_refresh_token(user_data)
+@router.post("/token", response_model=TokenResponse)
+@limiter.limit(LOGIN_RATE_LIMIT)
+async def login_user(
+    request: Request,
+    data: LoginInput,
+    db: Session = Depends(get_db)
+):
+    """Authenticate user and return tokens"""
+    try:
+        # Find user by email
+        user = db.query(User).filter(User.email == data.email.lower()).first()
+        
+        # Verify credentials
+        if not user or not verify_password(data.password, user.password):
+            logger.warning(f"Failed login attempt for: {data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
 
-    return {
-        "message": "User registered successfully",
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+        logger.info(f"Successful login: {data.email}")
 
-@router.post("/token")
-async def login_user(data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == data.email).first()
-    if not user or not pwd_context.verify(data.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        # Generate tokens
+        user_data = {
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role
+        }
 
-    user_data = {
-        "sub": str(user.id),
-        "email": user.email,
-        "role": user.role
-    }
+        access_token = create_access_token(user_data)
+        refresh_token = create_refresh_token(user_data)
 
-    access_token = create_access_token(user_data)
-    refresh_token = create_refresh_token(user_data)
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Login failed"
+        )
 
-@router.post("/refresh-token")
-def refresh_token(data: TokenRefreshRequest):
-    payload = decode_token(data.refresh_token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+@router.post("/refresh-token", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def refresh_access_token(
+    request: Request,
+    data: TokenRefreshRequest
+):
+    """Refresh access token using refresh token"""
+    try:
+        # Validate refresh token
+        payload = decode_refresh_token(data.refresh_token)
+        
+        # Generate new access token
+        user_data = {
+            "sub": payload.get("sub"),
+            "email": payload.get("email"),
+            "role": payload.get("role", "user")
+        }
 
-    user_data = {
-        "sub": payload.get("sub"),
-        "email": payload.get("email"),
-        "role": payload.get("role", "user")
-    }
+        new_access_token = create_access_token(user_data)
+        new_refresh_token = create_refresh_token(user_data)  # Optional: rotate refresh token
 
-    new_access_token = create_access_token(user_data)
-    return {
-        "access_token": new_access_token,
-        "token_type": "bearer"
-    }
+        return TokenResponse(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token refresh failed"
+        )
 
 @router.post("/request-reset")
-async def request_password_reset(request: Request, db: Session = Depends(get_db)):
-    data = await request.json()
-    email = data.get("email")
+@limiter.limit("3/minute")
+async def request_password_reset(
+    request: Request,
+    data: LoginInput,
+    db: Session = Depends(get_db)
+):
+    """Request password reset token"""
+    try:
+        user = db.query(User).filter(User.email == data.email.lower()).first()
+        if not user:
+            # Don't reveal if email exists or not
+            logger.warning(f"Password reset requested for non-existent email: {data.email}")
+            return {"message": "If email exists, reset instructions have been sent"}
 
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        # Generate short-lived reset token
+        reset_token = create_access_token(
+            data={"sub": str(user.id), "email": user.email, "reset": True},
+            expires_delta=timedelta(minutes=15)
+        )
+        
+        logger.info(f"Password reset requested for: {data.email}")
+        
+        # In production, send email here
+        return {
+            "message": "Reset token generated",
+            "reset_token": reset_token  # Remove in production
+        }
 
-    token = create_access_token(
-        data={
-            "sub": str(user.id),
-            "email": user.email
-        },
-        expires_delta=timedelta(minutes=15)
-    )
-    return {"reset_token": token, "message": "Simulated email sent with reset token."}
+    except Exception as e:
+        logger.error(f"Password reset request error: {str(e)}")
+        return {"message": "If email exists, reset instructions have been sent"}
 
 @router.post("/reset-password")
-async def reset_password(request: Request, db: Session = Depends(get_db)):
-    data = await request.json()
-    token = data.get("token")
-    new_password = data.get("new_password")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Reset password using reset token"""
+    try:
+        data = await request.json()
+        token = data.get("token")
+        new_password = data.get("new_password")
 
-    if not token or not new_password:
-        raise HTTPException(status_code=400, detail="Token and new password are required")
+        if not token or not new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Token and new password are required"
+            )
 
-    payload = decode_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        # Validate reset token
+        from auth_utils import verify_token
+        try:
+            payload = verify_token(token)
+            if not payload.get("reset"):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid reset token"
+                )
+        except:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired reset token"
+            )
 
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == int(user_id)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        # Find user and update password
+        user_id = payload.get("sub")
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
 
-    user.password = pwd_context.hash(new_password)
-    db.commit()
+        # Hash and save new password
+        user.password = hash_password(new_password)
+        db.commit()
+        
+        logger.info(f"Password reset successful for user: {user.email}")
+        
+        return {"message": "Password reset successful"}
 
-    return {"message": "Password reset successful"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset failed"
+        )
+
+@router.post("/update-profile")
+@limiter.limit("5/minute")
+async def update_profile(
+    request: Request,
+    current_user: dict = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Update user profile"""
+    try:
+        data = await request.json()
+        email = data.get("email")
+        password = data.get("password")
+
+        if not email and not password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email or password required"
+            )
+
+        # Find current user
+        user = db.query(User).filter(User.id == int(current_user["sub"])).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+
+        # Update email if provided
+        if email and email != user.email:
+            # Check if new email already exists
+            existing = db.query(User).filter(User.email == email.lower()).first()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already in use"
+                )
+            user.email = email.lower()
+
+        # Update password if provided
+        if password:
+            user.password = hash_password(password)
+
+        db.commit()
+        logger.info(f"Profile updated for user: {user.email}")
+        
+        return {"message": "Profile updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Profile update error: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Profile update failed"
+        )

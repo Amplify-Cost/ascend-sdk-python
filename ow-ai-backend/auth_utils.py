@@ -1,52 +1,72 @@
-from fastapi import Depends, HTTPException, Response
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 import jwt
 from datetime import datetime, timedelta
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
+import logging
 
-# ✅ Security setup
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Security setup
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ✅ JWT config
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS = 7
-SECRET_KEY = "your_secret_key"
-ALGORITHM = "HS256"
-
-# ✅ Password hashing
-def hash_password(password: str) -> bytes:
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt"""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a password against its hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
-# ✅ JWT creation
-def create_access_token(data: dict):
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    """Create a JWT access token"""
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire, "type": "access"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 def create_refresh_token(data: dict):
+    """Create a JWT refresh token"""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# ✅ Token verification
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify and decode a JWT token"""
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Verify token type
+        if payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+            
         return payload
     except jwt.ExpiredSignatureError:
+        logger.warning("Access token expired")
         raise HTTPException(status_code=401, detail="Access token expired")
-    except jwt.InvalidTokenError:
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Invalid token: {str(e)}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 def decode_refresh_token(refresh_token: str):
+    """Decode and validate refresh token"""
     try:
-        return jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Verify token type
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid refresh token type")
+            
+        return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired")
     except jwt.InvalidTokenError:

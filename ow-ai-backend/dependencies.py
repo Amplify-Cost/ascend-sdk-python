@@ -1,30 +1,49 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from token_utils import decode_token
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from auth_utils import verify_token
+import logging
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
+logger = logging.getLogger(__name__)
+security = HTTPBearer()
 
-def verify_token(token: str = Depends(oauth2_scheme)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Missing bearer token")
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current authenticated user from JWT token"""
+    try:
+        payload = verify_token(credentials)
+        
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role", "user")
 
-    payload = decode_token(token)
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token: user ID missing"
+            )
 
-    if not payload:
+        return {
+            "user_id": int(user_id),
+            "email": email,
+            "role": role,
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token verification error: {str(e)}")
         raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
         )
 
-    user_id = payload.get("sub") or payload.get("user_id")
-    email = payload.get("email")
-    role = payload.get("role", "user")
+def require_admin(current_user: dict = Depends(get_current_user)):
+    """Require admin role"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
 
-    if not user_id:
-        raise HTTPException(status_code=400, detail="'user_id' (sub) missing in token")
-
-    return {
-        "user_id": user_id,
-        "email": email,
-        "role": role,
-    }
+# Legacy compatibility
+verify_token = get_current_user
