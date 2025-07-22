@@ -5,7 +5,14 @@ from slowapi.util import get_remote_address
 from database import get_db
 from models import User
 from schemas import UserCreate, LoginInput, TokenResponse, TokenRefreshRequest
-from auth_utils import hash_password, verify_password, create_access_token, create_refresh_token, decode_refresh_token
+from auth_utils import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    verify_token
+)
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, LOGIN_RATE_LIMIT, REGISTER_RATE_LIMIT
 from datetime import timedelta
 import logging
@@ -24,7 +31,6 @@ async def register_user(
 ):
     """Register a new user"""
     try:
-        # Check if user already exists
         existing_user = db.query(User).filter(User.email == data.email.lower()).first()
         if existing_user:
             logger.warning(f"Registration attempt for existing email: {data.email}")
@@ -33,27 +39,22 @@ async def register_user(
                 detail="User with this email already exists"
             )
 
-        # Create new user (role is always 'user' - admin assigned separately)
         hashed_password = hash_password(data.password)
         new_user = User(
             email=data.email.lower(),
             password=hashed_password,
-            role="user"  # Always user by default
+            role="user"
         )
-        
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        
         logger.info(f"New user registered: {data.email}")
 
-        # Generate tokens
         user_data = {
             "sub": str(new_user.id),
             "email": new_user.email,
             "role": new_user.role
         }
-
         access_token = create_access_token(user_data)
         refresh_token = create_refresh_token(user_data)
 
@@ -83,10 +84,7 @@ async def login_user(
 ):
     """Authenticate user and return tokens"""
     try:
-        # Find user by email
         user = db.query(User).filter(User.email == data.email.lower()).first()
-        
-        # Verify credentials
         if not user or not verify_password(data.password, user.password):
             logger.warning(f"Failed login attempt for: {data.email}")
             raise HTTPException(
@@ -95,14 +93,11 @@ async def login_user(
             )
 
         logger.info(f"Successful login: {data.email}")
-
-        # Generate tokens
         user_data = {
             "sub": str(user.id),
             "email": user.email,
             "role": user.role
         }
-
         access_token = create_access_token(user_data)
         refresh_token = create_refresh_token(user_data)
 
@@ -130,18 +125,14 @@ async def refresh_access_token(
 ):
     """Refresh access token using refresh token"""
     try:
-        # Validate refresh token
         payload = decode_refresh_token(data.refresh_token)
-        
-        # Generate new access token
         user_data = {
             "sub": payload.get("sub"),
             "email": payload.get("email"),
             "role": payload.get("role", "user")
         }
-
         new_access_token = create_access_token(user_data)
-        new_refresh_token = create_refresh_token(user_data)  # Optional: rotate refresh token
+        new_refresh_token = create_refresh_token(user_data)
 
         return TokenResponse(
             access_token=new_access_token,
@@ -170,22 +161,17 @@ async def request_password_reset(
     try:
         user = db.query(User).filter(User.email == data.email.lower()).first()
         if not user:
-            # Don't reveal if email exists or not
             logger.warning(f"Password reset requested for non-existent email: {data.email}")
             return {"message": "If email exists, reset instructions have been sent"}
 
-        # Generate short-lived reset token
         reset_token = create_access_token(
             data={"sub": str(user.id), "email": user.email, "reset": True},
             expires_delta=timedelta(minutes=15)
         )
-        
         logger.info(f"Password reset requested for: {data.email}")
-        
-        # In production, send email here
         return {
             "message": "Reset token generated",
-            "reset_token": reset_token  # Remove in production
+            "reset_token": reset_token
         }
 
     except Exception as e:
@@ -210,22 +196,13 @@ async def reset_password(
                 detail="Token and new password are required"
             )
 
-        # Validate reset token
-        from auth_utils import verify_token
-        try:
-            payload = verify_token(token)
-            if not payload.get("reset"):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid reset token"
-                )
-        except:
+        payload = verify_token(token)
+        if not payload.get("reset"):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired reset token"
+                detail="Invalid reset token"
             )
 
-        # Find user and update password
         user_id = payload.get("sub")
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
@@ -234,12 +211,9 @@ async def reset_password(
                 detail="User not found"
             )
 
-        # Hash and save new password
         user.password = hash_password(new_password)
         db.commit()
-        
         logger.info(f"Password reset successful for user: {user.email}")
-        
         return {"message": "Password reset successful"}
 
     except HTTPException:
@@ -270,7 +244,6 @@ async def update_profile(
                 detail="Email or password required"
             )
 
-        # Find current user
         user = db.query(User).filter(User.id == int(current_user["sub"])).first()
         if not user:
             raise HTTPException(
@@ -278,9 +251,7 @@ async def update_profile(
                 detail="User not found"
             )
 
-        # Update email if provided
-        if email and email != user.email:
-            # Check if new email already exists
+        if email and email.lower() != user.email:
             existing = db.query(User).filter(User.email == email.lower()).first()
             if existing:
                 raise HTTPException(
@@ -289,13 +260,11 @@ async def update_profile(
                 )
             user.email = email.lower()
 
-        # Update password if provided
         if password:
             user.password = hash_password(password)
 
         db.commit()
         logger.info(f"Profile updated for user: {user.email}")
-        
         return {"message": "Profile updated successfully"}
 
     except HTTPException:
