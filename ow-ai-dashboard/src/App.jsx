@@ -8,7 +8,6 @@ import SupportModal from "./components/SupportModal";
 import AgentActionsPanel from "./components/AgentActionsPanel";
 import AgentActivityFeed from "./components/AgentActivityFeed";
 import Dashboard from "./components/Dashboard";
-import Analytics from "./components/Analytics";
 import SubmitActionForm from "./components/SubmitActionForm";
 import AlertPanel from "./components/AlertPanel";
 import SmartRuleGen from "./components/SmartRuleGen";
@@ -153,8 +152,8 @@ const App = () => {
         console.log("📋 Loading Activity Feed");
         return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
       case "analytics":
-        console.log("📈 Loading Analytics");
-        return <Analytics getAuthHeaders={getAuthHeaders} />;
+        console.log("📈 Loading Security Insights");  // ✅ FIXED: Now loads SecurityInsights
+        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
       case "alerts":
         console.log("🚨 Loading Alerts - User role:", user?.role);
         return user?.role === "admin" ? (
