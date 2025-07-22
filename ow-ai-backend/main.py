@@ -172,8 +172,9 @@ async def debug_env():
 async def health_check():
     try:
         from sqlalchemy.orm import Session
+        from sqlalchemy import text  # Add this import
         db: Session = next(get_db())
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))  # Use text() wrapper
         db.close()
         
         return {
@@ -190,7 +191,7 @@ async def health_check():
             content={
                 "status": "unhealthy",
                 "timestamp": datetime.utcnow().isoformat(),
-                "error": "Database connection failed"
+                "error": str(e)
             }
         )
 

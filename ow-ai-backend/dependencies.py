@@ -1,6 +1,8 @@
+# dependencies.py - FIXED VERSION
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from auth_utils import verify_token
+from jose import jwt, JWTError
+from config import SECRET_KEY, ALGORITHM
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,7 +11,15 @@ security = HTTPBearer()
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Get current authenticated user from JWT token"""
     try:
-        payload = verify_token(credentials)
+        # Decode JWT token directly (no recursion)
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Verify token type if present
+        if payload.get("type") and payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type"
+            )
         
         user_id = payload.get("sub")
         email = payload.get("email")
@@ -27,8 +37,18 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
             "role": role,
         }
     
-    except HTTPException:
-        raise
+    except JWTError as e:
+        logger.error(f"JWT decode error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
+    except ValueError as e:
+        logger.error(f"Token parsing error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format"
+        )
     except Exception as e:
         logger.error(f"Token verification error: {str(e)}")
         raise HTTPException(
@@ -45,5 +65,5 @@ def require_admin(current_user: dict = Depends(get_current_user)):
         )
     return current_user
 
-# Legacy compatibility
+# Legacy compatibility - remove the circular reference
 verify_token = get_current_user

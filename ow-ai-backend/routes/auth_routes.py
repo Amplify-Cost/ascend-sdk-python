@@ -11,7 +11,6 @@ from auth_utils import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
-    verify_token
 )
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, LOGIN_RATE_LIMIT, REGISTER_RATE_LIMIT
 from datetime import timedelta
