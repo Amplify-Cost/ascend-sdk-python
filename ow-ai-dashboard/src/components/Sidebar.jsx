@@ -14,17 +14,27 @@ import {
 } from "lucide-react";
 
 const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
-  const navItems = [
+  // Base navigation items that everyone can see
+  const baseNavItems = [
     { label: "Dashboard", icon: <Home size={18} />, tab: "dashboard" },
-    { label: "Alerts", icon: <AlertCircle size={18} />, tab: "alerts" },
     { label: "Agent Actions", icon: <ClipboardList size={18} />, tab: "actions" },
     { label: "Activity Feed", icon: <Activity size={18} />, tab: "activity" },
-    { label: "Rules", icon: <FileText size={18} />, tab: "rules" },
-    { label: "Smart Rule Gen", icon: <Zap size={18} />, tab: "smartRules" },
     { label: "Security Insights", icon: <BarChart size={18} />, tab: "analytics" },
     { label: "Submit Action", icon: <LifeBuoy size={18} />, tab: "support" },
     { label: "Profile", icon: <User size={18} />, tab: "profile" },
   ];
+
+  // Admin-only navigation items
+  const adminNavItems = [
+    { label: "Alerts", icon: <AlertCircle size={18} />, tab: "alerts" },
+    { label: "Rules", icon: <FileText size={18} />, tab: "rules" },
+    { label: "Smart Rule Gen", icon: <Zap size={18} />, tab: "smartRules" },
+  ];
+
+  // Combine nav items based on user role
+  const navItems = user?.role === "admin" 
+    ? [...baseNavItems.slice(0, 4), ...adminNavItems, ...baseNavItems.slice(4)]
+    : baseNavItems;
 
   return (
     <aside className="w-64 bg-gray-900 text-white flex flex-col">

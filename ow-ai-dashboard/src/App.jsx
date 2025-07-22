@@ -14,7 +14,7 @@ import AlertPanel from "./components/AlertPanel";
 import SmartRuleGen from "./components/SmartRuleGen";
 import RulesPanel from "./components/RulesPanel";
 import SecurityInsights from "./components/SecurityInsights";
-import { fetchWithAuth } from "./utils/fetchWithAuth"; // ✅ Keep this import
+import { fetchWithAuth } from "./utils/fetchWithAuth";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
@@ -64,13 +64,13 @@ const Profile = ({ user, onUpdateProfile }) => {
 
 const App = () => {
   const [view, setView] = useState("login");
-  const [token, setToken] = useState(localStorage.getItem("access_token") || ""); // ✅ Changed to access_token
+  const [token, setToken] = useState(localStorage.getItem("access_token") || "");
   const [user, setUser] = useState(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("access_token"); // ✅ Changed to access_token
+    const storedToken = localStorage.getItem("access_token");
     if (storedToken) {
       try {
         const decoded = jwtDecode(storedToken);
@@ -95,7 +95,7 @@ const App = () => {
         }
       } catch (err) {
         console.error("Invalid token", err);
-        localStorage.removeItem("access_token"); // ✅ Changed to access_token
+        localStorage.removeItem("access_token");
         setToken("");
         setUser(null);
         setView("login");
@@ -104,7 +104,7 @@ const App = () => {
   }, []);
 
   const handleLoginSuccess = (receivedToken) => {
-    localStorage.setItem("access_token", receivedToken); // ✅ Changed to access_token
+    localStorage.setItem("access_token", receivedToken);
     const decoded = jwtDecode(receivedToken);
     setUser({
       id: decoded.sub,
@@ -116,8 +116,8 @@ const App = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("access_token"); // ✅ Changed to access_token
-    localStorage.removeItem("refresh_token"); // ✅ Also clear refresh token
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     setToken("");
     setUser(null);
     setView("login");
@@ -139,29 +139,73 @@ const App = () => {
   const getAuthHeaders = () => ({ Authorization: `Bearer ${token}` });
 
   const renderAppContent = () => {
+    console.log("🎯 Rendering tab:", activeTab);
+    console.log("🎯 User role:", user?.role);
+    
     switch (activeTab) {
       case "dashboard":
+        console.log("📊 Loading Dashboard");
         return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
       case "actions":
+        console.log("⚡ Loading Agent Actions");
         return <AgentActionsPanel getAuthHeaders={getAuthHeaders} user={user} />;
       case "activity":
+        console.log("📋 Loading Activity Feed");
         return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
       case "analytics":
+        console.log("📈 Loading Analytics");
         return <Analytics getAuthHeaders={getAuthHeaders} />;
       case "alerts":
-        return user?.role === "admin" ? <AlertPanel getAuthHeaders={getAuthHeaders} /> : null;
+        console.log("🚨 Loading Alerts - User role:", user?.role);
+        return user?.role === "admin" ? (
+          <AlertPanel getAuthHeaders={getAuthHeaders} user={user} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access Security Alerts.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
       case "rules":
-        return user?.role === "admin" ? <RulesPanel getAuthHeaders={getAuthHeaders} /> : null;
+        console.log("📋 Loading Rules - User role:", user?.role);
+        return user?.role === "admin" ? (
+          <RulesPanel getAuthHeaders={getAuthHeaders} user={user} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access Security Rules.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
       case "support":
+        console.log("💬 Loading Submit Action");
         return <SubmitActionForm getAuthHeaders={getAuthHeaders} user={user} />;
       case "profile":
+        console.log("👤 Loading Profile");
         return <Profile user={user} onUpdateProfile={handleProfileUpdate} />;
       case "insights":
+        console.log("🔍 Loading Security Insights");
         return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
       case "smartRules":
-        return user?.role === "admin" ? <SmartRuleGen getAuthHeaders={getAuthHeaders} /> : null;
+        console.log("🧠 Loading Smart Rules - User role:", user?.role);
+        return user?.role === "admin" ? (
+          <SmartRuleGen getAuthHeaders={getAuthHeaders} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access Smart Rule Generation.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
       default:
-        return null;
+        console.log("❓ Unknown tab:", activeTab);
+        return <div className="p-6 text-center text-gray-500">Page not found</div>;
     }
   };
 
