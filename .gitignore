@@ -1,3 +1,92 @@
-ow-ai-backend/.env
+# Environment variables - CRITICAL FOR SECURITY
 .env
 *.env
+.env.local
+.env.production
+.env.staging
+.env.development
+
+# Specific paths
+ow-ai-backend/.env
+ow-ai-dashboard/.env
+
+# Python (for backend)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# Node.js (for frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+/build
+/dist
+
+# Database files
+*.db
+*.sqlite3
+owai.db
+ow-ai.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Cache directories
+.cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+
+# Temporary files
+*.tmp
+*.temp
