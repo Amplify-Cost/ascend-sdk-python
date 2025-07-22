@@ -15,21 +15,33 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
   const [toolFilter, setToolFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   useEffect(() => {
     const fetchAlerts = async () => {
       setLoading(true);
       try {
+        console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
           headers: getAuthHeaders(),
         });
-        if (!res.ok) throw new Error("Failed to fetch alerts");
+        
+        console.log("🚨 Alerts response status:", res.status);
+        
+        if (!res.ok) throw new Error(`Failed to fetch alerts: ${res.status}`);
         const data = await res.json();
+        
+        // ✅ DEBUG: Log the actual response
+        console.log("🚨 Alerts API Response:", data);
+        console.log("🚨 Alerts array length:", Array.isArray(data) ? data.length : "Not an array");
+        console.log("🚨 First alert:", Array.isArray(data) && data.length > 0 ? data[0] : "No alerts");
+        
         setAlerts(Array.isArray(data) ? data : []);
+        setError(null);
       } catch (err) {
-        console.error("Error fetching alerts:", err);
+        console.error("❌ Error fetching alerts:", err);
         setError("Could not load alerts.");
+        setAlerts([]);
       } finally {
         setLoading(false);
       }
@@ -42,6 +54,8 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
     if (riskFilter !== "all") filtered = filtered.filter((a) => a.risk_level === riskFilter);
     if (toolFilter !== "all") filtered = filtered.filter((a) => a.tool_name === toolFilter);
     if (agentFilter !== "all") filtered = filtered.filter((a) => a.agent_id === agentFilter);
+    
+    console.log("🚨 Filtered alerts:", filtered.length);
     setFilteredAlerts(filtered);
   }, [alerts, riskFilter, toolFilter, agentFilter]);
 
@@ -138,9 +152,19 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
         </div>
       </div>
 
+      {/* ✅ DEBUG: Show alert counts */}
+      <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mb-4">
+        <p>Total Alerts: {alerts.length}</p>
+        <p>Filtered Alerts: {filteredAlerts.length}</p>
+        <p>API Response: {alerts.length > 0 ? "Has data" : "Empty array"}</p>
+        <p>API URL: {API_BASE_URL}/alerts</p>
+      </div>
+
       {loading && <p className="text-sm text-gray-500">Loading alerts...</p>}
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      {!loading && filteredAlerts.length === 0 && <p className="text-gray-600 text-sm">No alerts found.</p>}
+      {!loading && filteredAlerts.length === 0 && !error && (
+        <p className="text-gray-600 text-sm">No alerts found for the current filter.</p>
+      )}
 
       <div className="space-y-4">
         {filteredAlerts.map((alert) => (
@@ -169,6 +193,8 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
             </div>
             <div className="text-sm text-gray-700">
               <strong>Action:</strong> {alert.action_type} <br />
+              <strong>Tool:</strong> {alert.tool_name} <br />
+              <strong>Message:</strong> {alert.message} <br />
               <strong>Recommendation:</strong> {alert.recommendation}
             </div>
             <div className="text-xs text-gray-500 mt-2">
@@ -193,7 +219,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
               onClick={() => setShowSummaryModal(false)}
               className="absolute top-2 right-3 text-gray-500 hover:text-gray-700 text-xl"
             >
-              &times;
+              ×
             </button>
           </div>
         </div>
