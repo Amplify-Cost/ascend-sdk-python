@@ -14,20 +14,27 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const [uploadStatus, setUploadStatus] = useState("");
   const itemsPerPage = 5;
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  // ✅ Added fallback URL
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   const fetchActivity = async () => {
     try {
+      console.log("🔍 Fetching from:", API_BASE_URL); // Debug log
       const url =
         selectedRisk === "all"
           ? `${API_BASE_URL}/agent-activity`
           : `${API_BASE_URL}/agent-activity?risk=${selectedRisk}`;
+      
+      console.log("📡 Full URL:", url); // Debug log
+      
       const res = await fetch(url, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error("Failed to fetch agent activity");
+      if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent activity`);
       const data = await res.json();
       setActivities(Array.isArray(data) ? data : []);
+      setError(null); // Clear any previous errors
     } catch (err) {
-      setError("Unable to load activity.");
+      console.error("❌ Fetch error:", err);
+      setError(`Unable to load activity: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -99,6 +106,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
     }
   };
 
+  // Rest of your component stays the same...
   const filteredActivities = activities.filter((a) =>
     a.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     a.tool_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -115,6 +123,11 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   return (
     <div className="bg-white p-6 rounded-lg shadow-md">
       <h2 className="text-xl font-semibold text-gray-800 mb-4">Agent Activity Feed</h2>
+      
+      {/* Debug info */}
+      <div className="mb-2 text-xs text-gray-500">
+        API URL: {API_BASE_URL}
+      </div>
 
       <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0 mb-4">
         <div>
@@ -141,7 +154,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
 
       {loading && <p className="text-sm text-gray-500">Loading activity...</p>}
       {error && <p className="text-red-500 text-sm">{error}</p>}
-      {!loading && filteredActivities.length === 0 && (
+      {!loading && filteredActivities.length === 0 && !error && (
         <p className="text-sm text-gray-500">No activity found.</p>
       )}
 
