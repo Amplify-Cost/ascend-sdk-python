@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
 import React, { useEffect, useState } from "react";
 
@@ -11,49 +11,26 @@ const Rules = ({ getAuthHeaders, user }) => {
   const [message, setMessage] = useState("");
   const [auditLog, setAuditLog] = useState(null);
   const [showAuditModal, setShowAuditModal] = useState(false);
-  const [versionHistory, setVersionHistory] = useState([]);
+  // ✅ REMOVED: versionHistory state and API call that was causing 404
   const [currentPage, setCurrentPage] = useState(1);
   const rulesPerPage = 5;
 
   const fetchRules = async () => {
     try {
+      console.log("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
       const res = await fetch(`${API_BASE_URL}/rules`, {
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
-      setRules(data);
+      console.log("📋 Rules data:", data);
+      setRules(Array.isArray(data) ? data : []); // ✅ Ensure it's an array
     } catch (err) {
-      console.error("Failed to fetch rules", err);
+      console.error("❌ Failed to fetch rules", err);
+      setRules([]); // ✅ Set empty array on error
     }
   };
 
-  const fetchVersionHistory = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/rules/history`, {
-        headers: await getAuthHeaders(),
-      });
-      const data = await res.json();
-      setVersionHistory(data);
-    } catch (err) {
-      console.error("Failed to fetch rule version history", err);
-    }
-  };
-
-  const rollbackRules = async (filename) => {
-    try {
-      await fetch(`${API_BASE_URL}/rules/rollback`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await getAuthHeaders()),
-        },
-        body: JSON.stringify({ filename }),
-      });
-      fetchRules();
-    } catch (err) {
-      console.error("Failed to rollback rules", err);
-    }
-  };
+  // ✅ REMOVED: fetchVersionHistory function that was causing 404
 
   const updateRules = async (updatedRules) => {
     try {
@@ -119,13 +96,13 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   useEffect(() => {
     fetchRules();
-    fetchVersionHistory();
+    // ✅ REMOVED: fetchVersionHistory() call that was causing 404
   }, []);
 
   const filteredRules = rules.filter((r) =>
-    r.condition.toLowerCase().includes(filter.toLowerCase()) ||
-    r.action.toLowerCase().includes(filter.toLowerCase()) ||
-    r.justification.toLowerCase().includes(filter.toLowerCase()) ||
+    r.condition?.toLowerCase().includes(filter.toLowerCase()) ||
+    r.action?.toLowerCase().includes(filter.toLowerCase()) ||
+    r.justification?.toLowerCase().includes(filter.toLowerCase()) ||
     (r.tags || []).some((tag) => tag.toLowerCase().includes(filter.toLowerCase()))
   );
 
@@ -148,28 +125,34 @@ const Rules = ({ getAuthHeaders, user }) => {
         <button onClick={exportRules} className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded">Export</button>
       </div>
 
-      {paginatedRules.map((rule, index) => (
-        <div key={index} className="bg-gray-100 p-4 mb-4 rounded shadow">
-          <h3 className="font-semibold text-blue-700 underline">{rule.condition.split(" and ")[0]}</h3>
-          <p><strong>Condition:</strong> {rule.condition}</p>
-          <p><strong>Action:</strong> {rule.action}</p>
-          <p><strong>Justification:</strong> {rule.justification}</p>
-          {rule.tags && <p><strong>Tags:</strong> {rule.tags.join(", ")}</p>}
-          {rule.created_at && <p><strong>Created:</strong> {new Date(rule.created_at).toLocaleString()}</p>}
-          {rule.created_by && <p><strong>Created by:</strong> {rule.created_by}</p>}
-          <div className="mt-2 flex gap-2">
-            <button onClick={() => { setSelectedRule(rule); setEditedRule(rule); }} className="bg-yellow-500 text-white px-2 py-1 rounded text-sm">Edit</button>
-            <button onClick={() => deleteRule(rule)} className="bg-red-600 text-white px-2 py-1 rounded text-sm">Delete</button>
-            <button onClick={() => fetchAuditLog(index + 1)} className="bg-gray-600 text-white px-2 py-1 rounded text-sm">View Audit Log</button>
+      {paginatedRules.length === 0 ? (
+        <p className="text-gray-500 italic">No rules found.</p>
+      ) : (
+        paginatedRules.map((rule, index) => (
+          <div key={index} className="bg-gray-100 p-4 mb-4 rounded shadow">
+            <h3 className="font-semibold text-blue-700 underline">{rule.condition?.split(" and ")[0] || "Untitled Rule"}</h3>
+            <p><strong>Condition:</strong> {rule.condition}</p>
+            <p><strong>Action:</strong> {rule.action}</p>
+            <p><strong>Justification:</strong> {rule.justification}</p>
+            {rule.tags && <p><strong>Tags:</strong> {rule.tags.join(", ")}</p>}
+            {rule.created_at && <p><strong>Created:</strong> {new Date(rule.created_at).toLocaleString()}</p>}
+            {rule.created_by && <p><strong>Created by:</strong> {rule.created_by}</p>}
+            <div className="mt-2 flex gap-2">
+              <button onClick={() => { setSelectedRule(rule); setEditedRule(rule); }} className="bg-yellow-500 text-white px-2 py-1 rounded text-sm">Edit</button>
+              <button onClick={() => deleteRule(rule)} className="bg-red-600 text-white px-2 py-1 rounded text-sm">Delete</button>
+              <button onClick={() => fetchAuditLog(index + 1)} className="bg-gray-600 text-white px-2 py-1 rounded text-sm">View Audit Log</button>
+            </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
 
-      <div className="flex justify-center gap-2 mt-4">
-        <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} className="px-3 py-1 bg-gray-300 rounded">Prev</button>
-        <span>Page {currentPage} of {totalPages}</span>
-        <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} className="px-3 py-1 bg-gray-300 rounded">Next</button>
-      </div>
+      {totalPages > 1 && (
+        <div className="flex justify-center gap-2 mt-4">
+          <button onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} className="px-3 py-1 bg-gray-300 rounded">Prev</button>
+          <span>Page {currentPage} of {totalPages}</span>
+          <button onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} className="px-3 py-1 bg-gray-300 rounded">Next</button>
+        </div>
+      )}
 
       <div className="mt-6 border-t pt-6">
         <h3 className="text-lg font-semibold mb-2">Add New Rule</h3>
@@ -180,16 +163,7 @@ const Rules = ({ getAuthHeaders, user }) => {
         <button onClick={saveNewRule} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Add Rule</button>
       </div>
 
-      <div className="mt-10">
-        <h3 className="font-semibold text-lg mb-2">Rule Version History</h3>
-        <ul className="list-disc pl-5">
-          {versionHistory.map((filename, idx) => (
-            <li key={idx} className="mb-1">
-              <button onClick={() => rollbackRules(filename)} className="text-blue-600 hover:underline">{filename}</button>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/* ✅ REMOVED: Version History section that was causing 404 */}
 
       {selectedRule && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">

@@ -7,24 +7,41 @@ const Dashboard = ({ getAuthHeaders }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   useEffect(() => {
     const fetchTrends = async () => {
       try {
+        console.log("🔍 Fetching dashboard data from:", `${API_BASE_URL}/analytics/trends`);
         const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch analytics data");
         const data = await res.json();
+        
+        // ✅ DEBUG: Log the actual response
+        console.log("📊 Dashboard API Response:", data);
+        console.log("📊 High risk daily:", data.high_risk_daily);
+        console.log("📊 Top agents:", data.top_agents);
+        console.log("📊 Top tools:", data.top_tools);
+        
         setTrends({
           high_risk_actions_by_day: data.high_risk_daily || [],
           top_agents: data.top_agents || [],
           top_tools: data.top_tools || [],
           enriched_actions: data.enriched_actions || []
         });
+        
+        // ✅ DEBUG: Log what we set
+        console.log("📊 Trends state set to:", {
+          high_risk_actions_by_day: data.high_risk_daily || [],
+          top_agents: data.top_agents || [],
+          top_tools: data.top_tools || [],
+          enriched_actions: data.enriched_actions || []
+        });
+        
       } catch (err) {
-        console.error("Dashboard fetch error:", err);
+        console.error("❌ Dashboard fetch error:", err);
         setError("Failed to load analytics data.");
       } finally {
         setLoading(false);
@@ -35,8 +52,18 @@ const Dashboard = ({ getAuthHeaders }) => {
 
   if (loading) return <div className="p-4 text-center text-gray-500">Loading analytics...</div>;
   if (error) return <div className="p-4 text-center text-red-600">{error}</div>;
+  
+  // ✅ DEBUG: Show what data we have
+  console.log("📊 Current trends state:", trends);
+  console.log("📊 High risk actions length:", trends?.high_risk_actions_by_day?.length);
+  
   if (!trends || trends.high_risk_actions_by_day.length === 0) {
-    return <div className="p-4 text-center text-gray-400">No logs available to generate analytics yet. Submit agent actions to populate insights.</div>;
+    return (
+      <div className="p-4 text-center text-gray-400">
+        <p>No analytics available yet. Submit agent actions to populate insights.</p>
+        <p className="text-xs mt-2">Debug: trends = {JSON.stringify(trends)}</p>
+      </div>
+    );
   }
 
   const COLORS = ["#ff6b6b", "#feca57", "#1dd1a1", "#5f27cd", "#48dbfb"];
@@ -44,6 +71,14 @@ const Dashboard = ({ getAuthHeaders }) => {
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-semibold">Security Analytics Overview</h2>
+      
+      {/* ✅ DEBUG: Show data info */}
+      <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
+        <p>High Risk Actions: {trends.high_risk_actions_by_day.length} items</p>
+        <p>Top Agents: {trends.top_agents.length} items</p>
+        <p>Top Tools: {trends.top_tools.length} items</p>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* High-Risk Actions Chart */}
         <div className="bg-white p-4 rounded shadow">
