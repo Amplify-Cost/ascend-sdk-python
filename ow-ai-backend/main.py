@@ -24,6 +24,7 @@ from routes.rule_routes import router as rule_router
 from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
+from routes.admin_routes import router as admin_router
 
 # Set up logging
 logging.basicConfig(
@@ -149,3 +150,18 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Starting OW-AI Backend API...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+app.include_router(admin_router)  # Add this line
+
+"""
+app.include_router(auth_router)
+app.include_router(main_router)
+app.include_router(analytics_router, prefix="/analytics")
+app.include_router(agent_router)
+app.include_router(rule_router)
+app.include_router(alert_summary_router)
+app.include_router(alerts_router)
+app.include_router(smart_rule_router)  # This should use the prefix="/smart-rules"
+app.include_router(admin_router)  # Add this new line
+"""
