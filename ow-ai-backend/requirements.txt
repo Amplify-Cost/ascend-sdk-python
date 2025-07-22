@@ -7,4 +7,4 @@ psycopg2-binary
 openai
 slowapi
 passlib[bcrypt]
-python-jose
+python-jose[cryptography]

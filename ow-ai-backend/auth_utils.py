@@ -1,8 +1,8 @@
-# auth_utils.py - FIXED VERSION
+# auth_utils.py - FIXED JWT IMPORT
 from fastapi import HTTPException
 from fastapi.security import HTTPBearer
 from passlib.context import CryptContext
-import jwt
+from jose import jwt  # ✅ FIXED: Use jose.jwt instead of jwt
 from datetime import datetime, timedelta
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 import logging
