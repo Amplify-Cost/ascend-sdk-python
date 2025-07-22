@@ -19,22 +19,11 @@ const Dashboard = ({ getAuthHeaders }) => {
         if (!res.ok) throw new Error("Failed to fetch analytics data");
         const data = await res.json();
         
-        // ✅ DEBUG: Log the actual response
         console.log("📊 Dashboard API Response:", data);
-        console.log("📊 High risk daily:", data.high_risk_daily);
-        console.log("📊 Top agents:", data.top_agents);
-        console.log("📊 Top tools:", data.top_tools);
         
+        // ✅ FIX: Use the correct key names from API response
         setTrends({
-          high_risk_actions_by_day: data.high_risk_daily || [],
-          top_agents: data.top_agents || [],
-          top_tools: data.top_tools || [],
-          enriched_actions: data.enriched_actions || []
-        });
-        
-        // ✅ DEBUG: Log what we set
-        console.log("📊 Trends state set to:", {
-          high_risk_actions_by_day: data.high_risk_daily || [],
+          high_risk_actions_by_day: data.high_risk_actions_by_day || [], // ✅ Use correct key
           top_agents: data.top_agents || [],
           top_tools: data.top_tools || [],
           enriched_actions: data.enriched_actions || []
@@ -53,11 +42,15 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (loading) return <div className="p-4 text-center text-gray-500">Loading analytics...</div>;
   if (error) return <div className="p-4 text-center text-red-600">{error}</div>;
   
-  // ✅ DEBUG: Show what data we have
-  console.log("📊 Current trends state:", trends);
-  console.log("📊 High risk actions length:", trends?.high_risk_actions_by_day?.length);
+  // ✅ Show dashboard even if high_risk_actions_by_day is empty but other data exists
+  const hasAnyData = trends && (
+    (trends.high_risk_actions_by_day && trends.high_risk_actions_by_day.length > 0) ||
+    (trends.top_agents && trends.top_agents.length > 0) ||
+    (trends.top_tools && trends.top_tools.length > 0) ||
+    (trends.enriched_actions && trends.enriched_actions.length > 0)
+  );
   
-  if (!trends || trends.high_risk_actions_by_day.length === 0) {
+  if (!hasAnyData) {
     return (
       <div className="p-4 text-center text-gray-400">
         <p>No analytics available yet. Submit agent actions to populate insights.</p>
@@ -72,66 +65,65 @@ const Dashboard = ({ getAuthHeaders }) => {
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-semibold">Security Analytics Overview</h2>
       
-      {/* ✅ DEBUG: Show data info */}
-      <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded">
-        <p>High Risk Actions: {trends.high_risk_actions_by_day.length} items</p>
-        <p>Top Agents: {trends.top_agents.length} items</p>
-        <p>Top Tools: {trends.top_tools.length} items</p>
-      </div>
-      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* High-Risk Actions Chart */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="font-bold mb-2">High-Risk Actions (Last 7 Days)</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={trends.high_risk_actions_by_day}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#ff6b6b" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {/* High-Risk Actions Chart - Only show if data exists */}
+        {trends.high_risk_actions_by_day && trends.high_risk_actions_by_day.length > 0 && (
+          <div className="bg-white p-4 rounded shadow">
+            <h3 className="font-bold mb-2">High-Risk Actions (Last 7 Days)</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={trends.high_risk_actions_by_day}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#ff6b6b" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
-        {/* Top Agents */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="font-bold mb-2">Top Agents</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie data={trends.top_agents} dataKey="count" nameKey="agent" cx="50%" cy="50%" outerRadius={80} label>
-                {trends.top_agents.map((_, index) => (
-                  <Cell key={`agent-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Top Agents - Show if data exists */}
+        {trends.top_agents && trends.top_agents.length > 0 && (
+          <div className="bg-white p-4 rounded shadow">
+            <h3 className="font-bold mb-2">Top Agents</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={trends.top_agents} dataKey="count" nameKey="agent" cx="50%" cy="50%" outerRadius={80} label>
+                  {trends.top_agents.map((_, index) => (
+                    <Cell key={`agent-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
-        {/* Top Tools */}
-        <div className="bg-white p-4 rounded shadow">
-          <h3 className="font-bold mb-2">Top Tools</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie data={trends.top_tools} dataKey="count" nameKey="tool" cx="50%" cy="50%" outerRadius={80} label>
-                {trends.top_tools.map((_, index) => (
-                  <Cell key={`tool-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Top Tools - Show if data exists */}
+        {trends.top_tools && trends.top_tools.length > 0 && (
+          <div className="bg-white p-4 rounded shadow">
+            <h3 className="font-bold mb-2">Top Tools</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie data={trends.top_tools} dataKey="count" nameKey="tool" cx="50%" cy="50%" outerRadius={80} label>
+                  {trends.top_tools.map((_, index) => (
+                    <Cell key={`tool-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
-        {/* Enriched Actions */}
+        {/* Enriched Actions - Show if data exists */}
         {trends.enriched_actions && trends.enriched_actions.length > 0 && (
           <div className="bg-white p-4 rounded shadow">
             <h3 className="font-bold mb-2">Latest Enriched Actions</h3>
             <ul className="text-sm divide-y divide-gray-200">
-              {trends.enriched_actions.map((action, index) => (
+              {trends.enriched_actions.slice(0, 5).map((action, index) => (
                 <li key={index} className="py-2">
                   <p><strong>Agent:</strong> {action.agent_id}</p>
                   <p><strong>Risk:</strong> {action.risk_level}</p>
