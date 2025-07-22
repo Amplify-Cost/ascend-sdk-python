@@ -1,3 +1,4 @@
+# main.py - CLEAN VERSION
 from dotenv import load_dotenv
 import openai
 import os
@@ -7,9 +8,8 @@ from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -17,6 +17,8 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from database import Base, engine, get_db
 from config import ALLOWED_ORIGINS, OPENAI_API_KEY
+
+# Import routers
 from routes.auth_routes import router as auth_router
 from routes.main_routes import router as main_router
 from routes.analytics_routes import router as analytics_router
@@ -25,7 +27,6 @@ from routes.rule_routes import router as rule_router
 from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
-from routes.admin_routes import router as admin_router
 
 # Set up logging
 logging.basicConfig(
@@ -42,12 +43,12 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 openai.api_key = OPENAI_API_KEY
 
-# Initialize FastAPI app with security settings
+# Initialize FastAPI app
 app = FastAPI(
     title="OW-AI Backend API",
     description="AI-powered security monitoring platform with NIST/MITRE compliance",
     version="1.0.0",
-    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,  # Hide docs in production
+    docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
     redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
 )
 
@@ -63,15 +64,12 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# CORS middleware - must be added BEFORE routes
-# Load CORS origins from environment
+# CORS configuration - Load from environment
 cors_origins = os.getenv("ALLOWED_ORIGINS", "").split(",") if os.getenv("ALLOWED_ORIGINS") else []
 cors_origins_alt = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else []
 
 # Combine both possible environment variable names
 all_origins = list(set(cors_origins + cors_origins_alt))
-
-# Remove empty strings
 all_origins = [origin.strip() for origin in all_origins if origin.strip()]
 
 # Fallback origins if none are set
@@ -107,6 +105,7 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
 
+# Exception handlers
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     logger.warning(f"Rate limit exceeded for {request.client.host}")
@@ -134,7 +133,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Database initialization
 Base.metadata.create_all(bind=engine)
 
-# Register routers
+# Register routers (CLEAN - NO DUPLICATES)
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router, prefix="/analytics")
@@ -144,11 +143,34 @@ app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
 
-# Enhanced health check
+# OPTIONS handler for CORS preflight
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+        }
+    )
+
+# Debug endpoint (temporary)
+@app.get("/debug/env")
+async def debug_env():
+    return {
+        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
+        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
+        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
+        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
+        "environment": os.getenv("ENVIRONMENT"),
+        "cors_origins_loaded": all_origins
+    }
+
+# Health check
 @app.get("/health")
 async def health_check():
     try:
-        # Test database connection
         from sqlalchemy.orm import Session
         db: Session = next(get_db())
         db.execute("SELECT 1")
@@ -180,55 +202,3 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Starting OW-AI Backend API...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-
-
-app.include_router(admin_router)  # Add this line
-
-"""
-app.include_router(auth_router)
-app.include_router(main_router)
-app.include_router(analytics_router, prefix="/analytics")
-app.include_router(agent_router)
-app.include_router(rule_router)
-app.include_router(alert_summary_router)
-app.include_router(alerts_router)
-app.include_router(smart_rule_router)  # This should use the prefix="/smart-rules"
-app.include_router(admin_router)  # Add this new line
-"""
-
-# Add to main.py - temporary debug endpoint
-@app.get("/debug/env")
-async def debug_env():
-    return {
-        "allowed_origins": os.getenv("ALLOWED_ORIGINS", "NOT SET"),
-        "environment": os.getenv("ENVIRONMENT", "NOT SET"),
-        "has_secret": bool(os.getenv("SECRET_KEY")),
-        "has_openai": bool(os.getenv("OPENAI_API_KEY"))
-    }
-
-
-    # Add this to main.py temporarily
-@app.get("/debug/env")
-def debug_env():
-    import os
-    return {
-        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
-        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
-        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
-        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
-        "environment": os.getenv("ENVIRONMENT"),
-        "all_env_keys": list(os.environ.keys())[:10]  # First 10 env vars
-    }
-
-
-# Add this to main.py
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
-        }
-    )
