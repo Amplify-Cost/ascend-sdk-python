@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
@@ -63,12 +64,41 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CORS middleware - must be added BEFORE routes
+# Load CORS origins from environment
+cors_origins = os.getenv("ALLOWED_ORIGINS", "").split(",") if os.getenv("ALLOWED_ORIGINS") else []
+cors_origins_alt = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else []
+
+# Combine both possible environment variable names
+all_origins = list(set(cors_origins + cors_origins_alt))
+
+# Remove empty strings
+all_origins = [origin.strip() for origin in all_origins if origin.strip()]
+
+# Fallback origins if none are set
+if not all_origins:
+    all_origins = [
+        "https://passionate-elegance-production.up.railway.app",
+        "https://owai-production.up.railway.app",
+        "http://localhost:3000",
+        "http://localhost:5173"
+    ]
+
+print(f"🚀 CORS Origins: {all_origins}")
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], #temp for testing
+    allow_origins=all_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type", 
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-CSRF-Token"
+    ],
     expose_headers=["*"]
 )
 
@@ -175,3 +205,30 @@ async def debug_env():
         "has_secret": bool(os.getenv("SECRET_KEY")),
         "has_openai": bool(os.getenv("OPENAI_API_KEY"))
     }
+
+
+    # Add this to main.py temporarily
+@app.get("/debug/env")
+def debug_env():
+    import os
+    return {
+        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
+        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
+        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
+        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
+        "environment": os.getenv("ENVIRONMENT"),
+        "all_env_keys": list(os.environ.keys())[:10]  # First 10 env vars
+    }
+
+
+# Add this to main.py
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type, Accept",
+        }
+    )
