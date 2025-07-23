@@ -4,9 +4,8 @@ import openai
 import os
 import logging
 from datetime import datetime
-from models import AgentAction, Alert
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends  # ✅ Added Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -16,8 +15,10 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from sqlalchemy.orm import Session  # ✅ Make sure this is imported
 from database import Base, engine, get_db
 from config import ALLOWED_ORIGINS, OPENAI_API_KEY
+from models import AgentAction, Alert  # ✅ Add these model imports
 
 # Import routers
 from routes.auth_routes import router as auth_router
