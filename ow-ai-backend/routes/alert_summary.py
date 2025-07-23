@@ -55,24 +55,25 @@ async def summarize_alerts(
         
         logger.info(f"Combined text length: {len(combined_text)}")
         
-        # Generate summary using your existing utility with required parameters
-        # Extract common action_type and description from alerts
+        # Generate summary using your existing utility with correct parameters
+        # Extract the primary agent_id and action_type from alerts
+        primary_agent_id = "multiple_agents"
         action_types = set()
-        descriptions = []
         
         for alert in data if isinstance(data, list) else []:
             if isinstance(alert, dict):
+                if alert.get('agent_id') and primary_agent_id == "multiple_agents":
+                    primary_agent_id = alert.get('agent_id')
                 if alert.get('alert_type'):
                     action_types.add(alert.get('alert_type'))
-                if alert.get('message'):
-                    descriptions.append(alert.get('message'))
         
         # Use the most common action_type or default
         primary_action_type = list(action_types)[0] if action_types else "security_alert"
-        primary_description = "; ".join(descriptions[:3]) if descriptions else "Multiple security alerts detected"
         
-        logger.info(f"Calling generate_summary with action_type: {primary_action_type}")
-        summary = generate_summary(combined_text, primary_action_type, primary_description)
+        logger.info(f"Calling generate_summary with agent_id: {primary_agent_id}, action_type: {primary_action_type}")
+        
+        # Use the combined_text as the description parameter
+        summary = generate_summary(primary_agent_id, primary_action_type, combined_text)
         
         logger.info("Summary generated successfully")
         return {"summary": summary}
@@ -90,8 +91,8 @@ async def summarize_alert_text(
     """Original endpoint that expects {alerts: [string, string, ...]} format"""
     try:
         combined_text = "\n".join(alert_text.alerts)
-        # Use default values for the required parameters
-        summary = generate_summary(combined_text, "security_alert", "Alert summary request")
+        # Use correct parameter order: agent_id, action_type, description
+        summary = generate_summary("alert_system", "security_alert", combined_text)
         return {"summary": summary}
     except Exception as e:
         logger.error(f"Error in summary-text endpoint: {str(e)}")
