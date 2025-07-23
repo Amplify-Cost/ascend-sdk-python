@@ -49,7 +49,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   // In AgentActionsPanel.jsx, find the generateSmartRule function and update:
 const generateSmartRule = async (action) => {
   try {
-    const res = await fetch(`${API_BASE_URL}/smart-rules/generate`, {  // ✅ CHANGED: Use /smart-rules/generate
+    const res = await fetch(`${API_BASE_URL}/smart-rules/generate`, {  // ✅ Must be /smart-rules/generate
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -61,6 +61,7 @@ const generateSmartRule = async (action) => {
         description: action.description || "",
       }),
     });
+    
     if (res.ok) {
       const rule = await res.json();
       setGeneratedRule(rule);
@@ -68,9 +69,11 @@ const generateSmartRule = async (action) => {
       setShowRuleModal(true);
     } else {
       console.error("Smart rule generation failed:", res.status);
+      alert(`❌ Failed to generate smart rule: ${res.status}`);
     }
   } catch (err) {
     console.error("Rule generation failed:", err);
+    alert("❌ Network error generating smart rule");
   }
 };
 
