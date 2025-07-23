@@ -4,6 +4,7 @@ import openai
 import os
 import logging
 from datetime import datetime
+from models import AgentAction, Alert
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -215,3 +216,75 @@ async def debug_routes():
                 "methods": list(route.methods)
             })
     return {"routes": routes}
+
+# Add these endpoints to your main.py for verification
+
+@app.get("/debug/database-check")
+async def debug_database_check(db: Session = Depends(get_db)):
+    """Debug endpoint to check what's actually in the database"""
+    try:
+        # Check agent actions
+        agent_actions = db.query(AgentAction).all()
+        alerts = db.query(Alert).all()
+        
+        return {
+            "agent_actions_count": len(agent_actions),
+            "alerts_count": len(alerts),
+            "sample_agent_action": agent_actions[0].__dict__ if agent_actions else None,
+            "sample_alert": alerts[0].__dict__ if alerts else None,
+            "agent_actions_with_nist": [
+                {
+                    "id": action.id,
+                    "agent_id": action.agent_id,
+                    "action_type": action.action_type,
+                    "nist_control": action.nist_control,
+                    "nist_description": action.nist_description,
+                    "mitre_tactic": action.mitre_tactic,
+                    "mitre_technique": action.mitre_technique,
+                    "risk_level": action.risk_level
+                }
+                for action in agent_actions[:3]  # First 3 records
+            ]
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/debug/alert-data-raw")
+async def debug_alert_data_raw(db: Session = Depends(get_db)):
+    """Check the exact data being sent to the summary function"""
+    try:
+        # This mimics what your alerts endpoint returns
+        query = (
+            db.query(Alert, AgentAction)
+            .join(AgentAction, Alert.agent_action_id == AgentAction.id)
+            .order_by(Alert.timestamp.desc())
+            .limit(10)
+            .all()
+        )
+        
+        enriched_alerts = []
+        for alert, action in query:
+            enriched_alerts.append({
+                "id": alert.id,
+                "timestamp": str(alert.timestamp),
+                "alert_type": alert.alert_type,
+                "severity": alert.severity,
+                "message": alert.message,
+                "agent_id": action.agent_id,
+                "tool_name": action.tool_name,
+                "risk_level": action.risk_level,
+                "mitre_tactic": action.mitre_tactic,
+                "mitre_technique": action.mitre_technique,
+                "nist_control": action.nist_control,
+                "nist_description": action.nist_description,
+                "recommendation": action.recommendation
+            })
+        
+        return {
+            "total_alerts": len(enriched_alerts),
+            "alerts_data": enriched_alerts,
+            "has_real_nist_data": any(alert.get("nist_control") for alert in enriched_alerts),
+            "has_real_mitre_data": any(alert.get("mitre_tactic") for alert in enriched_alerts),
+        }
+    except Exception as e:
+        return {"error": str(e)}
