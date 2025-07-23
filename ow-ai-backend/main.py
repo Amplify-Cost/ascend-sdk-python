@@ -1,11 +1,11 @@
-# main.py - CLEAN VERSION
+# main.py - UPDATED VERSION WITH AUTHORIZATION SYSTEM
 from dotenv import load_dotenv
 import openai
 import os
 import logging
 from datetime import datetime
 
-from fastapi import FastAPI, Request, HTTPException, Depends  # ✅ Added Depends
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -15,12 +15,14 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from sqlalchemy.orm import Session  # ✅ Make sure this is imported
+from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from config import ALLOWED_ORIGINS, OPENAI_API_KEY
-from models import AgentAction, Alert  # ✅ Add these model imports
 
-# Import routers
+# Import models - UPDATED TO INCLUDE PendingAgentAction
+from models import AgentAction, Alert, PendingAgentAction
+
+# Import routers - UPDATED TO INCLUDE AUTHORIZATION ROUTES
 from routes.auth_routes import router as auth_router
 from routes.main_routes import router as main_router
 from routes.analytics_routes import router as analytics_router
@@ -29,6 +31,7 @@ from routes.rule_routes import router as rule_router
 from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
+from routes.authorization_routes import router as authorization_router  # NEW AUTHORIZATION ROUTES
 
 # Set up logging
 logging.basicConfig(
@@ -48,8 +51,8 @@ openai.api_key = OPENAI_API_KEY
 # Initialize FastAPI app
 app = FastAPI(
     title="OW-AI Backend API",
-    description="AI-powered security monitoring platform with NIST/MITRE compliance",
-    version="1.0.0",
+    description="AI-powered security monitoring platform with NIST/MITRE compliance and Agent Authorization",
+    version="1.1.0",  # Updated version number
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
     redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
 )
@@ -135,7 +138,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Database initialization
 Base.metadata.create_all(bind=engine)
 
-# Register routers (CLEAN - NO DUPLICATES)
+# Register routers - UPDATED TO INCLUDE AUTHORIZATION ROUTER
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router, prefix="/analytics")
@@ -144,6 +147,7 @@ app.include_router(rule_router)
 app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
+app.include_router(authorization_router)  # NEW AUTHORIZATION SYSTEM
 
 # OPTIONS handler for CORS preflight
 @app.options("/{path:path}")
@@ -166,24 +170,108 @@ async def debug_env():
         "secret_key_exists": bool(os.getenv("SECRET_KEY")),
         "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
         "environment": os.getenv("ENVIRONMENT"),
-        "cors_origins_loaded": all_origins
+        "cors_origins_loaded": all_origins,
+        "authorization_system": "enabled"  # NEW FEATURE FLAG
     }
 
-# Health check
+# Database check endpoints
+@app.get("/debug/database-check")
+async def debug_database_check():
+    """Simple debug endpoint to check database connection"""
+    try:
+        db: Session = next(get_db())
+        
+        # Count records
+        agent_actions_count = db.query(AgentAction).count()
+        alerts_count = db.query(Alert).count()
+        pending_actions_count = db.query(PendingAgentAction).count()  # NEW TABLE CHECK
+        
+        # Get sample records
+        sample_action = db.query(AgentAction).first()
+        sample_alert = db.query(Alert).first()
+        sample_pending = db.query(PendingAgentAction).first()  # NEW SAMPLE
+        
+        db.close()
+        
+        return {
+            "status": "connected",
+            "agent_actions_count": agent_actions_count,
+            "alerts_count": alerts_count,
+            "pending_actions_count": pending_actions_count,  # NEW COUNT
+            "has_agent_actions": agent_actions_count > 0,
+            "has_alerts": alerts_count > 0,
+            "has_pending_actions": pending_actions_count > 0,  # NEW CHECK
+            "sample_action_id": sample_action.id if sample_action else None,
+            "sample_alert_id": sample_alert.id if sample_alert else None,
+            "sample_pending_id": sample_pending.id if sample_pending else None,  # NEW SAMPLE
+            "sample_nist_control": sample_action.nist_control if sample_action else None,
+            "sample_mitre_tactic": sample_action.mitre_tactic if sample_action else None,
+            "authorization_system_status": "operational"  # NEW STATUS
+        }
+    except Exception as e:
+        return {"error": str(e), "status": "failed"}
+
+@app.get("/debug/alert-data-raw")
+async def debug_alert_data_raw():
+    """Check what data exists in alerts"""
+    try:
+        db: Session = next(get_db())
+        
+        # Get the same query as your alerts endpoint
+        query = (
+            db.query(Alert, AgentAction)
+            .join(AgentAction, Alert.agent_action_id == AgentAction.id)
+            .order_by(Alert.timestamp.desc())
+            .limit(5)
+            .all()
+        )
+        
+        alerts_data = []
+        for alert, action in query:
+            alerts_data.append({
+                "alert_id": alert.id,
+                "agent_id": action.agent_id,
+                "action_type": action.action_type,
+                "nist_control": action.nist_control,
+                "mitre_tactic": action.mitre_tactic,
+                "mitre_technique": action.mitre_technique,
+                "has_nist": bool(action.nist_control),
+                "has_mitre": bool(action.mitre_tactic)
+            })
+        
+        db.close()
+        
+        return {
+            "total_alerts": len(alerts_data),
+            "alerts_sample": alerts_data,
+            "has_real_nist": any(alert["has_nist"] for alert in alerts_data),
+            "has_real_mitre": any(alert["has_mitre"] for alert in alerts_data)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Health check - UPDATED
 @app.get("/health")
 async def health_check():
     try:
-        from sqlalchemy.orm import Session
-        from sqlalchemy import text  # Add this import
+        from sqlalchemy import text
         db: Session = next(get_db())
-        db.execute(text("SELECT 1"))  # Use text() wrapper
+        db.execute(text("SELECT 1"))
+        
+        # Check if authorization tables exist
+        auth_table_check = db.execute(text("""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE table_name = 'pending_agent_actions'
+        """)).fetchone()[0]
+        
         db.close()
         
         return {
             "status": "healthy",
             "timestamp": datetime.utcnow().isoformat(),
-            "version": "1.0.0",
+            "version": "1.1.0",  # Updated version
             "database": "connected",
+            "authorization_system": "enabled" if auth_table_check > 0 else "not_installed",
             "environment": os.getenv("ENVIRONMENT", "unknown")
         }
     except Exception as e:
@@ -199,14 +287,21 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    return {"message": "OW-AI Backend API is running", "status": "ok"}
+    return {
+        "message": "OW-AI Backend API is running", 
+        "status": "ok",
+        "version": "1.1.0",
+        "features": [
+            "Agent Action Monitoring",
+            "AI-Powered Risk Assessment", 
+            "NIST/MITRE Framework Mapping",
+            "Real-time Alert Generation",
+            "Smart Rule Generation",
+            "Human Authorization System"  # NEW FEATURE
+        ]
+    }
 
-if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting OW-AI Backend API...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-
-    # Add this to main.py temporarily
+# Add this to main.py temporarily
 @app.get("/debug/routes")
 async def debug_routes():
     routes = []
@@ -218,74 +313,7 @@ async def debug_routes():
             })
     return {"routes": routes}
 
-# Add these endpoints to your main.py for verification
-
-@app.get("/debug/database-check")
-async def debug_database_check(db: Session = Depends(get_db)):
-    """Debug endpoint to check what's actually in the database"""
-    try:
-        # Check agent actions
-        agent_actions = db.query(AgentAction).all()
-        alerts = db.query(Alert).all()
-        
-        return {
-            "agent_actions_count": len(agent_actions),
-            "alerts_count": len(alerts),
-            "sample_agent_action": agent_actions[0].__dict__ if agent_actions else None,
-            "sample_alert": alerts[0].__dict__ if alerts else None,
-            "agent_actions_with_nist": [
-                {
-                    "id": action.id,
-                    "agent_id": action.agent_id,
-                    "action_type": action.action_type,
-                    "nist_control": action.nist_control,
-                    "nist_description": action.nist_description,
-                    "mitre_tactic": action.mitre_tactic,
-                    "mitre_technique": action.mitre_technique,
-                    "risk_level": action.risk_level
-                }
-                for action in agent_actions[:3]  # First 3 records
-            ]
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/debug/alert-data-raw")
-async def debug_alert_data_raw(db: Session = Depends(get_db)):
-    """Check the exact data being sent to the summary function"""
-    try:
-        # This mimics what your alerts endpoint returns
-        query = (
-            db.query(Alert, AgentAction)
-            .join(AgentAction, Alert.agent_action_id == AgentAction.id)
-            .order_by(Alert.timestamp.desc())
-            .limit(10)
-            .all()
-        )
-        
-        enriched_alerts = []
-        for alert, action in query:
-            enriched_alerts.append({
-                "id": alert.id,
-                "timestamp": str(alert.timestamp),
-                "alert_type": alert.alert_type,
-                "severity": alert.severity,
-                "message": alert.message,
-                "agent_id": action.agent_id,
-                "tool_name": action.tool_name,
-                "risk_level": action.risk_level,
-                "mitre_tactic": action.mitre_tactic,
-                "mitre_technique": action.mitre_technique,
-                "nist_control": action.nist_control,
-                "nist_description": action.nist_description,
-                "recommendation": action.recommendation
-            })
-        
-        return {
-            "total_alerts": len(enriched_alerts),
-            "alerts_data": enriched_alerts,
-            "has_real_nist_data": any(alert.get("nist_control") for alert in enriched_alerts),
-            "has_real_mitre_data": any(alert.get("mitre_tactic") for alert in enriched_alerts),
-        }
-    except Exception as e:
-        return {"error": str(e)}
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting OW-AI Backend API with Authorization System...")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

@@ -140,4 +140,19 @@ const Dashboard = ({ getAuthHeaders }) => {
   );
 };
 
+const navigationItems = [
+  { name: 'Dashboard', icon: HomeIcon, current: activeTab === 'dashboard' },
+  { name: 'Agent Actions', icon: ShieldIcon, current: activeTab === 'agent-actions' },
+  { name: 'Activity Feed', icon: ActivityIcon, current: activeTab === 'activity' },
+  { name: 'Security Insights', icon: ChartIcon, current: activeTab === 'insights' },
+  { name: 'Alerts', icon: AlertIcon, current: activeTab === 'alerts' },
+  { name: 'Rules', icon: RulesIcon, current: activeTab === 'rules' },
+  { name: 'Smart Rule Gen', icon: BrainIcon, current: activeTab === 'smart-rules' },
+  // ADD THIS NEW TAB:
+  { name: 'Authorization Center', icon: ShieldCheckIcon, current: activeTab === 'authorization' },
+  { name: 'Submit Action', icon: PlusIcon, current: activeTab === 'submit' },
+  { name: 'Profile', icon: UserIcon, current: activeTab === 'profile' }
+];
+
+
 export default Dashboard;
