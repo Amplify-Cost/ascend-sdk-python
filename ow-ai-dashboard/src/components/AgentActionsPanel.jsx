@@ -46,30 +46,33 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
     }
   };
 
-  const generateSmartRule = async (action) => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/rules/generate-smart-rule`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await getAuthHeaders()),
-        },
-        body: JSON.stringify({
-          agent_id: action.agent_id,
-          action_type: action.action_type,
-          description: action.description || "",
-        }),
-      });
-      if (res.ok) {
-        const rule = await res.json();
-        setGeneratedRule(rule);
-        setEditedRule(rule);
-        setShowRuleModal(true);
-      }
-    } catch (err) {
-      console.error("Rule generation failed:", err);
+  // In AgentActionsPanel.jsx, find the generateSmartRule function and update:
+const generateSmartRule = async (action) => {
+  try {
+    const res = await fetch(`${API_BASE_URL}/smart-rules/generate`, {  // ✅ CHANGED: Use /smart-rules/generate
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(await getAuthHeaders()),
+      },
+      body: JSON.stringify({
+        agent_id: action.agent_id,
+        action_type: action.action_type,
+        description: action.description || "",
+      }),
+    });
+    if (res.ok) {
+      const rule = await res.json();
+      setGeneratedRule(rule);
+      setEditedRule(rule);
+      setShowRuleModal(true);
+    } else {
+      console.error("Smart rule generation failed:", res.status);
     }
-  };
+  } catch (err) {
+    console.error("Rule generation failed:", err);
+  }
+};
 
   const approveRule = async () => {
     try {
