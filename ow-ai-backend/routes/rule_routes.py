@@ -60,23 +60,51 @@ def seed_rules(db: Session = Depends(get_db)):
     return {"message": "✅ Demo rules seeded"}
 
 # ADD THIS NEW ROUTE FOR BACKWARD COMPATIBILITY
+# Add this to your rule_routes.py file at the end
+
 @router.post("/generate-smart-rule")
-async def generate_smart_rule_old_endpoint(
+async def generate_smart_rule_endpoint(
     request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(verify_token)
 ):
-    """Temporary route for backward compatibility with old frontend"""
+    """Generate smart rule endpoint for backward compatibility"""
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     
     try:
+        data = await request.json()
+        agent_id = data.get("agent_id", "demo-agent")
+        action_type = data.get("action_type", "suspicious_activity")
+        description = data.get("description", "Analyze security patterns")
+
         # Import here to avoid circular imports
-        from routes.smart_rules_routes import generate_smart_rule_endpoint
-        from dependencies import require_admin
+        from llm_utils import generate_smart_rule
         
-        # Call the actual smart rule generation function
-        return await generate_smart_rule_endpoint(request, db, user)
-    
+        # Generate smart rule using AI
+        try:
+            rule_data = generate_smart_rule(agent_id, action_type, description)
+        except Exception as e:
+            logger.warning(f"AI rule generation failed: {e}")
+            # Fallback rule generation
+            rule_data = {
+                "agent_id": agent_id,
+                "action_type": action_type,
+                "description": description,
+                "condition": f"agent_id == '{agent_id}' and action_type == '{action_type}'",
+                "action": "alert_admin",
+                "risk_level": "high",
+                "recommendation": "Review this activity pattern for security implications",
+                "justification": "Generated based on common security patterns"
+            }
+
+        return rule_data
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate smart rule: {str(e)}")
+        logger.error(f"Smart rule generation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to generate smart rule"
+        )
