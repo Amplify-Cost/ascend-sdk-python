@@ -77,6 +77,7 @@ const generateSmartRule = async (action) => {
   }
 };
 
+
   const approveRule = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/rules`, {
