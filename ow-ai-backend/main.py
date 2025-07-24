@@ -15,9 +15,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, create_engine, text 
 from database import Base, engine, get_db
-from config import ALLOWED_ORIGINS, OPENAI_API_KEY
+from config import ALLOWED_ORIGINS, OPENAI_API_KEY, DATABASE_URL
 
 # Import models - UPDATED TO INCLUDE PendingAgentAction
 from models import AgentAction, Alert, PendingAgentAction
@@ -324,13 +324,27 @@ if __name__ == "__main__":
 async def fix_database():
     """Fix database by adding missing columns and tables"""
     try:
-        # Use the correct import and database URL
-        engine = create_engine(DATABASE_URL)
+        from sqlalchemy import create_engine, text  # Import here to avoid issues
+        from config import DATABASE_URL
         
+        engine = create_engine(DATABASE_URL)
         results = []
         
         with engine.connect() as conn:
-            # 1. Create pending_agent_actions table if it doesn't exist
+            # 1. Add status column to alerts table
+            try:
+                conn.execute(text("""
+                    ALTER TABLE alerts 
+                    ADD COLUMN status VARCHAR DEFAULT 'new'
+                """))
+                results.append("✅ Added status column to alerts table")
+            except Exception as e:
+                if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+                    results.append("✅ Status column already exists in alerts")
+                else:
+                    results.append(f"⚠️ alerts status column: {str(e)}")
+            
+            # 2. Create pending_agent_actions table
             try:
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS pending_agent_actions (
@@ -357,24 +371,11 @@ async def fix_database():
                         execution_status VARCHAR
                     )
                 """))
-                results.append("✅ Created/verified pending_agent_actions table")
+                results.append("✅ Created pending_agent_actions table")
             except Exception as e:
-                results.append(f"⚠️ pending_agent_actions table: {str(e)}")
+                results.append(f"⚠️ pending_agent_actions: {str(e)}")
             
-            # 2. Add status column to alerts table if missing
-            try:
-                conn.execute(text("""
-                    ALTER TABLE alerts 
-                    ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'new'
-                """))
-                results.append("✅ Added status column to alerts table")
-            except Exception as e:
-                if "already exists" in str(e):
-                    results.append("✅ Status column already exists in alerts")
-                else:
-                    results.append(f"⚠️ alerts status column: {str(e)}")
-            
-            # 3. Add indexes for better performance
+            # 3. Add indexes
             try:
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_pending_actions_status 
@@ -390,6 +391,7 @@ async def fix_database():
             
             conn.commit()
         
+        logger.info("Database fix completed successfully")
         return {
             "status": "success",
             "message": "Database fixed successfully",
