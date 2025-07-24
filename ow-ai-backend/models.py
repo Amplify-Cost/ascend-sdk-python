@@ -8,7 +8,7 @@ class User(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    password = Column(String, nullable=False)  # ✅ THIS MUST EXIST
+    password = Column(String, nullable=False)
     role = Column(String, default="user")
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -35,15 +35,14 @@ class AgentAction(Base):
     approved = Column(Boolean, default=False)
     reviewed_by = Column(String, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
-    summary = Column(Text, nullable=True)  # ✅ LLM-generated summary
-    tenant_id = Column(String, nullable=True, default="default")  # Added for multi-tenancy
+    summary = Column(Text, nullable=True)
+    # ✅ REMOVED: tenant_id column that was causing the database error
 
 # NEW MODEL FOR AUTHORIZATION SYSTEM
 class PendingAgentAction(Base):
     __tablename__ = "pending_agent_actions"
     
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String, nullable=False, index=True, default="default")
     agent_id = Column(String, nullable=False)
     action_type = Column(String, nullable=False)
     description = Column(Text)
@@ -74,6 +73,7 @@ class PendingAgentAction(Base):
     executed_at = Column(DateTime)
     execution_result = Column(Text)
     execution_status = Column(String)  # success, failed, partial
+    # ✅ REMOVED: tenant_id column that was causing the database error
 
 class Alert(Base):
     __tablename__ = "alerts"
@@ -83,10 +83,10 @@ class Alert(Base):
     alert_type = Column(String, nullable=False)
     severity = Column(String, nullable=False)
     message = Column(Text, nullable=False)
+    status = Column(String, default="new")  # ✅ Added status field
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     timestamp = Column(DateTime, default=lambda: datetime.now(UTC))
-    tenant_id = Column(String, nullable=True, default="default")  # Added for multi-tenancy
-    status = Column(String, default="new")
+    # ✅ REMOVED: tenant_id column that was causing the database error
 
 class LogAuditTrail(Base):
     __tablename__ = "log_audit_trail"

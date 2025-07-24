@@ -324,44 +324,17 @@ if __name__ == "__main__":
 async def fix_database():
     """Fix database by adding missing columns and tables"""
     try:
-        from sqlalchemy import text
+        # Use the correct import and database URL
         engine = create_engine(DATABASE_URL)
         
         results = []
         
         with engine.connect() as conn:
-            # 1. Add tenant_id to agent_actions if missing
-            try:
-                conn.execute(text("""
-                    ALTER TABLE agent_actions 
-                    ADD COLUMN tenant_id VARCHAR DEFAULT 'default'
-                """))
-                results.append("✅ Added tenant_id to agent_actions")
-            except Exception as e:
-                if "already exists" in str(e):
-                    results.append("✅ tenant_id already exists in agent_actions")
-                else:
-                    results.append(f"⚠️ agent_actions tenant_id: {str(e)}")
-            
-            # 2. Add tenant_id to alerts if missing
-            try:
-                conn.execute(text("""
-                    ALTER TABLE alerts 
-                    ADD COLUMN tenant_id VARCHAR DEFAULT 'default'
-                """))
-                results.append("✅ Added tenant_id to alerts")
-            except Exception as e:
-                if "already exists" in str(e):
-                    results.append("✅ tenant_id already exists in alerts")
-                else:
-                    results.append(f"⚠️ alerts tenant_id: {str(e)}")
-            
-            # 3. Create pending_agent_actions table
+            # 1. Create pending_agent_actions table if it doesn't exist
             try:
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS pending_agent_actions (
                         id SERIAL PRIMARY KEY,
-                        tenant_id VARCHAR DEFAULT 'default',
                         agent_id VARCHAR NOT NULL,
                         action_type VARCHAR NOT NULL,
                         description TEXT,
@@ -384,19 +357,32 @@ async def fix_database():
                         execution_status VARCHAR
                     )
                 """))
-                results.append("✅ Created pending_agent_actions table")
+                results.append("✅ Created/verified pending_agent_actions table")
             except Exception as e:
-                results.append(f"⚠️ pending_agent_actions: {str(e)}")
+                results.append(f"⚠️ pending_agent_actions table: {str(e)}")
             
-            # 4. Add indexes
+            # 2. Add status column to alerts table if missing
             try:
                 conn.execute(text("""
-                    CREATE INDEX IF NOT EXISTS idx_pending_actions_tenant_id 
-                    ON pending_agent_actions(tenant_id)
+                    ALTER TABLE alerts 
+                    ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'new'
                 """))
+                results.append("✅ Added status column to alerts table")
+            except Exception as e:
+                if "already exists" in str(e):
+                    results.append("✅ Status column already exists in alerts")
+                else:
+                    results.append(f"⚠️ alerts status column: {str(e)}")
+            
+            # 3. Add indexes for better performance
+            try:
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_pending_actions_status 
                     ON pending_agent_actions(authorization_status)
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_pending_actions_agent_id 
+                    ON pending_agent_actions(agent_id)
                 """))
                 results.append("✅ Added database indexes")
             except Exception as e:
@@ -411,6 +397,7 @@ async def fix_database():
         }
         
     except Exception as e:
+        logger.error(f"Database fix failed: {str(e)}")
         return {
             "status": "error", 
             "message": f"Database fix failed: {str(e)}"
