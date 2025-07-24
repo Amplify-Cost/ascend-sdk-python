@@ -1,4 +1,4 @@
-# main.py - UPDATED VERSION WITH AUTHORIZATION SYSTEM
+# main.py - UPDATED VERSION WITH SCHEMA FIX
 from dotenv import load_dotenv
 import openai
 import os
@@ -33,7 +33,7 @@ from routes.rule_routes import router as rule_router
 from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
-from routes.authorization_routes import router as authorization_router  # NEW AUTHORIZATION ROUTES
+from routes.authorization_routes import router as authorization_router
 
 # Set up logging
 logging.basicConfig(
@@ -54,7 +54,7 @@ openai.api_key = OPENAI_API_KEY
 app = FastAPI(
     title="OW-AI Backend API",
     description="AI-powered security monitoring platform with NIST/MITRE compliance and Agent Authorization",
-    version="1.1.0",  # Updated version number
+    version="1.1.0",
     docs_url="/docs" if os.getenv("ENVIRONMENT") != "production" else None,
     redoc_url="/redoc" if os.getenv("ENVIRONMENT") != "production" else None
 )
@@ -71,15 +71,13 @@ app.add_middleware(
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# CORS configuration - Load from environment
+# CORS configuration
 cors_origins = os.getenv("ALLOWED_ORIGINS", "").split(",") if os.getenv("ALLOWED_ORIGINS") else []
 cors_origins_alt = os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if os.getenv("CORS_ALLOWED_ORIGINS") else []
 
-# Combine both possible environment variable names
 all_origins = list(set(cors_origins + cors_origins_alt))
 all_origins = [origin.strip() for origin in all_origins if origin.strip()]
 
-# Fallback origins if none are set
 if not all_origins:
     all_origins = [
         "https://passionate-elegance-production.up.railway.app",
@@ -90,7 +88,6 @@ if not all_origins:
 
 print(f"🚀 CORS Origins: {all_origins}")
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=all_origins,
@@ -140,7 +137,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Database initialization
 Base.metadata.create_all(bind=engine)
 
-# Register routers - UPDATED TO INCLUDE AUTHORIZATION ROUTER
+# Register routers
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router, prefix="/analytics")
@@ -149,7 +146,7 @@ app.include_router(rule_router)
 app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
-app.include_router(authorization_router)  # NEW AUTHORIZATION SYSTEM
+app.include_router(authorization_router)
 
 # OPTIONS handler for CORS preflight
 @app.options("/{path:path}")
@@ -163,109 +160,66 @@ async def options_handler(path: str):
         }
     )
 
-# Debug endpoint (temporary)
-@app.get("/debug/env")
-async def debug_env():
-    return {
-        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
-        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
-        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
-        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
-        "environment": os.getenv("ENVIRONMENT"),
-        "cors_origins_loaded": all_origins,
-        "authorization_system": "enabled"  # NEW FEATURE FLAG
-    }
-
-# Database check endpoints
-@app.get("/debug/database-check")
-async def debug_database_check():
-    """Simple debug endpoint to check database connection"""
+# ✅ NEW: Database schema fix endpoint
+@app.post("/admin/fix-database-schema")
+async def fix_database_schema():
+    """Fix database schema by removing tenant_id column"""
     try:
-        db: Session = next(get_db())
+        engine_fix = create_engine(DATABASE_URL)
+        results = []
         
-        # Count records
-        agent_actions_count = db.query(AgentAction).count()
-        alerts_count = db.query(Alert).count()
+        with engine_fix.connect() as conn:
+            # 1. Remove tenant_id column from pending_agent_actions if it exists
+            try:
+                conn.execute(text("""
+                    ALTER TABLE pending_agent_actions 
+                    DROP COLUMN IF EXISTS tenant_id
+                """))
+                results.append("✅ Removed tenant_id column from pending_agent_actions")
+            except Exception as e:
+                results.append(f"⚠️ tenant_id column removal: {str(e)}")
+            
+            # 2. Remove tenant_id column from agent_actions if it exists
+            try:
+                conn.execute(text("""
+                    ALTER TABLE agent_actions 
+                    DROP COLUMN IF EXISTS tenant_id
+                """))
+                results.append("✅ Removed tenant_id column from agent_actions")
+            except Exception as e:
+                results.append(f"⚠️ agent_actions tenant_id removal: {str(e)}")
+            
+            # 3. Remove tenant_id column from alerts if it exists
+            try:
+                conn.execute(text("""
+                    ALTER TABLE alerts 
+                    DROP COLUMN IF EXISTS tenant_id
+                """))
+                results.append("✅ Removed tenant_id column from alerts")
+            except Exception as e:
+                results.append(f"⚠️ alerts tenant_id removal: {str(e)}")
+            
+            conn.commit()
         
-        try:
-            pending_actions_count = db.query(PendingAgentAction).count()
-        except Exception:
-            pending_actions_count = 0  # Table might not exist yet
-        
-        # Get sample records
-        sample_action = db.query(AgentAction).first()
-        sample_alert = db.query(Alert).first()
-        
-        try:
-            sample_pending = db.query(PendingAgentAction).first()
-        except Exception:
-            sample_pending = None
-        
-        db.close()
-        
+        logger.info("Database schema fix completed successfully")
         return {
-            "status": "connected",
-            "agent_actions_count": agent_actions_count,
-            "alerts_count": alerts_count,
-            "pending_actions_count": pending_actions_count,
-            "has_agent_actions": agent_actions_count > 0,
-            "has_alerts": alerts_count > 0,
-            "has_pending_actions": pending_actions_count > 0,
-            "sample_action_id": sample_action.id if sample_action else None,
-            "sample_alert_id": sample_alert.id if sample_alert else None,
-            "sample_pending_id": sample_pending.id if sample_pending else None,
-            "sample_nist_control": sample_action.nist_control if sample_action else None,
-            "sample_mitre_tactic": sample_action.mitre_tactic if sample_action else None,
-            "authorization_system_status": "operational"
+            "status": "success",
+            "message": "Database schema fixed successfully",
+            "details": results
         }
+        
     except Exception as e:
-        return {"error": str(e), "status": "failed"}
-
-@app.get("/debug/alert-data-raw")
-async def debug_alert_data_raw():
-    """Check what data exists in alerts"""
-    try:
-        db: Session = next(get_db())
-        
-        # Get the same query as your alerts endpoint
-        query = (
-            db.query(Alert, AgentAction)
-            .join(AgentAction, Alert.agent_action_id == AgentAction.id)
-            .order_by(Alert.timestamp.desc())
-            .limit(5)
-            .all()
-        )
-        
-        alerts_data = []
-        for alert, action in query:
-            alerts_data.append({
-                "alert_id": alert.id,
-                "agent_id": action.agent_id,
-                "action_type": action.action_type,
-                "nist_control": action.nist_control,
-                "mitre_tactic": action.mitre_tactic,
-                "mitre_technique": action.mitre_technique,
-                "has_nist": bool(action.nist_control),
-                "has_mitre": bool(action.mitre_tactic)
-            })
-        
-        db.close()
-        
+        logger.error(f"Database schema fix failed: {str(e)}")
         return {
-            "total_alerts": len(alerts_data),
-            "alerts_sample": alerts_data,
-            "has_real_nist": any(alert["has_nist"] for alert in alerts_data),
-            "has_real_mitre": any(alert["has_mitre"] for alert in alerts_data)
+            "status": "error", 
+            "message": f"Database schema fix failed: {str(e)}"
         }
-    except Exception as e:
-        return {"error": str(e)}
 
-# ✅ FIXED: Database fix endpoint with correct imports
+# ✅ EXISTING: Database fix endpoint
 @app.post("/admin/fix-database")
 async def fix_database():
     """Fix database by adding missing columns and tables"""
     try:
-        # Use the correct imports that are already at the top of the file
         engine_fix = create_engine(DATABASE_URL)
         results = []
         
@@ -274,7 +228,7 @@ async def fix_database():
             try:
                 conn.execute(text("""
                     ALTER TABLE alerts 
-                    ADD COLUMN status VARCHAR DEFAULT 'new'
+                    ADD COLUMN IF NOT EXISTS status VARCHAR DEFAULT 'new'
                 """))
                 results.append("✅ Added status column to alerts table")
             except Exception as e:
@@ -283,7 +237,7 @@ async def fix_database():
                 else:
                     results.append(f"⚠️ alerts status column: {str(e)}")
             
-            # 2. Create pending_agent_actions table
+            # 2. Create pending_agent_actions table WITHOUT tenant_id
             try:
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS pending_agent_actions (
@@ -347,14 +301,65 @@ async def fix_database():
             "message": f"Database fix failed: {str(e)}"
         }
 
-# Health check - UPDATED
+# Debug endpoints
+@app.get("/debug/env")
+async def debug_env():
+    return {
+        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
+        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
+        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
+        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
+        "environment": os.getenv("ENVIRONMENT"),
+        "cors_origins_loaded": all_origins,
+        "authorization_system": "enabled"
+    }
+
+@app.get("/debug/database-check")
+async def debug_database_check():
+    try:
+        db: Session = next(get_db())
+        
+        agent_actions_count = db.query(AgentAction).count()
+        alerts_count = db.query(Alert).count()
+        
+        try:
+            pending_actions_count = db.query(PendingAgentAction).count()
+        except Exception:
+            pending_actions_count = 0
+        
+        sample_action = db.query(AgentAction).first()
+        sample_alert = db.query(Alert).first()
+        
+        try:
+            sample_pending = db.query(PendingAgentAction).first()
+        except Exception:
+            sample_pending = None
+        
+        db.close()
+        
+        return {
+            "status": "connected",
+            "agent_actions_count": agent_actions_count,
+            "alerts_count": alerts_count,
+            "pending_actions_count": pending_actions_count,
+            "has_agent_actions": agent_actions_count > 0,
+            "has_alerts": alerts_count > 0,
+            "has_pending_actions": pending_actions_count > 0,
+            "sample_action_id": sample_action.id if sample_action else None,
+            "sample_alert_id": sample_alert.id if sample_alert else None,
+            "sample_pending_id": sample_pending.id if sample_pending else None,
+            "authorization_system_status": "operational"
+        }
+    except Exception as e:
+        return {"error": str(e), "status": "failed"}
+
+# Health check
 @app.get("/health")
 async def health_check():
     try:
         db: Session = next(get_db())
         db.execute(text("SELECT 1"))
         
-        # Check if authorization tables exist
         try:
             auth_table_check = db.execute(text("""
                 SELECT COUNT(*) FROM information_schema.tables 
@@ -400,7 +405,6 @@ async def root():
         ]
     }
 
-# Debug routes endpoint
 @app.get("/debug/routes")
 async def debug_routes():
     routes = []
