@@ -19,60 +19,6 @@ import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
-// Error Boundary Component
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { hasError: true, error: error };
-  }
-
-  componentDidCatch(error, errorInfo) {
-    console.error('🚨 Frontend Error Caught:', error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md">
-            <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Something went wrong</h2>
-            <p className="text-gray-600 mb-4">
-              The application encountered an error. Please refresh the page or contact support.
-            </p>
-            <div className="space-y-2">
-              <button 
-                onClick={() => window.location.reload()} 
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Refresh Page
-              </button>
-              <button 
-                onClick={() => this.setState({ hasError: false, error: null })} 
-                className="w-full bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
-              >
-                Try Again
-              </button>
-            </div>
-            <details className="mt-4 text-left">
-              <summary className="cursor-pointer text-sm text-gray-500">Technical Details</summary>
-              <pre className="text-xs text-red-600 mt-2 p-2 bg-red-50 rounded overflow-auto">
-                {this.state.error?.toString()}
-              </pre>
-            </details>
-          </div>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
 const Profile = ({ user, onUpdateProfile }) => {
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
@@ -281,89 +227,71 @@ const App = () => {
     console.log("🎯 Rendering tab:", activeTab);
     console.log("🎯 User role:", user?.role);
     
-    try {
-      switch (activeTab) {
-        case "dashboard":
-          return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
-        case "actions":
-          return <AgentActionsPanel getAuthHeaders={getAuthHeaders} user={user} />;
-        case "activity":
-          return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
-        case "analytics":
-          return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
-        case "alerts":
-          return user?.role === "admin" ? (
-            <AlertPanel getAuthHeaders={getAuthHeaders} user={user} />
-          ) : (
-            <div className="p-6 text-center">
-              <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-                <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-                <p className="text-yellow-700">You need administrator privileges to access Security Alerts.</p>
-                <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-              </div>
+    switch (activeTab) {
+      case "dashboard":
+        return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
+      case "actions":
+        return <AgentActionsPanel getAuthHeaders={getAuthHeaders} user={user} />;
+      case "activity":
+        return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
+      case "analytics":
+        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
+      case "alerts":
+        return user?.role === "admin" ? (
+          <AlertPanel getAuthHeaders={getAuthHeaders} user={user} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access Security Alerts.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
             </div>
-          );
-        case "rules":
-          return user?.role === "admin" ? (
-            <RulesPanel getAuthHeaders={getAuthHeaders} user={user} />
-          ) : (
-            <div className="p-6 text-center">
-              <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-                <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-                <p className="text-yellow-700">You need administrator privileges to access Security Rules.</p>
-                <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-              </div>
-            </div>
-          );
-        case "authorization":
-          return user?.role === "admin" ? (
-            <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
-          ) : (
-            <div className="p-6 text-center">
-              <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-                <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-                <p className="text-yellow-700">You need administrator privileges to access the Authorization Center.</p>
-                <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-              </div>
-            </div>
-          );
-        case "support":
-          return <SubmitActionForm getAuthHeaders={getAuthHeaders} user={user} />;
-        case "profile":
-          return <Profile user={user} onUpdateProfile={handleProfileUpdate} />;
-        case "insights":
-          return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
-        case "smartRules":
-          return user?.role === "admin" ? (
-            <SmartRuleGen getAuthHeaders={getAuthHeaders} />
-          ) : (
-            <div className="p-6 text-center">
-              <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-                <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-                <p className="text-yellow-700">You need administrator privileges to access Smart Rule Generation.</p>
-                <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-              </div>
-            </div>
-          );
-        default:
-          return <div className="p-6 text-center text-gray-500">Page not found</div>;
-      }
-    } catch (error) {
-      console.error('Error rendering content:', error);
-      return (
-        <div className="p-6 text-center">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <h3 className="font-bold">Error Loading Content</h3>
-            <p>There was an error loading this section. Please try refreshing the page.</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="mt-2 bg-red-600 text-white px-3 py-1 rounded text-sm"
-            >
-              Refresh
-            </button>
           </div>
-        </div>
-      );
+        );
+      case "rules":
+        return user?.role === "admin" ? (
+          <RulesPanel getAuthHeaders={getAuthHeaders} user={user} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access Security Rules.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
+      case "authorization":
+        return user?.role === "admin" ? (
+          <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access the Authorization Center.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
+      case "support":
+        return <SubmitActionForm getAuthHeaders={getAuthHeaders} user={user} />;
+      case "profile":
+        return <Profile user={user} onUpdateProfile={handleProfileUpdate} />;
+      case "insights":
+        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
+      case "smartRules":
+        return user?.role === "admin" ? (
+          <SmartRuleGen getAuthHeaders={getAuthHeaders} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access Smart Rule Generation.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
+      default:
+        return <div className="p-6 text-center text-gray-500">Page not found</div>;
     }
   };
 
@@ -380,53 +308,51 @@ const App = () => {
   }
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
-        {view === "login" && (
-          <Login
-            onLoginSuccess={handleLoginSuccess}
-            switchToRegister={() => setView("register")}
-            switchToForgotPassword={() => setView("forgot")}
+    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
+      {view === "login" && (
+        <Login
+          onLoginSuccess={handleLoginSuccess}
+          switchToRegister={() => setView("register")}
+          switchToForgotPassword={() => setView("forgot")}
+        />
+      )}
+      {view === "register" && (
+        <Register
+          onRegisterSuccess={handleLoginSuccess}
+          switchToLogin={() => setView("login")}
+        />
+      )}
+      {view === "forgot" && <ForgotPassword switchToLogin={() => setView("login")} />}
+      {view === "app" && (
+        <>
+          <Sidebar
+            user={user}
+            onLogout={handleLogout}
+            onSupport={() => setShowSupportModal(true)}
+            onNavigate={(tab) => setActiveTab(tab)}
+            activeTab={activeTab}
           />
-        )}
-        {view === "register" && (
-          <Register
-            onRegisterSuccess={handleLoginSuccess}
-            switchToLogin={() => setView("login")}
-          />
-        )}
-        {view === "forgot" && <ForgotPassword switchToLogin={() => setView("login")} />}
-        {view === "app" && (
-          <>
-            <Sidebar
-              user={user}
-              onLogout={handleLogout}
-              onSupport={() => setShowSupportModal(true)}
-              onNavigate={(tab) => setActiveTab(tab)}
-              activeTab={activeTab}
+          <main className="flex-1 p-4 space-y-8 overflow-y-auto">
+            <div className="text-sm text-gray-600">
+              Logged in as: {user?.email} ({user?.role})
+              <span className="ml-4 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                API: {API_BASE_URL}
+              </span>
+            </div>
+            {renderAppContent()}
+          </main>
+          {showSupportModal && (
+            <SupportModal
+              onClose={() => setShowSupportModal(false)}
+              onSubmit={(message) => {
+                console.log("Support message submitted:", message);
+                setShowSupportModal(false);
+              }}
             />
-            <main className="flex-1 p-4 space-y-8 overflow-y-auto">
-              <div className="text-sm text-gray-600">
-                Logged in as: {user?.email} ({user?.role})
-                <span className="ml-4 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                  API: {API_BASE_URL}
-                </span>
-              </div>
-              {renderAppContent()}
-            </main>
-            {showSupportModal && (
-              <SupportModal
-                onClose={() => setShowSupportModal(false)}
-                onSubmit={(message) => {
-                  console.log("Support message submitted:", message);
-                  setShowSupportModal(false);
-                }}
-              />
-            )}
-          </>
-        )}
-      </div>
-    </ErrorBoundary>
+          )}
+        </>
+      )}
+    </div>
   );
 };
 
