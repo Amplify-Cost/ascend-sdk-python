@@ -141,7 +141,7 @@ const Dashboard = ({ getAuthHeaders }) => {
 };
 
 const navigationItems = [
-  { name: 'Dashboard', icon: HomeIcon, current: activeTab === 'dashboard' },
+  { name: 'Dashboard', icon:  Home, current: activeTab === 'dashboard' },
   { name: 'Agent Actions', icon: ShieldIcon, current: activeTab === 'agent-actions' },
   { name: 'Activity Feed', icon: ActivityIcon, current: activeTab === 'activity' },
   { name: 'Security Insights', icon: ChartIcon, current: activeTab === 'insights' },

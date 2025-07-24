@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Shield, Clock, AlertTriangle, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [pendingActions, setPendingActions] = useState([]);
@@ -10,6 +11,7 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   useEffect(() => {
+    console.log("🔐 Authorization Dashboard Loading...");
     fetchPendingActions();
     // Refresh every 30 seconds for real-time updates
     const interval = setInterval(fetchPendingActions, 30000);
@@ -122,22 +124,40 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">🛡️ Agent Authorization Center</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 flex items-center">
+          <Shield className="mr-3 text-blue-600" size={24} />
+          Agent Authorization Center
+        </h1>
         <p className="text-gray-600">Review and authorize pending agent actions in real-time</p>
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="text-2xl font-bold text-yellow-800">{pendingActions.length}</div>
-            <div className="text-sm text-yellow-600">Pending Actions</div>
-          </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="text-2xl font-bold text-blue-800">
-              {pendingActions.filter(a => a.risk_level === 'high' || a.risk_level === 'critical').length}
+            <div className="flex items-center">
+              <Clock className="text-yellow-600 mr-2" size={20} />
+              <div>
+                <div className="text-2xl font-bold text-yellow-800">{pendingActions.length}</div>
+                <div className="text-sm text-yellow-600">Pending Actions</div>
+              </div>
             </div>
-            <div className="text-sm text-blue-600">High Risk</div>
+          </div>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertTriangle className="text-red-600 mr-2" size={20} />
+              <div>
+                <div className="text-2xl font-bold text-red-800">
+                  {pendingActions.filter(a => a.risk_level === 'high' || a.risk_level === 'critical').length}
+                </div>
+                <div className="text-sm text-red-600">High Risk</div>
+              </div>
+            </div>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="text-2xl font-bold text-green-800">Real-time</div>
-            <div className="text-sm text-green-600">Monitoring Active</div>
+            <div className="flex items-center">
+              <RefreshCw className="text-green-600 mr-2" size={20} />
+              <div>
+                <div className="text-2xl font-bold text-green-800">Live</div>
+                <div className="text-sm text-green-600">Real-time Monitoring</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -157,7 +177,7 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
       {pendingActions.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-gray-400 text-6xl mb-4">🎉</div>
+          <CheckCircle className="mx-auto text-green-500 mb-4" size={64} />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Actions</h3>
           <p className="text-gray-500">All agent actions have been reviewed. The system is secure.</p>
           <button 
@@ -217,15 +237,17 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
                     </button>
                     <button
                       onClick={() => handleAuthorization(action.id, 'approved')}
-                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
                     >
-                      ✅ Approve
+                      <CheckCircle size={14} className="mr-1" />
+                      Approve
                     </button>
                     <button
                       onClick={() => handleAuthorization(action.id, 'denied')}
-                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
                     >
-                      ❌ Deny
+                      <XCircle size={14} className="mr-1" />
+                      Deny
                     </button>
                   </div>
                 </div>
@@ -295,15 +317,17 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
                 </button>
                 <button
                   onClick={() => handleAuthorization(selectedAction.id, 'denied')}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center"
                 >
-                  ❌ Deny Action
+                  <XCircle size={16} className="mr-2" />
+                  Deny Action
                 </button>
                 <button
                   onClick={() => handleAuthorization(selectedAction.id, 'approved')}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors flex items-center"
                 >
-                  ✅ Approve Action
+                  <CheckCircle size={16} className="mr-2" />
+                  Approve Action
                 </button>
               </div>
             </div>
