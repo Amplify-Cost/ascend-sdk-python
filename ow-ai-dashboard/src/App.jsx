@@ -13,6 +13,7 @@ import AlertPanel from "./components/AlertPanel";
 import SmartRuleGen from "./components/SmartRuleGen";
 import RulesPanel from "./components/RulesPanel";
 import SecurityInsights from "./components/SecurityInsights";
+import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard"; // NEW IMPORT
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
 
 // Consistent API URL handling
@@ -255,6 +256,19 @@ const App = () => {
             <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
               <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
               <p className="text-yellow-700">You need administrator privileges to access Security Rules.</p>
+              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+            </div>
+          </div>
+        );
+      // NEW AUTHORIZATION CENTER CASE
+      case "authorization":
+        return user?.role === "admin" ? (
+          <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
+        ) : (
+          <div className="p-6 text-center">
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+              <p className="text-yellow-700">You need administrator privileges to access the Authorization Center.</p>
               <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
             </div>
           </div>

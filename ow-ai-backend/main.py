@@ -317,3 +317,101 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Starting OW-AI Backend API with Authorization System...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+    # Add this to your main.py temporarily to fix the database
+
+@app.post("/admin/fix-database")
+async def fix_database():
+    """Fix database by adding missing columns and tables"""
+    try:
+        from sqlalchemy import text
+        engine = create_engine(DATABASE_URL)
+        
+        results = []
+        
+        with engine.connect() as conn:
+            # 1. Add tenant_id to agent_actions if missing
+            try:
+                conn.execute(text("""
+                    ALTER TABLE agent_actions 
+                    ADD COLUMN tenant_id VARCHAR DEFAULT 'default'
+                """))
+                results.append("✅ Added tenant_id to agent_actions")
+            except Exception as e:
+                if "already exists" in str(e):
+                    results.append("✅ tenant_id already exists in agent_actions")
+                else:
+                    results.append(f"⚠️ agent_actions tenant_id: {str(e)}")
+            
+            # 2. Add tenant_id to alerts if missing
+            try:
+                conn.execute(text("""
+                    ALTER TABLE alerts 
+                    ADD COLUMN tenant_id VARCHAR DEFAULT 'default'
+                """))
+                results.append("✅ Added tenant_id to alerts")
+            except Exception as e:
+                if "already exists" in str(e):
+                    results.append("✅ tenant_id already exists in alerts")
+                else:
+                    results.append(f"⚠️ alerts tenant_id: {str(e)}")
+            
+            # 3. Create pending_agent_actions table
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS pending_agent_actions (
+                        id SERIAL PRIMARY KEY,
+                        tenant_id VARCHAR DEFAULT 'default',
+                        agent_id VARCHAR NOT NULL,
+                        action_type VARCHAR NOT NULL,
+                        description TEXT,
+                        tool_name VARCHAR,
+                        risk_level VARCHAR,
+                        action_payload TEXT,
+                        target_system VARCHAR,
+                        authorization_status VARCHAR DEFAULT 'pending',
+                        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TIMESTAMP,
+                        reviewed_by VARCHAR,
+                        reviewed_at TIMESTAMP,
+                        review_notes TEXT,
+                        ai_risk_score INTEGER,
+                        nist_control VARCHAR,
+                        mitre_tactic VARCHAR,
+                        mitre_technique VARCHAR,
+                        executed_at TIMESTAMP,
+                        execution_result TEXT,
+                        execution_status VARCHAR
+                    )
+                """))
+                results.append("✅ Created pending_agent_actions table")
+            except Exception as e:
+                results.append(f"⚠️ pending_agent_actions: {str(e)}")
+            
+            # 4. Add indexes
+            try:
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_pending_actions_tenant_id 
+                    ON pending_agent_actions(tenant_id)
+                """))
+                conn.execute(text("""
+                    CREATE INDEX IF NOT EXISTS idx_pending_actions_status 
+                    ON pending_agent_actions(authorization_status)
+                """))
+                results.append("✅ Added database indexes")
+            except Exception as e:
+                results.append(f"⚠️ indexes: {str(e)}")
+            
+            conn.commit()
+        
+        return {
+            "status": "success",
+            "message": "Database fixed successfully",
+            "details": results
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error", 
+            "message": f"Database fix failed: {str(e)}"
+        }

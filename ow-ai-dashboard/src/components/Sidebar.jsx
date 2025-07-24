@@ -11,6 +11,7 @@ import {
   User,
   Settings,
   Zap,
+  ShieldCheck,
 } from "lucide-react";
 
 const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
@@ -24,11 +25,17 @@ const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
     { label: "Profile", icon: <User size={18} />, tab: "profile" },
   ];
 
-  // Admin-only navigation items
+  // Admin-only navigation items - UPDATED TO INCLUDE AUTHORIZATION CENTER
   const adminNavItems = [
     { label: "Alerts", icon: <AlertCircle size={18} />, tab: "alerts" },
     { label: "Rules", icon: <FileText size={18} />, tab: "rules" },
     { label: "Smart Rule Gen", icon: <Zap size={18} />, tab: "smartRules" },
+    { 
+      label: "Authorization Center", 
+      icon: <ShieldCheck size={18} />, 
+      tab: "authorization",
+      badge: "New"
+    },
   ];
 
   // Combine nav items based on user role
@@ -45,15 +52,22 @@ const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
         {navItems.map((item) => (
           <button
             key={item.tab}
-            className={`flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition ${
+            className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-sm font-medium transition ${
               activeTab === item.tab
                 ? "bg-blue-600 text-white"
                 : "text-gray-300 hover:bg-gray-800 hover:text-white"
             }`}
             onClick={() => onNavigate(item.tab)}
           >
-            {item.icon}
-            <span className="ml-3">{item.label}</span>
+            <div className="flex items-center">
+              {item.icon}
+              <span className="ml-3">{item.label}</span>
+            </div>
+            {item.badge && (
+              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                {item.badge}
+              </span>
+            )}
           </button>
         ))}
       </nav>
