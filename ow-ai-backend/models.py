@@ -86,6 +86,7 @@ class Alert(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(UTC))
     timestamp = Column(DateTime, default=lambda: datetime.now(UTC))
     tenant_id = Column(String, nullable=True, default="default")  # Added for multi-tenancy
+    status = Column(String, default="new")
 
 class LogAuditTrail(Base):
     __tablename__ = "log_audit_trail"
