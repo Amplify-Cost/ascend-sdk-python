@@ -15,7 +15,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from sqlalchemy.orm import Session, create_engine, text 
+# ✅ FIXED: Correct SQLAlchemy imports
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
 from database import Base, engine, get_db
 from config import ALLOWED_ORIGINS, OPENAI_API_KEY, DATABASE_URL
 
@@ -184,12 +186,20 @@ async def debug_database_check():
         # Count records
         agent_actions_count = db.query(AgentAction).count()
         alerts_count = db.query(Alert).count()
-        pending_actions_count = db.query(PendingAgentAction).count()  # NEW TABLE CHECK
+        
+        try:
+            pending_actions_count = db.query(PendingAgentAction).count()
+        except Exception:
+            pending_actions_count = 0  # Table might not exist yet
         
         # Get sample records
         sample_action = db.query(AgentAction).first()
         sample_alert = db.query(Alert).first()
-        sample_pending = db.query(PendingAgentAction).first()  # NEW SAMPLE
+        
+        try:
+            sample_pending = db.query(PendingAgentAction).first()
+        except Exception:
+            sample_pending = None
         
         db.close()
         
@@ -197,16 +207,16 @@ async def debug_database_check():
             "status": "connected",
             "agent_actions_count": agent_actions_count,
             "alerts_count": alerts_count,
-            "pending_actions_count": pending_actions_count,  # NEW COUNT
+            "pending_actions_count": pending_actions_count,
             "has_agent_actions": agent_actions_count > 0,
             "has_alerts": alerts_count > 0,
-            "has_pending_actions": pending_actions_count > 0,  # NEW CHECK
+            "has_pending_actions": pending_actions_count > 0,
             "sample_action_id": sample_action.id if sample_action else None,
             "sample_alert_id": sample_alert.id if sample_alert else None,
-            "sample_pending_id": sample_pending.id if sample_pending else None,  # NEW SAMPLE
+            "sample_pending_id": sample_pending.id if sample_pending else None,
             "sample_nist_control": sample_action.nist_control if sample_action else None,
             "sample_mitre_tactic": sample_action.mitre_tactic if sample_action else None,
-            "authorization_system_status": "operational"  # NEW STATUS
+            "authorization_system_status": "operational"
         }
     except Exception as e:
         return {"error": str(e), "status": "failed"}
@@ -250,87 +260,16 @@ async def debug_alert_data_raw():
     except Exception as e:
         return {"error": str(e)}
 
-# Health check - UPDATED
-@app.get("/health")
-async def health_check():
-    try:
-        from sqlalchemy import text
-        db: Session = next(get_db())
-        db.execute(text("SELECT 1"))
-        
-        # Check if authorization tables exist
-        auth_table_check = db.execute(text("""
-            SELECT COUNT(*) FROM information_schema.tables 
-            WHERE table_name = 'pending_agent_actions'
-        """)).fetchone()[0]
-        
-        db.close()
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "version": "1.1.0",  # Updated version
-            "database": "connected",
-            "authorization_system": "enabled" if auth_table_check > 0 else "not_installed",
-            "environment": os.getenv("ENVIRONMENT", "unknown")
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "error": str(e)
-            }
-        )
-
-@app.get("/")
-async def root():
-    return {
-        "message": "OW-AI Backend API is running", 
-        "status": "ok",
-        "version": "1.1.0",
-        "features": [
-            "Agent Action Monitoring",
-            "AI-Powered Risk Assessment", 
-            "NIST/MITRE Framework Mapping",
-            "Real-time Alert Generation",
-            "Smart Rule Generation",
-            "Human Authorization System"  # NEW FEATURE
-        ]
-    }
-
-# Add this to main.py temporarily
-@app.get("/debug/routes")
-async def debug_routes():
-    routes = []
-    for route in app.routes:
-        if hasattr(route, 'methods') and hasattr(route, 'path'):
-            routes.append({
-                "path": route.path,
-                "methods": list(route.methods)
-            })
-    return {"routes": routes}
-
-if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting OW-AI Backend API with Authorization System...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-
-    # Add this to your main.py temporarily to fix the database
-
+# ✅ FIXED: Database fix endpoint with correct imports
 @app.post("/admin/fix-database")
 async def fix_database():
     """Fix database by adding missing columns and tables"""
     try:
-        from sqlalchemy import create_engine, text  # Import here to avoid issues
-        from config import DATABASE_URL
-        
-        engine = create_engine(DATABASE_URL)
+        # Use the correct imports that are already at the top of the file
+        engine_fix = create_engine(DATABASE_URL)
         results = []
         
-        with engine.connect() as conn:
+        with engine_fix.connect() as conn:
             # 1. Add status column to alerts table
             try:
                 conn.execute(text("""
@@ -373,9 +312,12 @@ async def fix_database():
                 """))
                 results.append("✅ Created pending_agent_actions table")
             except Exception as e:
-                results.append(f"⚠️ pending_agent_actions: {str(e)}")
+                if "already exists" in str(e).lower():
+                    results.append("✅ pending_agent_actions table already exists")
+                else:
+                    results.append(f"⚠️ pending_agent_actions: {str(e)}")
             
-            # 3. Add indexes
+            # 3. Add indexes for performance
             try:
                 conn.execute(text("""
                     CREATE INDEX IF NOT EXISTS idx_pending_actions_status 
@@ -404,3 +346,73 @@ async def fix_database():
             "status": "error", 
             "message": f"Database fix failed: {str(e)}"
         }
+
+# Health check - UPDATED
+@app.get("/health")
+async def health_check():
+    try:
+        db: Session = next(get_db())
+        db.execute(text("SELECT 1"))
+        
+        # Check if authorization tables exist
+        try:
+            auth_table_check = db.execute(text("""
+                SELECT COUNT(*) FROM information_schema.tables 
+                WHERE table_name = 'pending_agent_actions'
+            """)).fetchone()[0]
+        except Exception:
+            auth_table_check = 0
+        
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.1.0",
+            "database": "connected",
+            "authorization_system": "enabled" if auth_table_check > 0 else "not_installed",
+            "environment": os.getenv("ENVIRONMENT", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e)
+            }
+        )
+
+@app.get("/")
+async def root():
+    return {
+        "message": "OW-AI Backend API is running", 
+        "status": "ok",
+        "version": "1.1.0",
+        "features": [
+            "Agent Action Monitoring",
+            "AI-Powered Risk Assessment", 
+            "NIST/MITRE Framework Mapping",
+            "Real-time Alert Generation",
+            "Smart Rule Generation",
+            "Human Authorization System"
+        ]
+    }
+
+# Debug routes endpoint
+@app.get("/debug/routes")
+async def debug_routes():
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods)
+            })
+    return {"routes": routes}
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting OW-AI Backend API with Authorization System...")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
