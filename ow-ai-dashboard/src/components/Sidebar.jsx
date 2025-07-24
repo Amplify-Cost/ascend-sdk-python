@@ -17,7 +17,7 @@ import {
 const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
   // Base navigation items that everyone can see
   const baseNavItems = [
-    { label: "Dashboard", icon: <Home size={18} />, tab: "dashboard" },  // ✅ Using Home, not HomeIcon
+    { label: "Dashboard", icon: <Home size={18} />, tab: "dashboard" },  // ✅ Using Home, not Home
     { label: "Agent Actions", icon: <ClipboardList size={18} />, tab: "actions" },
     { label: "Activity Feed", icon: <Activity size={18} />, tab: "activity" },
     { label: "Security Insights", icon: <BarChart size={18} />, tab: "analytics" },
