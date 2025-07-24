@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  Home,
+  Home,           // ✅ Correct import name
   Activity,
   AlertCircle,
   LogOut,
@@ -17,7 +17,7 @@ import {
 const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
   // Base navigation items that everyone can see
   const baseNavItems = [
-    { label: "Dashboard", icon: <Home size={18} />, tab: "dashboard" },
+    { label: "Dashboard", icon: <Home size={18} />, tab: "dashboard" },  // ✅ Using Home, not HomeIcon
     { label: "Agent Actions", icon: <ClipboardList size={18} />, tab: "actions" },
     { label: "Activity Feed", icon: <Activity size={18} />, tab: "activity" },
     { label: "Security Insights", icon: <BarChart size={18} />, tab: "analytics" },
@@ -30,16 +30,16 @@ const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
     { label: "Alerts", icon: <AlertCircle size={18} />, tab: "alerts" },
     { label: "Rules", icon: <FileText size={18} />, tab: "rules" },
     { label: "Smart Rule Gen", icon: <Zap size={18} />, tab: "smartRules" },
-    { 
-      label: "Authorization Center", 
-      icon: <ShieldCheck size={18} />, 
+    {
+      label: "Authorization Center",
+      icon: <ShieldCheck size={18} />,
       tab: "authorization",
       badge: "New"
     },
   ];
 
   // Combine nav items based on user role
-  const navItems = user?.role === "admin" 
+  const navItems = user?.role === "admin"
     ? [...baseNavItems.slice(0, 4), ...adminNavItems, ...baseNavItems.slice(4)]
     : baseNavItems;
 
