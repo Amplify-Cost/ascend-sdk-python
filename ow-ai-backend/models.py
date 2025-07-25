@@ -98,14 +98,14 @@ class Rule(Base):
     __tablename__ = "rules"
     
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
+    # name = Column(String, index=True)  # REMOVED - doesn't exist in database
     description = Column(Text)
     rule_type = Column(String)  # detection, prevention, response
     severity = Column(String)  # low, medium, high, critical
     enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    created_by = Column(Integer, ForeignKey("users.id"))
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     # Fields your routes expect
     condition = Column(Text, nullable=True)  # Rule condition
