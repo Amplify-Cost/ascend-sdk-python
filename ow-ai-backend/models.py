@@ -66,6 +66,11 @@ class AgentAction(Base):
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
     
+    # Additional fields your routes expect
+    timestamp = Column(DateTime, default=datetime.now(UTC))
+    is_false_positive = Column(Boolean, default=False)
+    reviewed_by = Column(String, nullable=True)
+    
     # NIST/MITRE framework fields
     nist_control = Column(String, nullable=True)
     mitre_tactic = Column(String, nullable=True)
@@ -95,9 +100,16 @@ class Rule(Base):
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     created_by = Column(Integer, ForeignKey("users.id"))
     
-    # Rule definition
-    conditions = Column(JSON)  # Rule conditions in JSON format
-    actions = Column(JSON)     # Actions to take when rule triggers
+    # Fields your routes expect
+    condition = Column(Text, nullable=True)  # Rule condition
+    action = Column(String, nullable=True)   # Action to take
+    risk_level = Column(String, nullable=True)  # Risk level
+    recommendation = Column(Text, nullable=True)  # Recommendation text
+    justification = Column(Text, nullable=True)   # Justification text
+    
+    # Rule definition (original fields)
+    conditions = Column(JSON, nullable=True)  # Rule conditions in JSON format
+    actions = Column(JSON, nullable=True)     # Actions to take when rule triggers
     
     # NIST/MITRE framework mapping
     nist_controls = Column(JSON, nullable=True)
@@ -198,6 +210,33 @@ class AuditLog(Base):
     compliance_impact = Column(String, nullable=True)
     
     # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+
+class RuleFeedback(Base):
+    __tablename__ = "rule_feedbacks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    rule_id = Column(Integer, ForeignKey("rules.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Feedback counters that your routes expect
+    correct = Column(Integer, default=0)
+    false_positive = Column(Integer, default=0)
+    
+    # Additional enterprise feedback fields
+    feedback_type = Column(String, nullable=True)  # positive, negative, improvement, bug
+    rating = Column(Integer, nullable=True)  # 1-5 scale
+    comment = Column(Text, nullable=True)
+    effectiveness_score = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    
+    # Improvement suggestions
+    suggested_changes = Column(JSON, nullable=True)
+    priority = Column(String, default="medium")  # low, medium, high, critical
+    
+    # Relationships
+    rule = relationship("Rule", foreign_keys=[rule_id])
     user = relationship("User", foreign_keys=[user_id])
 
 class LogAuditTrail(Base):
