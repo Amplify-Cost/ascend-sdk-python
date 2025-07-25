@@ -15,6 +15,11 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))
     last_login = Column(DateTime, nullable=True)
     
+    # Enterprise authorization fields that main.py expects
+    approval_level = Column(Integer, default=1)
+    is_emergency_approver = Column(Boolean, default=False)
+    max_risk_approval = Column(Integer, default=50)
+    
     # Relationships
     alerts = relationship("Alert", back_populates="created_by_user")
     logs = relationship("Log", back_populates="user")
@@ -32,6 +37,9 @@ class Alert(Base):
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     resolved_at = Column(DateTime, nullable=True)
     extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
+    
+    # Field that main.py expects
+    pending_action_id = Column(Integer, nullable=True)
     
     # Foreign key to user who created the alert
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -123,94 +131,47 @@ class Rule(Base):
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
 
-class PendingAgentAction(Base):
-    __tablename__ = "pending_agent_actions"
+class SmartRule(Base):
+    __tablename__ = "smart_rules"
     
     id = Column(Integer, primary_key=True, index=True)
-    request_id = Column(String, unique=True, index=True)
+    name = Column(String, index=True)
+    description = Column(Text)
     agent_id = Column(String, index=True)
     action_type = Column(String)
-    description = Column(Text)
+    
+    # AI-generated rule components
+    condition = Column(Text)
+    action = Column(String)
     risk_level = Column(String)
-    risk_score = Column(Float)
-    target_system = Column(String, nullable=True)
+    recommendation = Column(Text)
+    justification = Column(Text)
     
-    # Enterprise Authorization Fields
-    approval_level_required = Column(Integer, default=1)  # 1-3 approval levels
-    current_approval_level = Column(Integer, default=0)
-    approval_chain = Column(JSON, default=list)  # List of approvers
-    escalation_timer = Column(DateTime, nullable=True)
-    sla_deadline = Column(DateTime, nullable=True)
+    # Smart rule metadata
+    confidence_score = Column(Float, default=0.0)
+    generated_by_ai = Column(Boolean, default=True)
+    training_data_size = Column(Integer, default=0)
     
-    # Compliance Framework Integration
-    nist_control = Column(String, nullable=True)
-    mitre_tactic = Column(String, nullable=True)
-    mitre_technique = Column(String, nullable=True)
-    compliance_score = Column(Float, nullable=True)
-    
-    # Status and Workflow
-    status = Column(String, default="pending")  # pending, approved, denied, escalated, expired
-    created_at = Column(DateTime, default=datetime.now(UTC))
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    expires_at = Column(DateTime, nullable=True)
-    
-    # Decision Making
-    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    denied_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    approval_reason = Column(Text, nullable=True)
-    denial_reason = Column(Text, nullable=True)
-    
-    # Emergency Override
-    emergency_override = Column(Boolean, default=False)
-    override_reason = Column(Text, nullable=True)
-    override_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
-    # Audit and Tracking
-    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
-    audit_trail = Column(JSON, default=list)
-    
-    # Relationships
-    approver = relationship("User", foreign_keys=[approved_by])
-    denier = relationship("User", foreign_keys=[denied_by])
-    override_user = relationship("User", foreign_keys=[override_by])
-
-class SystemConfiguration(Base):
-    __tablename__ = "system_configurations"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    key = Column(String, unique=True, index=True)
-    value = Column(JSON)
-    description = Column(Text, nullable=True)
+    # Status and lifecycle
+    status = Column(String, default="pending")  # pending, active, inactive, archived
+    enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     created_by = Column(Integer, ForeignKey("users.id"))
     
-    # Configuration metadata
-    config_type = Column(String)  # security, integration, ui, workflow
-    is_sensitive = Column(Boolean, default=False)  # For sensitive configs like API keys
+    # Performance metrics
+    trigger_count = Column(Integer, default=0)
+    accuracy_score = Column(Float, nullable=True)
+    false_positive_rate = Column(Float, nullable=True)
+    last_triggered = Column(DateTime, nullable=True)
+    
+    # Enterprise features
+    compliance_framework = Column(String, nullable=True)
+    nist_controls = Column(JSON, nullable=True)
+    mitre_tactics = Column(JSON, nullable=True)
     
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
-
-class AuditLog(Base):
-    __tablename__ = "audit_logs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.now(UTC))
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT, APPROVE, DENY
-    resource_type = Column(String)  # users, alerts, rules, agent_actions, etc.
-    resource_id = Column(String, nullable=True)
-    details = Column(JSON, nullable=True)
-    ip_address = Column(String, nullable=True)
-    user_agent = Column(String, nullable=True)
-    
-    # Compliance and Risk
-    risk_level = Column(String, nullable=True)
-    compliance_impact = Column(String, nullable=True)
-    
-    # Relationships
-    user = relationship("User", foreign_keys=[user_id])
 
 class RuleFeedback(Base):
     __tablename__ = "rule_feedbacks"
@@ -256,6 +217,127 @@ class LogAuditTrail(Base):
     # Risk and compliance
     risk_level = Column(String, nullable=True)
     compliance_framework = Column(String, nullable=True)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+
+class PendingAgentAction(Base):
+    __tablename__ = "pending_agent_actions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    request_id = Column(String, unique=True, index=True)
+    agent_id = Column(String, index=True)
+    action_type = Column(String)
+    description = Column(Text)
+    risk_level = Column(String)
+    risk_score = Column(Float)
+    target_system = Column(String, nullable=True)
+    
+    # Fields that main.py schema fix expects
+    tool_name = Column(String, nullable=True)
+    action_payload = Column(Text, nullable=True)
+    authorization_status = Column(String, default="pending")
+    requested_at = Column(DateTime, default=datetime.now(UTC))
+    expires_at = Column(DateTime, nullable=True)
+    reviewed_by = Column(String, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_notes = Column(Text, nullable=True)
+    ai_risk_score = Column(Integer, nullable=True)
+    executed_at = Column(DateTime, nullable=True)
+    execution_result = Column(Text, nullable=True)
+    execution_status = Column(String, nullable=True)
+    
+    # Additional enterprise fields from main.py
+    contextual_risk_factors = Column(Text, nullable=True)
+    required_approval_level = Column(Integer, default=1)
+    current_approval_level = Column(Integer, default=0)
+    workflow_stage = Column(String, default="initial")
+    auto_approve_at = Column(DateTime, nullable=True)
+    approval_chain = Column(Text, nullable=True)
+    required_approvers = Column(Text, nullable=True)
+    pending_approvers = Column(Text, nullable=True)
+    primary_approver_id = Column(Integer, nullable=True)
+    approved_by_user_id = Column(Integer, nullable=True)
+    conditional_approval = Column(Boolean, default=False)
+    conditions = Column(Text, nullable=True)
+    approval_duration = Column(Integer, nullable=True)
+    approval_scope = Column(Text, nullable=True)
+    compliance_frameworks = Column(Text, nullable=True)
+    audit_trail = Column(Text, nullable=True)
+    emergency_approver_id = Column(Integer, nullable=True)
+    break_glass_used = Column(Boolean, default=False)
+    execution_duration = Column(Float, nullable=True)
+    affected_resources = Column(Text, nullable=True)
+    
+    # Enterprise Authorization Fields
+    approval_level_required = Column(Integer, default=1)  # 1-3 approval levels
+    escalation_timer = Column(DateTime, nullable=True)
+    sla_deadline = Column(DateTime, nullable=True)
+    
+    # Compliance Framework Integration
+    nist_control = Column(String, nullable=True)
+    mitre_tactic = Column(String, nullable=True)
+    mitre_technique = Column(String, nullable=True)
+    compliance_score = Column(Float, nullable=True)
+    
+    # Status and Workflow
+    status = Column(String, default="pending")  # pending, approved, denied, escalated, expired
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    
+    # Decision Making
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    denied_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approval_reason = Column(Text, nullable=True)
+    denial_reason = Column(Text, nullable=True)
+    
+    # Emergency Override
+    emergency_override = Column(Boolean, default=False)
+    override_reason = Column(Text, nullable=True)
+    override_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Audit and Tracking
+    extra_data = Column(JSON, nullable=True)
+    
+    # Relationships
+    approver = relationship("User", foreign_keys=[approved_by])
+    denier = relationship("User", foreign_keys=[denied_by])
+    override_user = relationship("User", foreign_keys=[override_by])
+
+class SystemConfiguration(Base):
+    __tablename__ = "system_configurations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True)
+    value = Column(JSON)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    created_by = Column(Integer, ForeignKey("users.id"))
+    
+    # Configuration metadata
+    config_type = Column(String)  # security, integration, ui, workflow
+    is_sensitive = Column(Boolean, default=False)  # For sensitive configs like API keys
+    
+    # Relationships
+    creator = relationship("User", foreign_keys=[created_by])
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.now(UTC))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT, APPROVE, DENY
+    resource_type = Column(String)  # users, alerts, rules, agent_actions, etc.
+    resource_id = Column(String, nullable=True)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    
+    # Compliance and Risk
+    risk_level = Column(String, nullable=True)
+    compliance_impact = Column(String, nullable=True)
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
