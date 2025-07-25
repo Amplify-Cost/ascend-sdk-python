@@ -266,3 +266,72 @@ class ApprovalRule(Base):
     priority = Column(Integer, default=100)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# Add this to your models.py file
+
+class PendingAgentAction(Base):
+    __tablename__ = "pending_agent_actions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    agent_id = Column(String, nullable=False)
+    action_type = Column(String, nullable=False)
+    description = Column(Text)
+    tool_name = Column(String)
+    risk_level = Column(String)
+    
+    # Action details for execution
+    action_payload = Column(Text)  # JSON string of action parameters
+    target_system = Column(String)  # What system the action targets
+    
+    # Authorization details
+    authorization_status = Column(String, default="pending")
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)  # Auto-deny after expiration
+    
+    # Human oversight
+    reviewed_by = Column(String)
+    reviewed_at = Column(DateTime)
+    review_notes = Column(Text)
+    
+    # Risk assessment
+    ai_risk_score = Column(Integer)  # 0-100 risk score from AI
+    contextual_risk_factors = Column(Text)  # JSON string of risk factors
+    
+    # Multi-level approval workflow
+    required_approval_level = Column(Integer, default=1)  # 1-3 levels
+    current_approval_level = Column(Integer, default=0)
+    workflow_stage = Column(String, default="initial")  # initial, review, approval, execution
+    auto_approve_at = Column(DateTime)  # For time-based auto-approval
+    
+    # Approval chain tracking
+    approval_chain = Column(Text)  # JSON array of approvers
+    required_approvers = Column(Text)  # JSON array of required approver roles
+    pending_approvers = Column(Text)  # JSON array of pending approvers
+    primary_approver_id = Column(Integer)
+    approved_by_user_id = Column(Integer)
+    
+    # Conditional approval
+    conditional_approval = Column(Boolean, default=False)
+    conditions = Column(Text)  # JSON string of approval conditions
+    approval_duration = Column(Integer)  # Duration in minutes
+    approval_scope = Column(String)  # Scope limitations
+    
+    # Compliance and audit
+    nist_control = Column(String)
+    mitre_tactic = Column(String)
+    mitre_technique = Column(String)
+    compliance_frameworks = Column(Text)  # JSON array
+    audit_trail = Column(Text)  # JSON array of all actions taken
+    
+    # Emergency procedures
+    emergency_approver_id = Column(Integer)
+    break_glass_used = Column(Boolean, default=False)
+    
+    # Execution tracking
+    executed_at = Column(DateTime)
+    execution_result = Column(Text)
+    execution_status = Column(String)  # success, failed, partial
+    execution_duration = Column(Float)  # Duration in seconds
+    
+    # Additional metadata
+    affected_resources = Column(Text)  # JSON array of affected resources    
