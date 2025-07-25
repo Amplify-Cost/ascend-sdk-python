@@ -2,7 +2,6 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, T
 from sqlalchemy.orm import relationship
 from datetime import datetime, UTC, timedelta
 from database import Base
-from enum import Enum
 
 class User(Base):
     __tablename__ = "users"
@@ -10,6 +9,20 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
+    role = Column(String, default="user")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # NEW: Authorization system fields (will be added via migration)
+    approval_level = Column(Integer, default=1)  # 1=basic, 2=senior, 3=executive
+    is_emergency_approver = Column(Boolean, default=False)
+    max_risk_approval = Column(Integer, default=50)  # Max risk score they can approve
+
+class AgentAction(Base):
+    __tablename__ = "agent_actions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    agent_id = Column(String, nullable)
     role = Column(String, default="user")  # user, admin, security_admin, emergency_approver
     approval_level = Column(Integer, default=1)  # 1=basic, 2=senior, 3=executive
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -276,4 +289,3 @@ class Rule(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-    
