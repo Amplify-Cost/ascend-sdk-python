@@ -1,4 +1,4 @@
-# routes/authorization_routes.py - ENHANCED ENTERPRISE VERSION
+# routes/authorization_routes.py - COMPATIBLE VERSION WITHOUT AUTH DEPENDENCY
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
@@ -8,9 +8,8 @@ import json
 import logging
 
 from database import get_db
-from models import PendingAgentAction, User, ApprovalWorkflow, ApprovalRule, LogAuditTrail, Alert
+from models import PendingAgentAction, User, Alert, AgentAction
 from pydantic import BaseModel
-from auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent-control", tags=["authorization"])
