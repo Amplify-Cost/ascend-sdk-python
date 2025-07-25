@@ -524,3 +524,82 @@ async def fix_user_schema():
             "status": "error", 
             "message": f"User schema fix failed: {str(e)}"
         }
+
+# Add this endpoint to your main.py (after the other admin endpoints)
+
+@app.post("/admin/add-username-column-now")
+async def add_username_column_now():
+    """Definitively add username column to users table"""
+    try:
+        engine_fix = create_engine(DATABASE_URL)
+        results = []
+        
+        with engine_fix.connect() as conn:
+            # First, check if column exists
+            try:
+                check_result = conn.execute(text("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'username'
+                """)).fetchall()
+                
+                if check_result:
+                    results.append("✅ Username column already exists")
+                else:
+                    # Add username column with proper PostgreSQL syntax
+                    conn.execute(text("""
+                        ALTER TABLE users ADD COLUMN username VARCHAR(150)
+                    """))
+                    results.append("✅ Successfully added username column")
+                    
+                    # Make it unique after adding
+                    try:
+                        conn.execute(text("""
+                            ALTER TABLE users ADD CONSTRAINT users_username_unique UNIQUE (username)
+                        """))
+                        results.append("✅ Added unique constraint to username")
+                    except Exception as e:
+                        results.append(f"⚠️ Unique constraint: {str(e)}")
+                    
+                    # Update existing users with usernames (email prefix)
+                    try:
+                        conn.execute(text("""
+                            UPDATE users 
+                            SET username = SPLIT_PART(email, '@', 1) 
+                            WHERE username IS NULL
+                        """))
+                        results.append("✅ Updated existing users with usernames")
+                    except Exception as e:
+                        results.append(f"⚠️ Username update: {str(e)}")
+                
+            except Exception as e:
+                results.append(f"❌ Error: {str(e)}")
+            
+            conn.commit()
+        
+        # Verify the column was added
+        with engine_fix.connect() as conn:
+            verify_result = conn.execute(text("""
+                SELECT column_name, data_type, is_nullable
+                FROM information_schema.columns 
+                WHERE table_name = 'users' AND column_name = 'username'
+            """)).fetchall()
+            
+            if verify_result:
+                results.append(f"✅ Verification: Username column exists - {verify_result[0]}")
+            else:
+                results.append("❌ Verification: Username column NOT found")
+        
+        logger.info("Username column addition completed")
+        return {
+            "status": "success",
+            "message": "Username column operation completed",
+            "details": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Username column addition failed: {str(e)}")
+        return {
+            "status": "error", 
+            "message": f"Username column addition failed: {str(e)}"
+        }
