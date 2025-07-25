@@ -200,6 +200,27 @@ class AuditLog(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
 
+class LogAuditTrail(Base):
+    __tablename__ = "log_audit_trails"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.now(UTC))
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT
+    resource_type = Column(String)  # agents, actions, alerts, logs
+    resource_id = Column(String, nullable=True)
+    details = Column(JSON, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    session_id = Column(String, nullable=True)
+    
+    # Risk and compliance
+    risk_level = Column(String, nullable=True)
+    compliance_framework = Column(String, nullable=True)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+
 class IntegrationEndpoint(Base):
     __tablename__ = "integration_endpoints"
     
