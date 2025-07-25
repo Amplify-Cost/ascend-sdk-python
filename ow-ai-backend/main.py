@@ -34,6 +34,8 @@ from routes.alert_summary import router as alert_summary_router
 from routes.alert_routes import router as alerts_router
 from routes.smart_rules_routes import router as smart_rule_router
 from routes.authorization_routes import router as authorization_router
+from routes.siem_simple import router as siem_router
+
 
 
 
@@ -150,6 +152,7 @@ app.include_router(alert_summary_router)
 app.include_router(alerts_router)
 app.include_router(smart_rule_router)
 app.include_router(authorization_router)
+app.include_router(siem_router)
 
 
 
