@@ -65,8 +65,8 @@ class AgentAction(Base):
     agent_id = Column(String, index=True)
     action_type = Column(String)
     description = Column(Text)
-    risk_level = Column(String)  # low, medium, high, critical
-    risk_score = Column(Float)
+    risk_level = Column(String)  # low, medium, high, critical (text-based)
+    risk_score = Column(Float, nullable=True)  # 0-100 numerical score for enterprise analytics
     status = Column(String, default="pending")  # pending, approved, denied, executed
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
@@ -78,21 +78,31 @@ class AgentAction(Base):
     is_false_positive = Column(Boolean, default=False)
     reviewed_by = Column(String, nullable=True)
     
-    # NIST/MITRE framework fields
+    # Enterprise fields from your agent routes
+    tool_name = Column(String, nullable=True)
+    summary = Column(Text, nullable=True)
+    approved = Column(Boolean, default=False)
+    reviewed_at = Column(DateTime, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # NIST/MITRE framework fields (core enterprise features)
     nist_control = Column(String, nullable=True)
+    nist_description = Column(Text, nullable=True)
     mitre_tactic = Column(String, nullable=True)
     mitre_technique = Column(String, nullable=True)
+    recommendation = Column(Text, nullable=True)
     
     # Target system information
     target_system = Column(String, nullable=True)
     target_resource = Column(String, nullable=True)
     
-    # Approval workflow
+    # Approval workflow (enterprise authorization features)
     requires_approval = Column(Boolean, default=True)
     approval_level = Column(Integer, default=1)  # 1, 2, or 3 level approval
     
     # Relationships
     approver = relationship("User", foreign_keys=[approved_by])
+    user = relationship("User", foreign_keys=[user_id])
 
 class Rule(Base):
     __tablename__ = "rules"

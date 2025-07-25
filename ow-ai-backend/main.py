@@ -695,3 +695,90 @@ async def fix_users_table_columns():
             "status": "error", 
             "message": f"Failed to fix users table: {str(e)}"
         }    
+    
+
+@app.post("/admin/fix-agent-actions-table")
+async def fix_agent_actions_table():
+    """Add missing columns to agent_actions table to preserve enterprise features"""
+    try:
+        engine_fix = create_engine(DATABASE_URL)
+        results = []
+        
+        with engine_fix.connect() as conn:
+            # Add missing columns for enterprise features
+            missing_columns = [
+                ("risk_score", "FLOAT NULL"),
+                ("tool_name", "VARCHAR NULL"),
+                ("summary", "TEXT NULL"),
+                ("approved", "BOOLEAN DEFAULT FALSE"),
+                ("reviewed_at", "TIMESTAMP NULL"),
+                ("user_id", "INTEGER NULL"),
+                ("nist_description", "TEXT NULL"),
+                ("recommendation", "TEXT NULL"),
+                ("timestamp", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                ("is_false_positive", "BOOLEAN DEFAULT FALSE"),
+                ("reviewed_by", "VARCHAR NULL"),
+                ("nist_control", "VARCHAR NULL"),
+                ("mitre_tactic", "VARCHAR NULL"),
+                ("mitre_technique", "VARCHAR NULL"),
+                ("target_system", "VARCHAR NULL"),
+                ("target_resource", "VARCHAR NULL"),
+                ("requires_approval", "BOOLEAN DEFAULT TRUE"),
+                ("approval_level", "INTEGER DEFAULT 1")
+            ]
+            
+            for column_name, column_def in missing_columns:
+                try:
+                    conn.execute(text(f"""
+                        ALTER TABLE agent_actions 
+                        ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                    """))
+                    results.append(f"✅ Added {column_name} column")
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        results.append(f"✅ {column_name} already exists")
+                    else:
+                        results.append(f"⚠️ {column_name}: {str(e)}")
+            
+            # Add foreign key constraints if they don't exist
+            try:
+                conn.execute(text("""
+                    ALTER TABLE agent_actions 
+                    ADD CONSTRAINT IF NOT EXISTS fk_agent_actions_user_id 
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                """))
+                results.append("✅ Added user_id foreign key constraint")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    results.append("✅ user_id foreign key already exists")
+                else:
+                    results.append(f"⚠️ Foreign key: {str(e)}")
+            
+            try:
+                conn.execute(text("""
+                    ALTER TABLE agent_actions 
+                    ADD CONSTRAINT IF NOT EXISTS fk_agent_actions_approved_by 
+                    FOREIGN KEY (approved_by) REFERENCES users(id)
+                """))
+                results.append("✅ Added approved_by foreign key constraint")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    results.append("✅ approved_by foreign key already exists")
+                else:
+                    results.append(f"⚠️ approved_by Foreign key: {str(e)}")
+            
+            conn.commit()
+        
+        logger.info("AgentAction table fix completed successfully")
+        return {
+            "status": "success",
+            "message": "AgentAction table columns fixed - enterprise features preserved",
+            "details": results
+        }
+        
+    except Exception as e:
+        logger.error(f"AgentAction table fix failed: {str(e)}")
+        return {
+            "status": "error", 
+            "message": f"Failed to fix agent_actions table: {str(e)}"
+        }
