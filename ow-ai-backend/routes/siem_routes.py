@@ -1,21 +1,18 @@
-# routes/siem_routes.py - Enterprise SIEM Integration Routes
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database import get_db
 from models import User, AgentAction, PendingAgentAction, Alert
-from integrations.siem_connector import (
-    SIEMManager, SIEMConfig, SIEMType, SplunkConnector, QRadarConnector,
-    siem_manager
-)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/integrations/siem", tags=["siem"])
+
+# Simplified SIEM Configuration (no external dependencies)
 
 # Pydantic Models for SIEM Configuration
 class SIEMConfigRequest(BaseModel):
