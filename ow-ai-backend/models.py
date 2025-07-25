@@ -7,9 +7,8 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
-    # username = Column(String, unique=True, index=True)  # TEMPORARILY REMOVED
     email = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
+    password = Column(String)  # Changed from hashed_password to match auth_routes.py
     role = Column(String, default="user")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
