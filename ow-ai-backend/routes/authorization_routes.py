@@ -1,127 +1,816 @@
-# routes/authorization_routes.py
-from fastapi import APIRouter, Depends, HTTPException, Request
+# routes/authorization_routes.py - ENHANCED ENTERPRISE VERSION
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from database import get_db
-from models import PendingAgentAction
-from dependencies import get_current_user, require_admin
+from sqlalchemy import and_, or_
 from datetime import datetime, timedelta
+from typing import List, Optional, Dict, Any
+import json
 import logging
+
+from database import get_db
+from models import PendingAgentAction, User, ApprovalWorkflow, ApprovalRule, LogAuditTrail, Alert
+from pydantic import BaseModel
+from auth import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/agent-control", tags=["authorization"])
 
-@router.get("/pending-actions")
-async def get_pending_actions(
-    db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
-):
-    """Get all pending agent actions requiring authorization"""
-    try:
-        pending_actions = (
-            db.query(PendingAgentAction)
-            .filter(PendingAgentAction.authorization_status == "pending")
-            .order_by(PendingAgentAction.requested_at.desc())
-            .limit(50)
-            .all()
-        )
+# Enhanced Pydantic Models
+class AuthorizationRequest(BaseModel):
+    agent_id: str
+    action_type: str
+    description: str
+    tool_name: Optional[str] = None
+    target_system: Optional[str] = None
+    risk_level: str
+    risk_score: Optional[int] = None
+    affected_resources: Optional[List[str]] = None
+    action_payload: Optional[Dict[str, Any]] = None
+    is_emergency: Optional[bool] = False
+    emergency_justification: Optional[str] = None
+    compliance_frameworks: Optional[List[str]] = None
+    nist_control: Optional[str] = None
+    mitre_tactic: Optional[str] = None
+
+class ApprovalDecision(BaseModel):
+    decision: str  # approved, denied, escalated, conditional_approved
+    notes: Optional[str] = None
+    conditions: Optional[Dict[str, Any]] = None  # For conditional approvals
+    approval_duration: Optional[int] = None  # Minutes
+    escalate_to_level: Optional[int] = None
+
+class WorkflowConfiguration(BaseModel):
+    name: str
+    description: str
+    risk_score_min: int = 0
+    risk_score_max: int = 100
+    action_types: List[str]
+    approval_levels: Dict[str, int]  # level_name: required_approvers
+    escalation_timeout: int = 60
+    allows_emergency_override: bool = True
+
+# ENHANCED: Risk Assessment Engine
+class RiskAssessmentEngine:
+    @staticmethod
+    def calculate_comprehensive_risk(
+        action_type: str, 
+        target_system: str, 
+        time_context: datetime, 
+        agent_history: dict,
+        affected_resources: List[str] = None
+    ) -> Dict[str, Any]:
+        """Advanced risk calculation with multiple factors"""
         
-        return [{
-            "id": action.id,
-            "agent_id": action.agent_id,
-            "action_type": action.action_type,
-            "description": action.description,
-            "risk_level": action.risk_level,
-            "ai_risk_score": action.ai_risk_score,
-            "requested_at": action.requested_at,
-            "expires_at": action.expires_at,
-            "nist_control": action.nist_control,
-            "mitre_tactic": action.mitre_tactic
-        } for action in pending_actions]
+        base_risk = 30  # Base risk score
+        risk_factors = []
         
-    except Exception as e:
-        logger.error(f"Failed to get pending actions: {str(e)}")
-        return []
+        # 1. Action Type Risk
+        high_risk_actions = [
+            "delete_production_database", "modify_firewall_rules", 
+            "access_customer_data", "execute_system_command",
+            "modify_security_policy", "deploy_to_production"
+        ]
+        
+        if action_type.lower() in [a.lower() for a in high_risk_actions]:
+            base_risk += 40
+            risk_factors.append("High-risk action type")
+        
+        # 2. Time-based Risk (after hours, weekends)
+        if time_context.hour < 8 or time_context.hour > 18:
+            base_risk += 15
+            risk_factors.append("After-hours execution")
+        
+        if time_context.weekday() >= 5:  # Weekend
+            base_risk += 10
+            risk_factors.append("Weekend execution")
+        
+        # 3. Target System Risk
+        critical_systems = ["production", "customer", "financial", "security"]
+        if any(sys in target_system.lower() for sys in critical_systems):
+            base_risk += 25
+            risk_factors.append("Critical system targeted")
+        
+        # 4. Resource Impact
+        if affected_resources and len(affected_resources) > 10:
+            base_risk += 15
+            risk_factors.append("Large resource impact")
+        
+        # 5. Agent Historical Behavior
+        if agent_history.get("recent_failures", 0) > 2:
+            base_risk += 20
+            risk_factors.append("Recent agent failures")
+        
+        # Cap at 100
+        final_risk = min(base_risk, 100)
+        
+        # Determine risk level
+        if final_risk >= 80:
+            risk_level = "critical"
+        elif final_risk >= 60:
+            risk_level = "high"
+        elif final_risk >= 40:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+        
+        return {
+            "risk_score": final_risk,
+            "risk_level": risk_level,
+            "risk_factors": risk_factors,
+            "assessment_timestamp": datetime.utcnow().isoformat(),
+            "requires_escalation": final_risk >= 70
+        }
+
+# ENHANCED: Workflow Engine
+class ApprovalWorkflowEngine:
+    @staticmethod
+    def determine_approval_workflow(risk_score: int, action_type: str, db: Session) -> Dict[str, Any]:
+        """Determine the appropriate approval workflow based on risk and rules"""
+        
+        # Default workflow configuration
+        workflow = {
+            "approval_levels": 1,
+            "required_approvers_per_level": {1: 1},
+            "escalation_timeout": 60,
+            "auto_deny_timeout": 1440,
+            "allows_emergency": True,
+            "break_glass_enabled": False
+        }
+        
+        # Risk-based workflow determination
+        if risk_score >= 90:
+            # Critical - Requires executive approval
+            workflow.update({
+                "approval_levels": 3,
+                "required_approvers_per_level": {1: 1, 2: 1, 3: 1},
+                "escalation_timeout": 30,
+                "break_glass_enabled": True
+            })
+        elif risk_score >= 70:
+            # High - Requires senior approval
+            workflow.update({
+                "approval_levels": 2,
+                "required_approvers_per_level": {1: 1, 2: 1},
+                "escalation_timeout": 45
+            })
+        elif risk_score >= 50:
+            # Medium - Requires standard approval
+            workflow.update({
+                "approval_levels": 1,
+                "required_approvers_per_level": {1: 2}  # Two approvers
+            })
+        
+        # Action-specific overrides
+        if "production" in action_type.lower() or "delete" in action_type.lower():
+            workflow["approval_levels"] = max(workflow["approval_levels"], 2)
+        
+        return workflow
+
+# MAIN ENDPOINTS
 
 @router.post("/request-authorization")
 async def request_authorization(
-    request: Request,
+    request: AuthorizationRequest,
     db: Session = Depends(get_db)
 ):
-    """Request authorization for an agent action"""
+    """Enhanced authorization request with sophisticated workflow routing"""
     try:
-        data = await request.json()
+        logger.info(f"Authorization request from agent {request.agent_id} for {request.action_type}")
         
-        # Create pending action record
-        pending_action = PendingAgentAction(
-            agent_id=data.get("agent_id", "unknown"),
-            action_type=data.get("action_type", "unknown"),
-            description=data.get("description", ""),
-            risk_level=data.get("risk_level", "medium"),
-            authorization_status="pending",
-            requested_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(hours=24),
-            ai_risk_score=data.get("risk_score", 50)
+        # 1. Enhanced Risk Assessment
+        risk_assessment = RiskAssessmentEngine.calculate_comprehensive_risk(
+            action_type=request.action_type,
+            target_system=request.target_system or "unknown",
+            time_context=datetime.utcnow(),
+            agent_history={},  # TODO: Fetch real agent history
+            affected_resources=request.affected_resources or []
         )
         
+        # 2. Determine Approval Workflow
+        workflow_config = ApprovalWorkflowEngine.determine_approval_workflow(
+            risk_score=risk_assessment["risk_score"],
+            action_type=request.action_type,
+            db=db
+        )
+        
+        # 3. Create Enhanced Pending Action
+        pending_action = PendingAgentAction(
+            # Basic info
+            agent_id=request.agent_id,
+            action_type=request.action_type,
+            description=request.description,
+            tool_name=request.tool_name,
+            target_system=request.target_system,
+            
+            # Enhanced risk data
+            risk_level=risk_assessment["risk_level"],
+            ai_risk_score=risk_assessment["risk_score"],
+            contextual_risk_factors=risk_assessment["risk_factors"],
+            
+            # Workflow configuration
+            required_approval_level=workflow_config["approval_levels"],
+            current_approval_level=0,
+            workflow_stage="initial",
+            
+            # Timing
+            requested_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(minutes=workflow_config["auto_deny_timeout"]),
+            
+            # Data storage
+            action_payload=json.dumps(request.action_payload) if request.action_payload else None,
+            affected_resources=request.affected_resources,
+            
+            # Emergency handling
+            is_emergency=request.is_emergency,
+            emergency_justification=request.emergency_justification,
+            
+            # Compliance
+            nist_control=request.nist_control,
+            mitre_tactic=request.mitre_tactic,
+            compliance_frameworks=request.compliance_frameworks or [],
+            
+            # Audit trail initialization
+            audit_trail=[{
+                "timestamp": datetime.utcnow().isoformat(),
+                "event": "authorization_requested",
+                "risk_assessment": risk_assessment,
+                "workflow_config": workflow_config
+            }]
+        )
+        
+        # 4. Emergency Fast-Track
+        if request.is_emergency and risk_assessment["risk_score"] < 95:
+            pending_action.auto_approve_at = datetime.utcnow() + timedelta(minutes=15)
+            pending_action.workflow_stage = "emergency_queue"
+        
+        # 5. Save to database
         db.add(pending_action)
         db.commit()
         db.refresh(pending_action)
         
-        logger.info(f"Authorization requested for {data.get('agent_id')}/{data.get('action_type')}")
+        # 6. Create Alert for High-Risk Actions
+        if risk_assessment["risk_score"] >= 70:
+            alert = Alert(
+                pending_action_id=pending_action.id,
+                alert_type="high_risk_authorization_request",
+                severity="high" if risk_assessment["risk_score"] < 90 else "critical",
+                message=f"High-risk authorization request: {request.action_type} by {request.agent_id}",
+                auto_escalate_minutes=30 if risk_assessment["risk_score"] >= 90 else 60
+            )
+            db.add(alert)
+            db.commit()
+        
+        logger.info(f"Authorization request created with ID {pending_action.id}, risk score: {risk_assessment['risk_score']}")
         
         return {
-            "id": pending_action.id,
-            "status": "pending",
-            "message": "Authorization request submitted"
+            "status": "success",
+            "authorization_id": pending_action.id,
+            "risk_assessment": risk_assessment,
+            "workflow_stage": pending_action.workflow_stage,
+            "required_approval_level": pending_action.required_approval_level,
+            "estimated_approval_time": f"{workflow_config['escalation_timeout'] * workflow_config['approval_levels']} minutes",
+            "message": "Authorization request submitted for review"
         }
         
     except Exception as e:
         logger.error(f"Failed to request authorization: {str(e)}")
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to submit authorization request")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit authorization request"
+        )
+
+@router.get("/pending-actions")
+async def get_pending_actions(
+    status_filter: Optional[str] = None,
+    risk_level: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get pending authorization actions with enhanced filtering"""
+    try:
+        query = db.query(PendingAgentAction).filter(
+            PendingAgentAction.authorization_status == "pending"
+        )
+        
+        if status_filter:
+            query = query.filter(PendingAgentAction.workflow_stage == status_filter)
+        
+        if risk_level:
+            query = query.filter(PendingAgentAction.risk_level == risk_level)
+        
+        pending_actions = query.order_by(
+            PendingAgentAction.ai_risk_score.desc(),
+            PendingAgentAction.requested_at.desc()
+        ).limit(limit).all()
+        
+        # Enhanced response with workflow context
+        enhanced_actions = []
+        for action in pending_actions:
+            enhanced_actions.append({
+                "id": action.id,
+                "agent_id": action.agent_id,
+                "action_type": action.action_type,
+                "description": action.description,
+                "risk_level": action.risk_level,
+                "ai_risk_score": action.ai_risk_score,
+                "workflow_stage": action.workflow_stage,
+                "required_approval_level": action.required_approval_level,
+                "current_approval_level": action.current_approval_level,
+                "requested_at": action.requested_at,
+                "expires_at": action.expires_at,
+                "is_emergency": action.is_emergency,
+                "target_system": action.target_system,
+                "contextual_risk_factors": action.contextual_risk_factors,
+                "time_remaining": str(action.expires_at - datetime.utcnow()) if action.expires_at else None
+            })
+        
+        return enhanced_actions
+        
+    except Exception as e:
+        logger.error(f"Failed to fetch pending actions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve pending actions"
+        )
 
 @router.post("/authorize/{action_id}")
-async def authorize_action(
+async def process_authorization(
     action_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    decision: ApprovalDecision,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """Approve or deny a pending action"""
+    """Enhanced authorization processing with multi-level approval support"""
     try:
-        data = await request.json()
-        decision = data.get("decision")  # "approved" or "denied"
-        notes = data.get("notes", "")
+        # Get the pending action
+        action = db.query(PendingAgentAction).filter(PendingAgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Authorization request not found")
         
-        if decision not in ["approved", "denied"]:
-            raise HTTPException(status_code=400, detail="Decision must be 'approved' or 'denied'")
+        # Verify user has authority to approve
+        if action.ai_risk_score > current_user.max_risk_approval and decision.decision == "approved":
+            raise HTTPException(
+                status_code=403, 
+                detail=f"Risk score {action.ai_risk_score} exceeds your approval authority ({current_user.max_risk_approval})"
+            )
         
-        pending_action = db.query(PendingAgentAction).filter(
-            PendingAgentAction.id == action_id
-        ).first()
+        # Process decision based on type
+        audit_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "user_id": current_user.id,
+            "user_email": current_user.email,
+            "decision": decision.decision,
+            "notes": decision.notes,
+            "approval_level": current_user.approval_level
+        }
         
-        if not pending_action:
-            raise HTTPException(status_code=404, detail="Pending action not found")
+        if decision.decision == "approved":
+            if action.current_approval_level + 1 >= action.required_approval_level:
+                # Final approval
+                action.authorization_status = "approved"
+                action.approved_by_user_id = current_user.id
+                action.reviewed_at = datetime.utcnow()
+                audit_entry["event"] = "final_approval"
+            else:
+                # Intermediate approval - escalate to next level
+                action.current_approval_level += 1
+                action.workflow_stage = f"level_{action.current_approval_level + 1}"
+                audit_entry["event"] = "level_approval"
+                
+        elif decision.decision == "conditional_approved":
+            action.authorization_status = "conditional_approved"
+            action.conditional_approval = True
+            action.conditions = decision.conditions
+            action.approval_duration = decision.approval_duration
+            audit_entry["event"] = "conditional_approval"
+            audit_entry["conditions"] = decision.conditions
+            
+        elif decision.decision == "denied":
+            action.authorization_status = "denied"
+            action.reviewed_at = datetime.utcnow()
+            audit_entry["event"] = "denial"
+            
+        elif decision.decision == "escalated":
+            action.workflow_stage = f"level_{decision.escalate_to_level}"
+            action.current_approval_level = decision.escalate_to_level - 1
+            audit_entry["event"] = "escalation"
+            audit_entry["escalated_to_level"] = decision.escalate_to_level
         
-        # Update the pending action
-        pending_action.authorization_status = decision
-        pending_action.reviewed_by = admin_user["email"]
-        pending_action.reviewed_at = datetime.utcnow()
-        pending_action.review_notes = notes
+        # Update audit trail
+        current_trail = action.audit_trail or []
+        current_trail.append(audit_entry)
+        action.audit_trail = current_trail
+        action.review_notes = decision.notes
+        
+        # Create audit log
+        audit_log = LogAuditTrail(
+            pending_action_id=action.id,
+            event_type=audit_entry["event"],
+            decision=decision.decision,
+            decision_reason=decision.notes,
+            user_id=current_user.id,
+            reviewed_by=current_user.email,
+            context={
+                "risk_score": action.ai_risk_score,
+                "approval_level": current_user.approval_level,
+                "workflow_stage": action.workflow_stage
+            }
+        )
+        db.add(audit_log)
         
         db.commit()
         
-        logger.info(f"Action {action_id} {decision} by {admin_user['email']}")
+        logger.info(f"Authorization {action_id} {decision.decision} by {current_user.email}")
         
         return {
-            "message": f"Action {decision} successfully",
+            "status": "success",
             "action_id": action_id,
-            "decision": decision
+            "decision": decision.decision,
+            "new_status": action.authorization_status,
+            "workflow_stage": action.workflow_stage,
+            "message": f"Authorization {decision.decision} successfully"
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to authorize action: {str(e)}")
+        logger.error(f"Failed to process authorization {action_id}: {str(e)}")
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to process authorization")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process authorization"
+        )
+
+@router.post("/emergency-override/{action_id}")
+async def emergency_override(
+    action_id: int,
+    justification: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Emergency override for critical situations - requires special privileges"""
+    try:
+        # Verify user has emergency override authority
+        if not current_user.is_emergency_approver:
+            raise HTTPException(
+                status_code=403, 
+                detail="Emergency override requires special authorization privileges"
+            )
+        
+        action = db.query(PendingAgentAction).filter(PendingAgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Authorization request not found")
+        
+        # Log emergency override
+        emergency_audit = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "event": "emergency_override",
+            "user_id": current_user.id,
+            "user_email": current_user.email,
+            "justification": justification,
+            "original_risk_score": action.ai_risk_score,
+            "original_workflow_stage": action.workflow_stage
+        }
+        
+        # Apply emergency override
+        action.authorization_status = "emergency_approved"
+        action.break_glass_used = True
+        action.emergency_approver_id = current_user.id
+        action.emergency_justification = justification
+        action.reviewed_at = datetime.utcnow()
+        
+        # Update audit trail
+        current_trail = action.audit_trail or []
+        current_trail.append(emergency_audit)
+        action.audit_trail = current_trail
+        
+        # Create high-priority alert for emergency override
+        alert = Alert(
+            pending_action_id=action.id,
+            alert_type="emergency_override_used",
+            severity="critical",
+            message=f"EMERGENCY OVERRIDE: {action.action_type} by {action.agent_id} - Approved by {current_user.email}",
+            auto_escalate_minutes=5  # Immediate escalation
+        )
+        db.add(alert)
+        
+        # Create audit log
+        audit_log = LogAuditTrail(
+            pending_action_id=action.id,
+            event_type="emergency_override",
+            decision="emergency_approved",
+            decision_reason=justification,
+            user_id=current_user.id,
+            reviewed_by=current_user.email,
+            context={
+                "risk_score": action.ai_risk_score,
+                "break_glass_used": True,
+                "emergency_override": True
+            }
+        )
+        db.add(audit_log)
+        
+        db.commit()
+        
+        logger.warning(f"EMERGENCY OVERRIDE used for action {action_id} by {current_user.email}: {justification}")
+        
+        return {
+            "status": "success",
+            "action_id": action_id,
+            "decision": "emergency_approved",
+            "override_by": current_user.email,
+            "justification": justification,
+            "warning": "Emergency override logged and will be audited",
+            "message": "Emergency authorization granted"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Emergency override failed for action {action_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Emergency override failed"
+        )
+
+@router.get("/approval-dashboard")
+async def get_approval_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enhanced dashboard with workflow metrics and real-time stats"""
+    try:
+        # Get pending actions requiring user's approval level
+        pending_query = db.query(PendingAgentAction).filter(
+            and_(
+                PendingAgentAction.authorization_status == "pending",
+                PendingAgentAction.required_approval_level >= current_user.approval_level
+            )
+        )
+        
+        pending_actions = pending_query.all()
+        
+        # Calculate dashboard metrics
+        total_pending = len(pending_actions)
+        critical_pending = len([a for a in pending_actions if a.ai_risk_score >= 80])
+        emergency_pending = len([a for a in pending_actions if a.is_emergency])
+        overdue_pending = len([a for a in pending_actions if a.expires_at and a.expires_at < datetime.utcnow()])
+        
+        # Risk distribution
+        risk_distribution = {
+            "critical": len([a for a in pending_actions if a.ai_risk_score >= 80]),
+            "high": len([a for a in pending_actions if 60 <= a.ai_risk_score < 80]),
+            "medium": len([a for a in pending_actions if 40 <= a.ai_risk_score < 60]),
+            "low": len([a for a in pending_actions if a.ai_risk_score < 40])
+        }
+        
+        # Recent approval activity (last 24 hours)
+        recent_approvals = db.query(LogAuditTrail).filter(
+            and_(
+                LogAuditTrail.user_id == current_user.id,
+                LogAuditTrail.timestamp >= datetime.utcnow() - timedelta(hours=24)
+            )
+        ).count()
+        
+        # Workflow stage distribution
+        workflow_stages = {}
+        for action in pending_actions:
+            stage = action.workflow_stage
+            workflow_stages[stage] = workflow_stages.get(stage, 0) + 1
+        
+        return {
+            "user_info": {
+                "email": current_user.email,
+                "approval_level": current_user.approval_level,
+                "max_risk_approval": current_user.max_risk_approval,
+                "is_emergency_approver": current_user.is_emergency_approver
+            },
+            "pending_summary": {
+                "total_pending": total_pending,
+                "critical_pending": critical_pending,
+                "emergency_pending": emergency_pending,
+                "overdue_pending": overdue_pending
+            },
+            "risk_distribution": risk_distribution,
+            "workflow_stages": workflow_stages,
+            "recent_activity": {
+                "approvals_last_24h": recent_approvals
+            },
+            "actions_requiring_attention": [
+                {
+                    "id": action.id,
+                    "agent_id": action.agent_id,
+                    "action_type": action.action_type,
+                    "risk_score": action.ai_risk_score,
+                    "workflow_stage": action.workflow_stage,
+                    "time_remaining": str(action.expires_at - datetime.utcnow()) if action.expires_at else None,
+                    "is_emergency": action.is_emergency,
+                    "is_overdue": action.expires_at and action.expires_at < datetime.utcnow()
+                }
+                for action in sorted(pending_actions, key=lambda x: (-x.ai_risk_score, x.requested_at))[:10]
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get approval dashboard: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load dashboard"
+        )
+
+@router.post("/workflows")
+async def create_approval_workflow(
+    workflow: WorkflowConfiguration,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create custom approval workflows for different scenarios"""
+    try:
+        # Only admin users can create workflows
+        if current_user.role not in ["admin", "security_admin"]:
+            raise HTTPException(status_code=403, detail="Insufficient privileges to create workflows")
+        
+        new_workflow = ApprovalWorkflow(
+            name=workflow.name,
+            description=workflow.description,
+            risk_score_min=workflow.risk_score_min,
+            risk_score_max=workflow.risk_score_max,
+            action_types=workflow.action_types,
+            approval_levels=workflow.approval_levels,
+            escalation_timeout=workflow.escalation_timeout,
+            allows_emergency_override=workflow.allows_emergency_override
+        )
+        
+        db.add(new_workflow)
+        db.commit()
+        db.refresh(new_workflow)
+        
+        logger.info(f"Approval workflow '{workflow.name}' created by {current_user.email}")
+        
+        return {
+            "status": "success",
+            "workflow_id": new_workflow.id,
+            "message": f"Approval workflow '{workflow.name}' created successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create workflow: {str(e)}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create approval workflow"
+        )
+
+@router.get("/audit-trail/{action_id}")
+async def get_audit_trail(
+    action_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get complete audit trail for an authorization action"""
+    try:
+        action = db.query(PendingAgentAction).filter(PendingAgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Authorization request not found")
+        
+        # Get audit logs from database
+        audit_logs = db.query(LogAuditTrail).filter(
+            LogAuditTrail.pending_action_id == action_id
+        ).order_by(LogAuditTrail.timestamp.desc()).all()
+        
+        # Combine with action's internal audit trail
+        complete_trail = {
+            "action_info": {
+                "id": action.id,
+                "agent_id": action.agent_id,
+                "action_type": action.action_type,
+                "risk_score": action.ai_risk_score,
+                "status": action.authorization_status,
+                "created_at": action.requested_at,
+                "completed_at": action.reviewed_at
+            },
+            "internal_audit_trail": action.audit_trail or [],
+            "database_audit_logs": [
+                {
+                    "id": log.id,
+                    "event_type": log.event_type,
+                    "decision": log.decision,
+                    "user_email": log.reviewed_by,
+                    "timestamp": log.timestamp,
+                    "reason": log.decision_reason,
+                    "context": log.context
+                }
+                for log in audit_logs
+            ],
+            "compliance_summary": {
+                "total_decisions": len(audit_logs),
+                "approval_chain_complete": action.authorization_status in ["approved", "denied", "emergency_approved"],
+                "emergency_override_used": action.break_glass_used,
+                "compliance_frameworks": action.compliance_frameworks or []
+            }
+        }
+        
+        return complete_trail
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get audit trail for action {action_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve audit trail"
+        )
+
+@router.get("/metrics/approval-performance")
+async def get_approval_metrics(
+    days: int = 30,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get approval performance metrics and trends"""
+    try:
+        # Only admin users can view system-wide metrics
+        if current_user.role not in ["admin", "security_admin"]:
+            raise HTTPException(status_code=403, detail="Insufficient privileges to view metrics")
+        
+        start_date = datetime.utcnow() - timedelta(days=days)
+        
+        # Get all actions from the specified period
+        actions = db.query(PendingAgentAction).filter(
+            PendingAgentAction.requested_at >= start_date
+        ).all()
+        
+        if not actions:
+            return {"message": "No data available for the specified period"}
+        
+        # Calculate metrics
+        total_requests = len(actions)
+        approved = len([a for a in actions if a.authorization_status == "approved"])
+        denied = len([a for a in actions if a.authorization_status == "denied"])
+        emergency_overrides = len([a for a in actions if a.break_glass_used])
+        pending = len([a for a in actions if a.authorization_status == "pending"])
+        
+        # Average processing time (for completed actions)
+        completed_actions = [a for a in actions if a.reviewed_at and a.authorization_status != "pending"]
+        avg_processing_time = None
+        if completed_actions:
+            processing_times = [(a.reviewed_at - a.requested_at).total_seconds() / 60 for a in completed_actions]
+            avg_processing_time = sum(processing_times) / len(processing_times)
+        
+        # Risk score distribution
+        risk_scores = [a.ai_risk_score for a in actions if a.ai_risk_score]
+        avg_risk_score = sum(risk_scores) / len(risk_scores) if risk_scores else 0
+        
+        # SLA compliance (actions completed within expected timeframes)
+        sla_compliant = 0
+        for action in completed_actions:
+            processing_minutes = (action.reviewed_at - action.requested_at).total_seconds() / 60
+            expected_time = 60  # Base expectation: 1 hour
+            
+            if action.ai_risk_score >= 80:
+                expected_time = 30  # Critical: 30 minutes
+            elif action.ai_risk_score >= 60:
+                expected_time = 45  # High: 45 minutes
+            
+            if processing_minutes <= expected_time:
+                sla_compliant += 1
+        
+        sla_compliance_rate = (sla_compliant / len(completed_actions)) * 100 if completed_actions else 0
+        
+        return {
+            "period_summary": {
+                "days_analyzed": days,
+                "total_requests": total_requests,
+                "completion_rate": ((approved + denied) / total_requests) * 100 if total_requests > 0 else 0
+            },
+            "decision_breakdown": {
+                "approved": approved,
+                "denied": denied,
+                "emergency_overrides": emergency_overrides,
+                "pending": pending,
+                "approval_rate": (approved / total_requests) * 100 if total_requests > 0 else 0
+            },
+            "performance_metrics": {
+                "average_processing_time_minutes": round(avg_processing_time, 2) if avg_processing_time else None,
+                "average_risk_score": round(avg_risk_score, 2),
+                "sla_compliance_rate": round(sla_compliance_rate, 2)
+            },
+            "risk_analysis": {
+                "high_risk_requests": len([a for a in actions if a.ai_risk_score >= 70]),
+                "emergency_requests": len([a for a in actions if a.is_emergency]),
+                "after_hours_requests": len([a for a in actions if a.requested_at.hour < 8 or a.requested_at.hour > 18])
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get approval metrics: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve approval metrics"
+        )
