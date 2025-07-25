@@ -31,7 +31,7 @@ class Alert(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     resolved_at = Column(DateTime, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
     
     # Foreign key to user who created the alert
     created_by = Column(Integer, ForeignKey("users.id"))
@@ -46,7 +46,7 @@ class Log(Base):
     message = Column(Text)
     source = Column(String)  # source component or service
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
     
     # Relationship
     user = relationship("User", back_populates="logs")
@@ -64,7 +64,7 @@ class AgentAction(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
     
     # NIST/MITRE framework fields
     nist_control = Column(String, nullable=True)
@@ -154,7 +154,7 @@ class PendingAgentAction(Base):
     override_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     
     # Audit and Tracking
-    metadata = Column(JSON, nullable=True)
+    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
     audit_trail = Column(JSON, default=list)
     
     # Relationships
