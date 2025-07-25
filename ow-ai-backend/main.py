@@ -603,3 +603,95 @@ async def add_username_column_now():
             "status": "error", 
             "message": f"Username column addition failed: {str(e)}"
         }
+    
+@app.get("/admin/inspect-users-table")
+async def inspect_users_table():
+    """Inspect what columns actually exist in users table"""
+    try:
+        engine_inspect = create_engine(DATABASE_URL)
+        
+        with engine_inspect.connect() as conn:
+            # Get users table structure
+            users_columns = conn.execute(text("""
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns 
+                WHERE table_name = 'users'
+                ORDER BY ordinal_position
+            """)).fetchall()
+            
+            return {
+                "users_table_columns": [
+                    {
+                        "column": row[0], 
+                        "type": row[1], 
+                        "nullable": row[2], 
+                        "default": row[3]
+                    } 
+                    for row in users_columns
+                ]
+            }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/admin/fix-users-table-columns")
+async def fix_users_table_columns():
+    """Add missing columns to users table to match the model"""
+    try:
+        engine_fix = create_engine(DATABASE_URL)
+        results = []
+        
+        with engine_fix.connect() as conn:
+            # Map old column names to new ones if needed
+            try:
+                # Check if hashed_password exists and rename it to password
+                check_hashed = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'users' AND column_name = 'hashed_password'
+                """)).fetchall()
+                
+                if check_hashed:
+                    conn.execute(text("""
+                        ALTER TABLE users RENAME COLUMN hashed_password TO password
+                    """))
+                    results.append("✅ Renamed hashed_password to password")
+            except Exception as e:
+                results.append(f"⚠️ Column rename: {str(e)}")
+            
+            # Add missing columns
+            missing_columns = [
+                ("role", "VARCHAR DEFAULT 'user'"),
+                ("is_active", "BOOLEAN DEFAULT TRUE"),
+                ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                ("last_login", "TIMESTAMP NULL"),
+                ("approval_level", "INTEGER DEFAULT 1"),
+                ("is_emergency_approver", "BOOLEAN DEFAULT FALSE"),
+                ("max_risk_approval", "INTEGER DEFAULT 50")
+            ]
+            
+            for column_name, column_def in missing_columns:
+                try:
+                    conn.execute(text(f"""
+                        ALTER TABLE users 
+                        ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                    """))
+                    results.append(f"✅ Added {column_name} column")
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        results.append(f"✅ {column_name} already exists")
+                    else:
+                        results.append(f"⚠️ {column_name}: {str(e)}")
+            
+            conn.commit()
+        
+        return {
+            "status": "success",
+            "message": "Users table columns fixed",
+            "details": results
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error", 
+            "message": f"Failed to fix users table: {str(e)}"
+        }    
