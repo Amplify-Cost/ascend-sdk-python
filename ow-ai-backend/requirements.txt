@@ -8,3 +8,4 @@ openai
 slowapi
 passlib[bcrypt]
 python-jose[cryptography]
+aiohttp==3.9.1
