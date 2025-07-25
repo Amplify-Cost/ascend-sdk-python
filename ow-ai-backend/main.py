@@ -420,3 +420,99 @@ if __name__ == "__main__":
     import uvicorn
     logger.info("Starting OW-AI Backend API with Authorization System...")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+@app.post("/admin/fix-user-schema")
+async def fix_user_schema():
+    """Fix user table schema by adding missing columns"""
+    try:
+        engine_fix = create_engine(DATABASE_URL)
+        results = []
+        
+        with engine_fix.connect() as conn:
+            # Add missing columns to users table
+            user_columns = [
+                ("approval_level", "INTEGER DEFAULT 1"),
+                ("is_emergency_approver", "BOOLEAN DEFAULT FALSE"),
+                ("max_risk_approval", "INTEGER DEFAULT 50")
+            ]
+            
+            for column_name, column_def in user_columns:
+                try:
+                    conn.execute(text(f"""
+                        ALTER TABLE users 
+                        ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                    """))
+                    results.append(f"✅ Added {column_name} column to users table")
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        results.append(f"✅ {column_name} column already exists")
+                    else:
+                        results.append(f"⚠️ {column_name} column: {str(e)}")
+            
+            # Add missing columns to pending_agent_actions table  
+            pending_columns = [
+                ("ai_risk_score", "INTEGER"),
+                ("contextual_risk_factors", "TEXT"),
+                ("required_approval_level", "INTEGER DEFAULT 1"),
+                ("current_approval_level", "INTEGER DEFAULT 0"),
+                ("workflow_stage", "VARCHAR DEFAULT 'initial'"),
+                ("auto_approve_at", "TIMESTAMP"),
+                ("approval_chain", "TEXT"),
+                ("required_approvers", "TEXT"),
+                ("pending_approvers", "TEXT"),
+                ("primary_approver_id", "INTEGER"),
+                ("approved_by_user_id", "INTEGER"),
+                ("conditional_approval", "BOOLEAN DEFAULT FALSE"),
+                ("conditions", "TEXT"),
+                ("approval_duration", "INTEGER"),
+                ("approval_scope", "TEXT"),
+                ("compliance_frameworks", "TEXT"),
+                ("audit_trail", "TEXT"),
+                ("emergency_approver_id", "INTEGER"),
+                ("break_glass_used", "BOOLEAN DEFAULT FALSE"),
+                ("execution_duration", "REAL"),
+                ("affected_resources", "TEXT")
+            ]
+            
+            for column_name, column_def in pending_columns:
+                try:
+                    conn.execute(text(f"""
+                        ALTER TABLE pending_agent_actions 
+                        ADD COLUMN IF NOT EXISTS {column_name} {column_def}
+                    """))
+                    results.append(f"✅ Added {column_name} to pending_agent_actions")
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        results.append(f"✅ {column_name} already exists in pending_agent_actions")
+                    else:
+                        results.append(f"⚠️ {column_name}: {str(e)}")
+            
+            # Add missing column to alerts table
+            try:
+                conn.execute(text("""
+                    ALTER TABLE alerts 
+                    ADD COLUMN IF NOT EXISTS pending_action_id INTEGER
+                """))
+                results.append("✅ Added pending_action_id to alerts table")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    results.append("✅ pending_action_id already exists in alerts")
+                else:
+                    results.append(f"⚠️ pending_action_id: {str(e)}")
+            
+            conn.commit()
+        
+        logger.info("User schema fix completed successfully")
+        return {
+            "status": "success",
+            "message": "User schema fixed successfully",
+            "details": results
+        }
+        
+    except Exception as e:
+        logger.error(f"User schema fix failed: {str(e)}")
+        return {
+            "status": "error", 
+            "message": f"User schema fix failed: {str(e)}"
+        }
