@@ -36,10 +36,6 @@ from routes.smart_rules_routes import router as smart_rule_router
 from routes.authorization_routes import router as authorization_router
 from routes.siem_simple import router as siem_router
 
-
-
-
-
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -154,8 +150,6 @@ app.include_router(smart_rule_router)
 app.include_router(authorization_router)
 app.include_router(siem_router)
 
-
-
 # OPTIONS handler for CORS preflight
 @app.options("/{path:path}")
 async def options_handler(path: str):
@@ -168,7 +162,8 @@ async def options_handler(path: str):
         }
     )
 
-# ✅ NEW: Database schema fix endpoint
+# ✅ ENTERPRISE DATABASE MANAGEMENT ENDPOINTS
+
 @app.post("/admin/fix-database-schema")
 async def fix_database_schema():
     """Fix database schema by removing tenant_id column"""
@@ -223,7 +218,6 @@ async def fix_database_schema():
             "message": f"Database schema fix failed: {str(e)}"
         }
 
-# ✅ EXISTING: Database fix endpoint
 @app.post("/admin/fix-database")
 async def fix_database():
     """Fix database by adding missing columns and tables"""
@@ -308,127 +302,6 @@ async def fix_database():
             "status": "error", 
             "message": f"Database fix failed: {str(e)}"
         }
-
-# Debug endpoints
-@app.get("/debug/env")
-async def debug_env():
-    return {
-        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
-        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
-        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
-        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
-        "environment": os.getenv("ENVIRONMENT"),
-        "cors_origins_loaded": all_origins,
-        "authorization_system": "enabled"
-    }
-
-@app.get("/debug/database-check")
-async def debug_database_check():
-    try:
-        db: Session = next(get_db())
-        
-        agent_actions_count = db.query(AgentAction).count()
-        alerts_count = db.query(Alert).count()
-        
-        try:
-            pending_actions_count = db.query(PendingAgentAction).count()
-        except Exception:
-            pending_actions_count = 0
-        
-        sample_action = db.query(AgentAction).first()
-        sample_alert = db.query(Alert).first()
-        
-        try:
-            sample_pending = db.query(PendingAgentAction).first()
-        except Exception:
-            sample_pending = None
-        
-        db.close()
-        
-        return {
-            "status": "connected",
-            "agent_actions_count": agent_actions_count,
-            "alerts_count": alerts_count,
-            "pending_actions_count": pending_actions_count,
-            "has_agent_actions": agent_actions_count > 0,
-            "has_alerts": alerts_count > 0,
-            "has_pending_actions": pending_actions_count > 0,
-            "sample_action_id": sample_action.id if sample_action else None,
-            "sample_alert_id": sample_alert.id if sample_alert else None,
-            "sample_pending_id": sample_pending.id if sample_pending else None,
-            "authorization_system_status": "operational"
-        }
-    except Exception as e:
-        return {"error": str(e), "status": "failed"}
-
-# Health check
-@app.get("/health")
-async def health_check():
-    try:
-        db: Session = next(get_db())
-        db.execute(text("SELECT 1"))
-        
-        try:
-            auth_table_check = db.execute(text("""
-                SELECT COUNT(*) FROM information_schema.tables 
-                WHERE table_name = 'pending_agent_actions'
-            """)).fetchone()[0]
-        except Exception:
-            auth_table_check = 0
-        
-        db.close()
-        
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow().isoformat(),
-            "version": "1.1.0",
-            "database": "connected",
-            "authorization_system": "enabled" if auth_table_check > 0 else "not_installed",
-            "environment": os.getenv("ENVIRONMENT", "unknown")
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "timestamp": datetime.utcnow().isoformat(),
-                "error": str(e)
-            }
-        )
-
-@app.get("/")
-async def root():
-    return {
-        "message": "OW-AI Backend API is running", 
-        "status": "ok",
-        "version": "1.1.0",
-        "features": [
-            "Agent Action Monitoring",
-            "AI-Powered Risk Assessment", 
-            "NIST/MITRE Framework Mapping",
-            "Real-time Alert Generation",
-            "Smart Rule Generation",
-            "Human Authorization System"
-        ]
-    }
-
-@app.get("/debug/routes")
-async def debug_routes():
-    routes = []
-    for route in app.routes:
-        if hasattr(route, 'methods') and hasattr(route, 'path'):
-            routes.append({
-                "path": route.path,
-                "methods": list(route.methods)
-            })
-    return {"routes": routes}
-
-if __name__ == "__main__":
-    import uvicorn
-    logger.info("Starting OW-AI Backend API with Authorization System...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
-
 
 @app.post("/admin/fix-user-schema")
 async def fix_user_schema():
@@ -525,178 +398,6 @@ async def fix_user_schema():
             "message": f"User schema fix failed: {str(e)}"
         }
 
-# Add this endpoint to your main.py (after the other admin endpoints)
-
-@app.post("/admin/add-username-column-now")
-async def add_username_column_now():
-    """Definitively add username column to users table"""
-    try:
-        engine_fix = create_engine(DATABASE_URL)
-        results = []
-        
-        with engine_fix.connect() as conn:
-            # First, check if column exists
-            try:
-                check_result = conn.execute(text("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'users' AND column_name = 'username'
-                """)).fetchall()
-                
-                if check_result:
-                    results.append("✅ Username column already exists")
-                else:
-                    # Add username column with proper PostgreSQL syntax
-                    conn.execute(text("""
-                        ALTER TABLE users ADD COLUMN username VARCHAR(150)
-                    """))
-                    results.append("✅ Successfully added username column")
-                    
-                    # Make it unique after adding
-                    try:
-                        conn.execute(text("""
-                            ALTER TABLE users ADD CONSTRAINT users_username_unique UNIQUE (username)
-                        """))
-                        results.append("✅ Added unique constraint to username")
-                    except Exception as e:
-                        results.append(f"⚠️ Unique constraint: {str(e)}")
-                    
-                    # Update existing users with usernames (email prefix)
-                    try:
-                        conn.execute(text("""
-                            UPDATE users 
-                            SET username = SPLIT_PART(email, '@', 1) 
-                            WHERE username IS NULL
-                        """))
-                        results.append("✅ Updated existing users with usernames")
-                    except Exception as e:
-                        results.append(f"⚠️ Username update: {str(e)}")
-                
-            except Exception as e:
-                results.append(f"❌ Error: {str(e)}")
-            
-            conn.commit()
-        
-        # Verify the column was added
-        with engine_fix.connect() as conn:
-            verify_result = conn.execute(text("""
-                SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns 
-                WHERE table_name = 'users' AND column_name = 'username'
-            """)).fetchall()
-            
-            if verify_result:
-                results.append(f"✅ Verification: Username column exists - {verify_result[0]}")
-            else:
-                results.append("❌ Verification: Username column NOT found")
-        
-        logger.info("Username column addition completed")
-        return {
-            "status": "success",
-            "message": "Username column operation completed",
-            "details": results
-        }
-        
-    except Exception as e:
-        logger.error(f"Username column addition failed: {str(e)}")
-        return {
-            "status": "error", 
-            "message": f"Username column addition failed: {str(e)}"
-        }
-    
-@app.get("/admin/inspect-users-table")
-async def inspect_users_table():
-    """Inspect what columns actually exist in users table"""
-    try:
-        engine_inspect = create_engine(DATABASE_URL)
-        
-        with engine_inspect.connect() as conn:
-            # Get users table structure
-            users_columns = conn.execute(text("""
-                SELECT column_name, data_type, is_nullable, column_default
-                FROM information_schema.columns 
-                WHERE table_name = 'users'
-                ORDER BY ordinal_position
-            """)).fetchall()
-            
-            return {
-                "users_table_columns": [
-                    {
-                        "column": row[0], 
-                        "type": row[1], 
-                        "nullable": row[2], 
-                        "default": row[3]
-                    } 
-                    for row in users_columns
-                ]
-            }
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.post("/admin/fix-users-table-columns")
-async def fix_users_table_columns():
-    """Add missing columns to users table to match the model"""
-    try:
-        engine_fix = create_engine(DATABASE_URL)
-        results = []
-        
-        with engine_fix.connect() as conn:
-            # Map old column names to new ones if needed
-            try:
-                # Check if hashed_password exists and rename it to password
-                check_hashed = conn.execute(text("""
-                    SELECT column_name FROM information_schema.columns 
-                    WHERE table_name = 'users' AND column_name = 'hashed_password'
-                """)).fetchall()
-                
-                if check_hashed:
-                    conn.execute(text("""
-                        ALTER TABLE users RENAME COLUMN hashed_password TO password
-                    """))
-                    results.append("✅ Renamed hashed_password to password")
-            except Exception as e:
-                results.append(f"⚠️ Column rename: {str(e)}")
-            
-            # Add missing columns
-            missing_columns = [
-                ("role", "VARCHAR DEFAULT 'user'"),
-                ("is_active", "BOOLEAN DEFAULT TRUE"),
-                ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
-                ("last_login", "TIMESTAMP NULL"),
-                ("approval_level", "INTEGER DEFAULT 1"),
-                ("is_emergency_approver", "BOOLEAN DEFAULT FALSE"),
-                ("max_risk_approval", "INTEGER DEFAULT 50")
-            ]
-            
-            for column_name, column_def in missing_columns:
-                try:
-                    conn.execute(text(f"""
-                        ALTER TABLE users 
-                        ADD COLUMN IF NOT EXISTS {column_name} {column_def}
-                    """))
-                    results.append(f"✅ Added {column_name} column")
-                except Exception as e:
-                    if "already exists" in str(e).lower():
-                        results.append(f"✅ {column_name} already exists")
-                    else:
-                        results.append(f"⚠️ {column_name}: {str(e)}")
-            
-            conn.commit()
-        
-        return {
-            "status": "success",
-            "message": "Users table columns fixed",
-            "details": results
-        }
-        
-    except Exception as e:
-        return {
-            "status": "error", 
-            "message": f"Failed to fix users table: {str(e)}"
-        }    
-    
-
 @app.post("/admin/fix-agent-actions-table")
 async def fix_agent_actions_table():
     """Add missing columns to agent_actions table to preserve enterprise features"""
@@ -724,7 +425,9 @@ async def fix_agent_actions_table():
                 ("target_system", "VARCHAR NULL"),
                 ("target_resource", "VARCHAR NULL"),
                 ("requires_approval", "BOOLEAN DEFAULT TRUE"),
-                ("approval_level", "INTEGER DEFAULT 1")
+                ("approval_level", "INTEGER DEFAULT 1"),
+                ("approved_by", "INTEGER NULL"),
+                ("status", "VARCHAR DEFAULT 'pending'")
             ]
             
             for column_name, column_def in missing_columns:
@@ -739,33 +442,6 @@ async def fix_agent_actions_table():
                         results.append(f"✅ {column_name} already exists")
                     else:
                         results.append(f"⚠️ {column_name}: {str(e)}")
-            
-            # Add foreign key constraints if they don't exist
-            try:
-                conn.execute(text("""
-                    ALTER TABLE agent_actions 
-                    ADD CONSTRAINT IF NOT EXISTS fk_agent_actions_user_id 
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                """))
-                results.append("✅ Added user_id foreign key constraint")
-            except Exception as e:
-                if "already exists" in str(e).lower():
-                    results.append("✅ user_id foreign key already exists")
-                else:
-                    results.append(f"⚠️ Foreign key: {str(e)}")
-            
-            try:
-                conn.execute(text("""
-                    ALTER TABLE agent_actions 
-                    ADD CONSTRAINT IF NOT EXISTS fk_agent_actions_approved_by 
-                    FOREIGN KEY (approved_by) REFERENCES users(id)
-                """))
-                results.append("✅ Added approved_by foreign key constraint")
-            except Exception as e:
-                if "already exists" in str(e).lower():
-                    results.append("✅ approved_by foreign key already exists")
-                else:
-                    results.append(f"⚠️ approved_by Foreign key: {str(e)}")
             
             conn.commit()
         
@@ -782,82 +458,123 @@ async def fix_agent_actions_table():
             "status": "error", 
             "message": f"Failed to fix agent_actions table: {str(e)}"
         }
-@app.get("/analytics/trends")
-async def get_dashboard_trends():
-    """Analytics endpoint that works with ANY database schema"""
+
+# ✅ ENTERPRISE DEBUG AND HEALTH ENDPOINTS
+
+@app.get("/debug/env")
+async def debug_env():
+    return {
+        "allowed_origins": os.getenv("ALLOWED_ORIGINS"),
+        "cors_allowed_origins": os.getenv("CORS_ALLOWED_ORIGINS"), 
+        "secret_key_exists": bool(os.getenv("SECRET_KEY")),
+        "openai_key_exists": bool(os.getenv("OPENAI_API_KEY")),
+        "environment": os.getenv("ENVIRONMENT"),
+        "cors_origins_loaded": all_origins,
+        "authorization_system": "enabled"
+    }
+
+@app.get("/debug/database-check")
+async def debug_database_check():
     try:
-        # Return working sample data for now to get dashboard functional
+        db: Session = next(get_db())
+        
+        agent_actions_count = db.query(AgentAction).count()
+        alerts_count = db.query(Alert).count()
+        
+        try:
+            pending_actions_count = db.query(PendingAgentAction).count()
+        except Exception:
+            pending_actions_count = 0
+        
+        sample_action = db.query(AgentAction).first()
+        sample_alert = db.query(Alert).first()
+        
+        try:
+            sample_pending = db.query(PendingAgentAction).first()
+        except Exception:
+            sample_pending = None
+        
+        db.close()
+        
         return {
-            "high_risk_actions_by_day": [
-                {"date": "2025-07-24", "count": 3},
-                {"date": "2025-07-25", "count": 5},
-                {"date": "2025-07-26", "count": 2}
-            ],
-            "top_agents": [
-                {"agent": "security-scanner-01", "count": 15},
-                {"agent": "compliance-agent", "count": 12},
-                {"agent": "threat-detector", "count": 8}
-            ],
-            "top_tools": [
-                {"tool": "network-scanner", "count": 20},
-                {"tool": "file-analyzer", "count": 15},
-                {"tool": "log-parser", "count": 10}
-            ],
-            "enriched_actions": [
-                {
-                    "agent_id": "security-scanner-01",
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0007",
-                    "nist_control": "AC-6",
-                    "recommendation": "Review and approve this high-risk action"
-                },
-                {
-                    "agent_id": "compliance-agent", 
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0005",
-                    "nist_control": "AU-2",
-                    "recommendation": "Standard monitoring - no action required"
-                }
-            ]
+            "status": "connected",
+            "agent_actions_count": agent_actions_count,
+            "alerts_count": alerts_count,
+            "pending_actions_count": pending_actions_count,
+            "has_agent_actions": agent_actions_count > 0,
+            "has_alerts": alerts_count > 0,
+            "has_pending_actions": pending_actions_count > 0,
+            "sample_action_id": sample_action.id if sample_action else None,
+            "sample_alert_id": sample_alert.id if sample_alert else None,
+            "sample_pending_id": sample_pending.id if sample_pending else None,
+            "authorization_system_status": "operational"
         }
     except Exception as e:
-        logger.error(f"Analytics error: {str(e)}")
-        return {
-            "high_risk_actions_by_day": [],
-            "top_agents": [],
-            "top_tools": [],
-            "enriched_actions": []
-        }
-    
-# Add this to your main.py (simple working version)
-@app.get("/agent-actions")
-async def get_agent_actions():
-    """Working agent actions endpoint"""
+        return {"error": str(e), "status": "failed"}
+
+@app.get("/health")
+async def health_check():
     try:
-        # Return sample data for now to get interface working
-        return [
-            {
-                "id": 1,
-                "agent_id": "security-scanner-01",
-                "action_type": "network_scan",
-                "description": "Scanning production network for vulnerabilities",
-                "risk_level": "medium",
-                "status": "pending",
-                "timestamp": "2025-07-26T03:45:00Z",
-                "tool_name": "nmap",
-                "summary": "Network scan completed successfully"
-            },
-            {
-                "id": 2,
-                "agent_id": "compliance-agent",
-                "action_type": "policy_check",
-                "description": "Checking compliance with security policies",
-                "risk_level": "low",
-                "status": "approved",
-                "timestamp": "2025-07-26T03:30:00Z",
-                "tool_name": "policy-scanner",
-                "summary": "All policies compliant"
+        db: Session = next(get_db())
+        db.execute(text("SELECT 1"))
+        
+        try:
+            auth_table_check = db.execute(text("""
+                SELECT COUNT(*) FROM information_schema.tables 
+                WHERE table_name = 'pending_agent_actions'
+            """)).fetchone()[0]
+        except Exception:
+            auth_table_check = 0
+        
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "version": "1.1.0",
+            "database": "connected",
+            "authorization_system": "enabled" if auth_table_check > 0 else "not_installed",
+            "environment": os.getenv("ENVIRONMENT", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "timestamp": datetime.utcnow().isoformat(),
+                "error": str(e)
             }
+        )
+
+@app.get("/")
+async def root():
+    return {
+        "message": "OW-AI Backend API is running", 
+        "status": "ok",
+        "version": "1.1.0",
+        "features": [
+            "Agent Action Monitoring",
+            "AI-Powered Risk Assessment", 
+            "NIST/MITRE Framework Mapping",
+            "Real-time Alert Generation",
+            "Smart Rule Generation",
+            "Human Authorization System"
         ]
-    except Exception as e:
-        return []    
+    }
+
+@app.get("/debug/routes")
+async def debug_routes():
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods)
+            })
+    return {"routes": routes}
+
+if __name__ == "__main__":
+    import uvicorn
+    logger.info("Starting OW-AI Backend API with Authorization System...")
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
