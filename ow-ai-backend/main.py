@@ -828,3 +828,36 @@ async def get_dashboard_trends():
             "top_tools": [],
             "enriched_actions": []
         }
+    
+# Add this to your main.py (simple working version)
+@app.get("/agent-actions")
+async def get_agent_actions():
+    """Working agent actions endpoint"""
+    try:
+        # Return sample data for now to get interface working
+        return [
+            {
+                "id": 1,
+                "agent_id": "security-scanner-01",
+                "action_type": "network_scan",
+                "description": "Scanning production network for vulnerabilities",
+                "risk_level": "medium",
+                "status": "pending",
+                "timestamp": "2025-07-26T03:45:00Z",
+                "tool_name": "nmap",
+                "summary": "Network scan completed successfully"
+            },
+            {
+                "id": 2,
+                "agent_id": "compliance-agent",
+                "action_type": "policy_check",
+                "description": "Checking compliance with security policies",
+                "risk_level": "low",
+                "status": "approved",
+                "timestamp": "2025-07-26T03:30:00Z",
+                "tool_name": "policy-scanner",
+                "summary": "All policies compliant"
+            }
+        ]
+    except Exception as e:
+        return []    
