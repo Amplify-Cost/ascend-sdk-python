@@ -1116,14 +1116,22 @@ def approve_agent_action(
 ):
     """Approve an agent action (admin only) - Enterprise audit trail preserved"""
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-        if not action:
+        # Use raw SQL to avoid model schema issues
+        result = db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'approved', 
+                approved = true, 
+                reviewed_by = :reviewed_by, 
+                reviewed_at = :reviewed_at
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': admin_user["email"],
+            'reviewed_at': datetime.now(UTC)
+        })
+        
+        if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Agent action not found")
-
-        action.status = "approved"
-        action.approved = True
-        action.reviewed_by = admin_user["email"]
-        action.reviewed_at = datetime.now(UTC)
 
         # Create enterprise audit trail
         try:
@@ -1156,14 +1164,22 @@ def reject_agent_action(
 ):
     """Reject an agent action (admin only)"""
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-        if not action:
+        # Use raw SQL to avoid model schema issues
+        result = db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'rejected', 
+                approved = false, 
+                reviewed_by = :reviewed_by, 
+                reviewed_at = :reviewed_at
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': admin_user["email"],
+            'reviewed_at': datetime.now(UTC)
+        })
+        
+        if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Agent action not found")
-
-        action.status = "rejected"
-        action.approved = False
-        action.reviewed_by = admin_user["email"]
-        action.reviewed_at = datetime.now(UTC)
 
         try:
             audit_log = LogAuditTrail(
@@ -1195,14 +1211,22 @@ def mark_false_positive(
 ):
     """Mark an agent action as false positive (admin only)"""
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-        if not action:
+        # Use raw SQL to avoid model schema issues
+        result = db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'false_positive', 
+                is_false_positive = true, 
+                reviewed_by = :reviewed_by, 
+                reviewed_at = :reviewed_at
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': admin_user["email"],
+            'reviewed_at': datetime.now(UTC)
+        })
+        
+        if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Agent action not found")
-
-        action.status = "false_positive"
-        action.is_false_positive = True
-        action.reviewed_by = admin_user["email"]
-        action.reviewed_at = datetime.now(UTC)
 
         try:
             audit_log = LogAuditTrail(
@@ -1224,7 +1248,7 @@ def mark_false_positive(
     except Exception as e:
         logger.error(f"Failed to mark action {action_id} as false positive: {str(e)}")
         db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to mark as false positive")    
+        raise HTTPException(status_code=500, detail="Failed to mark as false positive")   
     
 if __name__ == "__main__":
     import uvicorn
