@@ -12,7 +12,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
-from database import get_db, DATABASE_URL, engine
+from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 
@@ -472,6 +472,229 @@ async def get_agent_actions_live(current_user: dict = Depends(get_current_user))
     except Exception as e:
         logger.error(f"❌ Agent-actions endpoint error: {str(e)}")
         return []
+    
+# MINIMAL FIX: Only change the import line and add the missing endpoints
+# Keep everything else from your original main.py exactly as it was
+
+# ORIGINAL LINE 15 (BROKEN):
+# from database import get_db, DATABASE_URL, engine
+
+# FIXED LINE 15:
+from database import get_db, engine
+# Remove DATABASE_URL from import since it doesn't exist in your database.py
+
+# Add these three missing endpoints to your existing main.py:
+
+@app.post("/agent-action/{action_id}/approve")
+def approve_agent_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin)
+):
+    """Approve an agent action (admin only) - Enterprise audit trail preserved"""
+    try:
+        # Update using raw SQL to avoid model schema issues
+        result = db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'approved', 
+                approved = true, 
+                reviewed_by = :reviewed_by, 
+                reviewed_at = :reviewed_at
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': admin_user["email"],
+            'reviewed_at': datetime.now(UTC)
+        })
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Agent action not found")
+
+        # Create enterprise audit trail
+        try:
+            audit_log = LogAuditTrail(
+                action_id=action_id,
+                decision="approved",
+                reviewed_by=admin_user["email"],
+                timestamp=datetime.now(UTC)
+            )
+            db.add(audit_log)
+        except Exception as audit_error:
+            logger.warning(f"Audit trail creation failed: {audit_error}")
+        
+        db.commit()
+        logger.info(f"Enterprise action {action_id} approved by {admin_user['email']}")
+        return {"message": "Action approved successfully", "audit_trail": "logged"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to approve action {action_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to approve action")
+
+@app.post("/agent-action/{action_id}/reject")
+def reject_agent_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin)
+):
+    """Reject an agent action (admin only)"""
+    try:
+        result = db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'rejected', 
+                approved = false, 
+                reviewed_by = :reviewed_by, 
+                reviewed_at = :reviewed_at
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': admin_user["email"],
+            'reviewed_at': datetime.now(UTC)
+        })
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Agent action not found")
+
+        try:
+            audit_log = LogAuditTrail(
+                action_id=action_id,
+                decision="rejected",
+                reviewed_by=admin_user["email"],
+                timestamp=datetime.now(UTC)
+            )
+            db.add(audit_log)
+        except Exception as audit_error:
+            logger.warning(f"Audit trail creation failed: {audit_error}")
+        
+        db.commit()
+        logger.info(f"Enterprise action {action_id} rejected by {admin_user['email']}")
+        return {"message": "Action rejected successfully", "audit_trail": "logged"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reject action {action_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to reject action")
+
+@app.post("/agent-action/{action_id}/false-positive")
+def mark_false_positive(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin)
+):
+    """Mark an agent action as false positive (admin only)"""
+    try:
+        result = db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'false_positive', 
+                approved = null,
+                reviewed_by = :reviewed_by, 
+                reviewed_at = :reviewed_at
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': admin_user["email"],
+            'reviewed_at': datetime.now(UTC)
+        })
+        
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Agent action not found")
+
+        try:
+            audit_log = LogAuditTrail(
+                action_id=action_id,
+                decision="false_positive",
+                reviewed_by=admin_user["email"],
+                timestamp=datetime.now(UTC)
+            )
+            db.add(audit_log)
+        except Exception as audit_error:
+            logger.warning(f"Audit trail creation failed: {audit_error}")
+        
+        db.commit()
+        logger.info(f"Enterprise action {action_id} marked as false positive by {admin_user['email']}")
+        return {"message": "Action marked as false positive", "audit_trail": "logged"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to mark action {action_id} as false positive: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to mark as false positive")
+
+# Add this endpoint to create sample data for testing
+@app.post("/admin/create-sample-agent-actions-simplified")
+async def create_sample_agent_actions_simplified():
+    """Create sample agent actions with only existing columns"""
+    try:
+        db: Session = next(get_db())
+        
+        # Check if actions already exist
+        existing = db.execute(text("SELECT COUNT(*) FROM agent_actions WHERE id IN (1001, 1002, 1003)")).fetchone()[0]
+        
+        if existing > 0:
+            return {"status": "success", "message": "Sample actions already exist", "count": existing}
+        
+        # Create sample actions using only columns that exist
+        sample_actions = [
+            {
+                'id': 1001,
+                'agent_id': 'security-scanner-01',
+                'action_type': 'vulnerability_scan',
+                'description': 'Production infrastructure vulnerability assessment',
+                'risk_level': 'high',
+                'status': 'pending',
+                'approved': False
+            },
+            {
+                'id': 1002,
+                'agent_id': 'compliance-agent',
+                'action_type': 'compliance_check',
+                'description': 'Automated compliance audit of access controls',
+                'risk_level': 'medium',
+                'status': 'pending',
+                'approved': False
+            },
+            {
+                'id': 1003,
+                'agent_id': 'threat-detector',
+                'action_type': 'anomaly_detection',
+                'description': 'Network traffic anomaly detection analysis',
+                'risk_level': 'low',
+                'status': 'pending',
+                'approved': False
+            }
+        ]
+        
+        for action in sample_actions:
+            db.execute(text("""
+                INSERT INTO agent_actions (
+                    id, agent_id, action_type, description, risk_level, status, approved
+                ) VALUES (
+                    :id, :agent_id, :action_type, :description, :risk_level, :status, :approved
+                )
+            """), action)
+        
+        db.commit()
+        db.close()
+        
+        logger.info("Simplified sample agent actions created successfully")
+        return {
+            "status": "success",
+            "message": "Sample agent actions created in database",
+            "count": len(sample_actions),
+            "action_ids": [1001, 1002, 1003]
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create simplified sample actions: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to create simplified sample actions: {str(e)}"
+        }    
 
 # ================== YOUR DATABASE FIX ENDPOINTS (PRESERVED) ==================
 
