@@ -145,6 +145,64 @@ async def login(request: Request):
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
         raise HTTPException(status_code=500, detail="Login failed")
+    
+# Add this endpoint to your main.py (after your existing /login endpoint)
+
+@app.post("/auth/token")
+async def auth_token(request: Request):
+    """Authentication token endpoint - matches frontend expectations"""
+    try:
+        data = await request.json()
+        email = data.get("email") or data.get("username")  # Handle both email and username
+        password = data.get("password")
+
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email and password required")
+
+        # Verify user
+        db: Session = next(get_db())
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # Verify password
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        if not pwd_context.verify(password, user.hashed_password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+        # Generate JWT token
+        import jwt
+        from datetime import timedelta
+        
+        payload = {
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "exp": datetime.utcnow() + timedelta(hours=24)
+        }
+        
+        secret_key = os.getenv("SECRET_KEY", "your-secret-key")
+        token = jwt.encode(payload, secret_key, algorithm="HS256")
+
+        logger.info(f"User authenticated via /auth/token: {email}")
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Auth token error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication failed")    
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
