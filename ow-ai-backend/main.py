@@ -223,6 +223,108 @@ async def fix_database_schema():
             "message": f"Database schema fix failed: {str(e)}"
         }
 
+@app.post("/admin/create-sample-agent-actions")
+async def create_sample_agent_actions():
+    """Create sample agent actions in database for testing"""
+    try:
+        db: Session = next(get_db())
+        current_time = datetime.now(UTC)
+        
+        # Check if actions already exist
+        existing = db.execute(text("SELECT COUNT(*) FROM agent_actions WHERE id IN (1001, 1002, 1003)")).fetchone()[0]
+        
+        if existing > 0:
+            return {"status": "success", "message": "Sample actions already exist", "count": existing}
+        
+        # Create sample actions using direct SQL to avoid model issues
+        sample_actions = [
+            {
+                'id': 1001,
+                'agent_id': 'security-scanner-01',
+                'action_type': 'vulnerability_scan',
+                'description': 'Production infrastructure vulnerability assessment',
+                'tool_name': 'security-scanner',
+                'risk_level': 'high',
+                'mitre_tactic': 'TA0007',
+                'mitre_technique': 'T1190',
+                'nist_control': 'RA-5',
+                'nist_description': 'Vulnerability Scanning',
+                'recommendation': 'Remediation required for 3 vulnerabilities',
+                'summary': 'Security scan completed: 3 vulnerabilities discovered',
+                'status': 'pending',
+                'approved': False,
+                'created_at': current_time,
+                'timestamp': current_time
+            },
+            {
+                'id': 1002,
+                'agent_id': 'compliance-agent',
+                'action_type': 'compliance_check',
+                'description': 'Automated compliance audit of access controls',
+                'tool_name': 'compliance-auditor',
+                'risk_level': 'medium',
+                'mitre_tactic': 'TA0005',
+                'mitre_technique': 'T1078',
+                'nist_control': 'AU-6',
+                'nist_description': 'Audit Review and Analysis',
+                'recommendation': 'Review access control violations',
+                'summary': 'Compliance audit identified 2 policy violations',
+                'status': 'pending',
+                'approved': False,
+                'created_at': current_time,
+                'timestamp': current_time
+            },
+            {
+                'id': 1003,
+                'agent_id': 'threat-detector',
+                'action_type': 'anomaly_detection',
+                'description': 'Network traffic anomaly detection analysis',
+                'tool_name': 'threat-intelligence',
+                'risk_level': 'low',
+                'mitre_tactic': 'TA0011',
+                'mitre_technique': 'T1071',
+                'nist_control': 'SI-4',
+                'nist_description': 'Information System Monitoring',
+                'recommendation': 'Continue monitoring - no action required',
+                'summary': 'Anomaly detection completed - normal patterns observed',
+                'status': 'pending',
+                'approved': False,
+                'created_at': current_time,
+                'timestamp': current_time
+            }
+        ]
+        
+        for action in sample_actions:
+            db.execute(text("""
+                INSERT INTO agent_actions (
+                    id, agent_id, action_type, description, tool_name, risk_level,
+                    mitre_tactic, mitre_technique, nist_control, nist_description,
+                    recommendation, summary, status, approved, created_at, timestamp
+                ) VALUES (
+                    :id, :agent_id, :action_type, :description, :tool_name, :risk_level,
+                    :mitre_tactic, :mitre_technique, :nist_control, :nist_description,
+                    :recommendation, :summary, :status, :approved, :created_at, :timestamp
+                )
+            """), action)
+        
+        db.commit()
+        db.close()
+        
+        logger.info("Sample agent actions created successfully")
+        return {
+            "status": "success",
+            "message": "Sample agent actions created in database",
+            "count": len(sample_actions),
+            "action_ids": [1001, 1002, 1003]
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create sample actions: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to create sample actions: {str(e)}"
+        }
+
 @app.post("/admin/fix-database")
 async def fix_database():
     """Fix database by adding missing columns and tables"""
