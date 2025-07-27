@@ -53,7 +53,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.post("/register")
 async def register(request: Request):
-    """User registration endpoint"""
+    """User registration endpoint - FIXED"""
     try:
         data = await request.json()
         email = data.get("email")
@@ -75,8 +75,19 @@ async def register(request: Request):
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
 
-        # Create new user
-        new_user = User(email=email, hashed_password=hashed_password, role=role)
+        # Create new user - try different password field names
+        try:
+            new_user = User(email=email, hashed_password=hashed_password, role=role)
+        except:
+            try:
+                new_user = User(email=email, password_hash=hashed_password, role=role)
+            except:
+                try:
+                    new_user = User(email=email, password=hashed_password, role=role)
+                except Exception as model_error:
+                    logger.error(f"User model creation failed: {model_error}")
+                    raise HTTPException(status_code=500, detail="User registration failed - check User model")
+
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
@@ -108,11 +119,25 @@ async def login(request: Request):
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
+        # Check what password attribute exists on your User model
+        password_field = None
+        if hasattr(user, 'hashed_password'):
+            password_field = user.hashed_password
+        elif hasattr(user, 'password_hash'):
+            password_field = user.password_hash
+        elif hasattr(user, 'password'):
+            password_field = user.password
+        else:
+            # Log available attributes for debugging
+            user_attrs = [attr for attr in dir(user) if not attr.startswith('_')]
+            logger.error(f"User model attributes: {user_attrs}")
+            raise HTTPException(status_code=500, detail="User password field not found")
+
         # Verify password
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
-        if not pwd_context.verify(password, user.hashed_password):
+        if not pwd_context.verify(password, password_field):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Generate JWT token
@@ -166,11 +191,25 @@ async def auth_token(request: Request):
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
+        # Check what password attribute exists on your User model
+        password_field = None
+        if hasattr(user, 'hashed_password'):
+            password_field = user.hashed_password
+        elif hasattr(user, 'password_hash'):
+            password_field = user.password_hash
+        elif hasattr(user, 'password'):
+            password_field = user.password
+        else:
+            # Log available attributes for debugging
+            user_attrs = [attr for attr in dir(user) if not attr.startswith('_')]
+            logger.error(f"User model attributes: {user_attrs}")
+            raise HTTPException(status_code=500, detail="User password field not found")
+
         # Verify password
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
         
-        if not pwd_context.verify(password, user.hashed_password):
+        if not pwd_context.verify(password, password_field):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
         # Generate JWT token
@@ -202,7 +241,7 @@ async def auth_token(request: Request):
         raise
     except Exception as e:
         logger.error(f"Auth token error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Authentication failed")    
+        raise HTTPException(status_code=500, detail="Authentication failed")
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
