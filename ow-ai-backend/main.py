@@ -324,6 +324,113 @@ async def create_sample_agent_actions():
             "status": "error",
             "message": f"Failed to create sample actions: {str(e)}"
         }
+@app.post("/admin/fix-agent-actions-created-at")
+async def fix_agent_actions_created_at():
+    """Add missing created_at column to agent_actions table"""
+    try:
+        engine_fix = create_engine(DATABASE_URL)
+        results = []
+        
+        with engine_fix.connect() as conn:
+            # Add the missing created_at column
+            try:
+                conn.execute(text("""
+                    ALTER TABLE agent_actions 
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                """))
+                results.append("✅ Added created_at column to agent_actions")
+            except Exception as e:
+                if "already exists" in str(e).lower():
+                    results.append("✅ created_at column already exists")
+                else:
+                    results.append(f"⚠️ created_at column: {str(e)}")
+            
+            conn.commit()
+        
+        logger.info("Agent actions created_at column fix completed")
+        return {
+            "status": "success",
+            "message": "created_at column fixed",
+            "details": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to add created_at column: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to add created_at column: {str(e)}"
+        }
+
+@app.post("/admin/create-sample-agent-actions-simplified")
+async def create_sample_agent_actions_simplified():
+    """Create sample agent actions with only existing columns"""
+    try:
+        db: Session = next(get_db())
+        current_time = datetime.now(UTC)
+        
+        # Check if actions already exist
+        existing = db.execute(text("SELECT COUNT(*) FROM agent_actions WHERE id IN (1001, 1002, 1003)")).fetchone()[0]
+        
+        if existing > 0:
+            return {"status": "success", "message": "Sample actions already exist", "count": existing}
+        
+        # Create sample actions using only columns that exist
+        sample_actions = [
+            {
+                'id': 1001,
+                'agent_id': 'security-scanner-01',
+                'action_type': 'vulnerability_scan',
+                'description': 'Production infrastructure vulnerability assessment',
+                'risk_level': 'high',
+                'status': 'pending',
+                'approved': False
+            },
+            {
+                'id': 1002,
+                'agent_id': 'compliance-agent',
+                'action_type': 'compliance_check',
+                'description': 'Automated compliance audit of access controls',
+                'risk_level': 'medium',
+                'status': 'pending',
+                'approved': False
+            },
+            {
+                'id': 1003,
+                'agent_id': 'threat-detector',
+                'action_type': 'anomaly_detection',
+                'description': 'Network traffic anomaly detection analysis',
+                'risk_level': 'low',
+                'status': 'pending',
+                'approved': False
+            }
+        ]
+        
+        for action in sample_actions:
+            db.execute(text("""
+                INSERT INTO agent_actions (
+                    id, agent_id, action_type, description, risk_level, status, approved
+                ) VALUES (
+                    :id, :agent_id, :action_type, :description, :risk_level, :status, :approved
+                )
+            """), action)
+        
+        db.commit()
+        db.close()
+        
+        logger.info("Simplified sample agent actions created successfully")
+        return {
+            "status": "success",
+            "message": "Sample agent actions created in database",
+            "count": len(sample_actions),
+            "action_ids": [1001, 1002, 1003]
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create simplified sample actions: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Failed to create simplified sample actions: {str(e)}"
+        }
 
 @app.post("/admin/fix-database")
 async def fix_database():
