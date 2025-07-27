@@ -194,30 +194,30 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
 
   // Create database records if they don't exist
   const createSampleRecords = async () => {
-    try {
-      console.log("🏗️ Creating sample database records...");
-      setLoading(true);
-      
-      const response = await fetch(`${API_BASE_URL}/admin/create-sample-agent-actions`, {
-        method: 'POST'
-      });
-      
-      const result = await response.json();
-      console.log("📦 Sample records result:", result);
-      
-      if (result.status === 'success') {
-        alert("✅ Sample records created! Refreshing data...");
-        await fetchAgentActions();
-      } else {
-        alert(`⚠️ ${result.message}`);
-      }
-    } catch (err) {
-      console.error("❌ Failed to create sample records:", err);
-      alert(`❌ Error creating records: ${err.message}`);
-    } finally {
-      setLoading(false);
+  try {
+    console.log("🏗️ Creating sample database records...");
+    setLoading(true);
+    
+    const response = await fetch(`${API_BASE_URL}/admin/create-sample-agent-actions-simplified`, {
+      method: 'POST'
+    });
+    
+    const result = await response.json();
+    console.log("📦 Sample records result:", result);
+    
+    if (result.status === 'success') {
+      alert("✅ Sample records created! Refreshing data...");
+      await fetchAgentActions();
+    } else {
+      alert(`⚠️ ${result.message}`);
     }
-  };
+  } catch (err) {
+    console.error("❌ Failed to create sample records:", err);
+    alert(`❌ Error creating records: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     fetchAgentActions();
