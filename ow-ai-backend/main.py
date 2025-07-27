@@ -3,8 +3,9 @@ from dotenv import load_dotenv
 import openai
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import List, Dict, Any
+from dependencies import require_admin
 
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,7 +24,7 @@ from database import Base, engine, get_db
 from config import ALLOWED_ORIGINS, OPENAI_API_KEY, DATABASE_URL
 
 # Import models - UPDATED TO INCLUDE PendingAgentAction
-from models import AgentAction, Alert, PendingAgentAction
+from models import AgentAction, Alert, PendingAgentAction,LogAuditTrail
 
 # Import routers - UPDATED TO INCLUDE AUTHORIZATION ROUTES
 from routes.auth_routes import router as auth_router
@@ -146,7 +147,7 @@ Base.metadata.create_all(bind=engine)
 app.include_router(auth_router)
 app.include_router(main_router)
 app.include_router(analytics_router, prefix="/analytics")
-app.include_router(agent_router)
+#app.include_router(agent_router)
 #app.include_router(rule_router)
 app.include_router(alert_summary_router)
 app.include_router(alerts_router)
@@ -1106,6 +1107,124 @@ async def override_approval_performance(current_user: dict = Depends(get_current
             "risk_breakdown": {"critical_requests": 0},
             "user_activity": {"total_approvers_active": 0}
         }
+    
+@app.post("/agent-action/{action_id}/approve")
+def approve_agent_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin)
+):
+    """Approve an agent action (admin only) - Enterprise audit trail preserved"""
+    try:
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Agent action not found")
+
+        action.status = "approved"
+        action.approved = True
+        action.reviewed_by = admin_user["email"]
+        action.reviewed_at = datetime.now(UTC)
+
+        # Create enterprise audit trail
+        try:
+            audit_log = LogAuditTrail(
+                action_id=action_id,
+                decision="approved",
+                reviewed_by=admin_user["email"],
+                timestamp=datetime.now(UTC)
+            )
+            db.add(audit_log)
+        except Exception as audit_error:
+            logger.warning(f"Audit trail creation failed: {audit_error}")
+        
+        db.commit()
+        logger.info(f"Enterprise action {action_id} approved by {admin_user['email']}")
+        return {"message": "Action approved successfully", "audit_trail": "logged"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to approve action {action_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to approve action")
+
+@app.post("/agent-action/{action_id}/reject")
+def reject_agent_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin)
+):
+    """Reject an agent action (admin only)"""
+    try:
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Agent action not found")
+
+        action.status = "rejected"
+        action.approved = False
+        action.reviewed_by = admin_user["email"]
+        action.reviewed_at = datetime.now(UTC)
+
+        try:
+            audit_log = LogAuditTrail(
+                action_id=action_id,
+                decision="rejected",
+                reviewed_by=admin_user["email"],
+                timestamp=datetime.now(UTC)
+            )
+            db.add(audit_log)
+        except Exception as audit_error:
+            logger.warning(f"Audit trail creation failed: {audit_error}")
+        
+        db.commit()
+        logger.info(f"Enterprise action {action_id} rejected by {admin_user['email']}")
+        return {"message": "Action rejected successfully", "audit_trail": "logged"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to reject action {action_id}: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to reject action")
+
+@app.post("/agent-action/{action_id}/false-positive")
+def mark_false_positive(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin)
+):
+    """Mark an agent action as false positive (admin only)"""
+    try:
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Agent action not found")
+
+        action.status = "false_positive"
+        action.is_false_positive = True
+        action.reviewed_by = admin_user["email"]
+        action.reviewed_at = datetime.now(UTC)
+
+        try:
+            audit_log = LogAuditTrail(
+                action_id=action_id,
+                decision="false_positive",
+                reviewed_by=admin_user["email"],
+                timestamp=datetime.now(UTC)
+            )
+            db.add(audit_log)
+        except Exception as audit_error:
+            logger.warning(f"Audit trail creation failed: {audit_error}")
+        
+        db.commit()
+        logger.info(f"Enterprise action {action_id} marked as false positive by {admin_user['email']}")
+        return {"message": "Action marked as false positive", "audit_trail": "logged"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to mark action {action_id} as false positive: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to mark as false positive")    
     
 if __name__ == "__main__":
     import uvicorn
