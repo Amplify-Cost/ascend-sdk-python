@@ -1,4 +1,4 @@
-# main.py - YOUR ORIGINAL CODE WITH ONLY JWT IMPORT FIX
+# main.py - YOUR ORIGINAL CODE WITH ONLY ORDER FIX
 from dotenv import load_dotenv
 import openai
 import os
@@ -41,8 +41,6 @@ except ImportError:
 
 load_dotenv()
 
-app.include_router(auth_router)
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +59,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# FIXED: Move auth router include to AFTER app creation
+app.include_router(auth_router)
+
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -68,9 +69,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 #app.include_router(agent_router)
 #app.include_router(rule_router) 
 #app.include_router(authorization_router)
-
-# ================== AUTHENTICATION ROUTES (YOUR EXISTING CODE) ==================
-
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
