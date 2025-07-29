@@ -14,7 +14,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
-from auth import router as auth_router
 from dependencies import get_current_user, verify_token
 
 # ADDED: JWT import fix
@@ -60,7 +59,7 @@ app.add_middleware(
 )
 
 # FIXED: Move auth router include to AFTER app creation
-app.include_router(auth_router)
+
 
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
