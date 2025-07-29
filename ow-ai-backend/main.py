@@ -1,4 +1,4 @@
-# main.py - YOUR ORIGINAL CODE WITH ONLY ORDER FIX
+# main.py - YOUR ORIGINAL CODE WITH AUTH ROUTER INCLUDED
 from dotenv import load_dotenv
 import openai
 import os
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
+from routes.auth_routes import router as auth_router  # ADDED: Auth router import
 
 # ADDED: JWT import fix
 try:
@@ -47,6 +48,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Initialize FastAPI app
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
 
 # CORS Configuration (your existing config)
@@ -58,19 +60,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# FIXED: Move auth router include to AFTER app creation
+# ADDED: Register auth routes
+app.include_router(auth_router)  # Enables /auth/register and /auth/token
 
-
+# Security and API-key setup
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # COMMENTED OUT - Router includes that don't exist
-#app.include_router(agent_router)
-#app.include_router(rule_router) 
-#app.include_router(authorization_router)
+# app.include_router(agent_router)
+# app.include_router(rule_router)
+# app.include_router(authorization_router)
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
-
 @app.get("/analytics/trends")
 async def get_analytics_trends():
     """Get analytics trends"""
@@ -123,7 +125,6 @@ async def get_monthly_summary():
         raise HTTPException(status_code=500, detail="Failed to fetch monthly summary")
 
 # ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-
 @app.get("/agent-activity")
 async def get_agent_activity():
     """Get agent activity data"""
@@ -160,7 +161,6 @@ async def get_agent_activity():
         raise HTTPException(status_code=500, detail="Failed to fetch agent activity")
 
 # ================== YOUR RULES ROUTES (PRESERVED) ==================
-
 @app.get("/rules")
 async def get_rules():
     """Get security rules"""
@@ -195,14 +195,8 @@ async def get_rules():
                 "risk_level": "medium",
                 "auto_approve": False,
                 "requires_mfa": True,
-                "approvers": ["compliance@company.com", "admin@company.com"],
-                "created_at": datetime.now().isoformat(),
-                "status": "active"
             }
         ]
-    except Exception as e:
-        logger.error(f"Rules error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch rules")
 
 # ================== YOUR ALERTS ROUTES (PRESERVED) ==================
 
