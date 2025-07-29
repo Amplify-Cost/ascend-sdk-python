@@ -137,7 +137,7 @@ async def login(request: Request):
             "user_id": user.id,
             "email": user.email,
             "role": user.role,
-            "exp": datetime.utcnow() + timedelta(hours=24)
+            "exp": int((datetime.utcnow() + timedelta(hours=24)).timestamp())
         }
         
         secret_key = os.getenv("SECRET_KEY", "your-secret-key")
@@ -204,7 +204,7 @@ async def auth_token(request: Request):
             "user_id": user.id,
             "email": user.email,
             "role": user.role,
-            "exp": datetime.utcnow() + timedelta(hours=24)
+            "exp": int((datetime.utcnow() + timedelta(hours=24)).timestamp())
         }
         
         secret_key = os.getenv("SECRET_KEY", "your-secret-key")
