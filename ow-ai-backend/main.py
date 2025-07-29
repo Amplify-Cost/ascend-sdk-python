@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
+from auth import router as auth_router
 from dependencies import get_current_user, verify_token
 
 # ADDED: JWT import fix
@@ -39,6 +40,8 @@ except ImportError:
 # from authorization_routes import authorization_router
 
 load_dotenv()
+
+app.include_router(auth_router)
 
 # Configure logging
 logging.basicConfig(
@@ -68,164 +71,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ================== AUTHENTICATION ROUTES (YOUR EXISTING CODE) ==================
 
-@app.post("/register")
-async def register(request: Request):
-    """User registration endpoint"""
-    try:
-        data = await request.json()
-        email = data.get("email")
-        password = data.get("password")
-        role = data.get("role", "user")
-
-        if not email or not password:
-            raise HTTPException(status_code=400, detail="Email and password required")
-
-        # Hash password
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        hashed_password = pwd_context.hash(password)
-
-        # Check if user exists
-        db: Session = next(get_db())
-        existing_user = db.query(User).filter(User.email == email).first()
-        
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email already registered")
-
-        # Create new user
-        new_user = User(email=email, hashed_password=hashed_password, role=role)
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-
-        logger.info(f"New user registered: {email}")
-        return {"message": "User registered successfully", "user_id": new_user.id}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Registration failed")
-
-@app.post("/login")
-async def login(request: Request):
-    """User login endpoint"""
-    try:
-        data = await request.json()
-        email = data.get("email")
-        password = data.get("password")
-
-        if not email or not password:
-            raise HTTPException(status_code=400, detail="Email and password required")
-
-        # Verify user
-        db: Session = next(get_db())
-        user = db.query(User).filter(User.email == email).first()
-        
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        # Verify password
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        
-        if not pwd_context.verify(password, user.hashed_password):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        # Generate JWT token - FIXED import issue
-        payload = {
-            "user_id": user.id,
-            "email": user.email,
-            "role": user.role,
-            "exp": int((datetime.utcnow() + timedelta(hours=24)).timestamp())
-        }
-        
-        secret_key = os.getenv("SECRET_KEY", "your-secret-key")
-        token = jwt.encode(payload, secret_key, algorithm="HS256")
-
-        logger.info(f"User logged in: {email}")
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "role": user.role
-            }
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Login error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Login failed")
-
-@app.post("/auth/token")
-async def auth_token(request: Request):
-    """Authentication token endpoint - matches frontend expectations"""
-    try:
-        data = await request.json()
-        email = data.get("email") or data.get("username")  # Handle both email and username
-        password = data.get("password")
-
-        if not email or not password:
-            raise HTTPException(status_code=400, detail="Email and password required")
-
-        # Verify user
-        db: Session = next(get_db())
-        user = db.query(User).filter(User.email == email).first()
-        
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        # Check what password attribute exists on your User model
-        password_field = None
-        if hasattr(user, 'hashed_password'):
-            password_field = user.hashed_password
-        elif hasattr(user, 'password_hash'):
-            password_field = user.password_hash
-        elif hasattr(user, 'password'):
-            password_field = user.password
-        else:
-            # Log available attributes for debugging
-            user_attrs = [attr for attr in dir(user) if not attr.startswith('_')]
-            logger.error(f"User model attributes: {user_attrs}")
-            raise HTTPException(status_code=500, detail="User password field not found")
-
-        # Verify password
-        from passlib.context import CryptContext
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        
-        if not pwd_context.verify(password, password_field):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        # Generate JWT token - FIXED import issue
-        payload = {
-            "user_id": user.id,
-            "email": user.email,
-            "role": user.role,
-            "exp": int((datetime.utcnow() + timedelta(hours=24)).timestamp())
-        }
-        
-        secret_key = os.getenv("SECRET_KEY", "your-secret-key")
-        token = jwt.encode(payload, secret_key, algorithm="HS256")
-
-        logger.info(f"User authenticated via /auth/token: {email}")
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "role": user.role
-            }
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Auth token error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Authentication failed")
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
