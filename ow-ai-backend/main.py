@@ -1680,6 +1680,8 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to submit authorization request")
 
+# Replace your authorization endpoints in main.py with these database-compatible versions
+
 @app.get("/agent-control/pending-actions")
 async def get_pending_actions(
     risk_filter: Optional[str] = None,
@@ -1687,39 +1689,46 @@ async def get_pending_actions(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """🏢 ENTERPRISE: Get pending actions for authorization dashboard"""
+    """🏢 ENTERPRISE: Get pending actions for authorization dashboard - Database compatible"""
     try:
-        # Query pending actions from database
-        query = db.query(AgentAction).filter(
-            AgentAction.status.in_(["pending_approval", "pending", "submitted"])
-        )
+        # Use raw SQL to avoid SQLAlchemy column issues
+        query = """
+            SELECT id, agent_id, action_type, description, risk_level, status, 
+                   tool_name, created_at, approved
+            FROM agent_actions 
+            WHERE status IN ('pending_approval', 'pending', 'submitted')
+        """
+        params = {}
         
         if risk_filter:
-            query = query.filter(AgentAction.risk_level == risk_filter)
+            query += " AND risk_level = :risk_filter"
+            params['risk_filter'] = risk_filter
         
-        pending_actions = query.order_by(AgentAction.created_at.desc()).limit(50).all()
+        query += " ORDER BY id DESC LIMIT 50"
+        
+        result = db.execute(text(query), params).fetchall()
         
         # Transform for frontend
         actions_data = []
-        for action in pending_actions:
+        for row in result:
             # Calculate risk score based on action type and risk level
-            risk_score = calculate_risk_score(action.action_type, action.risk_level)
+            risk_score = calculate_risk_score(row[2] or "unknown", row[4] or "medium")
             
             actions_data.append({
-                "id": action.id,
-                "agent_id": action.agent_id,
-                "action_type": action.action_type,
-                "description": action.description,
-                "risk_level": action.risk_level,
+                "id": row[0],
+                "agent_id": row[1] or "unknown-agent",
+                "action_type": row[2] or "security_scan",
+                "description": row[3] or "Enterprise security action",
+                "risk_level": row[4] or "medium",
                 "ai_risk_score": risk_score,
-                "target_system": action.tool_name or "Unknown",
+                "target_system": row[6] or "Unknown",
                 "workflow_stage": "initial_review",
                 "current_approval_level": 0,
                 "required_approval_level": 1 if risk_score < 70 else 2 if risk_score < 90 else 3,
-                "requested_at": action.created_at.isoformat() if action.created_at else datetime.utcnow().isoformat(),
+                "requested_at": row[7].isoformat() if row[7] else datetime.utcnow().isoformat(),
                 "time_remaining": "4:00:00",  # 4 hours default
-                "is_emergency": action.risk_level == "high",
-                "contextual_risk_factors": get_risk_factors(action.action_type, action.risk_level),
+                "is_emergency": (row[4] or "medium") == "high",
+                "contextual_risk_factors": get_risk_factors(row[2] or "unknown", row[4] or "medium"),
                 "authorization_status": "pending"
             })
         
@@ -1748,22 +1757,27 @@ async def get_approval_dashboard(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs"""
+    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs - Database compatible"""
     try:
-        # Get pending actions
-        pending_actions = db.query(AgentAction).filter(
-            AgentAction.status.in_(["pending_approval", "pending", "submitted"])
-        ).all()
+        # Use raw SQL to avoid column issues
+        pending_result = db.execute(text("""
+            SELECT id, risk_level, status
+            FROM agent_actions 
+            WHERE status IN ('pending_approval', 'pending', 'submitted')
+        """)).fetchall()
         
-        # Get recent decisions
-        recent_decisions = db.query(AgentAction).filter(
-            AgentAction.status.in_(["approved", "denied"])
-        ).order_by(AgentAction.updated_at.desc()).limit(10).all()
+        recent_result = db.execute(text("""
+            SELECT id, status, approved
+            FROM agent_actions 
+            WHERE status IN ('approved', 'denied')
+            ORDER BY id DESC 
+            LIMIT 10
+        """)).fetchall()
         
-        # Calculate metrics
-        total_pending = len(pending_actions)
-        critical_pending = len([a for a in pending_actions if a.risk_level == "high"])
-        emergency_pending = len([a for a in pending_actions if a.risk_level == "high"])
+        # Calculate metrics from raw data
+        total_pending = len(pending_result)
+        critical_pending = len([r for r in pending_result if r[1] == "high"])
+        emergency_pending = len([r for r in pending_result if r[1] == "high"])
         
         return {
             "user_info": {
@@ -1779,12 +1793,12 @@ async def get_approval_dashboard(
                 "emergency_pending": emergency_pending
             },
             "recent_activity": {
-                "approvals_last_24h": len([a for a in recent_decisions if a.status == "approved"])
+                "approvals_last_24h": len([r for r in recent_result if r[1] == "approved"])
             },
             "enterprise_metrics": {
                 "total_pending": total_pending,
                 "critical_pending": critical_pending,
-                "high_risk_pending": len([a for a in pending_actions if a.risk_level in ["high", "medium"]]),
+                "high_risk_pending": len([r for r in pending_result if r[1] in ["high", "medium"]]),
                 "overdue_count": 0,
                 "escalated_count": 0,
                 "emergency_pending": emergency_pending
@@ -1818,26 +1832,39 @@ async def authorize_action(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
-    """🏢 ENTERPRISE: Multi-level authorization with audit trails"""
+    """🏢 ENTERPRISE: Multi-level authorization with audit trails - Database compatible"""
     try:
         data = await request.json()
         decision = data.get("decision")  # "approved", "denied", "escalated"
         notes = data.get("notes", "")
         
-        # Get the action from database
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-        if not action:
+        # Check if action exists using raw SQL
+        existing = db.execute(text("""
+            SELECT id, status FROM agent_actions WHERE id = :action_id
+        """), {'action_id': action_id}).fetchone()
+        
+        if not existing:
             raise HTTPException(status_code=404, detail="Authorization request not found")
         
-        # Update action based on decision
+        # Update action based on decision using raw SQL
         if decision == "approved":
-            action.status = "approved"
-            action.approved = True
+            db.execute(text("""
+                UPDATE agent_actions 
+                SET status = 'approved', approved = true, reviewed_by = :reviewed_by
+                WHERE id = :action_id
+            """), {
+                'action_id': action_id,
+                'reviewed_by': current_user["email"]
+            })
         elif decision == "denied":
-            action.status = "denied"
-            action.approved = False
-        
-        action.updated_at = datetime.utcnow()
+            db.execute(text("""
+                UPDATE agent_actions 
+                SET status = 'denied', approved = false, reviewed_by = :reviewed_by
+                WHERE id = :action_id
+            """), {
+                'action_id': action_id,
+                'reviewed_by': current_user["email"]
+            })
         
         db.commit()
         
@@ -1847,7 +1874,7 @@ async def authorize_action(
             "message": f"🏢 Enterprise authorization {decision} successfully",
             "action_id": action_id,
             "decision": decision,
-            "authorization_status": action.status,
+            "authorization_status": decision,
             "reviewed_by": current_user["email"]
         }
         
@@ -1863,19 +1890,22 @@ async def get_approval_metrics(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """🏢 ENTERPRISE: Approval performance metrics"""
+    """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
     try:
-        # Get actions from last 30 days
+        # Use raw SQL to get metrics from existing columns only
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-        actions = db.query(AgentAction).filter(
-            AgentAction.created_at >= thirty_days_ago
-        ).all()
         
-        # Calculate metrics
-        total_requests = len(actions)
-        approved = len([a for a in actions if a.status == "approved"])
-        denied = len([a for a in actions if a.status == "denied"])
-        pending = len([a for a in actions if a.status in ["pending", "pending_approval", "submitted"]])
+        result = db.execute(text("""
+            SELECT status, risk_level, approved
+            FROM agent_actions 
+            WHERE created_at >= :thirty_days_ago OR created_at IS NULL
+        """), {'thirty_days_ago': thirty_days_ago}).fetchall()
+        
+        # Calculate metrics from raw data
+        total_requests = len(result)
+        approved = len([r for r in result if r[0] == "approved" or r[2] == True])
+        denied = len([r for r in result if r[0] == "denied" or r[2] == False])
+        pending = len([r for r in result if r[0] in ["pending", "pending_approval", "submitted"]])
         
         approval_rate = (approved / total_requests * 100) if total_requests > 0 else 0
         
@@ -1893,8 +1923,8 @@ async def get_approval_metrics(
                 "sla_compliance_rate": 95.0
             },
             "risk_analysis": {
-                "high_risk_requests": len([a for a in actions if a.risk_level == "high"]),
-                "emergency_requests": len([a for a in actions if a.risk_level == "high"]),
+                "high_risk_requests": len([r for r in result if r[1] == "high"]),
+                "emergency_requests": len([r for r in result if r[1] == "high"]),
                 "after_hours_requests": 0
             },
             "period_summary": {
@@ -1938,7 +1968,7 @@ async def emergency_override(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
-    """🏢 ENTERPRISE: Emergency override for critical situations"""
+    """🏢 ENTERPRISE: Emergency override for critical situations - Database compatible"""
     try:
         data = await request.json()
         justification = data.get("justification", "")
@@ -1946,15 +1976,23 @@ async def emergency_override(
         if not justification.strip():
             raise HTTPException(status_code=400, detail="Emergency justification is required")
         
-        # Get the action from database
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-        if not action:
+        # Check if action exists using raw SQL
+        existing = db.execute(text("""
+            SELECT id FROM agent_actions WHERE id = :action_id
+        """), {'action_id': action_id}).fetchone()
+        
+        if not existing:
             raise HTTPException(status_code=404, detail="Authorization request not found")
         
-        # Apply emergency override
-        action.status = "emergency_approved"
-        action.approved = True
-        action.updated_at = datetime.utcnow()
+        # Apply emergency override using raw SQL
+        db.execute(text("""
+            UPDATE agent_actions 
+            SET status = 'emergency_approved', approved = true, reviewed_by = :reviewed_by
+            WHERE id = :action_id
+        """), {
+            'action_id': action_id,
+            'reviewed_by': current_user["email"]
+        })
         
         db.commit()
         
@@ -1973,49 +2011,3 @@ async def emergency_override(
         logger.error(f"🏢 ENTERPRISE: Emergency override failed: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Emergency override failed")
-
-# Helper functions
-def calculate_risk_score(action_type: str, risk_level: str) -> int:
-    """Calculate numerical risk score from action type and risk level"""
-    base_scores = {
-        "low": 25,
-        "medium": 55,
-        "high": 85
-    }
-    
-    high_risk_actions = {
-        "data_exfiltration": 20,
-        "system_modification": 15,
-        "credential_access": 15,
-        "network_access": 10,
-        "file_deletion": 12
-    }
-    
-    base_score = base_scores.get(risk_level, 50)
-    action_bonus = high_risk_actions.get(action_type.lower(), 0)
-    
-    return min(100, base_score + action_bonus)
-
-def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
-    """Get contextual risk factors for an action"""
-    factors = []
-    
-    if risk_level == "high":
-        factors.append("High risk classification")
-    
-    high_risk_types = {
-        "data_exfiltration": "Potential data breach",
-        "system_modification": "System integrity risk",
-        "credential_access": "Authentication compromise",
-        "network_access": "Network security risk"
-    }
-    
-    if action_type.lower() in high_risk_types:
-        factors.append(high_risk_types[action_type.lower()])
-    
-    # Add time-based risk
-    current_hour = datetime.utcnow().hour
-    if current_hour < 8 or current_hour > 18:
-        factors.append("After-hours execution")
-    
-    return factors if factors else ["Standard risk assessment"]    
