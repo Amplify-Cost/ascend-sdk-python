@@ -693,7 +693,7 @@ def mark_false_positive(
 
 @app.post("/agent-action")
 async def submit_agent_action_singular(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Enterprise singular endpoint for frontend compatibility"""
+    """Submit new agent action - Enterprise database-compatible endpoint"""
     try:
         data = await request.json()
         
@@ -707,29 +707,36 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
         db: Session = next(get_db())
         
         try:
-            # Create new agent action with enterprise audit trail
-            new_action = AgentAction(
-                user_id=current_user.get("user_id", 1),
-                agent_id=data["agent_id"],
-                action_type=data["action_type"],
-                description=data["description"],
-                tool_name=data.get("tool_name", ""),
-                risk_level=data.get("risk_level", "medium"),  # Enterprise default
-                status="pending",
-                approved=False
-            )
+            # Use raw SQL to insert only into existing columns
+            result = db.execute(text("""
+                INSERT INTO agent_actions (
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                ) VALUES (
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                ) RETURNING id
+            """), {
+                'agent_id': data["agent_id"],
+                'action_type': data["action_type"],
+                'description': data["description"],
+                'risk_level': data.get("risk_level", "medium"),
+                'status': 'pending',
+                'approved': False,
+                'user_id': current_user.get("user_id", 1),
+                'tool_name': data.get("tool_name", "")
+            })
             
-            db.add(new_action)
+            # Get the inserted action ID
+            action_id = result.fetchone()[0]
+            
             db.commit()
-            db.refresh(new_action)
             
             # Enterprise audit logging
-            logger.info(f"✅ Enterprise action submitted: ID={new_action.id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
+            logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
             
             return {
                 "status": "success",
                 "message": "Enterprise agent action submitted successfully",
-                "action_id": new_action.id,
+                "action_id": action_id,
                 "action_details": {
                     "agent_id": data["agent_id"],
                     "action_type": data["action_type"],
@@ -750,7 +757,7 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
         raise
     except Exception as e:
         logger.error(f"❌ Enterprise action submission error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Enterprise action submission failed")    
+        raise HTTPException(status_code=500, detail="Enterprise action submission failed")
 
 # ================== SAMPLE DATA CREATION ENDPOINT ==================
 
