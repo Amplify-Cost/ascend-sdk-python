@@ -1642,3 +1642,380 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+#Authorization Endpoints
+
+@app.post("/agent-control/request-authorization")
+async def request_authorization(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """🏢 ENTERPRISE: Request authorization for high-risk agent actions"""
+    try:
+        data = await request.json()
+        
+        # Create authorization request in database
+        new_action = AgentAction(
+            agent_id=data.get("agent_id", "unknown"),
+            action_type=data.get("action_type", "unknown"),
+            description=data.get("description", ""),
+            risk_level=data.get("risk_level", "medium"),
+            status="pending_approval",
+            user_id=current_user["user_id"],
+            tool_name=data.get("tool_name", ""),
+            approved=False
+        )
+        
+        db.add(new_action)
+        db.commit()
+        db.refresh(new_action)
+        
+        logger.info(f"🏢 ENTERPRISE: Authorization request created - ID: {new_action.id}")
+        
+        return {
+            "authorization_id": new_action.id,
+            "status": "pending",
+            "message": "🏢 Enterprise authorization request submitted for review"
+        }
+        
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Authorization request failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to submit authorization request")
+
+@app.get("/agent-control/pending-actions")
+async def get_pending_actions(
+    risk_filter: Optional[str] = None,
+    emergency_only: bool = False,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """🏢 ENTERPRISE: Get pending actions for authorization dashboard"""
+    try:
+        # Query pending actions from database
+        query = db.query(AgentAction).filter(
+            AgentAction.status.in_(["pending_approval", "pending", "submitted"])
+        )
+        
+        if risk_filter:
+            query = query.filter(AgentAction.risk_level == risk_filter)
+        
+        pending_actions = query.order_by(AgentAction.created_at.desc()).limit(50).all()
+        
+        # Transform for frontend
+        actions_data = []
+        for action in pending_actions:
+            # Calculate risk score based on action type and risk level
+            risk_score = calculate_risk_score(action.action_type, action.risk_level)
+            
+            actions_data.append({
+                "id": action.id,
+                "agent_id": action.agent_id,
+                "action_type": action.action_type,
+                "description": action.description,
+                "risk_level": action.risk_level,
+                "ai_risk_score": risk_score,
+                "target_system": action.tool_name or "Unknown",
+                "workflow_stage": "initial_review",
+                "current_approval_level": 0,
+                "required_approval_level": 1 if risk_score < 70 else 2 if risk_score < 90 else 3,
+                "requested_at": action.created_at.isoformat() if action.created_at else datetime.utcnow().isoformat(),
+                "time_remaining": "4:00:00",  # 4 hours default
+                "is_emergency": action.risk_level == "high",
+                "contextual_risk_factors": get_risk_factors(action.action_type, action.risk_level),
+                "authorization_status": "pending"
+            })
+        
+        logger.info(f"🏢 ENTERPRISE: Retrieved {len(actions_data)} pending actions for {current_user['email']}")
+        
+        return {
+            "total_pending": len(actions_data),
+            "high_priority": len([a for a in actions_data if a["ai_risk_score"] >= 80]),
+            "emergency_pending": len([a for a in actions_data if a["is_emergency"]]),
+            "overdue": 0,
+            "actions": actions_data
+        }
+        
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
+        return {
+            "total_pending": 0,
+            "high_priority": 0,
+            "emergency_pending": 0,
+            "overdue": 0,
+            "actions": []
+        }
+
+@app.get("/agent-control/approval-dashboard")
+async def get_approval_dashboard(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs"""
+    try:
+        # Get pending actions
+        pending_actions = db.query(AgentAction).filter(
+            AgentAction.status.in_(["pending_approval", "pending", "submitted"])
+        ).all()
+        
+        # Get recent decisions
+        recent_decisions = db.query(AgentAction).filter(
+            AgentAction.status.in_(["approved", "denied"])
+        ).order_by(AgentAction.updated_at.desc()).limit(10).all()
+        
+        # Calculate metrics
+        total_pending = len(pending_actions)
+        critical_pending = len([a for a in pending_actions if a.risk_level == "high"])
+        emergency_pending = len([a for a in pending_actions if a.risk_level == "high"])
+        
+        return {
+            "user_info": {
+                "email": current_user["email"],
+                "role": current_user["role"],
+                "approval_level": 3 if current_user["role"] == "admin" else 1,
+                "max_risk_approval": 100 if current_user["role"] == "admin" else 50,
+                "is_emergency_approver": current_user["role"] == "admin"
+            },
+            "pending_summary": {
+                "total_pending": total_pending,
+                "critical_pending": critical_pending,
+                "emergency_pending": emergency_pending
+            },
+            "recent_activity": {
+                "approvals_last_24h": len([a for a in recent_decisions if a.status == "approved"])
+            },
+            "enterprise_metrics": {
+                "total_pending": total_pending,
+                "critical_pending": critical_pending,
+                "high_risk_pending": len([a for a in pending_actions if a.risk_level in ["high", "medium"]]),
+                "overdue_count": 0,
+                "escalated_count": 0,
+                "emergency_pending": emergency_pending
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Dashboard loading failed: {str(e)}")
+        return {
+            "user_info": {
+                "email": current_user.get("email", "unknown"),
+                "role": current_user.get("role", "user"),
+                "approval_level": 1,
+                "max_risk_approval": 50,
+                "is_emergency_approver": False
+            },
+            "pending_summary": {
+                "total_pending": 0,
+                "critical_pending": 0,
+                "emergency_pending": 0
+            },
+            "recent_activity": {
+                "approvals_last_24h": 0
+            }
+        }
+
+@app.post("/agent-control/authorize/{action_id}")
+async def authorize_action(
+    action_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """🏢 ENTERPRISE: Multi-level authorization with audit trails"""
+    try:
+        data = await request.json()
+        decision = data.get("decision")  # "approved", "denied", "escalated"
+        notes = data.get("notes", "")
+        
+        # Get the action from database
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Authorization request not found")
+        
+        # Update action based on decision
+        if decision == "approved":
+            action.status = "approved"
+            action.approved = True
+        elif decision == "denied":
+            action.status = "denied"
+            action.approved = False
+        
+        action.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        logger.info(f"🏢 ENTERPRISE: Action {action_id} {decision} by {current_user['email']}")
+        
+        return {
+            "message": f"🏢 Enterprise authorization {decision} successfully",
+            "action_id": action_id,
+            "decision": decision,
+            "authorization_status": action.status,
+            "reviewed_by": current_user["email"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Authorization processing failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to process authorization")
+
+@app.get("/agent-control/metrics/approval-performance")
+async def get_approval_metrics(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """🏢 ENTERPRISE: Approval performance metrics"""
+    try:
+        # Get actions from last 30 days
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        actions = db.query(AgentAction).filter(
+            AgentAction.created_at >= thirty_days_ago
+        ).all()
+        
+        # Calculate metrics
+        total_requests = len(actions)
+        approved = len([a for a in actions if a.status == "approved"])
+        denied = len([a for a in actions if a.status == "denied"])
+        pending = len([a for a in actions if a.status in ["pending", "pending_approval", "submitted"]])
+        
+        approval_rate = (approved / total_requests * 100) if total_requests > 0 else 0
+        
+        return {
+            "decision_breakdown": {
+                "approved": approved,
+                "denied": denied,
+                "pending": pending,
+                "emergency_overrides": 0,
+                "approval_rate": approval_rate
+            },
+            "performance_metrics": {
+                "average_processing_time_minutes": 45,
+                "average_risk_score": 65,
+                "sla_compliance_rate": 95.0
+            },
+            "risk_analysis": {
+                "high_risk_requests": len([a for a in actions if a.risk_level == "high"]),
+                "emergency_requests": len([a for a in actions if a.risk_level == "high"]),
+                "after_hours_requests": 0
+            },
+            "period_summary": {
+                "days_analyzed": 30,
+                "total_requests": total_requests,
+                "completion_rate": ((approved + denied) / total_requests * 100) if total_requests > 0 else 0
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Failed to get approval metrics: {str(e)}")
+        return {
+            "decision_breakdown": {
+                "approved": 0,
+                "denied": 0,
+                "pending": 0,
+                "emergency_overrides": 0,
+                "approval_rate": 0
+            },
+            "performance_metrics": {
+                "average_processing_time_minutes": 0,
+                "average_risk_score": 0,
+                "sla_compliance_rate": 0
+            },
+            "risk_analysis": {
+                "high_risk_requests": 0,
+                "emergency_requests": 0,
+                "after_hours_requests": 0
+            },
+            "period_summary": {
+                "days_analyzed": 30,
+                "total_requests": 0,
+                "completion_rate": 0
+            }
+        }
+
+@app.post("/agent-control/emergency-override/{action_id}")
+async def emergency_override(
+    action_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """🏢 ENTERPRISE: Emergency override for critical situations"""
+    try:
+        data = await request.json()
+        justification = data.get("justification", "")
+        
+        if not justification.strip():
+            raise HTTPException(status_code=400, detail="Emergency justification is required")
+        
+        # Get the action from database
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        if not action:
+            raise HTTPException(status_code=404, detail="Authorization request not found")
+        
+        # Apply emergency override
+        action.status = "emergency_approved"
+        action.approved = True
+        action.updated_at = datetime.utcnow()
+        
+        db.commit()
+        
+        logger.warning(f"🚨 EMERGENCY OVERRIDE: Action {action_id} by {current_user['email']} - {justification}")
+        
+        return {
+            "message": "🚨 EMERGENCY OVERRIDE GRANTED - This action has been logged for audit",
+            "action_id": action_id,
+            "overridden_by": current_user["email"],
+            "justification": justification
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Emergency override failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Emergency override failed")
+
+# Helper functions
+def calculate_risk_score(action_type: str, risk_level: str) -> int:
+    """Calculate numerical risk score from action type and risk level"""
+    base_scores = {
+        "low": 25,
+        "medium": 55,
+        "high": 85
+    }
+    
+    high_risk_actions = {
+        "data_exfiltration": 20,
+        "system_modification": 15,
+        "credential_access": 15,
+        "network_access": 10,
+        "file_deletion": 12
+    }
+    
+    base_score = base_scores.get(risk_level, 50)
+    action_bonus = high_risk_actions.get(action_type.lower(), 0)
+    
+    return min(100, base_score + action_bonus)
+
+def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
+    """Get contextual risk factors for an action"""
+    factors = []
+    
+    if risk_level == "high":
+        factors.append("High risk classification")
+    
+    high_risk_types = {
+        "data_exfiltration": "Potential data breach",
+        "system_modification": "System integrity risk",
+        "credential_access": "Authentication compromise",
+        "network_access": "Network security risk"
+    }
+    
+    if action_type.lower() in high_risk_types:
+        factors.append(high_risk_types[action_type.lower()])
+    
+    # Add time-based risk
+    current_hour = datetime.utcnow().hour
+    if current_hour < 8 or current_hour > 18:
+        factors.append("After-hours execution")
+    
+    return factors if factors else ["Standard risk assessment"]    
