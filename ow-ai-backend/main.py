@@ -327,15 +327,8 @@ async def get_agent_activity():
         logger.error(f"Agent activity error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch agent activity")
 
-# ================== YOUR RULES ROUTES (PRESERVED) ==================
+
 # ================== ENTERPRISE RULES ROUTER INTEGRATION ==================
-# Add these to your main.py file
-
-# STEP 1: Add this import after your existing imports
-from rule import router as rules_router
-
-# STEP 2: Add this router include after your auth router include
-app.include_router(rules_router)
 
 # STEP 3: Replace your existing /rules endpoint with this enhanced version
 @app.post("/rules")
