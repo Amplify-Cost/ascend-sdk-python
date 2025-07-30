@@ -16,11 +16,7 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth_routes import router as auth_router  # <--- Added auth router import
-from fastapi import Security, Depends
-from app.schemas.agent_action import AgentActionCreate, AgentActionResponse
-from app.models.user import User
-from app.override_agent_router import submit_agent_action
-from app.database import get_db
+
 
 
 # JWT import fallback (unchanged)
