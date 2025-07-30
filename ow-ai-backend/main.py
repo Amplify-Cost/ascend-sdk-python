@@ -17,7 +17,6 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth_routes import router as auth_router  # <--- Added auth router import
 from fastapi import Security, Depends
-from app.dependencies.auth import get_current_user
 from app.schemas.agent_action import AgentActionCreate, AgentActionResponse
 from app.models.user import User
 from app.override_agent_router import submit_agent_action
@@ -78,13 +77,6 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
 
-@app.post("/agent-action", response_model=AgentActionResponse, tags=["agent-actions"])
-def alias_submit_agent_action(
-    agent_action: AgentActionCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Security(get_current_user)
-):
-    return submit_agent_action(agent_action, db)
 
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
