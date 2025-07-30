@@ -687,6 +687,70 @@ def mark_false_positive(
         logger.error(f"Failed to mark action {action_id} as false positive: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to mark as false positive")
+    
+# ================== ENTERPRISE FIX: ADD MISSING /agent-action ENDPOINT ==================
+# Add this endpoint to your main.py right after your existing /agent-actions endpoints
+
+@app.post("/agent-action")
+async def submit_agent_action_singular(request: Request, current_user: dict = Depends(get_current_user)):
+    """Submit new agent action - Enterprise singular endpoint for frontend compatibility"""
+    try:
+        data = await request.json()
+        
+        # Enterprise validation - ensure all required fields
+        required_fields = ["agent_id", "action_type", "description"]
+        for field in required_fields:
+            if field not in data:
+                logger.error(f"Enterprise validation failed: Missing {field}")
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        db: Session = next(get_db())
+        
+        try:
+            # Create new agent action with enterprise audit trail
+            new_action = AgentAction(
+                user_id=current_user.get("user_id", 1),
+                agent_id=data["agent_id"],
+                action_type=data["action_type"],
+                description=data["description"],
+                tool_name=data.get("tool_name", ""),
+                risk_level=data.get("risk_level", "medium"),  # Enterprise default
+                status="pending",
+                approved=False
+            )
+            
+            db.add(new_action)
+            db.commit()
+            db.refresh(new_action)
+            
+            # Enterprise audit logging
+            logger.info(f"✅ Enterprise action submitted: ID={new_action.id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
+            
+            return {
+                "status": "success",
+                "message": "Enterprise agent action submitted successfully",
+                "action_id": new_action.id,
+                "action_details": {
+                    "agent_id": data["agent_id"],
+                    "action_type": data["action_type"],
+                    "risk_level": data.get("risk_level", "medium"),
+                    "submitted_by": current_user.get("email"),
+                    "timestamp": datetime.now(UTC).isoformat()
+                }
+            }
+            
+        except Exception as db_error:
+            logger.error(f"❌ Enterprise database error: {str(db_error)}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Enterprise action submission failed - database error")
+        finally:
+            db.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Enterprise action submission error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Enterprise action submission failed")    
 
 # ================== SAMPLE DATA CREATION ENDPOINT ==================
 
