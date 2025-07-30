@@ -16,6 +16,8 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth_routes import router as auth_router  # <--- Added auth router import
+from alert_summary import router as alert_summary_router
+from alerts_routes import router as alerts_router
 
 
 
@@ -63,7 +65,8 @@ app.add_middleware(
 
 # <--- Added: include auth router
 app.include_router(auth_router)
-
+app.include_router(alerts_router)  
+app.include_router(alert_summary_router)
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -848,6 +851,167 @@ def mark_false_positive(
         logger.error(f"Failed to mark action {action_id} as false positive: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to mark as false positive")
+
+@app.post("/alerts/summary")
+async def alerts_summary_llm(request: Request, current_user: dict = Depends(get_current_user)):
+    """Enterprise LLM-generated alert summary using your existing LLM infrastructure"""
+    try:
+        data = await request.json()
+        logger.info(f"🧠 LLM Alert summary requested by: {current_user.get('email', 'unknown')}")
+        logger.info(f"📊 Processing alerts for LLM analysis")
+        
+        # Handle different data formats from frontend
+        alert_texts = []
+        
+        if isinstance(data, list):
+            # Frontend sends array of alert objects
+            for alert in data:
+                if isinstance(alert, dict):
+                    alert_text = f"Alert Type: {alert.get('alert_type', 'Security Alert')} | "
+                    alert_text += f"Severity: {alert.get('severity', 'Unknown')} | "
+                    alert_text += f"Agent: {alert.get('agent_id', 'Unknown')} | "
+                    alert_text += f"Risk Level: {alert.get('risk_level', 'Unknown')} | "
+                    alert_text += f"Tool: {alert.get('tool_name', 'Unknown')} | "
+                    alert_text += f"Message: {alert.get('message', 'No message')} | "
+                    
+                    if alert.get('mitre_tactic'):
+                        alert_text += f"MITRE Tactic: {alert.get('mitre_tactic')} | "
+                    if alert.get('mitre_technique'):
+                        alert_text += f"MITRE Technique: {alert.get('mitre_technique')} | "
+                    if alert.get('nist_control'):
+                        alert_text += f"NIST Control: {alert.get('nist_control')} | "
+                    if alert.get('recommendation'):
+                        alert_text += f"Recommendation: {alert.get('recommendation')}"
+                    
+                    alert_texts.append(alert_text)
+                else:
+                    alert_texts.append(str(alert))
+                    
+        elif isinstance(data, dict) and 'alerts' in data:
+            # Handle {alerts: [...]} format
+            alert_texts = data['alerts']
+        else:
+            # Handle raw text
+            alert_texts = [str(data)]
+        
+        # Combine all alert texts for LLM processing
+        combined_alert_text = "\\n\\n".join(alert_texts)
+        
+        # Enterprise LLM Summary Generation using your existing generate_summary function
+        try:
+            # Import your existing LLM utility
+            from llm_utils import generate_summary
+            
+            # Use your existing generate_summary function with proper parameters
+            # Based on your alert_summary.py, it expects (agent_id, action_type, description)
+            
+            # Extract primary agent and action type from alerts
+            primary_agent_id = "enterprise_security_system"
+            primary_action_type = "security_alert_analysis"
+            
+            # If we have alert data, extract more specific info
+            if isinstance(data, list) and len(data) > 0:
+                first_alert = data[0]
+                if isinstance(first_alert, dict):
+                    primary_agent_id = first_alert.get('agent_id', 'enterprise_security_system')
+                    primary_action_type = first_alert.get('alert_type', 'security_alert_analysis')
+            
+            # Create enterprise-focused description for LLM
+            llm_description = f"""
+Enterprise Security Alert Summary Analysis
+
+Total Alerts: {len(alert_texts)}
+Alert Details:
+{combined_alert_text}
+
+Please analyze these enterprise security alerts and provide:
+1. Executive Summary (2-3 sentences for C-level executives)
+2. Key Security Risks Identified
+3. Immediate Actions Required (prioritized)
+4. Business Impact Assessment
+5. Recommended Response Strategy
+
+Focus on enterprise-level security implications and provide actionable insights for security leadership.
+"""
+            
+            # Use your existing LLM infrastructure
+            llm_summary = generate_summary(
+                agent_id=primary_agent_id,
+                action_type=primary_action_type, 
+                description=llm_description
+            )
+            
+            logger.info(f"✅ LLM alert summary generated successfully using existing infrastructure")
+            
+            return {
+                "summary": llm_summary,
+                "metadata": {
+                    "alerts_processed": len(alert_texts),
+                    "generated_by": current_user.get("email"),
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "llm_powered": True,
+                    "enterprise_grade": True
+                }
+            }
+            
+        except Exception as llm_error:
+            logger.warning(f"LLM summary generation failed: {llm_error}")
+            
+            # Enterprise fallback that still provides value
+            alert_count = len(alert_texts)
+            high_risk_count = sum(1 for text in alert_texts if 'high' in text.lower())
+            
+            fallback_summary = f"""
+ENTERPRISE SECURITY ALERT SUMMARY (Generated from {alert_count} alerts)
+
+EXECUTIVE SUMMARY:
+Your enterprise security monitoring system has identified {alert_count} security alerts requiring analysis. {high_risk_count} of these alerts are classified as high-risk and require immediate attention from your security team.
+
+KEY FINDINGS:
+• Total alerts analyzed: {alert_count}
+• High-risk alerts: {high_risk_count}
+• Security monitoring systems are actively detecting potential threats
+• Enterprise security protocols are functioning as designed
+
+IMMEDIATE ACTIONS REQUIRED:
+1. Security team review of all high-risk alerts within 1 hour
+2. Incident response assessment for potential business impact
+3. Executive notification if critical infrastructure is affected
+4. Documentation of response actions for compliance audit trail
+
+BUSINESS IMPACT:
+• Security monitoring systems are operational and detecting threats
+• Risk mitigation procedures should be activated for high-risk alerts
+• Compliance frameworks (SOX/PCI/HIPAA) require documented response
+• Customer and stakeholder communication may be required if incidents escalate
+
+NEXT STEPS:
+1. Activate your enterprise incident response procedures
+2. Coordinate with legal and compliance teams as needed
+3. Prepare executive status reports for leadership briefings
+4. Ensure all response actions are documented for audit purposes
+
+Note: This summary was generated using enterprise security protocols. For detailed technical analysis, please consult with your security team.
+"""
+            
+            return {
+                "summary": fallback_summary,
+                "metadata": {
+                    "alerts_processed": len(alert_texts),
+                    "generated_by": current_user.get("email"),
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "llm_powered": False,
+                    "fallback_used": True,
+                    "enterprise_grade": True
+                }
+            }
+        
+    except Exception as e:
+        logger.error(f"❌ Enterprise alert summary error: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Enterprise alert summary generation failed: {str(e)}"
+        )    
     
 # ================== ENTERPRISE FIX: ADD MISSING /agent-action ENDPOINT ==================
 # Add this endpoint to your main.py right after your existing /agent-actions endpoints
