@@ -4,7 +4,7 @@ import openai
 import os
 import logging
 from datetime import datetime, UTC, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dependencies import require_admin
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
