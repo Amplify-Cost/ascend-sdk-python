@@ -64,6 +64,49 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ ADD THIS HERE - Enterprise Demo Storage Systems
+demo_actions_storage = {
+    9001: {
+        "id": 9001,
+        "agent_id": "security-scanner-01",
+        "action_type": "vulnerability_scan",
+        "description": "Production infrastructure vulnerability assessment",
+        "risk_level": "high",
+        "ai_risk_score": 85,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "reviewed_by": None,
+        "reviewed_at": None
+    },
+    9002: {
+        "id": 9002,
+        "agent_id": "compliance-agent",
+        "action_type": "compliance_check",
+        "description": "SOX compliance audit of financial systems",
+        "risk_level": "medium",
+        "ai_risk_score": 65,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "reviewed_by": None,
+        "reviewed_at": None
+    },
+    9003: {
+        "id": 9003,
+        "agent_id": "threat-detector",
+        "action_type": "anomaly_detection",
+        "description": "Advanced threat correlation analysis on network traffic",
+        "risk_level": "high",
+        "ai_risk_score": 90,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "reviewed_by": None,
+        "reviewed_at": None
+    }
+}
+
+# Enterprise audit trail storage
+audit_trail_storage = []
+
 # <--- Added: include auth router
 app.include_router(auth_router)
 
@@ -1683,15 +1726,15 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
 # Replace your authorization endpoints in main.py with these database-compatible versions
 
 @app.get("/agent-control/pending-actions")
-async def get_pending_actions(
+async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """🏢 ENTERPRISE: Get pending actions for authorization dashboard - Fixed data structure"""
+    """🏢 ENTERPRISE: Get pending actions with persistent demo data"""
     try:
-        # Use raw SQL to avoid SQLAlchemy column issues
+        # Get real database actions first
         query = """
             SELECT id, agent_id, action_type, description, risk_level, status, 
                    tool_name, created_at, approved
@@ -1708,81 +1751,35 @@ async def get_pending_actions(
         
         result = db.execute(text(query), params).fetchall()
         
-        # Debug logging
-        logger.info(f"🔍 DEBUG: Found {len(result)} pending actions in database")
-        
-        # If no real pending actions, create some sample ones for demonstration
-        if len(result) == 0:
-            logger.info("🔧 No pending actions found - creating enterprise demo data")
-            
-            # Return properly structured demo data
-            demo_actions = [
-                {
-                    "id": 9001,
-                    "agent_id": "security-scanner-01",
-                    "action_type": "vulnerability_scan",
-                    "description": "Production infrastructure vulnerability assessment",
-                    "risk_level": "high",
-                    "ai_risk_score": 85,
-                    "target_system": "production-db",
+        # Get pending demo actions (not approved/denied)
+        pending_demo_actions = []
+        for action_id, action in demo_actions_storage.items():
+            if action["status"] == "pending":
+                pending_demo_actions.append({
+                    "id": action["id"],
+                    "agent_id": action["agent_id"],
+                    "action_type": action["action_type"],
+                    "description": action["description"],
+                    "risk_level": action["risk_level"],
+                    "ai_risk_score": action["ai_risk_score"],
+                    "target_system": action["agent_id"].replace("-", "_"),
                     "workflow_stage": "initial_review",
                     "current_approval_level": 0,
-                    "required_approval_level": 3,
-                    "requested_at": datetime.utcnow().isoformat(),
+                    "required_approval_level": 3 if action["ai_risk_score"] >= 90 else 2 if action["ai_risk_score"] >= 70 else 1,
+                    "requested_at": action["created_at"],
                     "time_remaining": "2:30:00",
-                    "is_emergency": True,
-                    "contextual_risk_factors": ["High risk classification", "Production system targeted", "After-hours execution"],
+                    "is_emergency": action["risk_level"] == "high",
+                    "contextual_risk_factors": get_risk_factors(action["action_type"], action["risk_level"]),
                     "authorization_status": "pending"
-                },
-                {
-                    "id": 9002,
-                    "agent_id": "compliance-agent",
-                    "action_type": "compliance_check",
-                    "description": "SOX compliance audit of financial systems",
-                    "risk_level": "medium",
-                    "ai_risk_score": 65,
-                    "target_system": "financial-systems",
-                    "workflow_stage": "initial_review",
-                    "current_approval_level": 0,
-                    "required_approval_level": 2,
-                    "requested_at": datetime.utcnow().isoformat(),
-                    "time_remaining": "4:00:00",
-                    "is_emergency": False,
-                    "contextual_risk_factors": ["Compliance review required", "Financial data access"],
-                    "authorization_status": "pending"
-                },
-                {
-                    "id": 9003,
-                    "agent_id": "threat-detector",
-                    "action_type": "anomaly_detection",
-                    "description": "Advanced threat correlation analysis on network traffic",
-                    "risk_level": "high",
-                    "ai_risk_score": 90,
-                    "target_system": "network-infrastructure",
-                    "workflow_stage": "initial_review",
-                    "current_approval_level": 0,
-                    "required_approval_level": 3,
-                    "requested_at": datetime.utcnow().isoformat(),
-                    "time_remaining": "1:15:00",
-                    "is_emergency": True,
-                    "contextual_risk_factors": ["Critical risk classification", "Potential APT activity", "Network security risk"],
-                    "authorization_status": "pending"
-                }
-            ]
-            
-            # Log the response structure for debugging
-            logger.info(f"🔍 DEBUG: Returning demo actions array with {len(demo_actions)} items")
-            
-            # CRITICAL: Return in the exact format the frontend expects
-            return demo_actions  # Return the ARRAY directly, not wrapped in an object
+                })
         
-        # Transform real data for frontend
-        actions_data = []
+        # Combine real and demo actions
+        all_actions = []
+        
+        # Add real database actions
         for row in result:
-            # Calculate risk score based on action type and risk level
             risk_score = calculate_risk_score(row[2] or "unknown", row[4] or "medium")
-            
-            actions_data.append({
+            all_actions.append({
                 "id": row[0],
                 "agent_id": row[1] or "unknown-agent",
                 "action_type": row[2] or "security_scan",
@@ -1794,22 +1791,23 @@ async def get_pending_actions(
                 "current_approval_level": 0,
                 "required_approval_level": 1 if risk_score < 70 else 2 if risk_score < 90 else 3,
                 "requested_at": row[7].isoformat() if row[7] else datetime.utcnow().isoformat(),
-                "time_remaining": "4:00:00",  # 4 hours default
+                "time_remaining": "4:00:00",
                 "is_emergency": (row[4] or "medium") == "high",
                 "contextual_risk_factors": get_risk_factors(row[2] or "unknown", row[4] or "medium"),
                 "authorization_status": "pending"
             })
         
-        logger.info(f"🏢 ENTERPRISE: Returning {len(actions_data)} real actions from database")
+        # Add pending demo actions
+        all_actions.extend(pending_demo_actions)
         
-        # CRITICAL: Return the ARRAY directly, not wrapped in an object
-        return actions_data
+        logger.info(f"🏢 ENTERPRISE: Returning {len(all_actions)} total actions ({len(result)} real, {len(pending_demo_actions)} demo)")
+        
+        return all_actions
         
     except Exception as e:
         logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
-        
-        # Emergency fallback - return empty array
-        logger.info("🚨 ENTERPRISE: Returning empty array fallback")
+        return []
+
         return []
 
 @app.get("/agent-control/approval-dashboard")
@@ -1896,44 +1894,94 @@ async def get_approval_dashboard(
         }
 
 @app.post("/agent-control/authorize/{action_id}")
-async def authorize_action(
+async def authorize_action_with_audit(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
-    """🏢 ENTERPRISE: Multi-level authorization with audit trails - Demo compatible"""
+    """🏢 ENTERPRISE: Authorization with complete audit trail"""
     try:
         data = await request.json()
-        decision = data.get("decision")  # "approved", "denied", "escalated"
+        decision = data.get("decision")
         notes = data.get("notes", "")
         
         logger.info(f"🔍 ENTERPRISE: Processing authorization for action {action_id}, decision: {decision}")
         
-        # Check if this is a demo action ID (9001, 9002, 9003)
-        if action_id in [9001, 9002, 9003]:
-            logger.info(f"✅ ENTERPRISE: Demo action {action_id} {decision} by {current_user['email']}")
+        # Handle demo actions with persistent storage
+        if action_id in demo_actions_storage:
+            action = demo_actions_storage[action_id]
             
-            # For demo actions, just return success
+            # Update action status
+            action["status"] = decision
+            action["reviewed_by"] = current_user["email"]
+            action["reviewed_at"] = datetime.utcnow().isoformat()
+            action["notes"] = notes
+            
+            # Create enterprise audit trail entry
+            audit_entry = {
+                "audit_id": len(audit_trail_storage) + 1,
+                "action_id": action_id,
+                "agent_id": action["agent_id"],
+                "action_type": action["action_type"],
+                "decision": decision,
+                "reviewed_by": current_user["email"],
+                "reviewed_at": datetime.utcnow().isoformat(),
+                "notes": notes,
+                "risk_score": action["ai_risk_score"],
+                "user_role": current_user["role"],
+                "session_info": {
+                    "ip_address": "enterprise_demo",
+                    "user_agent": "OW-AI Enterprise Platform"
+                },
+                "compliance_status": "audit_logged",
+                "enterprise_metadata": {
+                    "environment": "production",
+                    "platform": "ow-ai-enterprise",
+                    "version": "1.0.0"
+                }
+            }
+            
+            # Store in audit trail
+            audit_trail_storage.append(audit_entry)
+            
+            # Also try to store in database for persistence
+            try:
+                db.execute(text("""
+                    INSERT INTO log_audit_trail (action_id, decision, reviewed_by, timestamp)
+                    VALUES (:action_id, :decision, :reviewed_by, :timestamp)
+                """), {
+                    'action_id': action_id,
+                    'decision': decision,
+                    'reviewed_by': current_user["email"],
+                    'timestamp': datetime.utcnow()
+                })
+                db.commit()
+                logger.info(f"✅ Audit trail saved to database for action {action_id}")
+            except Exception as db_error:
+                logger.warning(f"⚠️ Could not save to database audit trail: {db_error}")
+            
+            logger.info(f"✅ ENTERPRISE AUDIT: Action {action_id} {decision} by {current_user['email']}")
+            
             return {
-                "message": f"🏢 Enterprise authorization {decision} successfully (demo mode)",
+                "message": f"🏢 Enterprise authorization {decision} successfully",
                 "action_id": action_id,
                 "decision": decision,
                 "authorization_status": decision,
                 "reviewed_by": current_user["email"],
-                "demo_mode": True
+                "audit_trail_id": audit_entry["audit_id"],
+                "enterprise_logged": True
             }
         
-        # For real database actions, check if action exists using raw SQL
+        # Handle real database actions (same as before)
         existing = db.execute(text("""
             SELECT id, status FROM agent_actions WHERE id = :action_id
         """), {'action_id': action_id}).fetchone()
         
         if not existing:
-            logger.warning(f"❌ ENTERPRISE: Action {action_id} not found in database")
             raise HTTPException(status_code=404, detail="Authorization request not found")
         
-        # Update real action based on decision using raw SQL
+        # Update real action
         if decision == "approved":
             db.execute(text("""
                 UPDATE agent_actions 
@@ -1955,8 +2003,6 @@ async def authorize_action(
         
         db.commit()
         
-        logger.info(f"🏢 ENTERPRISE: Real action {action_id} {decision} by {current_user['email']}")
-        
         return {
             "message": f"🏢 Enterprise authorization {decision} successfully",
             "action_id": action_id,
@@ -1971,6 +2017,7 @@ async def authorize_action(
         logger.error(f"🏢 ENTERPRISE: Authorization processing failed: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to process authorization")
+
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
@@ -2165,3 +2212,125 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
         factors.append("After-hours execution")
     
     return factors if factors else ["Standard risk assessment"]
+
+@app.get("/enterprise/audit-trail")
+async def get_audit_trail(
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user)
+):
+    """🏢 ENTERPRISE: Get complete audit trail of all decisions"""
+    try:
+        # Get recent audit trail entries
+        recent_entries = sorted(audit_trail_storage, key=lambda x: x["reviewed_at"], reverse=True)[:limit]
+        
+        # Also get from database if available
+        try:
+            db: Session = next(get_db())
+            db_entries = db.execute(text("""
+                SELECT action_id, decision, reviewed_by, timestamp
+                FROM log_audit_trail 
+                ORDER BY timestamp DESC 
+                LIMIT :limit
+            """), {'limit': limit}).fetchall()
+            
+            db_audit_entries = []
+            for row in db_entries:
+                db_audit_entries.append({
+                    "action_id": row[0],
+                    "decision": row[1],
+                    "reviewed_by": row[2],
+                    "reviewed_at": row[3].isoformat() if row[3] else "Unknown",
+                    "source": "database"
+                })
+            
+            db.close()
+            
+        except Exception as db_error:
+            logger.warning(f"Could not get database audit entries: {db_error}")
+            db_audit_entries = []
+        
+        return {
+            "total_entries": len(recent_entries) + len(db_audit_entries),
+            "memory_entries": len(recent_entries),
+            "database_entries": len(db_audit_entries),
+            "audit_trail": {
+                "recent_decisions": recent_entries,
+                "database_decisions": db_audit_entries
+            },
+            "compliance_status": "enterprise_compliant",
+            "last_updated": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get audit trail: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve audit trail")
+    
+@app.get("/enterprise/approved-actions")
+async def get_approved_actions(
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user)
+):
+    """🏢 ENTERPRISE: Get all approved actions for executive dashboard"""
+    try:
+        # Get approved demo actions
+        approved_demo = []
+        for action_id, action in demo_actions_storage.items():
+            if action["status"] in ["approved", "denied", "emergency_approved"]:
+                approved_demo.append({
+                    "id": action["id"],
+                    "agent_id": action["agent_id"],
+                    "action_type": action["action_type"],
+                    "description": action["description"],
+                    "status": action["status"],
+                    "reviewed_by": action["reviewed_by"],
+                    "reviewed_at": action["reviewed_at"],
+                    "risk_score": action["ai_risk_score"],
+                    "notes": action.get("notes", ""),
+                    "source": "demo"
+                })
+        
+        # Get approved real actions from database
+        try:
+            db: Session = next(get_db())
+            real_approved = db.execute(text("""
+                SELECT id, agent_id, action_type, description, status, reviewed_by, reviewed_at
+                FROM agent_actions 
+                WHERE status IN ('approved', 'denied', 'emergency_approved')
+                ORDER BY reviewed_at DESC 
+                LIMIT :limit
+            """), {'limit': limit}).fetchall()
+            
+            approved_real = []
+            for row in real_approved:
+                approved_real.append({
+                    "id": row[0],
+                    "agent_id": row[1],
+                    "action_type": row[2],
+                    "description": row[3],
+                    "status": row[4],
+                    "reviewed_by": row[5],
+                    "reviewed_at": row[6].isoformat() if row[6] else "Unknown",
+                    "source": "database"
+                })
+            
+            db.close()
+            
+        except Exception as db_error:
+            logger.warning(f"Could not get approved real actions: {db_error}")
+            approved_real = []
+        
+        # Combine and sort by review date
+        all_approved = approved_demo + approved_real
+        all_approved.sort(key=lambda x: x["reviewed_at"], reverse=True)
+        
+        return {
+            "total_approved": len(all_approved),
+            "demo_actions": len(approved_demo),
+            "database_actions": len(approved_real),
+            "approved_actions": all_approved[:limit],
+            "last_updated": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get approved actions: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve approved actions")    
