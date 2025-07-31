@@ -2047,7 +2047,7 @@ async def get_approval_metrics(
             }
         }
 
-@@app.post("/agent-control/emergency-override/{action_id}")
+@app.post("/agent-control/emergency-override/{action_id}")
 async def emergency_override(
     action_id: int,
     request: Request,
