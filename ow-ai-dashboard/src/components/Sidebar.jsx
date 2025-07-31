@@ -13,14 +13,16 @@ const SafeIcon = ({ iconName, size = 18, className = "" }) => {
     User: "👤",
     Zap: "⚡",
     ShieldCheck: "🛡️",
-    LogOut: "🚪"
+    LogOut: "🚪",
+    Brain: "🧠",  // New icon for AI Alert Management
+    Target: "🎯"
   };
 
   const icon = iconMap[iconName] || "📎";
   
   return (
     <span 
-      className={`inline-block ${className}`} 
+      className={`inline-block ${className}`}
       style={{ fontSize: `${size}px`, lineHeight: 1 }}
     >
       {icon}
@@ -44,13 +46,18 @@ const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
   // Admin-only navigation items
   const adminNavItems = [
     { label: "Alerts", icon: <SafeIcon iconName="AlertCircle" size={18} />, tab: "alerts" },
+    { 
+      label: "AI Alert Management", 
+      icon: <SafeIcon iconName="Brain" size={18} />, 
+      tab: "ai-alerts",
+      badge: "AI"
+    },
     { label: "Rules", icon: <SafeIcon iconName="FileText" size={18} />, tab: "rules" },
     { label: "Smart Rule Gen", icon: <SafeIcon iconName="Zap" size={18} />, tab: "smartRules" },
     {
       label: "Authorization Center",
       icon: <SafeIcon iconName="ShieldCheck" size={18} />,
-      tab: "authorization",
-      badge: "New"
+      tab: "authorization"
     },
   ];
 
@@ -80,7 +87,9 @@ const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
               <span className="ml-3">{item.label}</span>
             </div>
             {item.badge && (
-              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+              <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
+                item.badge === "AI" ? "bg-purple-500" : "bg-red-500"
+              }`}>
                 {item.badge}
               </span>
             )}
