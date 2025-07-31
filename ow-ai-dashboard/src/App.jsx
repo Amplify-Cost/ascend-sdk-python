@@ -14,91 +14,11 @@ import SmartRuleGen from "./components/SmartRuleGen";
 import RulesPanel from "./components/RulesPanel";
 import SecurityInsights from "./components/SecurityInsights";
 import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
+import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
-
-// Temporary AI Alert Management placeholder component
-const AIAlertManagementSystemPlaceholder = () => {
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
-          🧠 AI Alert Intelligence Center
-        </h1>
-        <p className="text-gray-600">Enterprise security operations powered by artificial intelligence</p>
-      </div>
-
-      <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-lg p-8 text-center">
-        <div className="text-6xl mb-4">🚀</div>
-        <h2 className="text-2xl font-bold mb-4">AI Alert Management System</h2>
-        <p className="text-lg mb-6">Advanced AI-powered security operations center coming soon!</p>
-        
-        <div className="bg-white bg-opacity-20 rounded-lg p-6 mb-6">
-          <h3 className="text-xl font-semibold mb-4">🎯 Planned Features:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-            <div className="flex items-center">
-              <span className="mr-2">🧠</span>
-              <span>AI-Powered Alert Correlation</span>
-            </div>
-            <div className="flex items-center">
-              <span className="mr-2">📊</span>
-              <span>Predictive Threat Analysis</span>
-            </div>
-            <div className="flex items-center">
-              <span className="mr-2">⚡</span>
-              <span>Automated Response Workflows</span>
-            </div>
-            <div className="flex items-center">
-              <span className="mr-2">📡</span>
-              <span>Global Threat Intelligence</span>
-            </div>
-            <div className="flex items-center">
-              <span className="mr-2">🎯</span>
-              <span>Executive Security Briefings</span>
-            </div>
-            <div className="flex items-center">
-              <span className="mr-2">🔗</span>
-              <span>SIEM Integration Ready</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-yellow-100 bg-opacity-20 border border-yellow-300 border-opacity-30 rounded-lg p-4">
-          <p className="text-yellow-100">
-            <strong>🚧 Development Status:</strong> This advanced AI system is being finalized. 
-            All backend infrastructure is ready - frontend components are being integrated.
-          </p>
-        </div>
-      </div>
-
-      {/* Quick Stats Preview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-          <div className="text-3xl mb-2">🛡️</div>
-          <h3 className="font-semibold text-gray-900">AI Security</h3>
-          <p className="text-sm text-gray-600">Advanced threat detection</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-          <div className="text-3xl mb-2">⚡</div>
-          <h3 className="font-semibold text-gray-900">Auto Response</h3>
-          <p className="text-sm text-gray-600">Intelligent automation</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-          <div className="text-3xl mb-2">📈</div>
-          <h3 className="font-semibold text-gray-900">Predictive</h3>
-          <p className="text-sm text-gray-600">ML-powered insights</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-          <div className="text-3xl mb-2">🎯</div>
-          <h3 className="font-semibold text-gray-900">Executive</h3>
-          <p className="text-sm text-gray-600">C-level briefings</p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const Profile = ({ user, onUpdateProfile }) => {
   const [email, setEmail] = useState(user?.email || "");
@@ -331,7 +251,7 @@ const App = () => {
         );
       case "ai-alerts":
         return user?.role === "admin" ? (
-          <AIAlertManagementSystemPlaceholder />
+          <AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />
         ) : (
           <div className="p-6 text-center">
             <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
