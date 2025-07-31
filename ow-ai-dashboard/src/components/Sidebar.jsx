@@ -41,6 +41,7 @@ const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
     { label: "Security Insights", icon: <SafeIcon iconName="BarChart" size={18} />, tab: "analytics" },
     { label: "Submit Action", icon: <SafeIcon iconName="LifeBuoy" size={18} />, tab: "support" },
     { label: "Profile", icon: <SafeIcon iconName="User" size={18} />, tab: "profile" },
+    { label: "🧠 AI Rule Engine", icon: <SafeIcon iconName="Zap" size={18} />, tab: "smartRules" }
   ];
 
   // Admin-only navigation items
