@@ -11,21 +11,32 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [emergencyJustification, setEmergencyJustification] = useState("");
 
+  // New workflow management state
+  const [workflows, setWorkflows] = useState({});
+  const [editingWorkflow, setEditingWorkflow] = useState(null);
+  const [message, setMessage] = useState(null);
+
   const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   useEffect(() => {
     fetchDashboardData();
     fetchPendingActions();
     fetchApprovalMetrics();
+    if (activeTab === "workflows") {
+      fetchWorkflows();
+    }
     
     // Auto-refresh every 30 seconds for real-time updates
     const interval = setInterval(() => {
       fetchDashboardData();
       fetchPendingActions();
+      if (activeTab === "workflows") {
+        fetchWorkflows();
+      }
     }, 30000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [activeTab]);
 
   const fetchDashboardData = async () => {
     try {
@@ -73,6 +84,48 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     }
   };
 
+  const fetchWorkflows = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setWorkflows(data.workflows || {});
+      }
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching workflows:", err);
+      setError("Failed to load workflow configuration");
+    }
+  };
+
+  const updateWorkflow = async (workflowId, updates) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workflow_id: workflowId,
+          updates: updates
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMessage(`✅ ${result.message}`);
+        fetchWorkflows(); // Refresh data
+        setEditingWorkflow(null);
+      } else {
+        const errorData = await response.json();
+        setError(`❌ Failed to update workflow: ${errorData.detail}`);
+      }
+    } catch (err) {
+      console.error("Error updating workflow:", err);
+      setError("❌ Failed to update workflow. Please try again.");
+    }
+  };
+
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/authorize/${actionId}`, {
@@ -94,8 +147,9 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         setPendingActions(prev => prev.filter(action => action.id !== actionId));
         setSelectedAction(null);
         
-        // Refresh dashboard data
+        // Refresh dashboard data and metrics
         fetchDashboardData();
+        fetchApprovalMetrics();
         
         alert(`✅ Action ${decision} successfully!`);
       } else {
@@ -130,6 +184,9 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         setEmergencyJustification("");
         setSelectedAction(null);
         
+        // Refresh metrics to show emergency override
+        fetchApprovalMetrics();
+        
         alert("🚨 EMERGENCY OVERRIDE GRANTED - This action has been logged for audit");
       } else {
         const error = await response.json();
@@ -151,6 +208,7 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const getWorkflowStageLabel = (stage) => {
     const stages = {
       "initial": "Initial Review",
+      "initial_review": "Initial Review",
       "level_1": "Level 1 Approval",
       "level_2": "Level 2 Approval", 
       "level_3": "Executive Approval",
@@ -171,6 +229,160 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     if (hours < 0 || minutes < 0) return "⚠️ OVERDUE";
     if (hours > 0) return `${hours}h ${minutes}m remaining`;
     return `${minutes}m remaining`;
+  };
+
+  // Workflow Editor Component
+  const WorkflowEditor = ({ workflowId, workflow, onSave, onCancel }) => {
+    const [formData, setFormData] = useState({
+      name: workflow.name,
+      approval_levels: workflow.approval_levels,
+      timeout_hours: workflow.timeout_hours,
+      escalation_minutes: workflow.escalation_minutes,
+      emergency_override: workflow.emergency_override,
+      approvers: workflow.approvers.join(', ')
+    });
+
+    const handleSave = () => {
+      const updates = {
+        ...formData,
+        approvers: formData.approvers.split(',').map(email => email.trim()).filter(email => email)
+      };
+      onSave(workflowId, updates);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold text-gray-900">⚙️ Edit Workflow</h3>
+              <button
+                onClick={onCancel}
+                className="text-gray-400 hover:text-gray-600 text-3xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Workflow Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Required Approval Levels
+                </label>
+                <select
+                  value={formData.approval_levels}
+                  onChange={(e) => setFormData({...formData, approval_levels: parseInt(e.target.value)})}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={1}>1 Level (Single Approval)</option>
+                  <option value={2}>2 Levels (Dual Approval)</option>
+                  <option value={3}>3 Levels (Executive Approval)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Timeout Hours (Action expires after)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="72"
+                  value={formData.timeout_hours}
+                  onChange={(e) => setFormData({...formData, timeout_hours: parseInt(e.target.value)})}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Auto-Escalation Time (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="5"
+                  max="1440"
+                  value={formData.escalation_minutes}
+                  onChange={(e) => setFormData({...formData, escalation_minutes: parseInt(e.target.value)})}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={formData.emergency_override}
+                    onChange={(e) => setFormData({...formData, emergency_override: e.target.checked})}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    🚨 Enable Emergency Override
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Allows authorized users to bypass approval workflow in critical situations
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Approvers (email addresses, comma-separated)
+                </label>
+                <textarea
+                  value={formData.approvers}
+                  onChange={(e) => setFormData({...formData, approvers: e.target.value})}
+                  className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows="3"
+                  placeholder="security@company.com, admin@company.com, executive@company.com"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-6 border-t">
+                <button
+                  onClick={onCancel}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                >
+                  💾 Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const getRiskLevelColor = (workflowId) => {
+    if (workflowId === 'risk_90_100') return 'bg-red-100 border-red-300 text-red-800';
+    if (workflowId === 'risk_70_89') return 'bg-orange-100 border-orange-300 text-orange-800';
+    if (workflowId === 'risk_50_69') return 'bg-yellow-100 border-yellow-300 text-yellow-800';
+    return 'bg-green-100 border-green-300 text-green-800';
+  };
+
+  const getRiskLevelIcon = (workflowId) => {
+    if (workflowId === 'risk_90_100') return '🚨';
+    if (workflowId === 'risk_70_89') return '⚠️';
+    if (workflowId === 'risk_50_69') return '⚡';
+    return '✅';
   };
 
   if (loading) {
@@ -284,16 +496,22 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         </nav>
       </div>
 
+      {/* Messages */}
+      {message && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <div className="text-green-800">{message}</div>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+          <div className="text-red-800">{error}</div>
+        </div>
+      )}
+
       {/* Pending Actions Tab */}
       {activeTab === "pending" && (
         <div>
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <div className="text-red-800 font-medium">⚠️ Error</div>
-              <div className="text-red-600">{error}</div>
-            </div>
-          )}
-
           {pendingActions.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">✅</div>
@@ -512,38 +730,141 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
               </div>
             </div>
           </div>
+
+          {/* Live Metrics Display */}
+          {approvalMetrics.live_metrics && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h4 className="font-semibold text-blue-900 mb-3">📊 Live Action Tracking</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <h5 className="font-medium text-blue-800 mb-2">Demo Actions:</h5>
+                  <div className="space-y-1 text-blue-700">
+                    <div>Approved: {approvalMetrics.live_metrics.demo_actions.approved}</div>
+                    <div>Denied: {approvalMetrics.live_metrics.demo_actions.denied}</div>
+                    <div>Emergency: {approvalMetrics.live_metrics.demo_actions.emergency}</div>
+                  </div>
+                </div>
+                <div>
+                  <h5 className="font-medium text-blue-800 mb-2">Database Actions:</h5>
+                  <div className="space-y-1 text-blue-700">
+                    <div>Approved: {approvalMetrics.live_metrics.database_actions.approved}</div>
+                    <div>Denied: {approvalMetrics.live_metrics.database_actions.denied}</div>
+                    <div>Pending: {approvalMetrics.live_metrics.database_actions.pending}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Workflow Management Tab */}
+      {/* Interactive Workflow Management Tab */}
       {activeTab === "workflows" && (
         <div className="space-y-6">
+          {/* Header */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">⚙️ Approval Workflow Configuration</h3>
-            <p className="text-gray-600 mb-4">Configure custom approval workflows based on risk levels and action types.</p>
-            
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-semibold text-blue-900 mb-2">Current Workflow Rules</h4>
-              <div className="space-y-2 text-sm text-blue-800">
-                <div>• <strong>Risk 90-100 (Critical):</strong> 3-level approval (Security → Senior → Executive)</div>
-                <div>• <strong>Risk 70-89 (High):</strong> 2-level approval (Security → Senior)</div>
-                <div>• <strong>Risk 50-69 (Medium):</strong> Dual approval (2 Security staff)</div>
-                <div>• <strong>Risk 0-49 (Low):</strong> Single approval</div>
-                <div>• <strong>Emergency Override:</strong> Available for authorized personnel</div>
-              </div>
-            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">⚙️ Interactive Workflow Configuration</h3>
+            <p className="text-gray-600 mb-4">
+              Configure custom approval workflows based on risk levels and action types. 
+              {user?.role === 'admin' ? ' Click "Edit" to modify any workflow.' : ' Admin access required to modify workflows.'}
+            </p>
+          </div>
 
-            <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h4 className="font-semibold text-yellow-900 mb-2">⚡ Emergency Procedures</h4>
-              <div className="text-sm text-yellow-800">
-                <p>Emergency overrides are available for critical situations and will:</p>
-                <ul className="list-disc list-inside mt-2 ml-4">
-                  <li>Immediately approve the action</li>
-                  <li>Create high-priority audit alerts</li>
-                  <li>Require detailed justification</li>
-                  <li>Trigger executive notification</li>
-                  <li>Be subject to post-action review</li>
-                </ul>
+          {/* Workflow Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Object.entries(workflows).map(([workflowId, workflow]) => (
+              <div key={workflowId} className={`border-2 rounded-lg p-6 ${getRiskLevelColor(workflowId)}`}>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{getRiskLevelIcon(workflowId)}</span>
+                    <div>
+                      <h4 className="text-lg font-semibold">{workflow.name}</h4>
+                      <p className="text-sm opacity-75">Risk Range: {workflowId.replace('risk_', '').replace('_', '-')}</p>
+                    </div>
+                  </div>
+
+                  {user?.role === 'admin' && (
+                    <button
+                      onClick={() => setEditingWorkflow({ workflowId, workflow })}
+                      className="bg-white bg-opacity-50 hover:bg-opacity-75 text-gray-800 px-3 py-1 rounded text-sm transition-colors"
+                    >
+                      ✏️ Edit
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium">Approval Levels:</span>
+                    <span className="font-semibold">{workflow.approval_levels}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="font-medium">Timeout:</span>
+                    <span className="font-semibold">{workflow.timeout_hours}h</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="font-medium">Auto-Escalation:</span>
+                    <span className="font-semibold">{workflow.escalation_minutes}m</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="font-medium">Emergency Override:</span>
+                    <span className="font-semibold">
+                      {workflow.emergency_override ? '✅ Enabled' : '❌ Disabled'}
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-current border-opacity-20">
+                    <span className="font-medium">Approvers:</span>
+                    <div className="mt-1 space-y-1">
+                      {workflow.approvers.map((approver, index) => (
+                        <div key={index} className="text-xs bg-white bg-opacity-30 px-2 py-1 rounded">
+                          👤 {approver}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Emergency Procedures Info */}
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+            <h4 className="font-semibold text-yellow-900 mb-2">⚡ Emergency Procedures</h4>
+            <div className="text-sm text-yellow-800">
+              <p className="mb-3">Emergency overrides are available for critical situations and will:</p>
+              <ul className="list-disc list-inside space-y-1 ml-4">
+                <li>Immediately approve the action</li>
+                <li>Create high-priority audit alerts</li>
+                <li>Require detailed justification</li>
+                <li>Trigger executive notification</li>
+                <li>Be subject to post-action review</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Current Workflow Summary */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h4 className="font-semibold text-blue-900 mb-3">📊 Current Workflow Summary</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-blue-700 font-medium">Total Workflows:</span>
+                <span className="ml-2 text-blue-900 font-semibold">{Object.keys(workflows).length}</span>
+              </div>
+              <div>
+                <span className="text-blue-700 font-medium">Emergency Enabled:</span>
+                <span className="ml-2 text-blue-900 font-semibold">
+                  {Object.values(workflows).some(w => w.emergency_override) ? '✅ Yes' : '❌ No'}
+                </span>
+              </div>
+              <div>
+                <span className="text-blue-700 font-medium">Max Approval Levels:</span>
+                <span className="ml-2 text-blue-900 font-semibold">
+                  {Object.keys(workflows).length > 0 ? Math.max(...Object.values(workflows).map(w => w.approval_levels)) : 0}
+                </span>
               </div>
             </div>
           </div>
@@ -566,7 +887,6 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column - Basic Info */}
                 <div className="space-y-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="font-semibold mb-2">Agent Information</h4>
@@ -593,7 +913,6 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
                   </div>
                 </div>
 
-                {/* Right Column - Description & Risk Factors */}
                 <div className="space-y-4">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h4 className="font-semibold mb-2">Description</h4>
@@ -613,7 +932,6 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
                 </div>
               </div>
               
-              {/* Action Buttons */}
               <div className="flex gap-3 justify-end mt-6 pt-6 border-t">
                 <button
                   onClick={() => setSelectedAction(null)}
@@ -713,6 +1031,20 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Workflow Editor Modal */}
+      {editingWorkflow && (
+        <WorkflowEditor
+          workflowId={editingWorkflow.workflowId}
+          workflow={editingWorkflow.workflow}
+          onSave={updateWorkflow}
+          onCancel={() => {
+            setEditingWorkflow(null);
+            setMessage(null);
+            setError(null);
+          }}
+        />
       )}
     </div>
   );
