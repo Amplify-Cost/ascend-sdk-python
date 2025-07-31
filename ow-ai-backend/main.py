@@ -1902,21 +1902,38 @@ async def authorize_action(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
-    """🏢 ENTERPRISE: Multi-level authorization with audit trails - Database compatible"""
+    """🏢 ENTERPRISE: Multi-level authorization with audit trails - Demo compatible"""
     try:
         data = await request.json()
         decision = data.get("decision")  # "approved", "denied", "escalated"
         notes = data.get("notes", "")
         
-        # Check if action exists using raw SQL
+        logger.info(f"🔍 ENTERPRISE: Processing authorization for action {action_id}, decision: {decision}")
+        
+        # Check if this is a demo action ID (9001, 9002, 9003)
+        if action_id in [9001, 9002, 9003]:
+            logger.info(f"✅ ENTERPRISE: Demo action {action_id} {decision} by {current_user['email']}")
+            
+            # For demo actions, just return success
+            return {
+                "message": f"🏢 Enterprise authorization {decision} successfully (demo mode)",
+                "action_id": action_id,
+                "decision": decision,
+                "authorization_status": decision,
+                "reviewed_by": current_user["email"],
+                "demo_mode": True
+            }
+        
+        # For real database actions, check if action exists using raw SQL
         existing = db.execute(text("""
             SELECT id, status FROM agent_actions WHERE id = :action_id
         """), {'action_id': action_id}).fetchone()
         
         if not existing:
+            logger.warning(f"❌ ENTERPRISE: Action {action_id} not found in database")
             raise HTTPException(status_code=404, detail="Authorization request not found")
         
-        # Update action based on decision using raw SQL
+        # Update real action based on decision using raw SQL
         if decision == "approved":
             db.execute(text("""
                 UPDATE agent_actions 
@@ -1938,7 +1955,7 @@ async def authorize_action(
         
         db.commit()
         
-        logger.info(f"🏢 ENTERPRISE: Action {action_id} {decision} by {current_user['email']}")
+        logger.info(f"🏢 ENTERPRISE: Real action {action_id} {decision} by {current_user['email']}")
         
         return {
             "message": f"🏢 Enterprise authorization {decision} successfully",
@@ -1954,7 +1971,6 @@ async def authorize_action(
         logger.error(f"🏢 ENTERPRISE: Authorization processing failed: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to process authorization")
-
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
@@ -2031,14 +2047,14 @@ async def get_approval_metrics(
             }
         }
 
-@app.post("/agent-control/emergency-override/{action_id}")
+@@app.post("/agent-control/emergency-override/{action_id}")
 async def emergency_override(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
-    """🏢 ENTERPRISE: Emergency override for critical situations - Database compatible"""
+    """🏢 ENTERPRISE: Emergency override for critical situations - Demo compatible"""
     try:
         data = await request.json()
         justification = data.get("justification", "")
@@ -2046,12 +2062,28 @@ async def emergency_override(
         if not justification.strip():
             raise HTTPException(status_code=400, detail="Emergency justification is required")
         
-        # Check if action exists using raw SQL
+        logger.info(f"🚨 ENTERPRISE: Emergency override requested for action {action_id}")
+        
+        # Check if this is a demo action ID (9001, 9002, 9003)
+        if action_id in [9001, 9002, 9003]:
+            logger.warning(f"🚨 ENTERPRISE DEMO: Emergency override for action {action_id} by {current_user['email']} - {justification}")
+            
+            # For demo actions, just return success
+            return {
+                "message": "🚨 EMERGENCY OVERRIDE GRANTED (demo mode) - This action has been logged for audit",
+                "action_id": action_id,
+                "overridden_by": current_user["email"],
+                "justification": justification,
+                "demo_mode": True
+            }
+        
+        # For real database actions, check if action exists using raw SQL
         existing = db.execute(text("""
             SELECT id FROM agent_actions WHERE id = :action_id
         """), {'action_id': action_id}).fetchone()
         
         if not existing:
+            logger.warning(f"❌ ENTERPRISE: Action {action_id} not found in database")
             raise HTTPException(status_code=404, detail="Authorization request not found")
         
         # Apply emergency override using raw SQL
@@ -2066,7 +2098,7 @@ async def emergency_override(
         
         db.commit()
         
-        logger.warning(f"🚨 EMERGENCY OVERRIDE: Action {action_id} by {current_user['email']} - {justification}")
+        logger.warning(f"🚨 EMERGENCY OVERRIDE: Real action {action_id} by {current_user['email']} - {justification}")
         
         return {
             "message": "🚨 EMERGENCY OVERRIDE GRANTED - This action has been logged for audit",
@@ -2081,3 +2113,55 @@ async def emergency_override(
         logger.error(f"🏢 ENTERPRISE: Emergency override failed: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Emergency override failed")
+
+# Helper functions for the authorization endpoints
+def calculate_risk_score(action_type: str, risk_level: str) -> int:
+    """Calculate numerical risk score from action type and risk level"""
+    base_scores = {
+        "low": 25,
+        "medium": 55,
+        "high": 85
+    }
+    
+    high_risk_actions = {
+        "data_exfiltration": 20,
+        "system_modification": 15,
+        "credential_access": 15,
+        "network_access": 10,
+        "file_deletion": 12,
+        "vulnerability_scan": 10,
+        "compliance_check": 5,
+        "anomaly_detection": 15
+    }
+    
+    base_score = base_scores.get(risk_level, 50)
+    action_bonus = high_risk_actions.get(action_type.lower(), 0)
+    
+    return min(100, base_score + action_bonus)
+
+def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
+    """Get contextual risk factors for an action"""
+    factors = []
+    
+    if risk_level == "high":
+        factors.append("High risk classification")
+    
+    high_risk_types = {
+        "data_exfiltration": "Potential data breach",
+        "system_modification": "System integrity risk",
+        "credential_access": "Authentication compromise",
+        "network_access": "Network security risk",
+        "vulnerability_scan": "Production system targeted",
+        "compliance_check": "Compliance review required",
+        "anomaly_detection": "Potential APT activity"
+    }
+    
+    if action_type.lower() in high_risk_types:
+        factors.append(high_risk_types[action_type.lower()])
+    
+    # Add time-based risk
+    current_hour = datetime.utcnow().hour
+    if current_hour < 8 or current_hour > 18:
+        factors.append("After-hours execution")
+    
+    return factors if factors else ["Standard risk assessment"]
