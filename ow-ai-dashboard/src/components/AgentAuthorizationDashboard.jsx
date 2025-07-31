@@ -18,39 +18,33 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
+  // Fixed useEffect for real-time updates
   useEffect(() => {
-    fetchDashboardData();
-    fetchPendingActions();
-    fetchApprovalMetrics();
+    // Fetch initial data
+    fetchPendingActions().then(() => {
+      // After pending actions are loaded, update dashboard and metrics
+      fetchDashboardData();
+      fetchApprovalMetrics();
+    });
+    
     if (activeTab === "workflows") {
       fetchWorkflows();
     }
-    
-    // Auto-refresh every 30 seconds for real-time updates
+        
+    // Real-time refresh every 15 seconds for more responsive updates
     const interval = setInterval(() => {
-      fetchDashboardData();
-      fetchPendingActions();
+      fetchPendingActions().then(() => {
+        fetchDashboardData();
+        fetchApprovalMetrics();
+      });
+      
       if (activeTab === "workflows") {
         fetchWorkflows();
       }
-    }, 30000);
-    
+    }, 15000); // Reduced from 30 seconds to 15 seconds
+        
     return () => clearInterval(interval);
   }, [activeTab]);
-
-  const fetchDashboardData = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/approval-dashboard`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDashboardData(data);
-      }
-    } catch (err) {
-      console.error("Error fetching dashboard data:", err);
-    }
-  };
 
   const fetchPendingActions = async () => {
     try {
@@ -70,6 +64,56 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     }
   };
 
+  const fetchDashboardData = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/approval-dashboard`, {
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Calculate real-time metrics from pending actions
+        const totalPending = pendingActions.length;
+        const criticalPending = pendingActions.filter(action => 
+          action.ai_risk_score >= 80 || action.risk_level === "high"
+        ).length;
+        const emergencyPending = pendingActions.filter(action => 
+          action.is_emergency || action.ai_risk_score >= 90
+        ).length;
+        
+        // Override static numbers with real-time calculations
+        const enhancedData = {
+          ...data,
+          pending_summary: {
+            total_pending: totalPending,
+            critical_pending: criticalPending,
+            emergency_pending: emergencyPending
+          },
+          enterprise_metrics: {
+            ...data.enterprise_metrics,
+            total_pending: totalPending,
+            critical_pending: criticalPending,
+            high_risk_pending: pendingActions.filter(action => 
+              action.ai_risk_score >= 70
+            ).length,
+            emergency_pending: emergencyPending,
+            overdue_count: pendingActions.filter(action => 
+              action.time_remaining && action.time_remaining.includes('OVERDUE')
+            ).length,
+            escalated_count: pendingActions.filter(action => 
+              action.current_approval_level > 0
+            ).length
+          }
+        };
+        
+        setDashboardData(enhancedData);
+        console.log("📊 Real-time dashboard data updated:", enhancedData);
+      }
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+    }
+  };
+
   const fetchApprovalMetrics = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/metrics/approval-performance`, {
@@ -77,7 +121,52 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        setApprovalMetrics(data);
+        
+        // Add real-time calculations for better accuracy
+        const totalActions = data.decision_breakdown.approved + 
+                            data.decision_breakdown.denied + 
+                            data.decision_breakdown.pending;
+        
+        const realTimeApprovalRate = totalActions > 0 
+          ? (data.decision_breakdown.approved / totalActions * 100)
+          : 0;
+        
+        // Calculate real-time processing metrics
+        const currentPendingCount = pendingActions.length;
+        const avgRiskScore = pendingActions.length > 0 
+          ? Math.round(pendingActions.reduce((sum, action) => sum + action.ai_risk_score, 0) / pendingActions.length)
+          : data.performance_metrics.average_risk_score;
+        
+        const enhancedMetrics = {
+          ...data,
+          decision_breakdown: {
+            ...data.decision_breakdown,
+            approval_rate: realTimeApprovalRate,
+            pending: currentPendingCount
+          },
+          performance_metrics: {
+            ...data.performance_metrics,
+            average_risk_score: avgRiskScore,
+            current_pending_count: currentPendingCount
+          },
+          risk_analysis: {
+            ...data.risk_analysis,
+            current_high_risk: pendingActions.filter(action => action.ai_risk_score >= 70).length,
+            current_critical_risk: pendingActions.filter(action => action.ai_risk_score >= 90).length
+          },
+          real_time_stats: {
+            last_updated: new Date().toISOString(),
+            live_pending_count: currentPendingCount,
+            live_high_risk_count: pendingActions.filter(action => action.ai_risk_score >= 70).length,
+            live_critical_count: pendingActions.filter(action => action.ai_risk_score >= 90).length,
+            actions_requiring_escalation: pendingActions.filter(action => 
+              action.required_approval_level > action.current_approval_level + 1
+            ).length
+          }
+        };
+        
+        setApprovalMetrics(enhancedMetrics);
+        console.log("📈 Real-time metrics updated:", enhancedMetrics);
       }
     } catch (err) {
       console.error("Error fetching metrics:", err);
@@ -141,30 +230,40 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log("Approval result:", result);
+        console.log("✅ Approval result:", result);
+                
+        // Remove action from pending list immediately for real-time UI update
+        setPendingActions(prev => {
+          const updated = prev.filter(action => action.id !== actionId);
+          console.log(`📊 Pending actions updated: ${prev.length} → ${updated.length}`);
+          return updated;
+        });
         
-        // Remove action from pending list
-        setPendingActions(prev => prev.filter(action => action.id !== actionId));
         setSelectedAction(null);
+                
+        // Immediately update dashboard and metrics with new counts
+        setTimeout(() => {
+          fetchDashboardData();
+          fetchApprovalMetrics();
+        }, 100); // Small delay to ensure state update
+                
+        // Show success message with real-time update confirmation
+        setMessage(`✅ Action ${decision} successfully! Metrics updated in real-time.`);
+        setTimeout(() => setMessage(null), 3000);
         
-        // Refresh dashboard data and metrics
-        fetchDashboardData();
-        fetchApprovalMetrics();
-        
-        alert(`✅ Action ${decision} successfully!`);
       } else {
         const error = await response.json();
-        alert(`❌ Failed to ${decision} action: ${error.detail}`);
+        setError(`❌ Failed to ${decision} action: ${error.detail}`);
       }
     } catch (err) {
       console.error(`Error ${decision} action:`, err);
-      alert(`❌ Failed to ${decision} action. Please try again.`);
+      setError(`❌ Failed to ${decision} action. Please try again.`);
     }
   };
 
   const handleEmergencyOverride = async (actionId) => {
     if (!emergencyJustification.trim()) {
-      alert("Emergency justification is required");
+      setError("Emergency justification is required");
       return;
     }
 
@@ -177,24 +276,35 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log("Emergency override result:", result);
+        console.log("🚨 Emergency override result:", result);
+                
+        // Immediate UI updates for real-time feedback
+        setPendingActions(prev => {
+          const updated = prev.filter(action => action.id !== actionId);
+          console.log(`🚨 Emergency override: ${prev.length} → ${updated.length} pending actions`);
+          return updated;
+        });
         
-        setPendingActions(prev => prev.filter(action => action.id !== actionId));
         setShowEmergencyModal(false);
         setEmergencyJustification("");
         setSelectedAction(null);
+                
+        // Update metrics to reflect emergency override immediately
+        setTimeout(() => {
+          fetchApprovalMetrics();
+          fetchDashboardData();
+        }, 100);
+                
+        setMessage("🚨 EMERGENCY OVERRIDE GRANTED - Metrics updated in real-time. This action has been logged for audit.");
+        setTimeout(() => setMessage(null), 5000);
         
-        // Refresh metrics to show emergency override
-        fetchApprovalMetrics();
-        
-        alert("🚨 EMERGENCY OVERRIDE GRANTED - This action has been logged for audit");
       } else {
         const error = await response.json();
-        alert(`❌ Emergency override failed: ${error.detail}`);
+        setError(`❌ Emergency override failed: ${error.detail}`);
       }
     } catch (err) {
       console.error("Emergency override error:", err);
-      alert("❌ Emergency override failed. Please try again.");
+      setError("❌ Emergency override failed. Please try again.");
     }
   };
 
@@ -646,6 +756,22 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
       {/* Performance Metrics Tab */}
       {activeTab === "metrics" && approvalMetrics && (
         <div className="space-y-6">
+          {/* Real-Time Status Banner */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-green-800 font-medium">📊 Live Metrics</span>
+              </div>
+              <div className="text-sm text-green-700">
+                Last Updated: {approvalMetrics.real_time_stats ? 
+                  new Date(approvalMetrics.real_time_stats.last_updated).toLocaleTimeString() : 
+                  'Loading...'
+                }
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Decision Breakdown */}
             <div className="bg-white p-6 rounded-lg shadow-sm border">
