@@ -16,6 +16,7 @@ import SecurityInsights from "./components/SecurityInsights";
 import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
 import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
+import EnterpriseSmartRuleEngine from "./components/EnterpriseSmartRuleEngine";
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
@@ -293,12 +294,12 @@ const App = () => {
         return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
       case "smartRules":
         return user?.role === "admin" ? (
-          <SmartRuleGen getAuthHeaders={getAuthHeaders} />
+          <EnterpriseSmartRuleEngine getAuthHeaders={getAuthHeaders} user={user} />
         ) : (
           <div className="p-6 text-center">
             <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
               <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access Smart Rule Generation.</p>
+              <p className="text-yellow-700">You need administrator privileges to access AI Rule Engine.</p>
               <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
             </div>
           </div>
