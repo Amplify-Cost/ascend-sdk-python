@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
+const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [pendingActions, setPendingActions] = useState([]);
   const [selectedAction, setSelectedAction] = useState(null);
@@ -1050,4 +1050,4 @@ const AdvancedAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   );
 };
 
-export default AdvancedAuthorizationDashboard;
+export default AgentAuthorizationDashboard;
