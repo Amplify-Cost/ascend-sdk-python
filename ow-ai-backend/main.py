@@ -17,7 +17,8 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth_routes import router as auth_router  # <--- Added auth router import
 from routes.smart_rules_routes import router as smart_rules_router
-from routes.user_management_routes import router as user_management_router
+from routes.enterprise_user_management_routes import router as enterprise_user_router
+
 
 
 
@@ -149,7 +150,7 @@ audit_trail_storage = []
 # <--- Added: include auth router
 app.include_router(auth_router)
 app.include_router(smart_rules_router)
-app.include_router(user_management_router)
+app.include_router(enterprise_user_router)
 
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
@@ -3131,4 +3132,152 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
         
     except Exception as e:
         logger.error(f"AI performance metrics failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to calculate AI performance metrics")        
+        raise HTTPException(status_code=500, detail="Failed to calculate AI performance metrics")       
+
+
+# Add this to your main.py file - temporary setup endpoint
+
+@app.post("/admin/setup-enterprise-user-tables")
+async def setup_enterprise_user_tables(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """One-time setup for Enterprise User Management database tables"""
+    try:
+        # Create user_roles table
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_roles (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                permissions JSONB,
+                level INTEGER DEFAULT 1,
+                risk_level VARCHAR(20) DEFAULT 'Medium',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        
+        # Create user_permissions table
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_permissions (
+                id SERIAL PRIMARY KEY,
+                category VARCHAR(50) NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                risk_level VARCHAR(20) DEFAULT 'Medium',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        
+        # Create user_audit_logs table
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS user_audit_logs (
+                id SERIAL PRIMARY KEY,
+                user_email VARCHAR(255),
+                action VARCHAR(100),
+                target VARCHAR(255),
+                details TEXT,
+                ip_address VARCHAR(45),
+                risk_level VARCHAR(20) DEFAULT 'Medium',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        
+        # Add enterprise columns to existing users table
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS access_level VARCHAR(100);"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE;"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS login_attempts INTEGER DEFAULT 0;"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Active';"))
+        
+        # Insert default enterprise roles
+        default_roles = [
+            {
+                "name": "Level 0 - Restricted",
+                "description": "Restricted access for suspended or probationary users",
+                "permissions": '{"dashboard": false, "analytics": false, "alerts": false, "rules": false, "authorization": false, "users": false, "audit": false}',
+                "level": 0,
+                "risk_level": "Critical"
+            },
+            {
+                "name": "Level 1 - Basic User", 
+                "description": "Basic dashboard access for standard users",
+                "permissions": '{"dashboard": true, "analytics": false, "alerts": false, "rules": false, "authorization": false, "users": false, "audit": false}',
+                "level": 1,
+                "risk_level": "Low"
+            },
+            {
+                "name": "Level 2 - Power User",
+                "description": "Enhanced access with analytics and alert viewing", 
+                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": false, "authorization": false, "users": false, "audit": false}',
+                "level": 2,
+                "risk_level": "Medium"
+            },
+            {
+                "name": "Level 3 - Manager",
+                "description": "Management access with authorization capabilities",
+                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": false, "authorization": true, "users": false, "audit": true}',
+                "level": 3,
+                "risk_level": "Medium"
+            },
+            {
+                "name": "Level 4 - Administrator",
+                "description": "Full system access with user management",
+                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": true, "authorization": true, "users": true, "audit": true}',
+                "level": 4,
+                "risk_level": "High"
+            },
+            {
+                "name": "Level 5 - Executive", 
+                "description": "Executive access with all privileges and reporting",
+                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": true, "authorization": true, "users": true, "audit": true}',
+                "level": 5,
+                "risk_level": "Critical"
+            }
+        ]
+        
+        for role in default_roles:
+            db.execute(text("""
+                INSERT INTO user_roles (name, description, permissions, level, risk_level, created_at)
+                VALUES (:name, :description, :permissions, :level, :risk_level, CURRENT_TIMESTAMP)
+                ON CONFLICT DO NOTHING;
+            """), {
+                "name": role["name"],
+                "description": role["description"], 
+                "permissions": role["permissions"],
+                "level": role["level"],
+                "risk_level": role["risk_level"]
+            })
+        
+        db.commit()
+        
+        return {
+            "message": "✅ Enterprise User Management tables created successfully!",
+            "tables_created": [
+                "user_roles",
+                "user_permissions", 
+                "user_audit_logs"
+            ],
+            "columns_added": [
+                "users.first_name",
+                "users.last_name",
+                "users.department",
+                "users.access_level",
+                "users.mfa_enabled",
+                "users.login_attempts", 
+                "users.last_login",
+                "users.status"
+            ],
+            "default_roles_inserted": len(default_roles)
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error setting up enterprise tables: {e}")
+        return {
+            "error": f"Failed to create enterprise tables: {str(e)}",
+            "details": "Check your database connection and permissions"
+        }     
