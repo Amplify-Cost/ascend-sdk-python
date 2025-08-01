@@ -9,6 +9,10 @@ from datetime import datetime, timedelta
 import json
 import bcrypt
 from pydantic import BaseModel
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/enterprise-users", tags=["enterprise-user-management"])
 
@@ -55,6 +59,8 @@ async def get_all_users(
 ):
     """Get all users with enterprise data"""
     try:
+        logger.info(f"🔄 Enterprise users requested by: {current_user.get('email', 'unknown')}")
+        
         # Query users with enhanced enterprise fields
         query = text("""
             SELECT 
@@ -101,6 +107,7 @@ async def get_all_users(
             }
             users.append(user_data)
         
+        logger.info(f"✅ Returning {len(users)} enterprise users")
         return {
             "users": users,
             "total_count": len(users),
@@ -108,7 +115,7 @@ async def get_all_users(
         }
         
     except Exception as e:
-        print(f"❌ Error fetching users: {e}")
+        logger.error(f"❌ Error fetching users: {e}")
         return {
             "users": [],
             "total_count": 0,
@@ -125,6 +132,8 @@ async def create_user(
 ):
     """Create new enterprise user"""
     try:
+        logger.info(f"🔄 Creating user: {user_data.email} by {current_user.get('email', 'unknown')}")
+        
         # Check if user already exists
         existing_user = db.execute(
             text("SELECT id FROM users WHERE email = :email"),
@@ -170,6 +179,7 @@ async def create_user(
             str(request.client.host), "Medium"
         )
         
+        logger.info(f"✅ User created: {new_user.email}")
         return {
             "message": "✅ User created successfully",
             "user_id": new_user.id,
@@ -180,7 +190,7 @@ async def create_user(
         
     except Exception as e:
         db.rollback()
-        print(f"❌ Error creating user: {e}")
+        logger.error(f"❌ Error creating user: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
 @router.put("/users/{user_id}")
@@ -193,6 +203,8 @@ async def update_user(
 ):
     """Update enterprise user"""
     try:
+        logger.info(f"🔄 Updating user ID: {user_id} by {current_user.get('email', 'unknown')}")
+        
         # Build dynamic update query
         update_fields = []
         update_values = {"user_id": user_id}
@@ -227,6 +239,7 @@ async def update_user(
             str(request.client.host), "Medium"
         )
         
+        logger.info(f"✅ User updated: {updated_user.email}")
         return {
             "message": "✅ User updated successfully",
             "email": updated_user.email,
@@ -235,7 +248,7 @@ async def update_user(
         
     except Exception as e:
         db.rollback()
-        print(f"❌ Error updating user: {e}")
+        logger.error(f"❌ Error updating user: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to update user: {str(e)}")
 
 @router.delete("/users/{user_id}")
@@ -247,6 +260,8 @@ async def delete_user(
 ):
     """Deactivate user (soft delete)"""
     try:
+        logger.info(f"🔄 Deactivating user ID: {user_id} by {current_user.get('email', 'unknown')}")
+        
         # Get user info before deactivation
         user_info = db.execute(
             text("SELECT email, first_name, last_name FROM users WHERE id = :user_id"),
@@ -270,6 +285,7 @@ async def delete_user(
             str(request.client.host), "High"
         )
         
+        logger.info(f"✅ User deactivated: {user_info.email}")
         return {
             "message": "✅ User deactivated successfully",
             "email": user_info.email
@@ -277,7 +293,7 @@ async def delete_user(
         
     except Exception as e:
         db.rollback()
-        print(f"❌ Error deactivating user: {e}")
+        logger.error(f"❌ Error deactivating user: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to deactivate user: {str(e)}")
 
 # ============================================================================
@@ -291,6 +307,8 @@ async def get_roles(
 ):
     """Get all roles and permissions"""
     try:
+        logger.info(f"🔄 Roles requested by: {current_user.get('email', 'unknown')}")
+        
         # Try to get from database first
         roles_query = text("SELECT * FROM user_roles ORDER BY level ASC")
         result = db.execute(roles_query)
@@ -310,7 +328,9 @@ async def get_roles(
         # If no roles found, return enterprise defaults
         if not roles:
             roles = get_default_enterprise_roles()
+            logger.info("🔄 Using default enterprise roles")
         
+        logger.info(f"✅ Returning {len(roles)} roles")
         return {
             "roles": roles,
             "permission_categories": get_permission_categories(),
@@ -318,11 +338,11 @@ async def get_roles(
         }
         
     except Exception as e:
-        print(f"❌ Error fetching roles: {e}")
+        logger.error(f"❌ Error fetching roles: {e}")
         return {
             "roles": get_default_enterprise_roles(),
             "permission_categories": get_permission_categories(),
-            "total_count": 5
+            "total_count": 6
         }
 
 @router.post("/roles")
@@ -334,6 +354,8 @@ async def create_role(
 ):
     """Create new enterprise role"""
     try:
+        logger.info(f"🔄 Creating role: {role_data.name} by {current_user.get('email', 'unknown')}")
+        
         insert_query = text("""
             INSERT INTO user_roles (name, description, permissions, level, risk_level, created_at)
             VALUES (:name, :description, :permissions, :level, :risk_level, CURRENT_TIMESTAMP)
@@ -358,6 +380,7 @@ async def create_role(
             str(request.client.host), "Medium"
         )
         
+        logger.info(f"✅ Role created: {new_role.name}")
         return {
             "message": "✅ Role created successfully",
             "role_id": new_role.id,
@@ -367,7 +390,7 @@ async def create_role(
         
     except Exception as e:
         db.rollback()
-        print(f"❌ Error creating role: {e}")
+        logger.error(f"❌ Error creating role: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create role: {str(e)}")
 
 # ============================================================================
@@ -385,6 +408,8 @@ async def get_audit_logs(
 ):
     """Get audit trail logs"""
     try:
+        logger.info(f"🔄 Audit logs requested by: {current_user.get('email', 'unknown')}")
+        
         # Build dynamic query with filters
         where_conditions = []
         query_params = {"limit": limit}
@@ -428,7 +453,9 @@ async def get_audit_logs(
         # If no logs found, return demo data
         if not logs:
             logs = get_demo_audit_logs()
+            logger.info("🔄 Using demo audit logs")
         
+        logger.info(f"✅ Returning {len(logs)} audit logs")
         return {
             "logs": logs,
             "total_count": len(logs),
@@ -440,7 +467,7 @@ async def get_audit_logs(
         }
         
     except Exception as e:
-        print(f"❌ Error fetching audit logs: {e}")
+        logger.error(f"❌ Error fetching audit logs: {e}")
         return {
             "logs": get_demo_audit_logs(),
             "total_count": 50,
@@ -458,6 +485,8 @@ async def get_user_analytics(
 ):
     """Get comprehensive user analytics"""
     try:
+        logger.info(f"🔄 Analytics requested by: {current_user.get('email', 'unknown')}")
+        
         # User statistics
         user_stats_query = text("""
             SELECT 
@@ -495,7 +524,7 @@ async def get_user_analytics(
         role_result = db.execute(role_query)
         role_stats = [{"role": row.role, "count": row.count} for row in role_result]
         
-        return {
+        analytics_data = {
             "user_statistics": {
                 "total_users": stats_result.total_users if stats_result else 0,
                 "active_users": stats_result.active_users if stats_result else 0,
@@ -509,8 +538,11 @@ async def get_user_analytics(
             "security_score": calculate_security_score(stats_result)
         }
         
+        logger.info(f"✅ Analytics generated: {analytics_data['user_statistics']['total_users']} users")
+        return analytics_data
+        
     except Exception as e:
-        print(f"❌ Error fetching analytics: {e}")
+        logger.error(f"❌ Error fetching analytics: {e}")
         return get_demo_analytics()
 
 # ============================================================================
@@ -682,8 +714,9 @@ async def log_audit_action(db: Session, user_email: str, action: str, target: st
             "risk_level": risk_level
         })
         db.commit()
+        logger.info(f"📋 Audit logged: {action} by {user_email}")
     except Exception as e:
-        print(f"❌ Error logging audit action: {e}")
+        logger.error(f"❌ Error logging audit action: {e}")
 
 def get_demo_audit_logs() -> List[Dict]:
     """Demo audit logs"""
