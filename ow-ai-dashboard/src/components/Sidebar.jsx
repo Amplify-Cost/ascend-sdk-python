@@ -51,7 +51,12 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         tab: "smartRules",
         badge: "Enterprise"
       },
-      { label: "User Management", icon: <SafeIcon iconName="Users" size={18} />, tab: "users" },
+      { 
+        label: "👥 User Management", 
+        icon: <SafeIcon iconName="Users" size={18} />, 
+        tab: "users",
+        badge: "RBAC"
+      },
       { label: "Settings", icon: <SafeIcon iconName="Settings" size={18} />, tab: "settings" }
     );
   }
@@ -107,7 +112,13 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
                   </span>
                 </div>
                 {item.badge && (
-                  <span className="px-2 py-1 text-xs bg-gradient-to-r from-green-400 to-blue-500 text-white rounded-full font-semibold shadow-sm">
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full shadow-sm ${
+                    item.badge === "Enterprise" 
+                      ? "bg-gradient-to-r from-green-400 to-blue-500 text-white"
+                      : item.badge === "RBAC"
+                      ? "bg-gradient-to-r from-purple-400 to-pink-500 text-white"
+                      : "bg-gradient-to-r from-blue-400 to-purple-500 text-white"
+                  }`}>
                     {item.badge}
                   </span>
                 )}

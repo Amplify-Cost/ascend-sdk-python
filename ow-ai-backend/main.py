@@ -17,6 +17,7 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth_routes import router as auth_router  # <--- Added auth router import
 from routes.smart_rules_routes import router as smart_rules_router
+from routes.user_management_routes import router as user_management_router
 
 
 
@@ -148,6 +149,7 @@ audit_trail_storage = []
 # <--- Added: include auth router
 app.include_router(auth_router)
 app.include_router(smart_rules_router)
+app.include_router(user_management_router)
 
 # Security and API-key setup (unchanged)
 security = HTTPBearer()

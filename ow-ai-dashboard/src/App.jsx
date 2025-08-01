@@ -16,6 +16,7 @@ import SecurityInsights from "./components/SecurityInsights";
 import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
 import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
+import EnterpriseUserManagement from "./components/EnterpriseUserManagement";
 
 
 // Consistent API URL handling
@@ -295,15 +296,17 @@ const renderAppContent = () => {
         </div>
       );
     case "users":
-      // Add User Management component - create placeholder if needed
-      return user?.role === "admin" ? (
-        <div className="p-6">
-          <h2 className="text-2xl font-bold mb-4">👥 User Management</h2>
-          <div className="bg-blue-100 border-l-4 border-blue-500 p-4 rounded">
-            <p className="text-blue-700">User Management component coming soon...</p>
-          </div>
-        </div>
-      ) : (
+  return user?.role === "admin" ? (
+    <EnterpriseUserManagement getAuthHeaders={getAuthHeaders} user={user} />
+  ) : (
+    <div className="p-6 text-center">
+      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+        <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+        <p className="text-yellow-700">You need administrator privileges to access User Management.</p>
+        <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+      </div>
+    </div>
+  );  (
         <div className="p-6 text-center">
           <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
             <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
