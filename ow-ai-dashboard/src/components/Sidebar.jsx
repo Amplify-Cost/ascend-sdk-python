@@ -4,115 +4,130 @@ import React from "react";
 const SafeIcon = ({ iconName, size = 18, className = "" }) => {
   const iconMap = {
     Home: "🏠",
-    Activity: "📊", 
+    Activity: "📊",
     AlertCircle: "⚠️",
     BarChart: "📈",
     FileText: "📄",
     ClipboardList: "📋",
-    LifeBuoy: "🛟",
-    User: "👤",
-    Zap: "⚡",
-    ShieldCheck: "🛡️",
+    LifeBuoy: "🆘",
+    Settings: "⚙️",
     LogOut: "🚪",
-    Brain: "🧠",  // New icon for AI Alert Management
-    Target: "🎯"
+    Shield: "🛡️",
+    Users: "👥",
+    Brain: "🧠",
+    Zap: "⚡",
+    Lock: "🔒",
   };
 
-  const icon = iconMap[iconName] || "📎";
-  
   return (
-    <span 
-      className={`inline-block ${className}`}
-      style={{ fontSize: `${size}px`, lineHeight: 1 }}
+    <span
+      className={`inline-flex items-center justify-center ${className}`}
+      style={{ fontSize: `${size}px` }}
     >
-      {icon}
+      {iconMap[iconName] || "📄"}
     </span>
   );
 };
 
-const Sidebar = ({ user, onLogout, onSupport, onNavigate, activeTab }) => {
+const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
   console.log("🔧 Sidebar rendering with user:", user?.role);
-  
-  // Base navigation items that everyone can see
-  const baseNavItems = [
+
+  const menuItems = [
     { label: "Dashboard", icon: <SafeIcon iconName="Home" size={18} />, tab: "dashboard" },
-    { label: "Agent Actions", icon: <SafeIcon iconName="ClipboardList" size={18} />, tab: "actions" },
-    { label: "Activity Feed", icon: <SafeIcon iconName="Activity" size={18} />, tab: "activity" },
-    { label: "Security Insights", icon: <SafeIcon iconName="BarChart" size={18} />, tab: "analytics" },
-    { label: "Submit Action", icon: <SafeIcon iconName="LifeBuoy" size={18} />, tab: "support" },
-    { label: "Profile", icon: <SafeIcon iconName="User" size={18} />, tab: "profile" },
-    { label: "🧠 AI Rule Engine", icon: <SafeIcon iconName="Zap" size={18} />, tab: "smartRules" }
+    { label: "Analytics", icon: <SafeIcon iconName="BarChart" size={18} />, tab: "analytics" },
+    { label: "Activity", icon: <SafeIcon iconName="Activity" size={18} />, tab: "activity" },
+    { label: "Reports", icon: <SafeIcon iconName="FileText" size={18} />, tab: "reports" },
+    { label: "Support", icon: <SafeIcon iconName="LifeBuoy" size={18} />, tab: "support" },
   ];
 
-  // Admin-only navigation items
-  const adminNavItems = [
-    { label: "Alerts", icon: <SafeIcon iconName="AlertCircle" size={18} />, tab: "alerts" },
-    { 
-      label: "AI Alert Management", 
-      icon: <SafeIcon iconName="Brain" size={18} />, 
-      tab: "ai-alerts",
-      badge: "AI"
-    },
-    { label: "Rules", icon: <SafeIcon iconName="FileText" size={18} />, tab: "rules" },
-    { label: "Smart Rule Gen", icon: <SafeIcon iconName="Zap" size={18} />, tab: "smartRules" },
-    {
-      label: "Authorization Center",
-      icon: <SafeIcon iconName="ShieldCheck" size={18} />,
-      tab: "authorization"
-    },
-  ];
-
-  // Combine nav items based on user role
-  const navItems = user?.role === "admin"
-    ? [...baseNavItems.slice(0, 4), ...adminNavItems, ...baseNavItems.slice(4)]
-    : baseNavItems;
+  // Add admin-only features
+  if (user?.role === "admin") {
+    menuItems.push(
+      { label: "Authorization Center", icon: <SafeIcon iconName="Shield" size={18} />, tab: "auth" },
+      { label: "🧠 AI Alert Management", icon: <SafeIcon iconName="AlertCircle" size={18} />, tab: "ai-alerts" },
+      { 
+        label: "🧠 AI Rule Engine", 
+        icon: <SafeIcon iconName="Zap" size={18} />, 
+        tab: "smartRules",
+        badge: "Enterprise"
+      },
+      { label: "User Management", icon: <SafeIcon iconName="Users" size={18} />, tab: "users" },
+      { label: "Settings", icon: <SafeIcon iconName="Settings" size={18} />, tab: "settings" }
+    );
+  }
 
   return (
-    <aside className="w-64 bg-gray-900 text-white flex flex-col">
-      <div className="text-2xl font-bold px-6 py-4 border-b border-gray-700">
-        🛡️ OW-AI
+    <div className="w-64 bg-gradient-to-b from-blue-900 to-blue-800 text-white h-screen flex flex-col shadow-xl">
+      {/* Header */}
+      <div className="p-6 border-b border-blue-700">
+        <h2 className="text-xl font-bold bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent">
+          OW AI Platform
+        </h2>
+        <p className="text-blue-200 text-sm mt-1">Enterprise Security</p>
       </div>
-      <nav className="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
-        {navItems.map((item) => (
-          <button
-            key={item.tab}
-            className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-sm font-medium transition ${
-              activeTab === item.tab
-                ? "bg-blue-600 text-white"
-                : "text-gray-300 hover:bg-gray-800 hover:text-white"
-            }`}
-            onClick={() => onNavigate(item.tab)}
-          >
-            <div className="flex items-center">
-              {item.icon}
-              <span className="ml-3">{item.label}</span>
-            </div>
-            {item.badge && (
-              <span className={`text-white text-xs px-2 py-0.5 rounded-full ${
-                item.badge === "AI" ? "bg-purple-500" : "bg-red-500"
-              }`}>
-                {item.badge}
-              </span>
-            )}
-          </button>
-        ))}
+
+      {/* User Info */}
+      <div className="p-4 border-b border-blue-700 bg-blue-800/50">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+            {user?.email?.[0]?.toUpperCase() || "U"}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white truncate">
+              {user?.email || "User"}
+            </p>
+            <p className="text-xs text-blue-200 capitalize">
+              {user?.role || "Member"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 py-4">
+        <ul className="space-y-1 px-3">
+          {menuItems.map((item) => (
+            <li key={item.tab}>
+              <button
+                onClick={() => setActiveTab(item.tab)}
+                className={`w-full flex items-center justify-between px-4 py-3 text-left rounded-lg transition-all duration-200 group ${
+                  activeTab === item.tab
+                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg transform scale-[1.02]"
+                    : "text-blue-100 hover:bg-blue-700/50 hover:text-white"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <span className={`transition-transform duration-200 ${
+                    activeTab === item.tab ? "scale-110" : "group-hover:scale-105"
+                  }`}>
+                    {item.icon}
+                  </span>
+                  <span className="text-sm font-medium">
+                    {item.label}
+                  </span>
+                </div>
+                {item.badge && (
+                  <span className="px-2 py-1 text-xs bg-gradient-to-r from-green-400 to-blue-500 text-white rounded-full font-semibold shadow-sm">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
       </nav>
-      <div className="border-t border-gray-700 p-4">
-        <p className="text-sm text-gray-400 mb-2">Logged in as:</p>
-        <p className="text-sm font-medium">{user?.email}</p>
-        {user?.role === "admin" && (
-          <span className="inline-block mt-1 text-xs text-blue-400 bg-gray-800 px-2 py-1 rounded-full">
-            🛡️ Admin
-          </span>
-        )}
+
+      {/* Footer */}
+      <div className="p-4 border-t border-blue-700">
         <button
-          onClick={onLogout}
-          className="mt-3 w-full bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-2 rounded-md transition"
+          onClick={handleLogout}
+          className="w-full flex items-center space-x-3 px-4 py-3 text-blue-100 hover:bg-red-600/20 hover:text-white rounded-lg transition-all duration-200 group"
         >
-          <SafeIcon iconName="LogOut" size={16} className="inline mr-2" /> Logout
+          <SafeIcon iconName="LogOut" size={18} className="group-hover:scale-105 transition-transform" />
+          <span className="text-sm font-medium">Logout</span>
         </button>
       </div>
-    </aside>
+    </div>
   );
 };
 
