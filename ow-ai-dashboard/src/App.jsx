@@ -225,90 +225,114 @@ const App = () => {
     return { Authorization: `Bearer ${token}` };
   };
 
-  const renderAppContent = () => {
-    console.log("🎯 Rendering tab:", activeTab);
-    console.log("🎯 User role:", user?.role);
-    
-    switch (activeTab) {
-      case "dashboard":
-        return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
-      case "actions":
-        return <AgentActionsPanel getAuthHeaders={getAuthHeaders} user={user} />;
-      case "activity":
-        return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
-      case "analytics":
-        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
-      case "alerts":
-        return user?.role === "admin" ? (
-          <AlertPanel getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access Security Alerts.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
-      case "ai-alerts":
-        return user?.role === "admin" ? (
-          <AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access AI Alert Management.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
-      case "rules":
-        return user?.role === "admin" ? (
-          <RulesPanel getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access Security Rules.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
-      case "authorization":
-        return user?.role === "admin" ? (
-          <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access the Authorization Center.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
-      case "support":
-        return <SubmitActionForm getAuthHeaders={getAuthHeaders} user={user} />;
-      case "profile":
-        return <Profile user={user} onUpdateProfile={handleProfileUpdate} />;
-      case "insights":
-        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
-      case "smartRules":
-  return user?.role === "admin" ? (
-    <SmartRuleGen getAuthHeaders={getAuthHeaders} user={user} />
-  ) : (
-    <div className="p-6 text-center">
-      <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-        <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-        <p className="text-yellow-700">You need administrator privileges to access AI Rule Engine.</p>
-        <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-      </div>
-    </div>
-  );
-      default:
-        return <div className="p-6 text-center text-gray-500">Page not found</div>;
-    }
-  };
+  // Fix your renderAppContent function in App.jsx - replace the switch statement with this:
 
+const renderAppContent = () => {
+  console.log("🎯 Rendering tab:", activeTab);
+  console.log("🎯 User role:", user?.role);
+  
+  switch (activeTab) {
+    case "dashboard":
+      return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
+    case "analytics":
+      return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
+    case "activity":
+      return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
+    case "reports":
+      // Fix: Reports was not defined - using SecurityInsights as fallback
+      return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
+    case "support":
+      // Fix: Support should show support modal, not SubmitActionForm
+      return (
+        <div className="p-6 text-center">
+          <div className="bg-blue-100 border-l-4 border-blue-500 p-4 rounded">
+            <h3 className="text-lg font-semibold text-blue-800 mb-2">🆘 Support Center</h3>
+            <p className="text-blue-700 mb-4">Need help? Contact our support team.</p>
+            <button
+              onClick={() => setShowSupportModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+            >
+              Open Support Ticket
+            </button>
+          </div>
+        </div>
+      );
+    case "auth":
+      // Fix: Map to correct component name
+      return user?.role === "admin" ? (
+        <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
+      ) : (
+        <div className="p-6 text-center">
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+            <p className="text-yellow-700">You need administrator privileges to access Authorization Center.</p>
+            <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+          </div>
+        </div>
+      );
+    case "ai-alerts":
+      return user?.role === "admin" ? (
+        <AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />
+      ) : (
+        <div className="p-6 text-center">
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+            <p className="text-yellow-700">You need administrator privileges to access AI Alert Management.</p>
+            <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+          </div>
+        </div>
+      );
+    case "smartRules":
+      return user?.role === "admin" ? (
+        <SmartRuleGen getAuthHeaders={getAuthHeaders} user={user} />
+      ) : (
+        <div className="p-6 text-center">
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+            <p className="text-yellow-700">You need administrator privileges to access AI Rule Engine.</p>
+            <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+          </div>
+        </div>
+      );
+    case "users":
+      // Add User Management component - create placeholder if needed
+      return user?.role === "admin" ? (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-4">👥 User Management</h2>
+          <div className="bg-blue-100 border-l-4 border-blue-500 p-4 rounded">
+            <p className="text-blue-700">User Management component coming soon...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="p-6 text-center">
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+            <p className="text-yellow-700">You need administrator privileges to access User Management.</p>
+            <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+          </div>
+        </div>
+      );
+    case "settings":
+      return user?.role === "admin" ? (
+        <div className="p-6">
+          <h2 className="text-2xl font-bold mb-4">⚙️ Settings</h2>
+          <div className="bg-blue-100 border-l-4 border-blue-500 p-4 rounded">
+            <p className="text-blue-700">Settings component coming soon...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="p-6 text-center">
+          <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
+            <p className="text-yellow-700">You need administrator privileges to access Settings.</p>
+            <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
+          </div>
+        </div>
+      );
+    default:
+      return <div className="p-6 text-center text-gray-500">Page not found</div>;
+  }
+};
   // Show loading screen while checking auth status
   if (loading) {
     return (
