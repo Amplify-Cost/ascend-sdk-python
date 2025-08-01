@@ -328,7 +328,7 @@ async def generate_rule_from_natural_language(
     current_user: dict = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """✨ ENTERPRISE: Advanced natural language to rule conversion using AI"""
+    """✨ ENTERPRISE: Advanced natural language to rule conversion using AI - RAW SQL VERSION"""
     try:
         data = await request.json()
         natural_language = data.get("natural_language", "") or data.get("description", "")
@@ -418,38 +418,54 @@ async def generate_rule_from_natural_language(
                 "false_positive_likelihood": "3-7%"
             }
         
-        # Create the rule in database with enterprise enhancements
-        new_rule = SmartRule(
-            agent_id="enterprise-ai-generated",
-            action_type="natural_language_enterprise_rule",
-            description=natural_language,
-            condition=rule_data["condition"],
-            action=rule_data["action"],
-            risk_level=rule_data["risk_level"],
-            recommendation=rule_data.get("recommendation", "Enterprise security review required"),
-            justification=rule_data["justification"],
-            created_at=datetime.utcnow()
-        )
-        
-        db.add(new_rule)
-        db.commit()
-        db.refresh(new_rule)
+        # Create the rule using RAW SQL - INSERT ONLY INTO EXISTING COLUMNS
+        try:
+            result = db.execute(text("""
+                INSERT INTO smart_rules (
+                    agent_id, action_type, description, condition, action, 
+                    risk_level, recommendation, justification, created_at
+                ) VALUES (
+                    :agent_id, :action_type, :description, :condition, :action,
+                    :risk_level, :recommendation, :justification, :created_at
+                ) RETURNING id
+            """), {
+                'agent_id': "enterprise-ai-generated",
+                'action_type': "natural_language_enterprise_rule",
+                'description': natural_language,
+                'condition': rule_data["condition"],
+                'action': rule_data["action"],
+                'risk_level': rule_data["risk_level"],
+                'recommendation': rule_data.get("recommendation", "Enterprise security review required"),
+                'justification': rule_data["justification"],
+                'created_at': datetime.utcnow()
+            })
+            
+            # Get the new rule ID
+            new_rule_id = result.fetchone()[0]
+            db.commit()
+            
+            logger.info(f"✅ Rule created successfully with RAW SQL - ID: {new_rule_id}")
+            
+        except Exception as insert_error:
+            logger.error(f"RAW SQL insert failed: {insert_error}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to create rule in database")
         
         # Return enhanced enterprise rule data - FIXED FORMAT
         result = {
-            "id": new_rule.id,
-            "condition": new_rule.condition,
-            "action": new_rule.action,
-            "justification": new_rule.justification,
-            "risk_level": new_rule.risk_level,
+            "id": new_rule_id,
+            "condition": rule_data["condition"],
+            "action": rule_data["action"],
+            "justification": rule_data["justification"],
+            "risk_level": rule_data["risk_level"],
             "performance_score": 85,  # Default for new enterprise rules
             "triggers_last_24h": 0,
             "false_positives": 0,
-            "created_at": new_rule.created_at.isoformat(),
-            "agent_id": new_rule.agent_id,
-            "action_type": new_rule.action_type,
-            "description": new_rule.description,
-            "recommendation": new_rule.recommendation,
+            "created_at": datetime.utcnow().isoformat(),
+            "agent_id": "enterprise-ai-generated",
+            "action_type": "natural_language_enterprise_rule",
+            "description": natural_language,
+            "recommendation": rule_data.get("recommendation", "Enterprise security review required"),
             "effectiveness_rating": "high",
             "last_triggered": datetime.utcnow().isoformat(),
             "natural_language_source": natural_language,
