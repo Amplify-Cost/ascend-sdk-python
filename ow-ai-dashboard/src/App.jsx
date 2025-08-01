@@ -340,12 +340,11 @@ const App = () => {
       {view === "app" && (
         <>
           <Sidebar
-            user={user}
-            onLogout={handleLogout}
-            onSupport={() => setShowSupportModal(true)}
-            onNavigate={(tab) => setActiveTab(tab)}
-            activeTab={activeTab}
-          />
+  user={user}
+  handleLogout={handleLogout}
+  activeTab={activeTab}
+  setActiveTab={setActiveTab}
+/>
           <main className="flex-1 p-4 space-y-8 overflow-y-auto">
             <div className="text-sm text-gray-600">
               Logged in as: {user?.email} ({user?.role})
