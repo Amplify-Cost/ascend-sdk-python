@@ -3281,3 +3281,72 @@ async def setup_enterprise_user_tables(
             "error": f"Failed to create enterprise tables: {str(e)}",
             "details": "Check your database connection and permissions"
         }     
+    
+@app.post("/agent-actions")
+async def submit_agent_action_plural(request: Request, current_user: dict = Depends(get_current_user)):
+    """Submit new agent action - Frontend compatible endpoint"""
+    try:
+        data = await request.json()
+        logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
+        
+        # Enterprise validation - ensure all required fields
+        required_fields = ["agent_id", "action_type", "description"]
+        for field in required_fields:
+            if field not in data:
+                logger.error(f"Enterprise validation failed: Missing {field}")
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        db: Session = next(get_db())
+        
+        try:
+            # Use raw SQL to insert only into existing columns
+            result = db.execute(text("""
+                INSERT INTO agent_actions (
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                ) VALUES (
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                ) RETURNING id
+            """), {
+                'agent_id': data["agent_id"],
+                'action_type': data["action_type"],
+                'description': data["description"],
+                'risk_level': data.get("risk_level", "medium"),
+                'status': 'pending',
+                'approved': False,
+                'user_id': current_user.get("user_id", 1),
+                'tool_name': data.get("tool_name", "")
+            })
+            
+            # Get the inserted action ID
+            action_id = result.fetchone()[0]
+            
+            db.commit()
+            
+            # Enterprise audit logging
+            logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
+            
+            return {
+                "status": "success",
+                "message": "✅ Enterprise agent action submitted successfully",
+                "action_id": action_id,
+                "action_details": {
+                    "agent_id": data["agent_id"],
+                    "action_type": data["action_type"],
+                    "risk_level": data.get("risk_level", "medium"),
+                    "submitted_by": current_user.get("email"),
+                    "timestamp": datetime.now(UTC).isoformat()
+                }
+            }
+            
+        except Exception as db_error:
+            logger.error(f"❌ Enterprise database error: {str(db_error)}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Enterprise action submission failed - database error")
+        finally:
+            db.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Enterprise action submission error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Enterprise action submission failed")    
