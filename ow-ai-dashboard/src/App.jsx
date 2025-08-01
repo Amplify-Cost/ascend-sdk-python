@@ -16,7 +16,7 @@ import SecurityInsights from "./components/SecurityInsights";
 import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
 import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
-import SmartRuleGen from "./components/SmartRuleGen";
+
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
