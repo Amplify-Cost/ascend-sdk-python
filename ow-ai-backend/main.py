@@ -3283,8 +3283,8 @@ async def setup_enterprise_user_tables(
         }     
     
 @app.post("/agent-actions")
-async def submit_agent_action_plural(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Frontend compatible endpoint"""
+async def submit_agent_action_fixed(request: Request, current_user: dict = Depends(get_current_user)):
+    """Submit new agent action - Fixed with raw SQL like other working endpoints"""
     try:
         data = await request.json()
         logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
@@ -3299,7 +3299,7 @@ async def submit_agent_action_plural(request: Request, current_user: dict = Depe
         db: Session = next(get_db())
         
         try:
-            # Use raw SQL to insert only into existing columns
+            # Use raw SQL to insert only into existing columns (like your other working endpoints)
             result = db.execute(text("""
                 INSERT INTO agent_actions (
                     agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
@@ -3349,4 +3349,4 @@ async def submit_agent_action_plural(request: Request, current_user: dict = Depe
         raise
     except Exception as e:
         logger.error(f"❌ Enterprise action submission error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Enterprise action submission failed")    
+        raise HTTPException(status_code=500, detail="Enterprise action submission failed")
