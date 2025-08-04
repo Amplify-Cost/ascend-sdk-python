@@ -1,4 +1,5 @@
 # main.py - Complete original file with only auth router fixes
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import openai
 import os
@@ -165,181 +166,161 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 @app.get("/analytics/trends")
-async def get_analytics_trends(current_user: dict = Depends(get_current_user)):
-    """Enhanced analytics trends for dashboard with live database integration"""
+def get_analytics_trends(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enhanced analytics trends for dashboard with live database integration - FIXED"""
     try:
-        db: Session = next(get_db())
+        # Get recent agent actions for analytics
+        recent_actions = db.execute(text("""
+            SELECT agent_id, action_type, description, risk_level, status, tool_name, 
+                   DATE(COALESCE(created_at, NOW())) as action_date
+            FROM agent_actions 
+            WHERE COALESCE(created_at, NOW()) >= NOW() - INTERVAL '7 days'
+            ORDER BY id DESC
+            LIMIT 100
+        """)).fetchall()
         
-        try:
-            # Get recent agent actions for analytics
-            recent_actions = db.execute(text("""
-                SELECT agent_id, action_type, description, risk_level, status, tool_name, 
-                       DATE(COALESCE(created_at, NOW())) as action_date
-                FROM agent_actions 
-                WHERE COALESCE(created_at, NOW()) >= NOW() - INTERVAL '7 days'
-                ORDER BY id DESC
-                LIMIT 100
-            """)).fetchall()
+        # Process data for dashboard
+        high_risk_actions_by_day = []
+        top_agents = {}
+        top_tools = {}
+        enriched_actions = []
+        
+        if recent_actions and len(recent_actions) > 0:
+            # Process high-risk actions by day
+            risk_by_day = {}
+            for action in recent_actions:
+                if action[3] == 'high':  # risk_level
+                    date_str = action[6].strftime('%Y-%m-%d') if action[6] else datetime.now().strftime('%Y-%m-%d')
+                    risk_by_day[date_str] = risk_by_day.get(date_str, 0) + 1
             
-            # Process data for dashboard
-            high_risk_actions_by_day = []
-            top_agents = {}
-            top_tools = {}
-            enriched_actions = []
-            
-            if recent_actions and len(recent_actions) > 0:
-                # Process high-risk actions by day
-                risk_by_day = {}
-                for action in recent_actions:
-                    if action[3] == 'high':  # risk_level
-                        date_str = action[6].strftime('%Y-%m-%d') if action[6] else datetime.now().strftime('%Y-%m-%d')
-                        risk_by_day[date_str] = risk_by_day.get(date_str, 0) + 1
-                
-                high_risk_actions_by_day = [
-                    {"date": date, "count": count} 
-                    for date, count in sorted(risk_by_day.items())
-                ]
-                
-                # Process top agents
-                for action in recent_actions:
-                    agent = action[0] or "unknown-agent"
-                    top_agents[agent] = top_agents.get(agent, 0) + 1
-                
-                # Process top tools
-                for action in recent_actions:
-                    tool = action[5] or "unknown-tool"
-                    top_tools[tool] = top_tools.get(tool, 0) + 1
-                
-                # Process enriched actions (latest 10)
-                for action in recent_actions[:10]:
-                    enriched_actions.append({
-                        "agent_id": action[0] or "unknown-agent",
-                        "action_type": action[1] or "unknown-action",
-                        "description": action[2] or "No description",
-                        "risk_level": action[3] or "medium",
-                        "status": action[4] or "pending",
-                        "tool_name": action[5] or "unknown-tool",
-                        "mitre_tactic": "TA0007",  # Default for demo
-                        "nist_control": "RA-5",   # Default for demo
-                        "recommendation": f"Review {action[3] or 'medium'} risk action for {action[0] or 'agent'}"
-                    })
-            
-            # Convert to lists for charts
-            top_agents_list = [
-                {"agent": agent, "count": count} 
-                for agent, count in sorted(top_agents.items(), key=lambda x: x[1], reverse=True)[:5]
+            high_risk_actions_by_day = [
+                {"date": date, "count": count} 
+                for date, count in sorted(risk_by_day.items())
             ]
             
-            top_tools_list = [
-                {"tool": tool, "count": count} 
-                for tool, count in sorted(top_tools.items(), key=lambda x: x[1], reverse=True)[:5]
-            ]
+            # Process top agents
+            for action in recent_actions:
+                agent = action[0] or "unknown-agent"
+                top_agents[agent] = top_agents.get(agent, 0) + 1
             
-            logger.info(f"✅ Analytics generated: {len(high_risk_actions_by_day)} high-risk days, {len(top_agents_list)} agents, {len(enriched_actions)} actions")
+            # Process top tools
+            for action in recent_actions:
+                tool = action[5] or "unknown-tool"
+                top_tools[tool] = top_tools.get(tool, 0) + 1
             
-            return {
-                "high_risk_actions_by_day": high_risk_actions_by_day,
-                "top_agents": top_agents_list,
-                "top_tools": top_tools_list,
-                "enriched_actions": enriched_actions,
-                "summary": {
-                    "total_actions": len(recent_actions),
-                    "high_risk_count": len([a for a in recent_actions if a[3] == 'high']),
-                    "agents_active": len(top_agents),
-                    "tools_used": len(top_tools)
-                }
-            }
-            
-        except Exception as db_error:
-            logger.warning(f"Database analytics query failed: {db_error}")
-            
-            # Enterprise fallback with sample data to showcase capabilities
-            current_time = datetime.now()
-            
-            return {
-                "high_risk_actions_by_day": [
-                    {"date": (current_time - timedelta(days=6)).strftime('%Y-%m-%d'), "count": 2},
-                    {"date": (current_time - timedelta(days=5)).strftime('%Y-%m-%d'), "count": 1},
-                    {"date": (current_time - timedelta(days=4)).strftime('%Y-%m-%d'), "count": 3},
-                    {"date": (current_time - timedelta(days=3)).strftime('%Y-%m-%d'), "count": 0},
-                    {"date": (current_time - timedelta(days=2)).strftime('%Y-%m-%d'), "count": 1},
-                    {"date": (current_time - timedelta(days=1)).strftime('%Y-%m-%d'), "count": 2},
-                    {"date": current_time.strftime('%Y-%m-%d'), "count": 1}
-                ],
-                "top_agents": [
-                    {"agent": "security-scanner-01", "count": 15},
-                    {"agent": "compliance-agent", "count": 12},
-                    {"agent": "threat-detector", "count": 8},
-                    {"agent": "vulnerability-scanner", "count": 6},
-                    {"agent": "data-loss-prevention", "count": 4}
-                ],
-                "top_tools": [
-                    {"tool": "enterprise-scanner", "count": 18},
-                    {"tool": "compliance-auditor", "count": 14},
-                    {"tool": "threat-intelligence", "count": 10},
-                    {"tool": "vulnerability-assessment", "count": 7},
-                    {"tool": "dlp-scanner", "count": 6}
-                ],
-                "enriched_actions": [
-                    {
-                        "agent_id": "security-scanner-01",
-                        "action_type": "vulnerability_scan",
-                        "description": "Production infrastructure vulnerability assessment",
-                        "risk_level": "high",
-                        "status": "pending",
-                        "tool_name": "enterprise-scanner",
-                        "mitre_tactic": "TA0007",
-                        "nist_control": "RA-5",
-                        "recommendation": "Critical vulnerabilities require immediate attention"
-                    },
-                    {
-                        "agent_id": "compliance-agent",
-                        "action_type": "sox_compliance_audit",
-                        "description": "Financial systems compliance validation",
-                        "risk_level": "medium",
-                        "status": "approved",
-                        "tool_name": "compliance-auditor",
-                        "mitre_tactic": "TA0005",
-                        "nist_control": "AU-6",
-                        "recommendation": "Compliance audit completed successfully"
-                    },
-                    {
-                        "agent_id": "threat-detector",
-                        "action_type": "anomaly_detection",
-                        "description": "Advanced threat correlation analysis",
-                        "risk_level": "high",
-                        "status": "escalated",
-                        "tool_name": "threat-intelligence",
-                        "mitre_tactic": "TA0011",
-                        "nist_control": "SI-4",
-                        "recommendation": "Potential APT activity detected - investigate immediately"
-                    }
-                ],
-                "summary": {
-                    "total_actions": 45,
-                    "high_risk_count": 10,
-                    "agents_active": 8,
-                    "tools_used": 12
-                }
-            }
-            
-        finally:
-            db.close()
-            
-    except Exception as e:
-        logger.error(f"❌ Analytics trends error: {str(e)}")
+            # Process enriched actions (latest 10)
+            for action in recent_actions[:10]:
+                enriched_actions.append({
+                    "agent_id": action[0] or "unknown-agent",
+                    "action_type": action[1] or "unknown-action",
+                    "description": action[2] or "No description",
+                    "risk_level": action[3] or "medium",
+                    "status": action[4] or "pending",
+                    "tool_name": action[5] or "unknown-tool",
+                    "mitre_tactic": "TA0007",
+                    "nist_control": "RA-5",
+                    "recommendation": f"Review {action[3] or 'medium'} risk action for {action[0] or 'agent'}"
+                })
         
-        # Minimal fallback
+        # Convert to lists for charts
+        top_agents_list = [
+            {"agent": agent, "count": count} 
+            for agent, count in sorted(top_agents.items(), key=lambda x: x[1], reverse=True)[:5]
+        ]
+        
+        top_tools_list = [
+            {"tool": tool, "count": count} 
+            for tool, count in sorted(top_tools.items(), key=lambda x: x[1], reverse=True)[:5]
+        ]
+        
+        logger.info(f"✅ Analytics generated: {len(high_risk_actions_by_day)} high-risk days, {len(top_agents_list)} agents, {len(enriched_actions)} actions")
+        
         return {
-            "high_risk_actions_by_day": [],
-            "top_agents": [],
-            "top_tools": [],
-            "enriched_actions": [],
+            "high_risk_actions_by_day": high_risk_actions_by_day,
+            "top_agents": top_agents_list,
+            "top_tools": top_tools_list,
+            "enriched_actions": enriched_actions,
             "summary": {
-                "total_actions": 0,
-                "high_risk_count": 0,
-                "agents_active": 0,
-                "tools_used": 0
+                "total_actions": len(recent_actions),
+                "high_risk_count": len([a for a in recent_actions if a[3] == 'high']),
+                "agents_active": len(top_agents),
+                "tools_used": len(top_tools)
+            }
+        }
+        
+    except Exception as db_error:
+        logger.warning(f"Database analytics query failed: {db_error}")
+        
+        # Enterprise fallback with sample data
+        current_time = datetime.now()
+        
+        return {
+            "high_risk_actions_by_day": [
+                {"date": (current_time - timedelta(days=6)).strftime('%Y-%m-%d'), "count": 2},
+                {"date": (current_time - timedelta(days=5)).strftime('%Y-%m-%d'), "count": 1},
+                {"date": (current_time - timedelta(days=4)).strftime('%Y-%m-%d'), "count": 3},
+                {"date": (current_time - timedelta(days=3)).strftime('%Y-%m-%d'), "count": 0},
+                {"date": (current_time - timedelta(days=2)).strftime('%Y-%m-%d'), "count": 1},
+                {"date": (current_time - timedelta(days=1)).strftime('%Y-%m-%d'), "count": 2},
+                {"date": current_time.strftime('%Y-%m-%d'), "count": 1}
+            ],
+            "top_agents": [
+                {"agent": "security-scanner-01", "count": 15},
+                {"agent": "compliance-agent", "count": 12},
+                {"agent": "threat-detector", "count": 8},
+                {"agent": "vulnerability-scanner", "count": 6},
+                {"agent": "data-loss-prevention", "count": 4}
+            ],
+            "top_tools": [
+                {"tool": "enterprise-scanner", "count": 18},
+                {"tool": "compliance-auditor", "count": 14},
+                {"tool": "threat-intelligence", "count": 10},
+                {"tool": "vulnerability-assessment", "count": 7},
+                {"tool": "dlp-scanner", "count": 6}
+            ],
+            "enriched_actions": [
+                {
+                    "agent_id": "security-scanner-01",
+                    "action_type": "vulnerability_scan",
+                    "description": "Production infrastructure vulnerability assessment",
+                    "risk_level": "high",
+                    "status": "pending",
+                    "tool_name": "enterprise-scanner",
+                    "mitre_tactic": "TA0007",
+                    "nist_control": "RA-5",
+                    "recommendation": "Critical vulnerabilities require immediate attention"
+                },
+                {
+                    "agent_id": "compliance-agent",
+                    "action_type": "sox_compliance_audit",
+                    "description": "Financial systems compliance validation",
+                    "risk_level": "medium",
+                    "status": "approved",
+                    "tool_name": "compliance-auditor",
+                    "mitre_tactic": "TA0005",
+                    "nist_control": "AU-6",
+                    "recommendation": "Compliance audit completed successfully"
+                },
+                {
+                    "agent_id": "threat-detector",
+                    "action_type": "anomaly_detection",
+                    "description": "Advanced threat correlation analysis",
+                    "risk_level": "high",
+                    "status": "escalated",
+                    "tool_name": "threat-intelligence",
+                    "mitre_tactic": "TA0011",
+                    "nist_control": "SI-4",
+                    "recommendation": "Potential APT activity detected - investigate immediately"
+                }
+            ],
+            "summary": {
+                "total_actions": 45,
+                "high_risk_count": 10,
+                "agents_active": 8,
+                "tools_used": 12
             }
         }
 
@@ -955,150 +936,145 @@ if __name__ == "__main__":
 # ================== YOUR AGENT ACTIONS ROUTE (PRESERVED) ==================
 
 @app.get("/agent-actions", response_model=None)
-async def get_agent_actions_live(current_user: dict = Depends(get_current_user)) -> List[Dict[str, Any]]:
-    """Agent actions with live database integration"""
+def get_agent_actions_live(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> List[Dict[str, Any]]:
+    """Agent actions with live database integration - FIXED"""
     try:
         from datetime import datetime, timezone
         current_time = datetime.now(timezone.utc)
         
         logger.info(f"🔄 Live agent-actions called by: {current_user.get('email', 'unknown')}")
         
-        db: Session = next(get_db())
+        # Query real database records with error handling
+        result = db.execute(text("""
+            SELECT id, agent_id, action_type, description, risk_level, status, approved,
+                   reviewed_by, reviewed_at
+            FROM agent_actions 
+            ORDER BY id ASC
+        """)).fetchall()
         
-        try:
-            # Query real database records with error handling
-            result = db.execute(text("""
-                SELECT id, agent_id, action_type, description, risk_level, status, approved,
-                       reviewed_by, reviewed_at
-                FROM agent_actions 
-                ORDER BY id ASC
-            """)).fetchall()
-            
-            if result and len(result) > 0:
-                # Convert database results to enterprise format
-                live_data = []
-                for row in result:
-                    # Map database status to UI display
-                    db_status = row[5] or "pending"
-                    db_approved = row[6]
-                    
-                    # Enterprise status logic
-                    if db_approved == True:
-                        display_status = "approved"
-                    elif db_approved == False and db_status != "pending":
-                        display_status = "rejected"
-                    else:
-                        display_status = "pending"
-                    
-                    live_data.append({
-                        "id": row[0],
-                        "user_id": current_user.get("user_id", 1),
-                        "agent_id": row[1] or f"agent-{row[0]}",
-                        "action_type": row[2] or "security_scan",
-                        "description": row[3] or "Enterprise security action",
-                        "tool_name": "enterprise-scanner",
-                        "timestamp": current_time.isoformat(),
-                        "risk_level": row[4] or "medium",
-                        "mitre_tactic": "TA0007",
-                        "mitre_technique": "T1190", 
-                        "nist_control": "RA-5",
-                        "nist_description": "Enterprise Security Control",
-                        "recommendation": f"Enterprise review: {display_status}",
-                        "summary": f"Enterprise action {row[0]}: {row[2] or 'security_scan'}",
-                        "status": display_status,  # LIVE STATUS FROM DATABASE
-                        "approved": bool(db_approved) if db_approved is not None else False,
-                        "reviewed_by": row[7] if row[7] else None,
-                        "reviewed_at": row[8].isoformat() if row[8] else None,
-                        "created_at": current_time.isoformat(),
-                        "risk_score": 85
-                    })
+        if result and len(result) > 0:
+            # Convert database results to enterprise format
+            live_data = []
+            for row in result:
+                # Map database status to UI display
+                db_status = row[5] or "pending"
+                db_approved = row[6]
                 
-                db.close()
-                logger.info(f"✅ Returning {len(live_data)} LIVE database records")
-                return live_data
-            
-            else:
-                logger.info("📊 No database records found - will return fallback data")
+                # Enterprise status logic
+                if db_approved == True:
+                    display_status = "approved"
+                elif db_approved == False and db_status != "pending":
+                    display_status = "rejected"
+                else:
+                    display_status = "pending"
                 
-        except Exception as db_error:
-            logger.error(f"❌ Database error: {db_error}")
-        finally:
-            db.close()
+                live_data.append({
+                    "id": row[0],
+                    "user_id": current_user.get("user_id", 1),
+                    "agent_id": row[1] or f"agent-{row[0]}",
+                    "action_type": row[2] or "security_scan",
+                    "description": row[3] or "Enterprise security action",
+                    "tool_name": "enterprise-scanner",
+                    "timestamp": current_time.isoformat(),
+                    "risk_level": row[4] or "medium",
+                    "mitre_tactic": "TA0007",
+                    "mitre_technique": "T1190", 
+                    "nist_control": "RA-5",
+                    "nist_description": "Enterprise Security Control",
+                    "recommendation": f"Enterprise review: {display_status}",
+                    "summary": f"Enterprise action {row[0]}: {row[2] or 'security_scan'}",
+                    "status": display_status,
+                    "approved": bool(db_approved) if db_approved is not None else False,
+                    "reviewed_by": row[7] if row[7] else None,
+                    "reviewed_at": row[8].isoformat() if row[8] else None,
+                    "created_at": current_time.isoformat(),
+                    "risk_score": 85
+                })
+            
+            logger.info(f"✅ Returning {len(live_data)} LIVE database records")
+            return live_data
         
-        # Fallback to your original override data
-        logger.warning("⚠️ Using fallback override data")
-        return [
-            {
-                "id": 1001,
-                "user_id": current_user.get("user_id", 1),
-                "agent_id": "security-scanner-01",
-                "action_type": "vulnerability_scan",
-                "description": "Production infrastructure vulnerability assessment",
-                "tool_name": "security-scanner",
-                "timestamp": current_time.isoformat(),
-                "risk_level": "high",
-                "mitre_tactic": "TA0007",
-                "mitre_technique": "T1190",
-                "nist_control": "RA-5",
-                "nist_description": "Vulnerability Scanning",
-                "recommendation": "Remediation required for 3 vulnerabilities",
-                "summary": "Security scan completed: 3 vulnerabilities discovered",
-                "status": "pending",
-                "approved": False,
-                "reviewed_by": None,
-                "reviewed_at": None,
-                "created_at": current_time.isoformat(),
-                "risk_score": 85
-            },
-            {
-                "id": 1002,
-                "user_id": current_user.get("user_id", 1),
-                "agent_id": "compliance-agent",
-                "action_type": "compliance_check",
-                "description": "Automated compliance audit of access controls",
-                "tool_name": "compliance-auditor",
-                "timestamp": current_time.isoformat(),
-                "risk_level": "medium",
-                "mitre_tactic": "TA0005",
-                "mitre_technique": "T1078",
-                "nist_control": "AU-6",
-                "nist_description": "Audit Review and Analysis",
-                "recommendation": "Review access control violations",
-                "summary": "Compliance audit identified 2 policy violations",
-                "status": "pending",
-                "approved": False,
-                "reviewed_by": None,
-                "reviewed_at": None,
-                "created_at": current_time.isoformat(),
-                "risk_score": 65
-            },
-            {
-                "id": 1003,
-                "user_id": current_user.get("user_id", 1),
-                "agent_id": "threat-detector",
-                "action_type": "anomaly_detection",
-                "description": "Network traffic anomaly detection analysis",
-                "tool_name": "threat-intelligence",
-                "timestamp": current_time.isoformat(),
-                "risk_level": "low",
-                "mitre_tactic": "TA0011",
-                "mitre_technique": "T1071",
-                "nist_control": "SI-4",
-                "nist_description": "Information System Monitoring",
-                "recommendation": "Continue monitoring - no action required",
-                "summary": "Anomaly detection completed - normal patterns observed",
-                "status": "pending",
-                "approved": False,
-                "reviewed_by": None,
-                "reviewed_at": None,
-                "created_at": current_time.isoformat(),
-                "risk_score": 25
-            }
-        ]
-        
+        else:
+            logger.info("📊 No database records found - will return fallback data")
+            
+            # Fallback to your original override data
+            logger.warning("⚠️ Using fallback override data")
+            return [
+                {
+                    "id": 1001,
+                    "user_id": current_user.get("user_id", 1),
+                    "agent_id": "security-scanner-01",
+                    "action_type": "vulnerability_scan",
+                    "description": "Production infrastructure vulnerability assessment",
+                    "tool_name": "security-scanner",
+                    "timestamp": current_time.isoformat(),
+                    "risk_level": "high",
+                    "mitre_tactic": "TA0007",
+                    "mitre_technique": "T1190",
+                    "nist_control": "RA-5",
+                    "nist_description": "Vulnerability Scanning",
+                    "recommendation": "Remediation required for 3 vulnerabilities",
+                    "summary": "Security scan completed: 3 vulnerabilities discovered",
+                    "status": "pending",
+                    "approved": False,
+                    "reviewed_by": None,
+                    "reviewed_at": None,
+                    "created_at": current_time.isoformat(),
+                    "risk_score": 85
+                },
+                {
+                    "id": 1002,
+                    "user_id": current_user.get("user_id", 1),
+                    "agent_id": "compliance-agent",
+                    "action_type": "compliance_check",
+                    "description": "Automated compliance audit of access controls",
+                    "tool_name": "compliance-auditor",
+                    "timestamp": current_time.isoformat(),
+                    "risk_level": "medium",
+                    "mitre_tactic": "TA0005",
+                    "mitre_technique": "T1078",
+                    "nist_control": "AU-6",
+                    "nist_description": "Audit Review and Analysis",
+                    "recommendation": "Review access control violations",
+                    "summary": "Compliance audit identified 2 policy violations",
+                    "status": "pending",
+                    "approved": False,
+                    "reviewed_by": None,
+                    "reviewed_at": None,
+                    "created_at": current_time.isoformat(),
+                    "risk_score": 65
+                },
+                {
+                    "id": 1003,
+                    "user_id": current_user.get("user_id", 1),
+                    "agent_id": "threat-detector",
+                    "action_type": "anomaly_detection",
+                    "description": "Network traffic anomaly detection analysis",
+                    "tool_name": "threat-intelligence",
+                    "timestamp": current_time.isoformat(),
+                    "risk_level": "low",
+                    "mitre_tactic": "TA0011",
+                    "mitre_technique": "T1071",
+                    "nist_control": "SI-4",
+                    "nist_description": "Information System Monitoring",
+                    "recommendation": "Continue monitoring - no action required",
+                    "summary": "Anomaly detection completed - normal patterns observed",
+                    "status": "pending",
+                    "approved": False,
+                    "reviewed_by": None,
+                    "reviewed_at": None,
+                    "created_at": current_time.isoformat(),
+                    "risk_score": 25
+                }
+            ]
+            
     except Exception as e:
         logger.error(f"❌ Agent-actions endpoint error: {str(e)}")
         return []
+
 
 # ================== YOUR DATABASE FIX ENDPOINTS (PRESERVED) ==================
 
@@ -1199,49 +1175,73 @@ async def fix_database_schema():
 # ================== YOUR AGENT ACTION SUBMISSION ENDPOINT ==================
 
 @app.post("/agent-actions")
-async def submit_agent_action(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action"""
+async def submit_agent_action_fixed(request: Request, current_user: dict = Depends(get_current_user)):
+    """Submit new agent action - Fixed with raw SQL like other working endpoints"""
     try:
         data = await request.json()
+        logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
         
-        # Validate required fields
+        # Enterprise validation - ensure all required fields
         required_fields = ["agent_id", "action_type", "description"]
         for field in required_fields:
             if field not in data:
+                logger.error(f"Enterprise validation failed: Missing {field}")
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
         db: Session = next(get_db())
         
-        # Create new agent action
-        new_action = AgentAction(
-            user_id=current_user.get("user_id"),
-            agent_id=data["agent_id"],
-            action_type=data["action_type"],
-            description=data["description"],
-            tool_name=data.get("tool_name", ""),
-            risk_level="medium",  # Default risk level
-            status="pending",
-            approved=False
-        )
-        
-        db.add(new_action)
-        db.commit()
-        db.refresh(new_action)
-        
-        logger.info(f"New agent action submitted: {new_action.id} by {current_user.get('email')}")
-        
-        return {
-            "status": "success",
-            "message": "Agent action submitted successfully",
-            "action_id": new_action.id
-        }
-        
+        try:
+            # Use raw SQL to insert only into existing columns (like your other working endpoints)
+            result = db.execute(text("""
+                INSERT INTO agent_actions (
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                ) VALUES (
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                ) RETURNING id
+            """), {
+                'agent_id': data["agent_id"],
+                'action_type': data["action_type"],
+                'description': data["description"],
+                'risk_level': data.get("risk_level", "medium"),
+                'status': 'pending',
+                'approved': False,
+                'user_id': current_user.get("user_id", 1),
+                'tool_name': data.get("tool_name", "")
+            })
+            
+            # Get the inserted action ID
+            action_id = result.fetchone()[0]
+            
+            db.commit()
+            
+            # Enterprise audit logging
+            logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
+            
+            return {
+                "status": "success",
+                "message": "✅ Enterprise agent action submitted successfully",
+                "action_id": action_id,
+                "action_details": {
+                    "agent_id": data["agent_id"],
+                    "action_type": data["action_type"],
+                    "risk_level": data.get("risk_level", "medium"),
+                    "submitted_by": current_user.get("email"),
+                    "timestamp": datetime.now(UTC).isoformat()
+                }
+            }
+            
+        except Exception as db_error:
+            logger.error(f"❌ Enterprise database error: {str(db_error)}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Enterprise action submission failed - database error")
+        finally:
+            db.close()
+            
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Agent action submission error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to submit agent action")
-    
+        logger.error(f"❌ Enterprise action submission error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Enterprise action submission failed")
 
 # ================== MISSING APPROVAL ENDPOINTS (FIXES THE 405 ERRORS) ==================
 
@@ -1251,46 +1251,52 @@ def approve_agent_action(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin)
 ):
-    """Approve an agent action (admin only) - Enterprise audit trail preserved"""
+    """Approve an agent action (admin only) - FIXED with proper transaction handling"""
     try:
-        # Update using raw SQL to avoid model schema issues
-        result = db.execute(text("""
-            UPDATE agent_actions 
-            SET status = 'approved', 
-                approved = true, 
-                reviewed_by = :reviewed_by, 
-                reviewed_at = :reviewed_at
-            WHERE id = :action_id
-        """), {
-            'action_id': action_id,
-            'reviewed_by': admin_user["email"],
-            'reviewed_at': datetime.now(UTC)
-        })
-        
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Agent action not found")
-
-        # Create enterprise audit trail
+        # Update using raw SQL with proper transaction handling
         try:
-            audit_log = LogAuditTrail(
-                action_id=action_id,
-                decision="approved",
-                reviewed_by=admin_user["email"],
-                timestamp=datetime.now(UTC)
-            )
-            db.add(audit_log)
-        except Exception as audit_error:
-            logger.warning(f"Audit trail creation failed: {audit_error}")
-        
-        db.commit()
-        logger.info(f"Enterprise action {action_id} approved by {admin_user['email']}")
-        return {"message": "Action approved successfully", "audit_trail": "logged"}
+            result = db.execute(text("""
+                UPDATE agent_actions 
+                SET status = 'approved', 
+                    approved = true, 
+                    reviewed_by = :reviewed_by, 
+                    reviewed_at = :reviewed_at
+                WHERE id = :action_id
+            """), {
+                'action_id': action_id,
+                'reviewed_by': admin_user["email"],
+                'reviewed_at': datetime.now(timezone.utc)
+            })
+            
+            if result.rowcount == 0:
+                db.rollback()
+                raise HTTPException(status_code=404, detail="Agent action not found")
+
+            # Create enterprise audit trail
+            try:
+                audit_log = LogAuditTrail(
+                    action_id=action_id,
+                    decision="approved",
+                    reviewed_by=admin_user["email"],
+                    timestamp=datetime.now(timezone.utc)
+                )
+                db.add(audit_log)
+            except Exception as audit_error:
+                logger.warning(f"Audit trail creation failed: {audit_error}")
+            
+            db.commit()
+            logger.info(f"Enterprise action {action_id} approved by {admin_user['email']}")
+            return {"message": "Action approved successfully", "audit_trail": "logged"}
+
+        except Exception as db_error:
+            db.rollback()
+            logger.error(f"Failed to approve action {action_id}: {str(db_error)}")
+            raise HTTPException(status_code=500, detail="Failed to approve action")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to approve action {action_id}: {str(e)}")
-        db.rollback()
+        logger.error(f"Approval process error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to approve action")
 
 @app.post("/agent-action/{action_id}/reject")
@@ -1299,45 +1305,52 @@ def reject_agent_action(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin)
 ):
-    """Reject an agent action (admin only)"""
+    """Reject an agent action (admin only) - FIXED with proper transaction handling"""
     try:
-        result = db.execute(text("""
-            UPDATE agent_actions 
-            SET status = 'rejected', 
-                approved = false, 
-                reviewed_by = :reviewed_by, 
-                reviewed_at = :reviewed_at
-            WHERE id = :action_id
-        """), {
-            'action_id': action_id,
-            'reviewed_by': admin_user["email"],
-            'reviewed_at': datetime.now(UTC)
-        })
-        
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Agent action not found")
-
         try:
-            audit_log = LogAuditTrail(
-                action_id=action_id,
-                decision="rejected",
-                reviewed_by=admin_user["email"],
-                timestamp=datetime.now(UTC)
-            )
-            db.add(audit_log)
-        except Exception as audit_error:
-            logger.warning(f"Audit trail creation failed: {audit_error}")
-        
-        db.commit()
-        logger.info(f"Enterprise action {action_id} rejected by {admin_user['email']}")
-        return {"message": "Action rejected successfully", "audit_trail": "logged"}
+            result = db.execute(text("""
+                UPDATE agent_actions 
+                SET status = 'rejected', 
+                    approved = false, 
+                    reviewed_by = :reviewed_by, 
+                    reviewed_at = :reviewed_at
+                WHERE id = :action_id
+            """), {
+                'action_id': action_id,
+                'reviewed_by': admin_user["email"],
+                'reviewed_at': datetime.now(timezone.utc)
+            })
+            
+            if result.rowcount == 0:
+                db.rollback()
+                raise HTTPException(status_code=404, detail="Agent action not found")
+
+            try:
+                audit_log = LogAuditTrail(
+                    action_id=action_id,
+                    decision="rejected",
+                    reviewed_by=admin_user["email"],
+                    timestamp=datetime.now(timezone.utc)
+                )
+                db.add(audit_log)
+            except Exception as audit_error:
+                logger.warning(f"Audit trail creation failed: {audit_error}")
+            
+            db.commit()
+            logger.info(f"Enterprise action {action_id} rejected by {admin_user['email']}")
+            return {"message": "Action rejected successfully", "audit_trail": "logged"}
+
+        except Exception as db_error:
+            db.rollback()
+            logger.error(f"Failed to reject action {action_id}: {str(db_error)}")
+            raise HTTPException(status_code=500, detail="Failed to reject action")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to reject action {action_id}: {str(e)}")
-        db.rollback()
+        logger.error(f"Rejection process error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to reject action")
+
 
 @app.post("/agent-action/{action_id}/false-positive")
 def mark_false_positive(
@@ -3282,71 +3295,3 @@ async def setup_enterprise_user_tables(
             "details": "Check your database connection and permissions"
         }     
     
-@app.post("/agent-actions")
-async def submit_agent_action_fixed(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Fixed with raw SQL like other working endpoints"""
-    try:
-        data = await request.json()
-        logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
-        
-        # Enterprise validation - ensure all required fields
-        required_fields = ["agent_id", "action_type", "description"]
-        for field in required_fields:
-            if field not in data:
-                logger.error(f"Enterprise validation failed: Missing {field}")
-                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-        
-        db: Session = next(get_db())
-        
-        try:
-            # Use raw SQL to insert only into existing columns (like your other working endpoints)
-            result = db.execute(text("""
-                INSERT INTO agent_actions (
-                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
-                ) VALUES (
-                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
-                ) RETURNING id
-            """), {
-                'agent_id': data["agent_id"],
-                'action_type': data["action_type"],
-                'description': data["description"],
-                'risk_level': data.get("risk_level", "medium"),
-                'status': 'pending',
-                'approved': False,
-                'user_id': current_user.get("user_id", 1),
-                'tool_name': data.get("tool_name", "")
-            })
-            
-            # Get the inserted action ID
-            action_id = result.fetchone()[0]
-            
-            db.commit()
-            
-            # Enterprise audit logging
-            logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
-            
-            return {
-                "status": "success",
-                "message": "✅ Enterprise agent action submitted successfully",
-                "action_id": action_id,
-                "action_details": {
-                    "agent_id": data["agent_id"],
-                    "action_type": data["action_type"],
-                    "risk_level": data.get("risk_level", "medium"),
-                    "submitted_by": current_user.get("email"),
-                    "timestamp": datetime.now(UTC).isoformat()
-                }
-            }
-            
-        except Exception as db_error:
-            logger.error(f"❌ Enterprise database error: {str(db_error)}")
-            db.rollback()
-            raise HTTPException(status_code=500, detail="Enterprise action submission failed - database error")
-        finally:
-            db.close()
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Enterprise action submission error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Enterprise action submission failed")
