@@ -1,8 +1,9 @@
 import React from "react";
 import { useTheme } from "../contexts/ThemeContext";
+import { useAccessibility, useScreenReaderAnnounce } from "../contexts/AccessibilityContext";
 
 // ✅ SAFE: Using emoji icons to avoid import issues
-const SafeIcon = ({ iconName, size = 18, className = "" }) => {
+const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
   const iconMap = {
     Home: "🏠",
     Activity: "📊",
@@ -26,6 +27,8 @@ const SafeIcon = ({ iconName, size = 18, className = "" }) => {
     <span
       className={`inline-flex items-center justify-center ${className}`}
       style={{ fontSize: `${size}px` }}
+      aria-label={ariaLabel || iconName}
+      role="img"
     >
       {iconMap[iconName] || "📄"}
     </span>
@@ -34,56 +37,127 @@ const SafeIcon = ({ iconName, size = 18, className = "" }) => {
 
 const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
   const { isDarkMode, toggleTheme } = useTheme();
+  const { announce } = useScreenReaderAnnounce();
+  const { focusMode, prefersReducedMotion } = useAccessibility();
+  
   console.log("🔧 Sidebar rendering with user:", user?.role);
 
   const menuItems = [
-    { label: "Dashboard", icon: <SafeIcon iconName="Home" size={18} />, tab: "dashboard" },
-    { label: "Analytics", icon: <SafeIcon iconName="BarChart" size={18} />, tab: "analytics" },
-    { label: "Activity", icon: <SafeIcon iconName="Activity" size={18} />, tab: "activity" },
-    { label: "Reports", icon: <SafeIcon iconName="FileText" size={18} />, tab: "reports" },
-    { label: "Support", icon: <SafeIcon iconName="LifeBuoy" size={18} />, tab: "support" },
+    { 
+      label: "Dashboard", 
+      icon: <SafeIcon iconName="Home" size={18} ariaLabel="Dashboard home" />, 
+      tab: "dashboard",
+      description: "Main security overview and metrics"
+    },
+    { 
+      label: "Analytics", 
+      icon: <SafeIcon iconName="BarChart" size={18} ariaLabel="Analytics charts" />, 
+      tab: "analytics",
+      description: "Security analytics and insights"
+    },
+    { 
+      label: "Activity", 
+      icon: <SafeIcon iconName="Activity" size={18} ariaLabel="Activity monitor" />, 
+      tab: "activity",
+      description: "Agent activity monitoring"
+    },
+    { 
+      label: "Reports", 
+      icon: <SafeIcon iconName="FileText" size={18} ariaLabel="Reports document" />, 
+      tab: "reports",
+      description: "Security reports and documentation"
+    },
+    { 
+      label: "Support", 
+      icon: <SafeIcon iconName="LifeBuoy" size={18} ariaLabel="Life buoy support" />, 
+      tab: "support",
+      description: "Help and support center"
+    },
   ];
 
   // Add admin-only features
   if (user?.role === "admin") {
     menuItems.push(
-      { label: "Authorization Center", icon: <SafeIcon iconName="Shield" size={18} />, tab: "auth" },
-      { label: "🧠 AI Alert Management", icon: <SafeIcon iconName="AlertCircle" size={18} />, tab: "ai-alerts" },
+      { 
+        label: "Authorization Center", 
+        icon: <SafeIcon iconName="Shield" size={18} ariaLabel="Security shield" />, 
+        tab: "auth",
+        description: "Agent authorization and approval system",
+        adminOnly: true
+      },
+      { 
+        label: "🧠 AI Alert Management", 
+        icon: <SafeIcon iconName="AlertCircle" size={18} ariaLabel="Alert warning" />, 
+        tab: "ai-alerts",
+        description: "AI-powered alert management system",
+        adminOnly: true
+      },
       { 
         label: "🧠 AI Rule Engine", 
-        icon: <SafeIcon iconName="Zap" size={18} />, 
+        icon: <SafeIcon iconName="Zap" size={18} ariaLabel="Lightning bolt" />, 
         tab: "smartRules",
-        badge: "Enterprise"
+        badge: "Enterprise",
+        description: "AI-powered rule generation and management",
+        adminOnly: true
       },
       { 
         label: "👥 User Management", 
-        icon: <SafeIcon iconName="Users" size={18} />, 
+        icon: <SafeIcon iconName="Users" size={18} ariaLabel="Users group" />, 
         tab: "users",
-        badge: "RBAC"
+        badge: "RBAC",
+        description: "Role-based access control and user management",
+        adminOnly: true
       },
-      { label: "Settings", icon: <SafeIcon iconName="Settings" size={18} />, tab: "settings" }
+      { 
+        label: "Settings", 
+        icon: <SafeIcon iconName="Settings" size={18} ariaLabel="Settings gear" />, 
+        tab: "settings",
+        description: "Enterprise platform configuration",
+        adminOnly: true
+      }
     );
   }
 
+  const handleTabChange = (tab, itemLabel) => {
+    if (tab === activeTab) return;
+    
+    setActiveTab(tab);
+    announce(`Navigated to ${itemLabel}`, 'polite');
+  };
+
+  const handleThemeToggle = () => {
+    toggleTheme();
+    announce(`Switched to ${isDarkMode ? 'light' : 'dark'} mode`, 'polite');
+  };
+
+  const handleLogoutClick = () => {
+    announce('Logging out...', 'polite');
+    handleLogout();
+  };
+
   return (
-    <div className={`w-64 h-screen flex flex-col shadow-xl transition-all duration-300 ${
-      isDarkMode 
-        ? 'bg-gradient-to-b from-slate-800 to-slate-700 text-white' 
-        : 'bg-gradient-to-b from-blue-900 to-blue-800 text-white'
-    }`}>
+    <aside 
+      className={`w-64 h-screen flex flex-col shadow-xl transition-all duration-300 ${
+        isDarkMode 
+          ? 'bg-gradient-to-b from-slate-800 to-slate-700 text-white' 
+          : 'bg-gradient-to-b from-blue-900 to-blue-800 text-white'
+      }`}
+      role="navigation"
+      aria-label="Main navigation"
+    >
       {/* Header */}
-      <div className={`p-6 border-b transition-colors duration-300 ${
+      <header className={`p-6 border-b transition-colors duration-300 ${
         isDarkMode ? 'border-slate-600' : 'border-blue-700'
       }`}>
         <div className="flex items-center justify-between">
           <div>
-            <h2 className={`text-xl font-bold transition-all duration-300 ${
+            <h1 className={`text-xl font-bold transition-all duration-300 ${
               isDarkMode 
                 ? 'bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent'
                 : 'bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent'
             }`}>
               OW AI Platform
-            </h2>
+            </h1>
             <p className={`text-sm mt-1 transition-colors duration-300 ${
               isDarkMode ? 'text-slate-200' : 'text-blue-200'
             }`}>
@@ -93,18 +167,27 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
           
           {/* Theme Toggle */}
           <button
-            onClick={toggleTheme}
-            className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${
+            onClick={handleThemeToggle}
+            className={`p-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              focusMode ? 'focus:ring-yellow-400' : ''
+            } ${
+              !prefersReducedMotion ? 'hover:scale-110' : ''
+            } ${
               isDarkMode 
-                ? 'bg-slate-600 hover:bg-slate-500 text-yellow-300' 
-                : 'bg-blue-700 hover:bg-blue-600 text-yellow-300'
+                ? 'bg-slate-600 hover:bg-slate-500 text-yellow-300 focus:ring-yellow-400' 
+                : 'bg-blue-700 hover:bg-blue-600 text-yellow-300 focus:ring-yellow-400'
             }`}
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+            title={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
           >
-            <SafeIcon iconName={isDarkMode ? "Sun" : "Moon"} size={16} />
+            <SafeIcon 
+              iconName={isDarkMode ? "Sun" : "Moon"} 
+              size={16} 
+              ariaLabel={isDarkMode ? "Sun icon" : "Moon icon"}
+            />
           </button>
         </div>
-      </div>
+      </header>
 
       {/* User Info */}
       <div className={`p-4 border-b transition-colors duration-300 ${
@@ -113,17 +196,18 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
           : 'border-blue-700 bg-blue-800/50'
       }`}>
         <div className="flex items-center space-x-3">
-          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm transition-all duration-300 ${
-            isDarkMode 
-              ? 'bg-gradient-to-r from-slate-500 to-slate-400' 
-              : 'bg-gradient-to-r from-blue-400 to-purple-500'
-          }`}>
+          <div 
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-sm transition-all duration-300 ${
+              isDarkMode 
+                ? 'bg-gradient-to-r from-slate-500 to-slate-400' 
+                : 'bg-gradient-to-r from-blue-400 to-purple-500'
+            }`}
+            aria-hidden="true"
+          >
             {user?.email?.[0]?.toUpperCase() || "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-medium truncate transition-colors duration-300 ${
-              isDarkMode ? 'text-white' : 'text-white'
-            }`}>
+            <p className="text-sm font-medium text-white truncate">
               {user?.email || "User"}
             </p>
             <p className={`text-xs capitalize transition-colors duration-300 ${
@@ -136,13 +220,15 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4">
+      <nav className="flex-1 py-4" role="navigation" aria-label="Platform sections">
         <ul className="space-y-1 px-3">
           {menuItems.map((item) => (
             <li key={item.tab}>
               <button
-                onClick={() => setActiveTab(item.tab)}
-                className={`w-full flex items-center justify-between px-4 py-3 text-left rounded-lg transition-all duration-200 group ${
+                onClick={() => handleTabChange(item.tab, item.label)}
+                className={`w-full flex items-center justify-between px-4 py-3 text-left rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  focusMode ? 'focus:ring-yellow-400' : ''
+                } ${
                   activeTab === item.tab
                     ? isDarkMode
                       ? "bg-gradient-to-r from-slate-500 to-slate-600 text-white shadow-lg transform scale-[1.02] ring-2 ring-slate-400/50"
@@ -151,10 +237,12 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
                       ? "text-slate-200 hover:bg-slate-600/50 hover:text-white"
                       : "text-blue-100 hover:bg-blue-700/50 hover:text-white"
                 }`}
+                aria-current={activeTab === item.tab ? 'page' : undefined}
+                aria-describedby={`${item.tab}-description`}
               >
                 <div className="flex items-center space-x-3">
                   <span className={`transition-transform duration-200 ${
-                    activeTab === item.tab ? "scale-110" : "group-hover:scale-105"
+                    !prefersReducedMotion && (activeTab === item.tab ? "scale-110" : "group-hover:scale-105")
                   }`}>
                     {item.icon}
                   </span>
@@ -180,28 +268,47 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
                   </span>
                 )}
               </button>
+              
+              {/* Hidden description for screen readers */}
+              <span 
+                id={`${item.tab}-description`} 
+                className="sr-only"
+              >
+                {item.description}
+                {item.adminOnly ? '. Administrator access required.' : ''}
+              </span>
             </li>
           ))}
         </ul>
       </nav>
 
       {/* Footer */}
-      <div className={`p-4 border-t transition-colors duration-300 ${
+      <footer className={`p-4 border-t transition-colors duration-300 ${
         isDarkMode ? 'border-slate-600' : 'border-blue-700'
       }`}>
         <button
-          onClick={handleLogout}
-          className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
+          onClick={handleLogoutClick}
+          className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 group focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+            focusMode ? 'focus:ring-red-400' : ''
+          } ${
             isDarkMode 
-              ? 'text-slate-200 hover:bg-red-600/20 hover:text-red-300' 
-              : 'text-blue-100 hover:bg-red-600/20 hover:text-white'
+              ? 'text-slate-200 hover:bg-red-600/20 hover:text-red-300 focus:ring-red-400' 
+              : 'text-blue-100 hover:bg-red-600/20 hover:text-white focus:ring-red-400'
           }`}
+          aria-label="Log out of OW AI Platform"
         >
-          <SafeIcon iconName="LogOut" size={18} className="group-hover:scale-105 transition-transform" />
+          <SafeIcon 
+            iconName="LogOut" 
+            size={18} 
+            className={`transition-transform duration-200 ${
+              !prefersReducedMotion ? 'group-hover:scale-105' : ''
+            }`}
+            ariaLabel="Logout door"
+          />
           <span className="text-sm font-medium">Logout</span>
         </button>
-      </div>
-    </div>
+      </footer>
+    </aside>
   );
 };
 

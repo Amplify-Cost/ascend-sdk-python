@@ -1,30 +1,127 @@
-// Create this file: src/components/GlobalSearch.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
+import { useFocusTrap, useScreenReaderAnnounce, useKeyboardNavigation } from '../contexts/AccessibilityContext';
 
 const GlobalSearch = ({ onNavigate }) => {
   const { isDarkMode } = useTheme();
+  const { announce } = useScreenReaderAnnounce();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredResults, setFilteredResults] = useState([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef(null);
   const searchRef = useRef(null);
+  const resultsRef = useRef([]);
+
+  // Enable focus trap when modal is open
+  useFocusTrap(isOpen);
 
   // Mock search data - in real app, this would come from your API
   const searchData = [
-    { type: 'page', title: 'Security Dashboard', path: 'dashboard', icon: '🏠', description: 'Main security overview' },
-    { type: 'page', title: 'AI Alert Management', path: 'ai-alerts', icon: '🚨', description: 'Manage security alerts' },
-    { type: 'page', title: 'AI Rule Engine', path: 'smartRules', icon: '⚡', description: 'Create and manage rules' },
-    { type: 'page', title: 'Authorization Center', path: 'auth', icon: '🛡️', description: 'Agent approval system' },
-    { type: 'page', title: 'User Management', path: 'users', icon: '👥', description: 'Manage platform users' },
-    { type: 'page', title: 'Analytics', path: 'analytics', icon: '📊', description: 'Security analytics and insights' },
-    { type: 'page', title: 'Settings', path: 'settings', icon: '⚙️', description: 'Platform configuration' },
-    { type: 'agent', title: 'security-scanner-01', path: 'activity', icon: '🤖', description: 'Vulnerability scanning agent' },
-    { type: 'agent', title: 'threat-detector', path: 'activity', icon: '🤖', description: 'Threat detection agent' },
-    { type: 'agent', title: 'compliance-monitor', path: 'activity', icon: '🤖', description: 'Compliance monitoring agent' },
-    { type: 'action', title: 'Create Security Rule', path: 'smartRules', icon: '➕', description: 'Generate new security rule' },
-    { type: 'action', title: 'Submit Agent Action', path: 'auth', icon: '📤', description: 'Submit action for approval' },
-    { type: 'action', title: 'View Reports', path: 'reports', icon: '📋', description: 'Access security reports' }
+    { 
+      type: 'page', 
+      title: 'Security Dashboard', 
+      path: 'dashboard', 
+      icon: '🏠', 
+      description: 'Main security overview and real-time metrics',
+      keywords: 'home overview metrics kpi dashboard main'
+    },
+    { 
+      type: 'page', 
+      title: 'AI Alert Management', 
+      path: 'ai-alerts', 
+      icon: '🚨', 
+      description: 'Manage and analyze security alerts with AI',
+      keywords: 'alerts notifications warnings threats ai artificial intelligence'
+    },
+    { 
+      type: 'page', 
+      title: 'AI Rule Engine', 
+      path: 'smartRules', 
+      icon: '⚡', 
+      description: 'Create and manage security rules with AI assistance',
+      keywords: 'rules engine smart ai automation logic conditions actions'
+    },
+    { 
+      type: 'page', 
+      title: 'Authorization Center', 
+      path: 'auth', 
+      icon: '🛡️', 
+      description: 'Agent approval and authorization system',
+      keywords: 'authorization approval permissions access control agents'
+    },
+    { 
+      type: 'page', 
+      title: 'User Management', 
+      path: 'users', 
+      icon: '👥', 
+      description: 'Manage platform users and roles',
+      keywords: 'users accounts rbac roles permissions management admin'
+    },
+    { 
+      type: 'page', 
+      title: 'Analytics', 
+      path: 'analytics', 
+      icon: '📊', 
+      description: 'Security analytics and insights dashboard',
+      keywords: 'analytics insights reports charts graphs data visualization'
+    },
+    { 
+      type: 'page', 
+      title: 'Settings', 
+      path: 'settings', 
+      icon: '⚙️', 
+      description: 'Platform configuration and preferences',
+      keywords: 'settings configuration preferences options admin setup'
+    },
+    { 
+      type: 'agent', 
+      title: 'security-scanner-01', 
+      path: 'activity', 
+      icon: '🤖', 
+      description: 'Vulnerability scanning and security assessment agent',
+      keywords: 'agent bot scanner vulnerability security assessment scan'
+    },
+    { 
+      type: 'agent', 
+      title: 'threat-detector', 
+      path: 'activity', 
+      icon: '🤖', 
+      description: 'Advanced threat detection and analysis agent',
+      keywords: 'agent bot threat detection malware analysis security'
+    },
+    { 
+      type: 'agent', 
+      title: 'compliance-monitor', 
+      path: 'activity', 
+      icon: '🤖', 
+      description: 'Compliance monitoring and audit agent',
+      keywords: 'agent bot compliance audit monitoring regulations standards'
+    },
+    { 
+      type: 'action', 
+      title: 'Create Security Rule', 
+      path: 'smartRules', 
+      icon: '➕', 
+      description: 'Generate new security rule with AI assistance',
+      keywords: 'create new rule security add generate make'
+    },
+    { 
+      type: 'action', 
+      title: 'Submit Agent Action', 
+      path: 'auth', 
+      icon: '📤', 
+      description: 'Submit agent action for approval',
+      keywords: 'submit send action approval authorization request'
+    },
+    { 
+      type: 'action', 
+      title: 'View Reports', 
+      path: 'reports', 
+      icon: '📋', 
+      description: 'Access security reports and documentation',
+      keywords: 'view reports documents analysis summaries export'
+    }
   ];
 
   // Handle keyboard shortcuts
@@ -34,22 +131,77 @@ const GlobalSearch = ({ onNavigate }) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setIsOpen(true);
-      }
-      // Escape to close
-      if (e.key === 'Escape') {
-        setIsOpen(false);
-        setSearchQuery('');
+        announce('Search opened', 'assertive');
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [announce]);
+
+  // Handle keyboard navigation within search
+  useKeyboardNavigation(
+    () => {
+      // Escape handler
+      if (isOpen) {
+        setIsOpen(false);
+        setSearchQuery('');
+        setSelectedIndex(-1);
+        announce('Search closed', 'polite');
+      }
+    },
+    (e) => {
+      // Enter handler
+      if (isOpen && selectedIndex >= 0 && filteredResults[selectedIndex]) {
+        handleSelect(filteredResults[selectedIndex]);
+      }
+    }
+  );
+
+  // Handle arrow key navigation
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedIndex(prev => {
+            const next = Math.min(prev + 1, filteredResults.length - 1);
+            if (next !== prev && filteredResults[next]) {
+              announce(`${filteredResults[next].title}, ${filteredResults[next].type}`, 'polite');
+            }
+            return next;
+          });
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedIndex(prev => {
+            const next = Math.max(prev - 1, -1);
+            if (next !== prev) {
+              if (next === -1) {
+                announce('Search input', 'polite');
+              } else if (filteredResults[next]) {
+                announce(`${filteredResults[next].title}, ${filteredResults[next].type}`, 'polite');
+              }
+            }
+            return next;
+          });
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, filteredResults, announce]);
 
   // Focus input when opened
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
+      setSelectedIndex(-1);
     }
   }, [isOpen]);
 
@@ -58,6 +210,8 @@ const GlobalSearch = ({ onNavigate }) => {
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setIsOpen(false);
+        setSearchQuery('');
+        setSelectedIndex(-1);
       }
     };
 
@@ -72,21 +226,43 @@ const GlobalSearch = ({ onNavigate }) => {
   useEffect(() => {
     if (searchQuery.trim() === '') {
       setFilteredResults([]);
+      setSelectedIndex(-1);
       return;
     }
 
+    const query = searchQuery.toLowerCase();
     const filtered = searchData.filter(item =>
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase())
+      item.title.toLowerCase().includes(query) ||
+      item.description.toLowerCase().includes(query) ||
+      item.keywords.toLowerCase().includes(query)
     );
 
     setFilteredResults(filtered.slice(0, 8)); // Limit to 8 results
-  }, [searchQuery]);
+    setSelectedIndex(-1);
+    
+    if (filtered.length > 0) {
+      announce(`${filtered.length} search result${filtered.length === 1 ? '' : 's'} found`, 'polite');
+    } else {
+      announce('No search results found', 'polite');
+    }
+  }, [searchQuery, announce]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (selectedIndex >= 0 && resultsRef.current[selectedIndex]) {
+      resultsRef.current[selectedIndex].scrollIntoView({
+        block: 'nearest',
+        behavior: 'smooth'
+      });
+    }
+  }, [selectedIndex]);
 
   const handleSelect = (item) => {
     onNavigate(item.path);
     setIsOpen(false);
     setSearchQuery('');
+    setSelectedIndex(-1);
+    announce(`Navigating to ${item.title}`, 'assertive');
   };
 
   const getTypeColor = (type) => {
@@ -102,18 +278,31 @@ const GlobalSearch = ({ onNavigate }) => {
     }
   };
 
+  const getTypeLabel = (type) => {
+    switch (type) {
+      case 'page': return 'Page';
+      case 'agent': return 'Agent';
+      case 'action': return 'Action';
+      default: return 'Item';
+    }
+  };
+
   return (
     <>
       {/* Search Trigger Button */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-all duration-200 hover:scale-105 ${
+        onClick={() => {
+          setIsOpen(true);
+          announce('Search opened', 'assertive');
+        }}
+        className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           isDarkMode 
             ? 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600' 
             : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
         }`}
+        aria-label="Open search dialog. Keyboard shortcut: Control or Command K"
       >
-        <span className="text-lg">🔍</span>
+        <span className="text-lg" aria-hidden="true">🔍</span>
         <span className="text-sm">Search...</span>
         <kbd className={`px-2 py-1 text-xs rounded ${
           isDarkMode ? 'bg-slate-600 text-slate-300' : 'bg-gray-200 text-gray-600'
@@ -124,9 +313,15 @@ const GlobalSearch = ({ onNavigate }) => {
 
       {/* Search Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="search-title"
+          aria-describedby="search-description"
+        >
           {/* Backdrop */}
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm"></div>
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm" aria-hidden="true"></div>
           
           {/* Search Panel */}
           <div 
@@ -139,8 +334,12 @@ const GlobalSearch = ({ onNavigate }) => {
           >
             {/* Search Input */}
             <div className="flex items-center p-4 border-b border-gray-200 dark:border-slate-600">
-              <span className="text-2xl mr-3">🔍</span>
+              <span className="text-2xl mr-3" aria-hidden="true">🔍</span>
+              <label htmlFor="search-input" className="sr-only">
+                Search pages, agents, and actions
+              </label>
               <input
+                id="search-input"
                 ref={inputRef}
                 type="text"
                 placeholder="Search pages, agents, actions..."
@@ -149,6 +348,11 @@ const GlobalSearch = ({ onNavigate }) => {
                 className={`flex-1 bg-transparent outline-none text-lg ${
                   isDarkMode ? 'text-white placeholder-slate-400' : 'text-gray-900 placeholder-gray-500'
                 }`}
+                aria-describedby="search-description"
+                aria-autocomplete="list"
+                aria-expanded={filteredResults.length > 0}
+                aria-controls="search-results"
+                role="combobox"
               />
               <kbd className={`px-2 py-1 text-xs rounded ${
                 isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-600'
@@ -157,27 +361,51 @@ const GlobalSearch = ({ onNavigate }) => {
               </kbd>
             </div>
 
+            {/* Hidden description for screen readers */}
+            <div id="search-description" className="sr-only">
+              Search through pages, agents, and actions. Use arrow keys to navigate results, Enter to select, Escape to close.
+            </div>
+
             {/* Search Results */}
-            <div className="max-h-96 overflow-y-auto">
+            <div 
+              className="max-h-96 overflow-y-auto"
+              id="search-results"
+              role="listbox"
+              aria-label="Search results"
+            >
               {searchQuery.trim() === '' ? (
                 <div className={`p-8 text-center ${
                   isDarkMode ? 'text-slate-400' : 'text-gray-500'
                 }`}>
-                  <div className="text-4xl mb-4">🔍</div>
-                  <p className="text-lg font-medium mb-2">Search OW-AI Platform</p>
-                  <p className="text-sm">Find pages, agents, actions, and more...</p>
-                  <div className="mt-4 text-xs">
-                    <span className={`px-2 py-1 rounded mr-2 ${
-                      isDarkMode ? 'bg-slate-700' : 'bg-gray-100'
-                    }`}>⌘K</span>
-                    to open search
+                  <div className="text-4xl mb-4" aria-hidden="true">🔍</div>
+                  <h2 id="search-title" className="text-lg font-medium mb-2">Search OW-AI Platform</h2>
+                  <p className="text-sm mb-4">Find pages, agents, actions, and more...</p>
+                  <div className="text-xs space-y-1">
+                    <div>
+                      <kbd className={`px-2 py-1 rounded mr-2 ${
+                        isDarkMode ? 'bg-slate-700' : 'bg-gray-100'
+                      }`}>⌘K</kbd>
+                      to open search
+                    </div>
+                    <div>
+                      <kbd className={`px-2 py-1 rounded mr-2 ${
+                        isDarkMode ? 'bg-slate-700' : 'bg-gray-100'
+                      }`}>↑↓</kbd>
+                      to navigate
+                    </div>
+                    <div>
+                      <kbd className={`px-2 py-1 rounded mr-2 ${
+                        isDarkMode ? 'bg-slate-700' : 'bg-gray-100'
+                      }`}>↵</kbd>
+                      to select
+                    </div>
                   </div>
                 </div>
               ) : filteredResults.length === 0 ? (
                 <div className={`p-8 text-center ${
                   isDarkMode ? 'text-slate-400' : 'text-gray-500'
-                }`}>
-                  <div className="text-4xl mb-4">🤷‍♂️</div>
+                }`} role="status">
+                  <div className="text-4xl mb-4" aria-hidden="true">🤷‍♂️</div>
                   <p className="text-lg font-medium mb-2">No results found</p>
                   <p className="text-sm">Try searching for something else</p>
                 </div>
@@ -186,30 +414,41 @@ const GlobalSearch = ({ onNavigate }) => {
                   {filteredResults.map((item, index) => (
                     <button
                       key={index}
+                      ref={el => resultsRef.current[index] = el}
                       onClick={() => handleSelect(item)}
-                      className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 hover:scale-[1.02] ${
-                        isDarkMode 
-                          ? 'hover:bg-slate-700 text-slate-200' 
-                          : 'hover:bg-gray-100 text-gray-800'
+                      className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all duration-200 hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        selectedIndex === index
+                          ? isDarkMode
+                            ? 'bg-slate-600 text-white ring-2 ring-blue-400'
+                            : 'bg-blue-50 text-gray-900 ring-2 ring-blue-500'
+                          : isDarkMode 
+                            ? 'hover:bg-slate-700 text-slate-200' 
+                            : 'hover:bg-gray-100 text-gray-800'
                       }`}
+                      role="option"
+                      aria-selected={selectedIndex === index}
+                      aria-describedby={`result-${index}-description`}
                     >
-                      <span className="text-2xl">{item.icon}</span>
+                      <span className="text-2xl" aria-hidden="true">{item.icon}</span>
                       <div className="flex-1 text-left">
                         <div className="flex items-center space-x-2">
                           <span className="font-medium">{item.title}</span>
                           <span className={`px-2 py-1 text-xs rounded-full ${getTypeColor(item.type)}`}>
-                            {item.type}
+                            {getTypeLabel(item.type)}
                           </span>
                         </div>
-                        <p className={`text-sm mt-1 ${
-                          isDarkMode ? 'text-slate-400' : 'text-gray-600'
-                        }`}>
+                        <p 
+                          id={`result-${index}-description`}
+                          className={`text-sm mt-1 ${
+                            isDarkMode ? 'text-slate-400' : 'text-gray-600'
+                          }`}
+                        >
                           {item.description}
                         </p>
                       </div>
                       <span className={`text-xs ${
                         isDarkMode ? 'text-slate-500' : 'text-gray-400'
-                      }`}>
+                      }`} aria-hidden="true">
                         ↵
                       </span>
                     </button>
@@ -224,7 +463,7 @@ const GlobalSearch = ({ onNavigate }) => {
                 ? 'border-slate-600 text-slate-400' 
                 : 'border-gray-200 text-gray-500'
             }`}>
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4" role="status">
                 <span>↑↓ Navigate</span>
                 <span>↵ Select</span>
                 <span>ESC Close</span>
