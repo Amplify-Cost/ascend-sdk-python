@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
-import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider, useToast } from "./components/ToastNotification";
+import Breadcrumb from "./components/Breadcrumb";
+import GlobalSearch from "./components/GlobalSearch";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
@@ -19,139 +22,173 @@ import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
 import EnterpriseUserManagement from "./components/EnterpriseUserManagement";
 import EnterpriseSettings from "./components/EnterpriseSettings";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
+import { useTheme } from "./contexts/ThemeContext";
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
+// Enhanced Loading Component
+const LoadingScreen = () => {
+  const { isDarkMode } = useTheme();
+  
+  return (
+    <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+      isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
+    }`}>
+      <div className="text-center">
+        <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-6 ${
+          isDarkMode ? 'border-blue-400' : 'border-blue-600'
+        }`}></div>
+        <div className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>
+          🛡️ OW-AI Platform
+        </div>
+        <p className={`transition-colors duration-300 ${
+          isDarkMode ? 'text-slate-300' : 'text-gray-600'
+        }`}>
+          Initializing enterprise security systems...
+        </p>
+        <div className="mt-4 flex items-center justify-center space-x-1">
+          {[0, 1, 2].map(i => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full animate-pulse ${
+                isDarkMode ? 'bg-blue-400' : 'bg-blue-600'
+              }`}
+              style={{ animationDelay: `${i * 0.3}s` }}
+            ></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Profile = ({ user, onUpdateProfile }) => {
   const { isDarkMode } = useTheme();
+  const { toast } = useToast();
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleUpdate = async () => {
-    setMessage("");
-    setError("");
-
     if (!email && !password) {
-      setError("Please provide email or password to update");
+      toast.warning("Please provide email or password to update");
       return;
     }
 
     if (password && password !== confirmPassword) {
-      setError("Passwords do not match");
+      toast.error("Passwords do not match");
       return;
     }
 
+    setLoading(true);
     try {
       await onUpdateProfile({ email, password });
-      setMessage("Profile updated successfully.");
+      toast.success("Profile updated successfully!");
       setPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError("Failed to update profile. Please try again.");
+      toast.error("Failed to update profile. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className={`p-4 max-w-md mx-auto transition-colors duration-300 ${
-      isDarkMode ? 'text-slate-100' : 'text-gray-700'
+    <div className={`p-6 max-w-md mx-auto transition-colors duration-300 ${
+      isDarkMode ? 'text-white' : 'text-gray-900'
     }`}>
-      <h2 className={`text-xl font-semibold mb-4 transition-colors duration-300 ${
-        isDarkMode ? 'text-slate-100' : 'text-gray-900'
+      <div className={`p-6 rounded-xl border transition-colors duration-300 ${
+        isDarkMode 
+          ? 'bg-slate-700 border-slate-600' 
+          : 'bg-white border-gray-300 shadow-sm'
       }`}>
-        Profile Settings
-      </h2>
-      
-      {message && (
-        <div className={`border px-4 py-3 rounded mb-4 transition-colors duration-300 ${
-          isDarkMode 
-            ? 'bg-green-900/20 border-green-500 text-green-300' 
-            : 'bg-green-100 border-green-400 text-green-700'
+        <h2 className={`text-xl font-semibold mb-6 transition-colors duration-300 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
         }`}>
-          {message}
-        </div>
-      )}
-      {error && (
-        <div className={`border px-4 py-3 rounded mb-4 transition-colors duration-300 ${
-          isDarkMode 
-            ? 'bg-red-900/20 border-red-500 text-red-300' 
-            : 'bg-red-100 border-red-400 text-red-700'
-        }`}>
-          {error}
-        </div>
-      )}
-      
-      <div className="space-y-4">
-        <div>
-          <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-200' : 'text-gray-700'
-          }`}>
-            Email
-          </label>
-          <input
-            type="email"
-            className={`w-full p-2 border rounded transition-colors duration-300 ${
-              isDarkMode 
-                ? 'bg-slate-800 border-slate-600 text-slate-100 focus:border-blue-400' 
-                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-            }`}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter new email"
-          />
-        </div>
+          👤 Profile Settings
+        </h2>
         
-        <div>
-          <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-200' : 'text-gray-700'
-          }`}>
-            New Password
-          </label>
-          <input
-            type="password"
-            className={`w-full p-2 border rounded transition-colors duration-300 ${
+        <div className="space-y-4">
+          <div>
+            <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${
+              isDarkMode ? 'text-slate-200' : 'text-gray-700'
+            }`}>
+              Email Address
+            </label>
+            <input
+              type="email"
+              className={`w-full p-3 border rounded-lg transition-all duration-300 focus:ring-2 focus:ring-blue-500 ${
+                isDarkMode 
+                  ? 'bg-slate-800 border-slate-600 text-white focus:border-blue-400' 
+                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+              }`}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter new email"
+            />
+          </div>
+          
+          <div>
+            <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${
+              isDarkMode ? 'text-slate-200' : 'text-gray-700'
+            }`}>
+              New Password
+            </label>
+            <input
+              type="password"
+              className={`w-full p-3 border rounded-lg transition-all duration-300 focus:ring-2 focus:ring-blue-500 ${
+                isDarkMode 
+                  ? 'bg-slate-800 border-slate-600 text-white focus:border-blue-400' 
+                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+              }`}
+              value=REDACTED-CREDENTIAL
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter new password"
+            />
+          </div>
+          
+          <div>
+            <label className={`block text-sm font-medium mb-2 transition-colors duration-300 ${
+              isDarkMode ? 'text-slate-200' : 'text-gray-700'
+            }`}>
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              className={`w-full p-3 border rounded-lg transition-all duration-300 focus:ring-2 focus:ring-blue-500 ${
+                isDarkMode 
+                  ? 'bg-slate-800 border-slate-600 text-white focus:border-blue-400' 
+                  : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+              }`}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+            />
+          </div>
+          
+          <button
+            onClick={handleUpdate}
+            disabled={loading}
+            className={`w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
               isDarkMode 
-                ? 'bg-slate-800 border-slate-600 text-slate-100 focus:border-blue-400' 
-                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
-            value=REDACTED-CREDENTIAL
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter new password"
-          />
+          >
+            {loading ? (
+              <div className="flex items-center justify-center space-x-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Updating...</span>
+              </div>
+            ) : (
+              'Update Profile'
+            )}
+          </button>
         </div>
-        
-        <div>
-          <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-200' : 'text-gray-700'
-          }`}>
-            Confirm New Password
-          </label>
-          <input
-            type="password"
-            className={`w-full p-2 border rounded transition-colors duration-300 ${
-              isDarkMode 
-                ? 'bg-slate-800 border-slate-600 text-slate-100 focus:border-blue-400' 
-                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
-            }`}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Confirm new password"
-          />
-        </div>
-        
-        <button
-          onClick={handleUpdate}
-          className={`px-4 py-2 rounded transition-all duration-200 ${
-            isDarkMode 
-              ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          Update Profile
-        </button>
       </div>
     </div>
   );
@@ -159,12 +196,31 @@ const Profile = ({ user, onUpdateProfile }) => {
 
 const AppContent = () => {
   const { isDarkMode } = useTheme();
+  const { toast } = useToast();
   const [view, setView] = useState("login");
   const [token, setToken] = useState("");
   const [user, setUser] = useState(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
+
+  // Page transition state
+  const [pageTransition, setPageTransition] = useState(false);
+
+  // Enhanced tab navigation with transitions
+  const handleTabChange = (newTab) => {
+    if (newTab === activeTab) return;
+    
+    setPageTransition(true);
+    setTimeout(() => {
+      setActiveTab(newTab);
+      setPageTransition(false);
+      // Show success toast for admin features
+      if (['auth', 'ai-alerts', 'smartRules', 'users', 'settings'].includes(newTab)) {
+        toast.info(`Accessing ${newTab.replace(/([A-Z])/g, ' $1').toLowerCase()}...`, 'Admin Feature');
+      }
+    }, 150);
+  };
 
   // Check for existing token on app load
   useEffect(() => {
@@ -176,12 +232,11 @@ const AppContent = () => {
           const decoded = jwtDecode(storedToken);
           const currentTime = Date.now() / 1000;
           
-          // Check if token is expired
           if (decoded.exp && decoded.exp < currentTime) {
             console.warn("Stored token is expired. Logging out.");
             handleLogout();
+            toast.warning("Session expired. Please log in again.");
           } else {
-            // Token is valid, set user state
             setUser({
               id: Number(decoded.sub),
               email: decoded.email || decoded.sub,
@@ -189,12 +244,13 @@ const AppContent = () => {
             });
             setToken(storedToken);
             setView("app");
+            toast.success(`Welcome back, ${decoded.email || 'User'}!`);
             
-            // Set up automatic logout when token expires
             const timeUntilExpiry = (decoded.exp - currentTime) * 1000;
             const logoutTimer = setTimeout(() => {
               console.warn("Token has expired. Logging out.");
               handleLogout();
+              toast.error("Session expired. Please log in again.");
             }, timeUntilExpiry);
             
             return () => clearTimeout(logoutTimer);
@@ -202,6 +258,7 @@ const AppContent = () => {
         } catch (err) {
           console.error("Invalid token found:", err);
           handleLogout();
+          toast.error("Invalid session. Please log in again.");
         }
       }
       
@@ -213,26 +270,28 @@ const AppContent = () => {
 
   const handleLoginSuccess = (receivedToken, refreshToken = null) => {
     try {
-      // Store tokens
       localStorage.setItem("access_token", receivedToken);
       if (refreshToken) {
         localStorage.setItem("refresh_token", refreshToken);
       }
       
-      // Decode and set user info
       const decoded = jwtDecode(receivedToken);
-      setUser({
+      const userData = {
         id: Number(decoded.sub),
         email: decoded.email || decoded.sub,
         role: decoded.role,
-      });
+      };
+      
+      setUser(userData);
       setToken(receivedToken);
       setView("app");
       
+      toast.success(`Welcome to OW-AI, ${userData.email}!`, 'Login Successful');
       console.log("✅ Login successful");
     } catch (err) {
       console.error("Login token processing error:", err);
       handleLogout();
+      toast.error("Login failed. Please try again.");
     }
   };
 
@@ -242,6 +301,7 @@ const AppContent = () => {
     setUser(null);
     setView("login");
     setActiveTab("dashboard");
+    toast.info("You have been logged out successfully.");
     console.log("✅ Logged out successfully");
   };
 
@@ -265,7 +325,6 @@ const AppContent = () => {
         throw new Error(errorData.detail || "Failed to update profile");
       }
       
-      // Update local user state if email changed
       if (updateData.email) {
         setUser(prev => ({ ...prev, email: updateData.email }));
       }
@@ -285,58 +344,81 @@ const AppContent = () => {
     
     const adminRequiredMessage = (
       <div className={`p-6 text-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+        isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
       }`}>
-        <div className={`border-l-4 p-4 rounded transition-colors duration-300 ${
+        <div className={`max-w-md mx-auto p-6 rounded-xl border transition-colors duration-300 ${
           isDarkMode 
             ? 'bg-yellow-900/20 border-yellow-500 text-yellow-300' 
-            : 'bg-yellow-100 border-yellow-500 text-yellow-700'
+            : 'bg-yellow-50 border-yellow-200 text-yellow-700'
         }`}>
+          <div className="text-4xl mb-4">🔒</div>
           <h3 className={`text-lg font-semibold mb-2 ${
             isDarkMode ? 'text-yellow-200' : 'text-yellow-800'
           }`}>
-            🔒 Admin Access Required
+            Admin Access Required
           </h3>
           <p className={isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}>
             You need administrator privileges to access this section.
           </p>
           <p className={`text-sm mt-2 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-            Current role: {user?.role || "unknown"}
+            Current role: <span className="font-medium">{user?.role || "unknown"}</span>
           </p>
+          <button
+            onClick={() => handleTabChange('dashboard')}
+            className={`mt-4 px-4 py-2 rounded-lg transition-all duration-200 hover:scale-105 ${
+              isDarkMode 
+                ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
+                : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+            }`}
+          >
+            Return to Dashboard
+          </button>
         </div>
+      </div>
+    );
+    
+    const contentWithTransition = (content) => (
+      <div className={`transition-all duration-300 ${
+        pageTransition ? 'opacity-0 transform translate-y-2' : 'opacity-100 transform translate-y-0'
+      }`}>
+        {content}
       </div>
     );
     
     switch (activeTab) {
       case "dashboard":
-        return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
+        return contentWithTransition(<Dashboard getAuthHeaders={getAuthHeaders} user={user} />);
       case "analytics":
-        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
+        return contentWithTransition(<SecurityInsights getAuthHeaders={getAuthHeaders} />);
       case "activity":
-        return <AgentActivityFeed getAuthHeaders={getAuthHeaders} />;
+        return contentWithTransition(<AgentActivityFeed getAuthHeaders={getAuthHeaders} />);
       case "reports":
-        return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
+        return contentWithTransition(<SecurityInsights getAuthHeaders={getAuthHeaders} />);
       case "support":
-        return (
+        return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
-            isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+            isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
           }`}>
-            <div className={`border-l-4 p-4 rounded transition-colors duration-300 ${
+            <div className={`max-w-md mx-auto p-6 rounded-xl border transition-colors duration-300 ${
               isDarkMode 
                 ? 'bg-blue-900/20 border-blue-500 text-blue-300' 
-                : 'bg-blue-100 border-blue-500 text-blue-700'
+                : 'bg-blue-50 border-blue-200 text-blue-700'
             }`}>
+              <div className="text-4xl mb-4">🆘</div>
               <h3 className={`text-lg font-semibold mb-2 ${
                 isDarkMode ? 'text-blue-200' : 'text-blue-800'
               }`}>
-                🆘 Support Center
+                Support Center
               </h3>
               <p className={`mb-4 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-                Need help? Contact our support team.
+                Need help? Our support team is here to assist you.
               </p>
               <button
-                onClick={() => setShowSupportModal(true)}
-                className={`px-4 py-2 rounded transition-all duration-200 ${
+                onClick={() => {
+                  setShowSupportModal(true);
+                  toast.info("Opening support ticket form...");
+                }}
+                className={`px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:scale-105 ${
                   isDarkMode 
                     ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                     : 'bg-blue-600 text-white hover:bg-blue-700'
@@ -348,57 +430,52 @@ const AppContent = () => {
           </div>
         );
       case "auth":
-        return user?.role === "admin" ? (
-          <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
-        ) : adminRequiredMessage;
+        return user?.role === "admin" ? 
+          contentWithTransition(<AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />) : 
+          adminRequiredMessage;
       case "ai-alerts":
-        return user?.role === "admin" ? (
-          <AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />
-        ) : adminRequiredMessage;
+        return user?.role === "admin" ? 
+          contentWithTransition(<AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />) : 
+          adminRequiredMessage;
       case "smartRules":
-        return user?.role === "admin" ? (
-          <SmartRuleGen getAuthHeaders={getAuthHeaders} user={user} />
-        ) : adminRequiredMessage;
+        return user?.role === "admin" ? 
+          contentWithTransition(<SmartRuleGen getAuthHeaders={getAuthHeaders} user={user} />) : 
+          adminRequiredMessage;
       case "users":
-        return user?.role === "admin" ? (
-          <EnterpriseUserManagement getAuthHeaders={getAuthHeaders} user={user} />
-        ) : adminRequiredMessage;
+        return user?.role === "admin" ? 
+          contentWithTransition(<EnterpriseUserManagement getAuthHeaders={getAuthHeaders} user={user} />) : 
+          adminRequiredMessage;
       case "settings":
-        return user?.role === "admin" ? (
-          <EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} />
-        ) : adminRequiredMessage;
+        return user?.role === "admin" ? 
+          contentWithTransition(<EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} />) : 
+          adminRequiredMessage;
+      case "profile":
+        return contentWithTransition(<Profile user={user} onUpdateProfile={handleProfileUpdate} />);
       default:
-        return (
+        return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-400 bg-slate-900' : 'text-gray-500 bg-gray-50'
+            isDarkMode ? 'text-slate-400 bg-slate-800' : 'text-gray-500 bg-gray-100'
           }`}>
-            Page not found
+            <div className="text-4xl mb-4">🤷‍♂️</div>
+            <p className="text-lg">Page not found</p>
+            <button
+              onClick={() => handleTabChange('dashboard')}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              Return to Dashboard
+            </button>
           </div>
         );
     }
   };
 
-  // Show loading screen while checking auth status
   if (loading) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
-      }`}>
-        <div className="text-center">
-          <div className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4 ${
-            isDarkMode ? 'border-blue-400' : 'border-blue-600'
-          }`}></div>
-          <p className={isDarkMode ? 'text-slate-300' : 'text-gray-600'}>
-            Loading OW-AI...
-          </p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <div className={`min-h-screen flex flex-col lg:flex-row transition-colors duration-300 ${
-      isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+      isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
     }`}>
       {view === "login" && (
         <Login
@@ -420,29 +497,45 @@ const AppContent = () => {
             user={user}
             handleLogout={handleLogout}
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleTabChange}
           />
-          <main className="flex-1 p-4 space-y-8 overflow-y-auto">
-            <div className={`text-sm transition-colors duration-300 ${
-              isDarkMode ? 'text-slate-400' : 'text-gray-600'
-            }`}>
-              Logged in as: {user?.email} ({user?.role})
-              <span className={`ml-4 text-xs px-2 py-1 rounded transition-colors duration-300 ${
-                isDarkMode 
-                  ? 'bg-green-900/30 text-green-300' 
-                  : 'bg-green-100 text-green-800'
-              }`}>
-                API: {API_BASE_URL}
-              </span>
+          <main className="flex-1 p-4 space-y-4 overflow-y-auto">
+            {/* Header with search and breadcrumbs */}
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <Breadcrumb activeTab={activeTab} user={user} />
+                <div className={`text-sm transition-colors duration-300 ${
+                  isDarkMode ? 'text-slate-400' : 'text-gray-600'
+                }`}>
+                  Logged in as: <span className="font-medium">{user?.email}</span> ({user?.role})
+                  <span className={`ml-4 text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                    isDarkMode 
+                      ? 'bg-green-900/30 text-green-300' 
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    API: Connected
+                  </span>
+                </div>
+              </div>
+              <GlobalSearch onNavigate={handleTabChange} />
             </div>
-            {renderAppContent()}
+            
+            {/* Main content */}
+            <div className="min-h-[calc(100vh-8rem)]">
+              {renderAppContent()}
+            </div>
           </main>
+          
           {showSupportModal && (
             <SupportModal
-              onClose={() => setShowSupportModal(false)}
+              onClose={() => {
+                setShowSupportModal(false);
+                toast.info("Support ticket form closed.");
+              }}
               onSubmit={(message) => {
                 console.log("Support message submitted:", message);
                 setShowSupportModal(false);
+                toast.success("Support ticket submitted successfully!", "We'll get back to you soon");
               }}
             />
           )}
@@ -455,7 +548,9 @@ const AppContent = () => {
 const App = () => {
   return (
     <ThemeProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </ThemeProvider>
   );
 };
