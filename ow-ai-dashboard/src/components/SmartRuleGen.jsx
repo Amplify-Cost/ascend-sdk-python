@@ -57,13 +57,16 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       if (response.ok) {
         const data = await response.json();
         setRules(data);
+        setError(null);
       } else {
-        setRules(generateDemoRules());
+        console.error("Failed to fetch rules:", response.status);
+        setRules([]); // ENTERPRISE: No demo data
+        setError("Failed to fetch rules from server");
       }
-      setError(null);
     } catch (err) {
       console.error("Error fetching rules:", err);
-      setRules(generateDemoRules());
+      setRules([]); // ENTERPRISE: No demo data
+      setError("Network error fetching rules");
     }
   };
 
@@ -76,11 +79,12 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         const data = await response.json();
         setRuleAnalytics(data);
       } else {
-        setRuleAnalytics(generateDemoAnalytics());
+        console.error("Failed to fetch analytics:", response.status);
+        setRuleAnalytics(null); // ENTERPRISE: No demo data
       }
     } catch (err) {
       console.error("Error fetching rule analytics:", err);
-      setRuleAnalytics(generateDemoAnalytics());
+      setRuleAnalytics(null); // ENTERPRISE: No demo data
     }
   };
 
@@ -91,13 +95,15 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       });
       if (response.ok) {
         const data = await response.json();
+        console.log("✅ ENTERPRISE: A/B tests fetched:", data);
         setAbTests(data);
       } else {
-        setAbTests(generateDemoAbTests());
+        console.error("❌ ENTERPRISE: Failed to fetch A/B tests:", response.status);
+        setAbTests([]); // ENTERPRISE: No demo data
       }
     } catch (err) {
-      console.error("Error fetching A/B tests:", err);
-      setAbTests(generateDemoAbTests());
+      console.error("❌ ENTERPRISE: Error fetching A/B tests:", err);
+      setAbTests([]); // ENTERPRISE: No demo data
     }
   };
 
@@ -110,11 +116,12 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         const data = await response.json();
         setSuggestedRules(data);
       } else {
-        setSuggestedRules(generateDemoSuggestions());
+        console.error("Failed to fetch suggestions:", response.status);
+        setSuggestedRules([]); // ENTERPRISE: No demo data
       }
     } catch (err) {
       console.error("Error fetching rule suggestions:", err);
-      setSuggestedRules(generateDemoSuggestions());
+      setSuggestedRules([]); // ENTERPRISE: No demo data
     }
   };
 
@@ -139,26 +146,16 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         const newRule = await response.json();
         setRules(prev => [newRule, ...prev]);
         setNlInput("");
-        alert("✅ Rule generated successfully!");
+        alert("✅ Enterprise rule generated successfully!");
       } else {
-        const demoRule = {
-          id: Date.now(),
-          condition: `AI-generated condition based on: "${nlInput}"`,
-          action: "smart_action",
-          justification: `Intelligent rule created from: "${nlInput}"`,
-          risk_level: "medium",
-          performance_score: 85,
-          triggers_last_24h: 0,
-          false_positives: 0,
-          created_at: new Date().toISOString()
-        };
-        setRules(prev => [demoRule, ...prev]);
-        setNlInput("");
-        alert("✅ Demo rule generated successfully!");
+        // ENTERPRISE: No demo fallback - show actual error
+        const errorText = await response.text();
+        console.error("Rule generation failed:", response.status, errorText);
+        alert("❌ Failed to generate rule - check server connection");
       }
     } catch (err) {
       console.error("Error generating rule:", err);
-      alert("❌ Failed to generate rule");
+      alert("❌ Network error - failed to generate rule");
     } finally {
       setGeneratingRule(false);
     }
@@ -178,11 +175,11 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         setRules(prev => prev.filter(r => r.id !== id));
         alert("✅ Rule deleted successfully");
       } else {
-        alert("❌ Failed to delete rule");
+        alert("❌ Failed to delete rule - server error");
       }
     } catch (err) {
       console.error("Error deleting rule:", err);
-      alert("❌ Failed to delete rule");
+      alert("❌ Network error - failed to delete rule");
     } finally {
       setDeletingId(null);
     }
@@ -191,6 +188,8 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const createAbTest = async (ruleId) => {
     setCreatingTest(true);
     try {
+      console.log(`🧪 ENTERPRISE: Creating A/B test for rule ${ruleId}`);
+      
       const response = await fetch(`${API_BASE_URL}/smart-rules/ab-test`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -203,119 +202,28 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const newTest = await response.json();
+        console.log("✅ ENTERPRISE: A/B test created:", newTest);
         setAbTests(prev => [newTest, ...prev]);
-        alert("✅ A/B test created successfully!");
+        alert("✅ Enterprise A/B test created successfully!");
+        
+        // Refresh A/B tests list
+        fetchAbTests();
       } else {
-        const demoTest = {
-          id: Date.now(),
-          rule_id: ruleId,
-          rule_name: `Rule ${ruleId} Optimization Test`,
-          variant_a: "Current configuration",
-          variant_b: "AI-optimized configuration",
-          variant_a_performance: Math.floor(Math.random() * 20) + 70,
-          variant_b_performance: Math.floor(Math.random() * 20) + 80,
-          confidence_level: Math.floor(Math.random() * 15) + 80,
-          status: "running",
-          winner: null,
-          created_at: new Date().toISOString()
-        };
-        setAbTests(prev => [demoTest, ...prev]);
-        alert("✅ Demo A/B test created!");
+        // ENTERPRISE: No demo fallback - show actual error
+        const errorText = await response.text();
+        console.error("❌ ENTERPRISE: A/B test creation failed:", response.status, errorText);
+        alert(`❌ Failed to create A/B test - Server error (${response.status})`);
       }
     } catch (err) {
-      console.error("Error creating A/B test:", err);
-      alert("❌ Failed to create A/B test");
+      console.error("❌ ENTERPRISE: Network error creating A/B test:", err);
+      alert("❌ Network error - failed to create A/B test");
     } finally {
       setCreatingTest(false);
     }
   };
 
-  const generateDemoRules = () => [
-    {
-      id: 1,
-      condition: "action_type == 'data_exfiltration' and risk_level == 'high'",
-      action: "block_and_alert",
-      justification: "High-risk data exfiltration attempts must be blocked immediately",
-      risk_level: "high",
-      performance_score: 94,
-      triggers_last_24h: 12,
-      false_positives: 1,
-      created_at: "2025-07-30T10:00:00Z"
-    },
-    {
-      id: 2,
-      condition: "tool_name == 'network_scanner' and time_of_day == 'after_hours'",
-      action: "monitor_and_log",
-      justification: "After-hours network scanning requires monitoring",
-      risk_level: "medium", 
-      performance_score: 87,
-      triggers_last_24h: 5,
-      false_positives: 0,
-      created_at: "2025-07-29T15:30:00Z"
-    }
-  ];
-
-  const generateDemoAnalytics = () => ({
-    total_rules: 25,
-    active_rules: 23,
-    avg_performance_score: 89.2,
-    total_triggers_24h: 156,
-    false_positive_rate: 4.2,
-    top_performing_rules: [
-      { id: 1, name: "Data Exfiltration Block", score: 94 },
-      { id: 2, name: "Privilege Escalation Alert", score: 91 },
-      { id: 3, name: "Suspicious Network Activity", score: 87 }
-    ],
-    performance_trends: {
-      accuracy_improvement: "+12%",
-      response_time_improvement: "-23%",
-      false_positive_reduction: "-34%"
-    }
-  });
-
-  const generateDemoAbTests = () => [
-    {
-      id: 1,
-      rule_name: "Suspicious Login Detection",
-      variant_a: "Original threshold: 5 failed attempts",
-      variant_b: "AI-optimized threshold: 3 failed attempts", 
-      variant_a_performance: 78,
-      variant_b_performance: 85,
-      confidence_level: 92,
-      status: "completed",
-      winner: "variant_b"
-    },
-    {
-      id: 2,
-      rule_name: "File Access Monitoring",
-      variant_a: "Time-based triggers",
-      variant_b: "ML-pattern based triggers",
-      variant_a_performance: 82,
-      variant_b_performance: 89,
-      confidence_level: 87,
-      status: "running",
-      winner: null
-    }
-  ];
-
-  const generateDemoSuggestions = () => [
-    {
-      id: 1,
-      suggested_rule: "Block API calls from new geographic regions during off-hours",
-      confidence: 89,
-      reasoning: "Pattern analysis shows 94% of off-hours geo-anomalies are malicious",
-      potential_impact: "Could prevent 15-20 potential security incidents per month",
-      data_points: 1247
-    },
-    {
-      id: 2,
-      suggested_rule: "Alert on rapid file access patterns exceeding 100 files/minute", 
-      confidence: 92,
-      reasoning: "ML analysis identifies this pattern in 87% of data exfiltration attempts",
-      potential_impact: "Early detection of data theft attempts",
-      data_points: 2156
-    }
-  ];
+  // ENTERPRISE: Remove all demo data generation functions
+  // No generateDemoRules, generateDemoAnalytics, generateDemoAbTests, generateDemoSuggestions
 
   const getRiskColor = (level) => {
     const colors = {
@@ -418,7 +326,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
           {rules.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🤖</div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Smart Rules Yet</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Smart Rules Found</h3>
               <p className="text-gray-500">Create your first intelligent security rule using natural language</p>
             </div>
           ) : (
@@ -468,9 +376,9 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
                           <button
                             onClick={() => createAbTest(rule.id)}
                             disabled={creatingTest}
-                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm disabled:opacity-50"
                           >
-                            🧪 A/B Test
+                            {creatingTest ? "Creating..." : "🧪 A/B Test"}
                           </button>
                           <button
                             onClick={() => deleteRule(rule.id)}
@@ -536,54 +444,64 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       )}
 
       {/* Performance Analytics Tab */}
-      {activeTab === "analytics" && ruleAnalytics && (
+      {activeTab === "analytics" && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">🏆 Top Performing Rules</h3>
-            <div className="space-y-3">
-              {ruleAnalytics.top_performing_rules.map((rule, idx) => (
-                <div key={rule.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
-                      idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : 'bg-orange-500'
-                    }`}>
-                      {idx + 1}
+          {ruleAnalytics ? (
+            <>
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">🏆 Top Performing Rules</h3>
+                <div className="space-y-3">
+                  {ruleAnalytics.top_performing_rules.map((rule, idx) => (
+                    <div key={rule.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                          idx === 0 ? 'bg-yellow-500' : idx === 1 ? 'bg-gray-400' : 'bg-orange-500'
+                        }`}>
+                          {idx + 1}
+                        </div>
+                        <div>
+                          <div className="font-medium">{rule.name}</div>
+                        </div>
+                      </div>
+                      <div className={`text-lg font-bold ${getPerformanceColor(rule.score)}`}>
+                        {rule.score}%
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-medium">{rule.name}</div>
-                    </div>
-                  </div>
-                  <div className={`text-lg font-bold ${getPerformanceColor(rule.score)}`}>
-                    {rule.score}%
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">📈 Performance Trends</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {ruleAnalytics.performance_trends.accuracy_improvement}
+              <div className="bg-white p-6 rounded-lg shadow-sm border">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">📈 Performance Trends</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">
+                      {ruleAnalytics.performance_trends.accuracy_improvement}
+                    </div>
+                    <div className="text-sm text-green-700">Accuracy Improvement</div>
+                  </div>
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {ruleAnalytics.performance_trends.response_time_improvement}
+                    </div>
+                    <div className="text-sm text-blue-700">Response Time</div>
+                  </div>
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {ruleAnalytics.performance_trends.false_positive_reduction}
+                    </div>
+                    <div className="text-sm text-purple-700">False Positive Reduction</div>
+                  </div>
                 </div>
-                <div className="text-sm text-green-700">Accuracy Improvement</div>
               </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {ruleAnalytics.performance_trends.response_time_improvement}
-                </div>
-                <div className="text-sm text-blue-700">Response Time</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {ruleAnalytics.performance_trends.false_positive_reduction}
-                </div>
-                <div className="text-sm text-purple-700">False Positive Reduction</div>
-              </div>
+            </>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">📊</div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Analytics Available</h3>
+              <p className="text-gray-500">Analytics will appear when rule data is available</p>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -591,7 +509,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       {activeTab === "ab-testing" && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">🧪 Rule A/B Testing</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🧪 Enterprise Rule A/B Testing</h3>
             <p className="text-gray-600 mb-6">
               Test different versions of your security rules to optimize performance and reduce false positives.
             </p>
@@ -663,7 +581,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
             {suggestedRules.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-4xl mb-4">🤖</div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">No Suggestions Yet</h4>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">No Suggestions Available</h4>
                 <p className="text-gray-500">AI will analyze your security patterns and suggest optimal rules</p>
               </div>
             ) : (
