@@ -57,19 +57,19 @@ export const ThemeProvider = ({ children }) => {
       error: '#ef4444',
       info: '#3b82f6',
     },
-    // Dark theme colors
+    // Dark theme colors - Lighter for better readability
     dark: {
-      primary: '#3b82f6',
-      primaryHover: '#2563eb',
-      secondary: '#94a3b8',
-      background: '#0f172a',
-      cardBackground: '#1e293b',
-      border: '#334155',
-      text: '#f1f5f9',
-      textSecondary: '#cbd5e1',
-      textMuted: '#94a3b8',
-      success: '#10b981',
-      warning: '#f59e0b',
+      primary: '#60a5fa',
+      primaryHover: '#3b82f6',
+      secondary: '#cbd5e1',
+      background: '#1e293b',  // Lighter main background
+      cardBackground: '#334155',  // Lighter card background
+      border: '#475569',  // Lighter borders
+      text: '#ffffff',  // Pure white for main text
+      textSecondary: '#e2e8f0',  // Much lighter secondary text
+      textMuted: '#cbd5e1',  // Lighter muted text
+      success: '#34d399',
+      warning: '#fbbf24',
       error: '#f87171',
       info: '#60a5fa',
     }

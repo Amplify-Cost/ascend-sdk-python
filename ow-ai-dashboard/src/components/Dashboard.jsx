@@ -45,12 +45,12 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (loading) {
     return (
       <div className={`p-6 text-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-900 text-slate-100' : 'bg-white text-gray-900'
+        isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-gray-900'
       }`}>
         <div className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4 ${
           isDarkMode ? 'border-blue-400' : 'border-blue-600'
         }`}></div>
-        <p className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>Loading analytics...</p>
+        <p className={isDarkMode ? 'text-slate-300' : 'text-gray-500'}>Loading analytics...</p>
       </div>
     );
   }
@@ -58,11 +58,11 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (error) {
     return (
       <div className={`p-6 text-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-900' : 'bg-white'
+        isDarkMode ? 'bg-slate-800' : 'bg-white'
       }`}>
         <div className={`border px-4 py-3 rounded transition-colors duration-300 ${
           isDarkMode 
-            ? 'bg-red-900/20 border-red-500 text-red-400' 
+            ? 'bg-red-900/30 border-red-400 text-red-300' 
             : 'bg-red-100 border-red-400 text-red-700'
         }`}>
           <h3 className="font-bold">Error Loading Dashboard</h3>
@@ -83,37 +83,37 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (!hasAnyData) {
     return (
       <div className={`p-6 transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+        isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
       }`}>
         <h2 className={`text-2xl font-semibold mb-6 transition-colors duration-300 ${
-          isDarkMode ? 'text-slate-100' : 'text-gray-900'
+          isDarkMode ? 'text-white' : 'text-gray-900'
         }`}>
           🛡️ Security Analytics Dashboard
         </h2>
         <div className={`border rounded-lg p-6 text-center transition-colors duration-300 ${
           isDarkMode 
-            ? 'bg-blue-900/20 border-blue-500/30 text-blue-300' 
+            ? 'bg-blue-900/30 border-blue-400 text-blue-200' 
             : 'bg-blue-50 border-blue-200 text-blue-700'
         }`}>
-          <div className={`text-4xl mb-4 ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>📊</div>
+          <div className={`text-4xl mb-4 ${isDarkMode ? 'text-blue-300' : 'text-blue-600'}`}>📊</div>
           <h3 className={`text-lg font-semibold mb-2 ${
-            isDarkMode ? 'text-blue-200' : 'text-blue-900'
+            isDarkMode ? 'text-blue-100' : 'text-blue-900'
           }`}>
             Analytics Dashboard Ready
           </h3>
-          <p className={`mb-4 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+          <p className={`mb-4 ${isDarkMode ? 'text-blue-200' : 'text-blue-700'}`}>
             No analytics data available yet. Submit agent actions to populate insights.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
             <div className={`p-4 rounded border transition-colors duration-300 ${
               isDarkMode 
-                ? 'bg-slate-800 border-slate-600' 
+                ? 'bg-slate-700 border-slate-500' 
                 : 'bg-white border-gray-200'
             }`}>
-              <h4 className={`font-semibold ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+              <h4 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                 🎯 Quick Start
               </h4>
-              <p className={`text-sm mt-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+              <p className={`text-sm mt-2 ${isDarkMode ? 'text-slate-200' : 'text-gray-600'}`}>
                 1. Submit agent actions via "Submit Action" tab<br/>
                 2. Review alerts in "Alerts" tab<br/>
                 3. Generate smart rules<br/>
@@ -147,27 +147,27 @@ const Dashboard = ({ getAuthHeaders }) => {
 
   // Chart colors for dark mode
   const chartColors = {
-    grid: isDarkMode ? '#374151' : '#f3f4f6',
-    axis: isDarkMode ? '#9ca3af' : '#6b7280',
+    grid: isDarkMode ? '#475569' : '#f3f4f6',
+    axis: isDarkMode ? '#cbd5e1' : '#6b7280',
     tooltip: {
-      bg: isDarkMode ? '#1f2937' : '#ffffff',
-      border: isDarkMode ? '#374151' : '#e5e7eb',
-      text: isDarkMode ? '#f9fafb' : '#111827'
+      bg: isDarkMode ? '#334155' : '#ffffff',
+      border: isDarkMode ? '#475569' : '#e5e7eb',
+      text: isDarkMode ? '#ffffff' : '#111827'
     }
   };
 
   return (
     <div className={`p-6 space-y-6 transition-colors duration-300 ${
-      isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+      isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
     }`}>
       <div className="flex items-center justify-between">
         <h2 className={`text-2xl font-semibold transition-colors duration-300 ${
-          isDarkMode ? 'text-slate-100' : 'text-gray-900'
+          isDarkMode ? 'text-white' : 'text-gray-900'
         }`}>
           🛡️ Security Analytics Dashboard
         </h2>
         <div className={`text-sm transition-colors duration-300 ${
-          isDarkMode ? 'text-slate-400' : 'text-gray-500'
+          isDarkMode ? 'text-slate-300' : 'text-gray-500'
         }`}>
           Real-time security monitoring • Enterprise-grade analytics
         </div>
@@ -178,11 +178,11 @@ const Dashboard = ({ getAuthHeaders }) => {
         {trends.high_risk_actions_by_day && trends.high_risk_actions_by_day.length > 0 && (
           <div className={`p-6 rounded-lg shadow-sm border transition-colors duration-300 ${
             isDarkMode 
-              ? 'bg-slate-800 border-slate-700' 
+              ? 'bg-slate-700 border-slate-600' 
               : 'bg-white border-gray-200'
           }`}>
             <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
-              isDarkMode ? 'text-slate-100' : 'text-gray-900'
+              isDarkMode ? 'text-white' : 'text-gray-900'
             }`}>
               📈 High-Risk Actions (Last 7 Days)
             </h3>
