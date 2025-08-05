@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
@@ -23,6 +24,7 @@ import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
 const Profile = ({ user, onUpdateProfile }) => {
+  const { isDarkMode } = useTheme();
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -54,18 +56,48 @@ const Profile = ({ user, onUpdateProfile }) => {
   };
 
   return (
-    <div className="text-gray-700 p-4 max-w-md mx-auto">
-      <h2 className="text-xl font-semibold mb-4">Profile Settings</h2>
+    <div className={`p-4 max-w-md mx-auto transition-colors duration-300 ${
+      isDarkMode ? 'text-slate-100' : 'text-gray-700'
+    }`}>
+      <h2 className={`text-xl font-semibold mb-4 transition-colors duration-300 ${
+        isDarkMode ? 'text-slate-100' : 'text-gray-900'
+      }`}>
+        Profile Settings
+      </h2>
       
-      {message && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">{message}</div>}
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">{error}</div>}
+      {message && (
+        <div className={`border px-4 py-3 rounded mb-4 transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-green-900/20 border-green-500 text-green-300' 
+            : 'bg-green-100 border-green-400 text-green-700'
+        }`}>
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className={`border px-4 py-3 rounded mb-4 transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-red-900/20 border-red-500 text-red-300' 
+            : 'bg-red-100 border-red-400 text-red-700'
+        }`}>
+          {error}
+        </div>
+      )}
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
+          <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
+            isDarkMode ? 'text-slate-200' : 'text-gray-700'
+          }`}>
+            Email
+          </label>
           <input
             type="email"
-            className="w-full p-2 border rounded"
+            className={`w-full p-2 border rounded transition-colors duration-300 ${
+              isDarkMode 
+                ? 'bg-slate-800 border-slate-600 text-slate-100 focus:border-blue-400' 
+                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+            }`}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Enter new email"
@@ -73,10 +105,18 @@ const Profile = ({ user, onUpdateProfile }) => {
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1">New Password</label>
+          <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
+            isDarkMode ? 'text-slate-200' : 'text-gray-700'
+          }`}>
+            New Password
+          </label>
           <input
             type="password"
-            className="w-full p-2 border rounded"
+            className={`w-full p-2 border rounded transition-colors duration-300 ${
+              isDarkMode 
+                ? 'bg-slate-800 border-slate-600 text-slate-100 focus:border-blue-400' 
+                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+            }`}
             value=REDACTED-CREDENTIAL
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter new password"
@@ -84,10 +124,18 @@ const Profile = ({ user, onUpdateProfile }) => {
         </div>
         
         <div>
-          <label className="block text-sm font-medium mb-1">Confirm New Password</label>
+          <label className={`block text-sm font-medium mb-1 transition-colors duration-300 ${
+            isDarkMode ? 'text-slate-200' : 'text-gray-700'
+          }`}>
+            Confirm New Password
+          </label>
           <input
             type="password"
-            className="w-full p-2 border rounded"
+            className={`w-full p-2 border rounded transition-colors duration-300 ${
+              isDarkMode 
+                ? 'bg-slate-800 border-slate-600 text-slate-100 focus:border-blue-400' 
+                : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+            }`}
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Confirm new password"
@@ -96,7 +144,11 @@ const Profile = ({ user, onUpdateProfile }) => {
         
         <button
           onClick={handleUpdate}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition duration-200"
+          className={`px-4 py-2 rounded transition-all duration-200 ${
+            isDarkMode 
+              ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
         >
           Update Profile
         </button>
@@ -105,7 +157,8 @@ const Profile = ({ user, onUpdateProfile }) => {
   );
 };
 
-const App = () => {
+const AppContent = () => {
+  const { isDarkMode } = useTheme();
   const [view, setView] = useState("login");
   const [token, setToken] = useState("");
   const [user, setUser] = useState(null);
@@ -230,6 +283,30 @@ const App = () => {
     console.log("🎯 Rendering tab:", activeTab);
     console.log("🎯 User role:", user?.role);
     
+    const adminRequiredMessage = (
+      <div className={`p-6 text-center transition-colors duration-300 ${
+        isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+      }`}>
+        <div className={`border-l-4 p-4 rounded transition-colors duration-300 ${
+          isDarkMode 
+            ? 'bg-yellow-900/20 border-yellow-500 text-yellow-300' 
+            : 'bg-yellow-100 border-yellow-500 text-yellow-700'
+        }`}>
+          <h3 className={`text-lg font-semibold mb-2 ${
+            isDarkMode ? 'text-yellow-200' : 'text-yellow-800'
+          }`}>
+            🔒 Admin Access Required
+          </h3>
+          <p className={isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}>
+            You need administrator privileges to access this section.
+          </p>
+          <p className={`text-sm mt-2 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
+            Current role: {user?.role || "unknown"}
+          </p>
+        </div>
+      </div>
+    );
+    
     switch (activeTab) {
       case "dashboard":
         return <Dashboard getAuthHeaders={getAuthHeaders} user={user} />;
@@ -241,13 +318,29 @@ const App = () => {
         return <SecurityInsights getAuthHeaders={getAuthHeaders} />;
       case "support":
         return (
-          <div className="p-6 text-center">
-            <div className="bg-blue-100 border-l-4 border-blue-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-blue-800 mb-2">🆘 Support Center</h3>
-              <p className="text-blue-700 mb-4">Need help? Contact our support team.</p>
+          <div className={`p-6 text-center transition-colors duration-300 ${
+            isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+          }`}>
+            <div className={`border-l-4 p-4 rounded transition-colors duration-300 ${
+              isDarkMode 
+                ? 'bg-blue-900/20 border-blue-500 text-blue-300' 
+                : 'bg-blue-100 border-blue-500 text-blue-700'
+            }`}>
+              <h3 className={`text-lg font-semibold mb-2 ${
+                isDarkMode ? 'text-blue-200' : 'text-blue-800'
+              }`}>
+                🆘 Support Center
+              </h3>
+              <p className={`mb-4 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                Need help? Contact our support team.
+              </p>
               <button
                 onClick={() => setShowSupportModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+                className={`px-4 py-2 rounded transition-all duration-200 ${
+                  isDarkMode 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
                 Open Support Ticket
               </button>
@@ -257,82 +350,56 @@ const App = () => {
       case "auth":
         return user?.role === "admin" ? (
           <AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access Authorization Center.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
+        ) : adminRequiredMessage;
       case "ai-alerts":
         return user?.role === "admin" ? (
           <AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access AI Alert Management.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
+        ) : adminRequiredMessage;
       case "smartRules":
         return user?.role === "admin" ? (
           <SmartRuleGen getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access AI Rule Engine.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
+        ) : adminRequiredMessage;
       case "users":
         return user?.role === "admin" ? (
           <EnterpriseUserManagement getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access User Management.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
-          </div>
-        );
+        ) : adminRequiredMessage;
       case "settings":
         return user?.role === "admin" ? (
           <EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} />
-        ) : (
-          <div className="p-6 text-center">
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 p-4 rounded">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">🔒 Admin Access Required</h3>
-              <p className="text-yellow-700">You need administrator privileges to access Enterprise Settings.</p>
-              <p className="text-sm text-yellow-600 mt-2">Current role: {user?.role || "unknown"}</p>
-            </div>
+        ) : adminRequiredMessage;
+      default:
+        return (
+          <div className={`p-6 text-center transition-colors duration-300 ${
+            isDarkMode ? 'text-slate-400 bg-slate-900' : 'text-gray-500 bg-gray-50'
+          }`}>
+            Page not found
           </div>
         );
-      default:
-        return <div className="p-6 text-center text-gray-500">Page not found</div>;
     }
   };
 
   // Show loading screen while checking auth status
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center transition-colors duration-300 ${
+        isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+      }`}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading OW-AI...</p>
+          <div className={`animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4 ${
+            isDarkMode ? 'border-blue-400' : 'border-blue-600'
+          }`}></div>
+          <p className={isDarkMode ? 'text-slate-300' : 'text-gray-600'}>
+            Loading OW-AI...
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
+    <div className={`min-h-screen flex flex-col lg:flex-row transition-colors duration-300 ${
+      isDarkMode ? 'bg-slate-900' : 'bg-gray-50'
+    }`}>
       {view === "login" && (
         <Login
           onLoginSuccess={handleLoginSuccess}
@@ -356,9 +423,15 @@ const App = () => {
             setActiveTab={setActiveTab}
           />
           <main className="flex-1 p-4 space-y-8 overflow-y-auto">
-            <div className="text-sm text-gray-600">
+            <div className={`text-sm transition-colors duration-300 ${
+              isDarkMode ? 'text-slate-400' : 'text-gray-600'
+            }`}>
               Logged in as: {user?.email} ({user?.role})
-              <span className="ml-4 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+              <span className={`ml-4 text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                isDarkMode 
+                  ? 'bg-green-900/30 text-green-300' 
+                  : 'bg-green-100 text-green-800'
+              }`}>
                 API: {API_BASE_URL}
               </span>
             </div>
@@ -376,6 +449,14 @@ const App = () => {
         </>
       )}
     </div>
+  );
+};
+
+const App = () => {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   );
 };
 
