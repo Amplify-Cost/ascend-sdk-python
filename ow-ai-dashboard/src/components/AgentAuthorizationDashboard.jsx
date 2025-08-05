@@ -11,10 +11,17 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [emergencyJustification, setEmergencyJustification] = useState("");
 
-  // New workflow management state
+  // Existing workflow management state
   const [workflows, setWorkflows] = useState({});
   const [editingWorkflow, setEditingWorkflow] = useState(null);
   const [message, setMessage] = useState(null);
+
+  // NEW: Advanced Automation State
+  const [automationData, setAutomationData] = useState(null);
+  const [workflowOrchestrations, setWorkflowOrchestrations] = useState({});
+  const [showAutomationModal, setShowAutomationModal] = useState(false);
+  const [selectedPlaybook, setSelectedPlaybook] = useState(null);
+  const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
@@ -30,6 +37,12 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     if (activeTab === "workflows") {
       fetchWorkflows();
     }
+
+    // NEW: Fetch automation data when on automation tab
+    if (activeTab === "automation") {
+      fetchAutomationData();
+      fetchWorkflowOrchestrations();
+    }
         
     // Real-time refresh every 15 seconds for more responsive updates
     const interval = setInterval(() => {
@@ -40,6 +53,12 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
       
       if (activeTab === "workflows") {
         fetchWorkflows();
+      }
+
+      // NEW: Update automation data in real-time
+      if (activeTab === "automation") {
+        fetchAutomationData();
+        fetchWorkflowOrchestrations();
       }
     }, 15000); // Reduced from 30 seconds to 15 seconds
         
@@ -186,6 +205,111 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     } catch (err) {
       console.error("Error fetching workflows:", err);
       setError("Failed to load workflow configuration");
+    }
+  };
+
+  // NEW: Automation Functions
+  const fetchAutomationData = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/automation/playbooks`, {
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAutomationData(data);
+        console.log("🤖 Automation data loaded:", data);
+      }
+    } catch (err) {
+      console.error("Error fetching automation data:", err);
+    }
+  };
+
+  const fetchWorkflowOrchestrations = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/orchestration/active-workflows`, {
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setWorkflowOrchestrations(data);
+        console.log("🔄 Workflow orchestrations loaded:", data);
+      }
+    } catch (err) {
+      console.error("Error fetching workflow orchestrations:", err);
+    }
+  };
+
+  const togglePlaybook = async (playbookId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/automation/playbook/${playbookId}/toggle`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMessage(`✅ ${result.message}`);
+        fetchAutomationData(); // Refresh data
+      } else {
+        const errorData = await response.json();
+        setError(`❌ Failed to toggle playbook: ${errorData.detail}`);
+      }
+    } catch (err) {
+      console.error("Error toggling playbook:", err);
+      setError("❌ Failed to toggle playbook. Please try again.");
+    }
+  };
+
+  const executePlaybook = async (playbookId, testActionId = null) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/automation/execute-playbook`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playbook_id: playbookId,
+          action_id: testActionId
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMessage(`🤖 ${result.message}`);
+        
+        // Refresh data to show updated metrics
+        setTimeout(() => {
+          fetchAutomationData();
+          fetchPendingActions();
+          fetchDashboardData();
+        }, 1000);
+      } else {
+        const errorData = await response.json();
+        setError(`❌ Failed to execute playbook: ${errorData.detail}`);
+      }
+    } catch (err) {
+      console.error("Error executing playbook:", err);
+      setError("❌ Failed to execute playbook. Please try again.");
+    }
+  };
+
+  const executeWorkflow = async (workflowId, inputData = {}) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/orchestration/execute/${workflowId}`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ input_data: inputData })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setMessage(`🔄 ${result.message}`);
+        fetchWorkflowOrchestrations(); // Refresh data
+      } else {
+        const errorData = await response.json();
+        setError(`❌ Failed to execute workflow: ${errorData.detail}`);
+      }
+    } catch (err) {
+      console.error("Error executing workflow:", err);
+      setError("❌ Failed to execute workflow. Please try again.");
     }
   };
 
@@ -585,10 +709,10 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs - UPDATED with automation tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows"].map((tab) => (
+          {["pending", "metrics", "workflows", "automation"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -601,6 +725,7 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
               {tab === "pending" && "📋 Pending Actions"}
               {tab === "metrics" && "📊 Performance Metrics"}
               {tab === "workflows" && "⚙️ Workflow Management"}
+              {tab === "automation" && "🤖 Automation Center"}
             </button>
           ))}
         </nav>
@@ -997,6 +1122,285 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         </div>
       )}
 
+      {/* NEW: Automation Tab */}
+      {activeTab === "automation" && (
+        <div className="space-y-6">
+          {/* Automation Overview */}
+          {automationData && (
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-4">🤖 Automation Center Overview</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <span className="text-purple-100">Active Playbooks:</span>
+                  <span className="ml-2 text-2xl font-bold">{automationData.automation_summary.enabled_playbooks}</span>
+                </div>
+                <div>
+                  <span className="text-purple-100">24h Triggers:</span>
+                  <span className="ml-2 text-2xl font-bold">{automationData.automation_summary.total_triggers_24h}</span>
+                </div>
+                <div>
+                  <span className="text-purple-100">Success Rate:</span>
+                  <span className="ml-2 text-2xl font-bold">{automationData.automation_summary.average_success_rate.toFixed(1)}%</span>
+                </div>
+                <div>
+                  <span className="text-purple-100">Cost Savings:</span>
+                  <span className="ml-2 text-2xl font-bold">${automationData.automation_summary.total_cost_savings_24h.toFixed(0)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Automated Response Playbooks */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">🤖 Automated Response Playbooks</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fetchAutomationData()}
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+
+            {automationData && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(automationData.playbooks).map(([playbookId, playbook]) => (
+                  <div key={playbookId} className={`border-2 rounded-lg p-4 ${
+                    playbook.enabled ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'
+                  }`}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg`}>
+                          {playbook.enabled ? '🟢' : '🔴'}
+                        </span>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{playbook.name}</h4>
+                          <p className="text-xs text-gray-600">Success Rate: {playbook.success_rate}%</p>
+                        </div>
+                      </div>
+                      
+                      {user?.role === 'admin' && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => togglePlaybook(playbookId)}
+                            className={`px-2 py-1 rounded text-xs ${
+                              playbook.enabled 
+                                ? 'bg-red-100 hover:bg-red-200 text-red-700' 
+                                : 'bg-green-100 hover:bg-green-200 text-green-700'
+                            }`}
+                          >
+                            {playbook.enabled ? '⏸️ Disable' : '▶️ Enable'}
+                          </button>
+                          <button
+                            onClick={() => executePlaybook(playbookId)}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs"
+                          >
+                            🧪 Test
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">24h Triggers:</span>
+                        <span className="font-semibold">{playbook.stats.triggers_last_24h}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Avg Response:</span>
+                        <span className="font-semibold">{playbook.stats.avg_response_time_seconds}s</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Cost Savings:</span>
+                        <span className="font-semibold text-green-600">${playbook.stats.total_cost_savings_24h.toFixed(0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Last Triggered:</span>
+                        <span className="font-semibold text-xs">
+                          {new Date(playbook.last_triggered).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Trigger Conditions */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <h5 className="text-xs font-medium text-gray-700 mb-1">Trigger Conditions:</h5>
+                      <div className="flex flex-wrap gap-1">
+                        {Object.entries(playbook.trigger_conditions).map(([key, value]) => (
+                          <span key={key} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                            {key}: {typeof value === 'boolean' ? (value ? '✅' : '❌') : value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Workflow Orchestrations */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">🔄 Workflow Orchestrations</h3>
+              <div className="flex gap-2">
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => setShowWorkflowBuilder(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    ➕ Create Workflow
+                  </button>
+                )}
+                <button
+                  onClick={() => fetchWorkflowOrchestrations()}
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+
+            {workflowOrchestrations.active_workflows && (
+              <>
+                {/* Summary Stats */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <span className="text-blue-700 font-medium">Active Workflows:</span>
+                      <span className="ml-2 text-blue-900 font-semibold">{workflowOrchestrations.summary.total_active}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 font-medium">24h Executions:</span>
+                      <span className="ml-2 text-blue-900 font-semibold">{workflowOrchestrations.summary.total_executions_24h}</span>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 font-medium">Avg Success Rate:</span>
+                      <span className="ml-2 text-blue-900 font-semibold">{workflowOrchestrations.summary.average_success_rate.toFixed(1)}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Workflow Cards */}
+                <div className="space-y-4">
+                  {Object.entries(workflowOrchestrations.active_workflows).map(([workflowId, workflow]) => (
+                    <div key={workflowId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{workflow.name}</h4>
+                          <p className="text-sm text-gray-600">{workflow.description}</p>
+                          <p className="text-xs text-gray-500">Created by: {workflow.created_by}</p>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => executeWorkflow(workflowId, {})}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm"
+                          >
+                            ▶️ Execute
+                          </button>
+                          <button
+                            onClick={() => setSelectedPlaybook({type: 'workflow', data: workflow, id: workflowId})}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                          >
+                            📊 Details
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-600">Steps:</span>
+                          <span className="ml-2 font-semibold">{workflow.steps.length}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Currently Executing:</span>
+                          <span className="ml-2 font-semibold text-green-600">{workflow.real_time_stats.currently_executing}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Queued:</span>
+                          <span className="ml-2 font-semibold text-orange-600">{workflow.real_time_stats.queued_actions}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">24h Success:</span>
+                          <span className="ml-2 font-semibold">{workflow.real_time_stats.success_rate_24h}%</span>
+                        </div>
+                      </div>
+
+                      {/* Progress Indicator */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                          <span>24h Activity</span>
+                          <span>{workflow.real_time_stats.last_24h_executions} executions</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-purple-600 h-2 rounded-full transition-all duration-300" 
+                            style={{width: `${Math.min(100, (workflow.real_time_stats.last_24h_executions / 50) * 100)}%`}}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {(!workflowOrchestrations.active_workflows || Object.keys(workflowOrchestrations.active_workflows).length === 0) && (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">🔄</div>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">No Active Workflows</h4>
+                <p className="text-gray-500 mb-4">Create workflow orchestrations to automate complex multi-step processes.</p>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => setShowWorkflowBuilder(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+                  >
+                    ➕ Create Your First Workflow
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Real-time Automation Activity Feed */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">⚡ Real-time Automation Activity</h3>
+            <div className="space-y-3">
+              {/* Sample real-time activities */}
+              <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded">
+                <span className="text-green-600">🤖</span>
+                <div className="flex-1">
+                  <span className="font-medium">Low Risk Auto-Approval</span>
+                  <span className="text-gray-600 ml-2">executed for Agent-7432</span>
+                </div>
+                <span className="text-xs text-green-600">2 minutes ago</span>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                <span className="text-blue-600">🔄</span>
+                <div className="flex-1">
+                  <span className="font-medium">Workflow Orchestration</span>
+                  <span className="text-gray-600 ml-2">completed security review process</span>
+                </div>
+                <span className="text-xs text-blue-600">5 minutes ago</span>
+              </div>
+              
+              <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded">
+                <span className="text-orange-600">⚠️</span>
+                <div className="flex-1">
+                  <span className="font-medium">After Hours Escalation</span>
+                  <span className="text-gray-600 ml-2">triggered for high-risk action</span>
+                </div>
+                <span className="text-xs text-orange-600">12 minutes ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Review Modal */}
       {selectedAction && !showEmergencyModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1171,6 +1575,152 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
             setError(null);
           }}
         />
+      )}
+
+      {/* NEW: Automation Details Modal */}
+      {selectedPlaybook && selectedPlaybook.type === 'playbook' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold">🤖 Playbook Details</h3>
+                <button
+                  onClick={() => setSelectedPlaybook(null)}
+                  className="text-gray-400 hover:text-gray-600 text-3xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">{selectedPlaybook.data.name}</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Status:</strong> {selectedPlaybook.data.enabled ? '🟢 Active' : '🔴 Inactive'}</div>
+                    <div><strong>Success Rate:</strong> {selectedPlaybook.data.success_rate}%</div>
+                    <div><strong>24h Triggers:</strong> {selectedPlaybook.data.stats.triggers_last_24h}</div>
+                    <div><strong>Cost Savings:</strong> ${selectedPlaybook.data.stats.total_cost_savings_24h.toFixed(0)}</div>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Trigger Conditions</h4>
+                  <div className="space-y-2">
+                    {Object.entries(selectedPlaybook.data.trigger_conditions).map(([key, value]) => (
+                      <div key={key} className="flex justify-between text-sm">
+                        <span className="capitalize">{key.replace('_', ' ')}:</span>
+                        <span className="font-medium">{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Automated Actions</h4>
+                  <div className="space-y-2">
+                    {selectedPlaybook.data.actions.map((action, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <span className="bg-green-600 text-white px-2 py-1 rounded text-xs">{index + 1}</span>
+                        <span className="capitalize">{action.type.replace('_', ' ')}</span>
+                        {action.delay_seconds && <span className="text-gray-500">({action.delay_seconds}s delay)</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end mt-6 pt-6 border-t">
+                <button
+                  onClick={() => setSelectedPlaybook(null)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => executePlaybook(selectedPlaybook.id)}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+                  >
+                    🧪 Test Playbook
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Workflow Details Modal */}
+      {selectedPlaybook && selectedPlaybook.type === 'workflow' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold">🔄 Workflow Details</h3>
+                <button
+                  onClick={() => setSelectedPlaybook(null)}
+                  className="text-gray-400 hover:text-gray-600 text-3xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">{selectedPlaybook.data.name}</h4>
+                  <p className="text-sm text-gray-600 mb-2">{selectedPlaybook.data.description}</p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Created by:</strong> {selectedPlaybook.data.created_by}</div>
+                    <div><strong>Steps:</strong> {selectedPlaybook.data.steps.length}</div>
+                    <div><strong>Executions:</strong> {selectedPlaybook.data.success_metrics.executions}</div>
+                    <div><strong>Success Rate:</strong> {selectedPlaybook.data.success_metrics.success_rate}%</div>
+                  </div>
+                </div>
+                
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Real-time Statistics</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Currently Executing:</strong> {selectedPlaybook.data.real_time_stats.currently_executing}</div>
+                    <div><strong>Queued Actions:</strong> {selectedPlaybook.data.real_time_stats.queued_actions}</div>
+                    <div><strong>24h Executions:</strong> {selectedPlaybook.data.real_time_stats.last_24h_executions}</div>
+                    <div><strong>24h Success Rate:</strong> {selectedPlaybook.data.real_time_stats.success_rate_24h}%</div>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Workflow Steps</h4>
+                  <div className="space-y-2">
+                    {selectedPlaybook.data.steps.map((step, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm p-2 bg-white rounded border">
+                        <span className="bg-blue-600 text-white px-2 py-1 rounded text-xs">{index + 1}</span>
+                        <div className="flex-1">
+                          <span className="font-medium">{step.name || `Step ${index + 1}`}</span>
+                          <span className="text-gray-500 ml-2">({step.type})</span>
+                        </div>
+                        {step.timeout && <span className="text-xs text-gray-500">{step.timeout}s timeout</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end mt-6 pt-6 border-t">
+                <button
+                  onClick={() => setSelectedPlaybook(null)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => executeWorkflow(selectedPlaybook.id, {})}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md"
+                >
+                  ▶️ Execute Workflow
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
