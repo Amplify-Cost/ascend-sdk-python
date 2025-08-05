@@ -13,12 +13,12 @@ const MetricCard = ({ title, value, change, changeType, icon, color, trend }) =>
     <div className={`p-6 rounded-xl border transition-all duration-300 hover:scale-105 hover:shadow-lg ${
       isDarkMode 
         ? 'bg-slate-700 border-slate-600 hover:border-slate-500' 
-        : 'bg-white border-gray-200 hover:border-gray-300'
+        : 'bg-white border-gray-300 hover:border-gray-400 shadow-sm'
     }`}>
       <div className="flex items-center justify-between">
         <div>
           <p className={`text-sm font-medium transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-300' : 'text-gray-600'
+            isDarkMode ? 'text-slate-300' : 'text-gray-700'
           }`}>
             {title}
           </p>
@@ -72,7 +72,7 @@ const ActivityFeed = ({ activities }) => {
     <div className={`p-6 rounded-xl border transition-colors duration-300 ${
       isDarkMode 
         ? 'bg-slate-700 border-slate-600' 
-        : 'bg-white border-gray-200'
+        : 'bg-white border-gray-300 shadow-sm'
     }`}>
       <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
@@ -82,7 +82,7 @@ const ActivityFeed = ({ activities }) => {
       <div className="space-y-4 max-h-80 overflow-y-auto">
         {activities.map((activity, index) => (
           <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg transition-colors duration-300 ${
-            isDarkMode ? 'bg-slate-600/50' : 'bg-gray-50'
+            isDarkMode ? 'bg-slate-600/50' : 'bg-gray-100 border border-gray-200'
           }`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
               activity.type === 'alert' 
@@ -100,7 +100,7 @@ const ActivityFeed = ({ activities }) => {
                 {activity.title}
               </p>
               <p className={`text-xs mt-1 transition-colors duration-300 ${
-                isDarkMode ? 'text-slate-300' : 'text-gray-500'
+                isDarkMode ? 'text-slate-300' : 'text-gray-600'
               }`}>
                 {activity.time} • {activity.agent}
               </p>
@@ -127,7 +127,7 @@ const QuickActions = () => {
     <div className={`p-6 rounded-xl border transition-colors duration-300 ${
       isDarkMode 
         ? 'bg-slate-700 border-slate-600' 
-        : 'bg-white border-gray-200'
+        : 'bg-white border-gray-300 shadow-sm'
     }`}>
       <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
@@ -222,7 +222,7 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (loading) {
     return (
       <div className={`p-6 transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
+        isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
       }`}>
         <div className="animate-pulse space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -247,7 +247,7 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (error) {
     return (
       <div className={`p-6 text-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
+        isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
       }`}>
         <div className={`max-w-md mx-auto p-6 rounded-xl border transition-colors duration-300 ${
           isDarkMode 
@@ -284,7 +284,7 @@ const Dashboard = ({ getAuthHeaders }) => {
 
   return (
     <div className={`p-6 space-y-6 transition-colors duration-300 ${
-      isDarkMode ? 'bg-slate-800' : 'bg-gray-50'
+      isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
     }`}>
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -295,13 +295,13 @@ const Dashboard = ({ getAuthHeaders }) => {
             🛡️ Security Command Center
           </h1>
           <p className={`text-lg mt-2 transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-300' : 'text-gray-600'
+            isDarkMode ? 'text-slate-300' : 'text-gray-700'
           }`}>
             Real-time enterprise security monitoring and AI agent oversight
           </p>
         </div>
         <div className={`px-4 py-2 rounded-lg transition-colors duration-300 ${
-          isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800'
+          isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-200 text-green-900 font-medium'
         }`}>
           <span className="animate-pulse">●</span> All Systems Operational
         </div>
@@ -355,7 +355,7 @@ const Dashboard = ({ getAuthHeaders }) => {
             <div className={`p-6 rounded-xl border transition-colors duration-300 ${
               isDarkMode 
                 ? 'bg-slate-700 border-slate-600' 
-                : 'bg-white border-gray-200'
+                : 'bg-white border-gray-300 shadow-sm'
             }`}>
               <div className="flex items-center justify-between mb-6">
                 <h3 className={`text-xl font-semibold transition-colors duration-300 ${
@@ -364,7 +364,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                   📈 Security Trends (Last 7 Days)
                 </h3>
                 <div className={`px-3 py-1 rounded-full text-sm ${
-                  isDarkMode ? 'bg-slate-600 text-slate-200' : 'bg-gray-100 text-gray-600'
+                  isDarkMode ? 'bg-slate-600 text-slate-200' : 'bg-gray-200 text-gray-800 font-medium'
                 }`}>
                   Live Data
                 </div>
@@ -408,7 +408,7 @@ const Dashboard = ({ getAuthHeaders }) => {
               <div className={`p-6 rounded-xl border transition-colors duration-300 ${
                 isDarkMode 
                   ? 'bg-slate-700 border-slate-600' 
-                  : 'bg-white border-gray-200'
+                  : 'bg-white border-gray-300 shadow-sm'
               }`}>
                 <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
@@ -447,7 +447,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                 <div className={`p-6 rounded-xl border transition-colors duration-300 ${
                   isDarkMode 
                     ? 'bg-slate-700 border-slate-600' 
-                    : 'bg-white border-gray-200'
+                    : 'bg-white border-gray-300 shadow-sm'
                 }`}>
                   <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
                     isDarkMode ? 'text-white' : 'text-gray-900'
@@ -485,7 +485,7 @@ const Dashboard = ({ getAuthHeaders }) => {
           <div className={`p-6 rounded-xl border transition-colors duration-300 ${
             isDarkMode 
               ? 'bg-slate-700 border-slate-600' 
-              : 'bg-white border-gray-200'
+              : 'bg-white border-gray-300 shadow-sm'
           }`}>
             <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
               isDarkMode ? 'text-white' : 'text-gray-900'
@@ -502,7 +502,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                 <div key={index} className="space-y-2">
                   <div className="flex justify-between">
                     <span className={`text-sm font-medium ${
-                      isDarkMode ? 'text-slate-200' : 'text-gray-700'
+                      isDarkMode ? 'text-slate-200' : 'text-gray-800'
                     }`}>
                       {metric.name}
                     </span>
@@ -513,7 +513,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                     </span>
                   </div>
                   <div className={`w-full bg-gray-200 rounded-full h-2 ${
-                    isDarkMode ? 'bg-slate-600' : 'bg-gray-200'
+                    isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
                   }`}>
                     <div 
                       className={`h-2 rounded-full transition-all duration-500 ${metric.color}`}
@@ -532,7 +532,7 @@ const Dashboard = ({ getAuthHeaders }) => {
         <div className={`p-6 rounded-xl border transition-colors duration-300 ${
           isDarkMode 
             ? 'bg-slate-700 border-slate-600' 
-            : 'bg-white border-gray-200'
+            : 'bg-white border-gray-300 shadow-sm'
         }`}>
           <h3 className={`text-xl font-semibold mb-6 transition-colors duration-300 ${
             isDarkMode ? 'text-white' : 'text-gray-900'
@@ -547,7 +547,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                   : action.risk_level === 'medium' 
                   ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
                   : 'border-green-500 bg-green-50 dark:bg-green-900/20'
-              } ${isDarkMode ? 'bg-slate-600' : 'bg-gray-50'}`}>
+              } ${isDarkMode ? 'bg-slate-600' : 'bg-gray-100 border border-gray-200'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                     action.risk_level === 'high' 
@@ -559,7 +559,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                     {action.risk_level?.toUpperCase()}
                   </span>
                   <span className={`text-xs ${
-                    isDarkMode ? 'text-slate-300' : 'text-gray-500'
+                    isDarkMode ? 'text-slate-300' : 'text-gray-700'
                   }`}>
                     {action.mitre_tactic || 'N/A'}
                   </span>
@@ -570,7 +570,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                   {action.agent_id}
                 </p>
                 <p className={`text-xs ${
-                  isDarkMode ? 'text-slate-300' : 'text-gray-600'
+                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
                 }`}>
                   {action.recommendation || 'Monitoring for suspicious activity'}
                 </p>
