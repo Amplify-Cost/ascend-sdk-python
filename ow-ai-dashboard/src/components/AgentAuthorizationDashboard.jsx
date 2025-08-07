@@ -2044,6 +2044,45 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             🔄 Refresh
           </button>
         </div>
+        {/* NEW: Workflow Builder Modal */}
+{showWorkflowBuilder && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-semibold">➕ Create New Workflow</h3>
+          <button
+            onClick={() => setShowWorkflowBuilder(false)}
+            className="text-gray-400 hover:text-gray-600 text-3xl"
+          >
+            ×
+          </button>
+        </div>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <h4 className="font-semibold text-blue-900 mb-2">🚧 Under Development</h4>
+          <p className="text-blue-800 text-sm">
+            Advanced workflow builder is coming soon. For now, you can:
+          </p>
+          <ul className="text-blue-800 text-sm mt-2 ml-4 list-disc">
+            <li>Use the existing demo workflows</li>
+            <li>Contact admin for custom workflow creation</li>
+            <li>Submit workflow requirements via support</li>
+          </ul>
+        </div>
+        
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={() => setShowWorkflowBuilder(false)}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+          >
+            Got It
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       </div>
 
       {workflowOrchestrations && workflowOrchestrations.active_workflows && Object.keys(workflowOrchestrations.active_workflows).length > 0 ? (

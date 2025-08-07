@@ -214,3 +214,171 @@ class AgentActionCreate(BaseModel):
         if len(v) > 100:
             raise ValueError('Action type too long')
         return v.strip()
+    
+
+# ------------------------------
+# Automation & Workflow Schemas
+# ------------------------------
+
+class AutomationPlaybookBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    enabled: bool = True
+    trigger_conditions: Optional[dict] = None
+    success_rate: Optional[float] = 0.0
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Playbook name cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Playbook name too long')
+        return v.strip()
+
+class AutomationPlaybookCreate(AutomationPlaybookBase):
+    id: str
+    created_by: Optional[str] = None
+    
+    @validator('id')
+    def validate_id(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Playbook ID cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Playbook ID too long')
+        # Only allow alphanumeric, underscore, and hyphen
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Playbook ID can only contain letters, numbers, underscores, and hyphens')
+        return v.strip()
+
+class AutomationPlaybookOut(AutomationPlaybookBase):
+    id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class AutomationExecutionCreate(BaseModel):
+    playbook_id: str
+    execution_context: Optional[str] = "manual"
+    input_data: Optional[dict] = None
+    
+    @validator('playbook_id')
+    def validate_playbook_id(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Playbook ID cannot be empty')
+        return v.strip()
+
+class AutomationExecutionOut(BaseModel):
+    id: int
+    playbook_id: str
+    executed_by: Optional[str] = None
+    execution_status: str
+    execution_details: Optional[dict] = None
+    executed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class WorkflowBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    steps: Optional[list] = None
+    created_by: Optional[str] = None
+    
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Workflow name cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Workflow name too long')
+        return v.strip()
+
+class WorkflowCreate(WorkflowBase):
+    id: str
+    
+    @validator('id')
+    def validate_id(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Workflow ID cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Workflow ID too long')
+        if not re.match(r'^[a-zA-Z0-9_-]+$', v):
+            raise ValueError('Workflow ID can only contain letters, numbers, underscores, and hyphens')
+        return v.strip()
+
+class WorkflowOut(WorkflowBase):
+    id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    updated_by: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class WorkflowExecutionCreate(BaseModel):
+    workflow_id: str
+    input_data: Optional[dict] = None
+    execution_context: Optional[str] = "manual"
+    
+    @validator('workflow_id')
+    def validate_workflow_id(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Workflow ID cannot be empty')
+        return v.strip()
+
+class WorkflowExecutionOut(BaseModel):
+    id: int
+    workflow_id: str
+    executed_by: Optional[str] = None
+    execution_status: str
+    execution_details: Optional[dict] = None
+    executed_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# ------------------------------
+# Authorization Schemas
+# ------------------------------
+
+class AuthorizationRequest(BaseModel):
+    decision: str  # 'approved', 'denied', 'conditional_approved', 'escalated'
+    notes: Optional[str] = None
+    conditions: Optional[dict] = None
+    approval_duration: Optional[int] = None  # minutes
+    execute_immediately: bool = False
+    
+    @validator('decision')
+    def validate_decision(cls, v):
+        allowed_decisions = ['approved', 'denied', 'conditional_approved', 'escalated']
+        if v not in allowed_decisions:
+            raise ValueError(f'Decision must be one of: {allowed_decisions}')
+        return v
+
+class AuthorizationResponse(BaseModel):
+    message: str
+    execution_performed: bool = False
+    execution_success: Optional[bool] = None
+    execution_message: Optional[str] = None
+    authorization_id: Optional[str] = None
+
+class EmergencyOverrideRequest(BaseModel):
+    justification: str
+    
+    @validator('justification')
+    def validate_justification(cls, v):
+        if not v or len(v.strip()) < 10:
+            raise ValueError('Emergency justification must be at least 10 characters')
+        if len(v) > 1000:
+            raise ValueError('Emergency justification too long')
+        return v.strip()
+
+class EmergencyOverrideResponse(BaseModel):
+    message: str
+    override_id: str
+    execution_performed: bool = False
+    execution_success: Optional[bool] = None
+    execution_message: Optional[str] = None    
