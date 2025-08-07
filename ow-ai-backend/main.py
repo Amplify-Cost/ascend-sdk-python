@@ -153,7 +153,7 @@ audit_trail_storage = []
 app.include_router(auth_router)
 app.include_router(smart_rules_router)
 app.include_router(enterprise_user_router)
-app.include_router(authorization_router)  # <-- ADD THIS
+app.include_router(authorization_router)  
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")

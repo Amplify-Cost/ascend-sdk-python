@@ -12,7 +12,7 @@ from database import get_db
 from dependencies import get_current_user, require_admin
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/agent-control", tags=["authorization"])
+router = APIRouter(prefix="/api/authorization", tags=["authorization"])
 
 # Keep your existing in-memory storage for authorization requests (unchanged)
 pending_actions_storage = {}
