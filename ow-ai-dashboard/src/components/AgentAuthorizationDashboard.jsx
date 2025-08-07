@@ -83,8 +83,12 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
   const fetchPendingActions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      const response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
       if (response.ok) {
         const data = await response.json();
@@ -101,8 +105,12 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/approval-dashboard`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
       if (response.ok) {
         const data = await response.json();
@@ -151,8 +159,12 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
   const fetchApprovalMetrics = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/metrics/approval-performance`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      const response = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
       if (response.ok) {
         const data = await response.json();
@@ -211,7 +223,11 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const fetchWorkflows = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
       if (response.ok) {
         const data = await response.json();
@@ -228,7 +244,11 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const fetchAutomationData = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/agent-control/automation/playbooks`, {
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
     });
     if (response.ok) {
       const data = await response.json();
@@ -285,7 +305,11 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 const fetchWorkflowOrchestrations = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/agent-control/orchestration/active-workflows`, {
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
     });
     if (response.ok) {
       const data = await response.json();
@@ -336,7 +360,11 @@ const fetchWorkflowOrchestrations = async () => {
   const fetchExecutionHistory = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/execution-history`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+        hheaders: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
       if (response.ok) {
         const data = await response.json();
@@ -352,7 +380,11 @@ const fetchWorkflowOrchestrations = async () => {
   const fetchExecutionStatus = async (actionId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
       if (response.ok) {
         const data = await response.json();
@@ -368,7 +400,11 @@ const fetchWorkflowOrchestrations = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/automation/playbook/${playbookId}/toggle`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
 
       if (response.ok) {
@@ -389,7 +425,11 @@ const fetchWorkflowOrchestrations = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/automation/execute-playbook`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        hheaders: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+},
         body: JSON.stringify({
           playbook_id: playbookId,
           action_id: testActionId
@@ -420,7 +460,11 @@ const fetchWorkflowOrchestrations = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/orchestration/execute/${workflowId}`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+},
         body: JSON.stringify({ input_data: inputData })
       });
 
@@ -441,9 +485,13 @@ const fetchWorkflowOrchestrations = async () => {
   // 🚀 NEW: Manual execution function
   const executeAction = async (actionId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/execute/${actionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/execute/${actionId}`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+}
       });
 
       if (response.ok) {
@@ -510,7 +558,11 @@ const fetchWorkflowOrchestrations = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+},
         body: JSON.stringify({
           workflow_id: workflowId,
           updates: updates
@@ -535,9 +587,13 @@ const fetchWorkflowOrchestrations = async () => {
   // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/authorize/${actionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/authorize/${actionId}`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        hheaders: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+},
         body: JSON.stringify({
           decision: decision,
           notes: notes,
@@ -600,7 +656,11 @@ const fetchWorkflowOrchestrations = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/emergency-override/${actionId}`, {
         method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        headers: { 
+  ...getAuthHeaders(), 
+  "Content-Type": "application/json",
+  "X-API-Version": "v1.0"  // For backward compatibility
+},
         body: JSON.stringify({ justification: emergencyJustification })
       });
 
