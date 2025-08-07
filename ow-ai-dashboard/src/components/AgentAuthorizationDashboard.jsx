@@ -304,6 +304,17 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 // Add this right after your component declaration
 if (!dashboardData || !dashboardData.user_info) {
   console.warn('⚠️ ENTERPRISE: Dashboard data not ready, showing fallback');
+ 
+  if (dashboardData?.user_context && !dashboardData?.user_info) {
+  dashboardData.user_info = {
+    email: user?.email || 'admin@enterprise.com',
+    role: user?.role || 'admin', 
+    approval_level: user?.role === 'admin' ? 5 : 1,
+    max_risk_approval: user?.role === 'admin' ? 100 : 50,
+    is_emergency_approver: user?.role === 'admin',
+    enterprise_privileges: user?.role === 'admin'
+  };
+}
   return (
     <div className="p-6 text-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
