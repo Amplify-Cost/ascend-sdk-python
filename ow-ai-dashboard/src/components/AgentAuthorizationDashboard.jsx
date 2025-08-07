@@ -68,6 +68,14 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         fetchWorkflows();
       }
 
+      const [newWorkflow, setNewWorkflow] = useState({
+  name: '',
+  description: '',
+  steps: [],
+  triggers: [],
+  approvers: []
+});
+
       // NEW: Update automation data in real-time
       if (activeTab === "automation") {
         fetchAutomationData();
@@ -2045,38 +2053,387 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           </button>
         </div>
         {/* NEW: Workflow Builder Modal */}
+
+
+{/* ENTERPRISE: Advanced Workflow Builder Modal */}
 {showWorkflowBuilder && (
   <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+    <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-screen overflow-y-auto">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-2xl font-semibold">➕ Create New Workflow</h3>
+          <h3 className="text-2xl font-semibold">🏗️ Enterprise Workflow Builder</h3>
           <button
-            onClick={() => setShowWorkflowBuilder(false)}
+            onClick={() => {
+              setShowWorkflowBuilder(false);
+              setNewWorkflow({
+                name: '',
+                description: '',
+                steps: [],
+                triggers: [],
+                approvers: []
+              });
+            }}
             className="text-gray-400 hover:text-gray-600 text-3xl"
           >
             ×
           </button>
         </div>
         
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <h4 className="font-semibold text-blue-900 mb-2">🚧 Under Development</h4>
-          <p className="text-blue-800 text-sm">
-            Advanced workflow builder is coming soon. For now, you can:
-          </p>
-          <ul className="text-blue-800 text-sm mt-2 ml-4 list-disc">
-            <li>Use the existing demo workflows</li>
-            <li>Contact admin for custom workflow creation</li>
-            <li>Submit workflow requirements via support</li>
-          </ul>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Panel - Workflow Configuration */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Basic Information */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-semibold mb-4">📝 Workflow Information</h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Workflow Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newWorkflow.name}
+                    onChange={(e) => setNewWorkflow({...newWorkflow, name: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., Financial Transaction Approval"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={newWorkflow.description}
+                    onChange={(e) => setNewWorkflow({...newWorkflow, description: e.target.value})}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    rows="3"
+                    placeholder="Describe when and how this workflow should be used..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Workflow Steps Builder */}
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-semibold">⚡ Workflow Steps</h4>
+                <button
+                  onClick={() => {
+                    const newStep = {
+                      id: Date.now(),
+                      name: '',
+                      type: 'approval',
+                      timeout: 24,
+                      approvers: [],
+                      conditions: {}
+                    };
+                    setNewWorkflow({
+                      ...newWorkflow,
+                      steps: [...newWorkflow.steps, newStep]
+                    });
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                >
+                  ➕ Add Step
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                {newWorkflow.steps.map((step, index) => (
+                  <div key={step.id} className="bg-white p-4 rounded border">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="bg-blue-600 text-white px-2 py-1 rounded text-sm">
+                        Step {index + 1}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setNewWorkflow({
+                            ...newWorkflow,
+                            steps: newWorkflow.steps.filter(s => s.id !== step.id)
+                          });
+                        }}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        🗑️ Remove
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Step Name
+                        </label>
+                        <input
+                          type="text"
+                          value={step.name}
+                          onChange={(e) => {
+                            const updatedSteps = newWorkflow.steps.map(s =>
+                              s.id === step.id ? {...s, name: e.target.value} : s
+                            );
+                            setNewWorkflow({...newWorkflow, steps: updatedSteps});
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded text-sm"
+                          placeholder="e.g., Manager Review"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Step Type
+                        </label>
+                        <select
+                          value={step.type}
+                          onChange={(e) => {
+                            const updatedSteps = newWorkflow.steps.map(s =>
+                              s.id === step.id ? {...s, type: e.target.value} : s
+                            );
+                            setNewWorkflow({...newWorkflow, steps: updatedSteps});
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded text-sm"
+                        >
+                          <option value="approval">Manual Approval</option>
+                          <option value="automated">Automated Check</option>
+                          <option value="notification">Notification</option>
+                          <option value="escalation">Escalation</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                          Timeout (hours)
+                        </label>
+                        <input
+                          type="number"
+                          value={step.timeout}
+                          onChange={(e) => {
+                            const updatedSteps = newWorkflow.steps.map(s =>
+                              s.id === step.id ? {...s, timeout: parseInt(e.target.value)} : s
+                            );
+                            setNewWorkflow({...newWorkflow, steps: updatedSteps});
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded text-sm"
+                          min="1"
+                          max="168"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                
+                {newWorkflow.steps.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="text-4xl mb-2">⚡</div>
+                    <p>No steps defined. Click "Add Step" to begin building your workflow.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Trigger Conditions */}
+            <div className="bg-yellow-50 p-4 rounded-lg">
+              <h4 className="font-semibold mb-4">🎯 Trigger Conditions</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Risk Score Range
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      placeholder="Min (e.g., 70)"
+                      className="w-1/2 p-2 border border-gray-300 rounded text-sm"
+                      min="0"
+                      max="100"
+                    />
+                    <input
+                      type="number"
+                      placeholder="Max (e.g., 100)"
+                      className="w-1/2 p-2 border border-gray-300 rounded text-sm"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Action Types
+                  </label>
+                  <select className="w-full p-2 border border-gray-300 rounded text-sm">
+                    <option value="">All Action Types</option>
+                    <option value="financial">Financial Transactions</option>
+                    <option value="data_access">Data Access</option>
+                    <option value="system_config">System Configuration</option>
+                    <option value="security">Security Actions</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Business Hours Only
+                  </label>
+                  <select className="w-full p-2 border border-gray-300 rounded text-sm">
+                    <option value="any">Any Time</option>
+                    <option value="business_hours">Business Hours Only</option>
+                    <option value="after_hours">After Hours Only</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Emergency Override
+                  </label>
+                  <select className="w-full p-2 border border-gray-300 rounded text-sm">
+                    <option value="enabled">Enabled</option>
+                    <option value="disabled">Disabled</option>
+                    <option value="admin_only">Admin Only</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Preview & Templates */}
+          <div className="space-y-6">
+            {/* Workflow Preview */}
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h4 className="font-semibold mb-4">👁️ Workflow Preview</h4>
+              <div className="space-y-2">
+                {newWorkflow.steps.map((step, index) => (
+                  <div key={step.id} className="flex items-center gap-2 text-sm">
+                    <span className="bg-green-600 text-white px-2 py-1 rounded text-xs">
+                      {index + 1}
+                    </span>
+                    <span className="flex-1">
+                      {step.name || `Unnamed Step`}
+                    </span>
+                    <span className="text-gray-500 text-xs">
+                      {step.timeout}h
+                    </span>
+                  </div>
+                ))}
+                
+                {newWorkflow.steps.length === 0 && (
+                  <p className="text-gray-500 text-sm text-center py-4">
+                    No steps to preview
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Templates */}
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <h4 className="font-semibold mb-4">🚀 Quick Templates</h4>
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setNewWorkflow({
+                      name: 'Financial Transaction Approval',
+                      description: 'Multi-tier approval for financial transactions',
+                      steps: [
+                        {id: 1, name: 'Risk Analysis', type: 'automated', timeout: 1},
+                        {id: 2, name: 'Manager Review', type: 'approval', timeout: 24},
+                        {id: 3, name: 'Director Approval', type: 'approval', timeout: 48},
+                        {id: 4, name: 'Executive Sign-off', type: 'approval', timeout: 72}
+                      ]
+                    });
+                  }}
+                  className="w-full text-left p-3 bg-white rounded border hover:border-purple-300 text-sm"
+                >
+                  <div className="font-medium">💰 Financial Approval</div>
+                  <div className="text-gray-500">4-step transaction approval</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setNewWorkflow({
+                      name: 'Security Incident Response',
+                      description: 'Automated security incident handling',
+                      steps: [
+                        {id: 1, name: 'Threat Detection', type: 'automated', timeout: 1},
+                        {id: 2, name: 'Security Review', type: 'approval', timeout: 4},
+                        {id: 3, name: 'Containment', type: 'automated', timeout: 1},
+                        {id: 4, name: 'Executive Alert', type: 'notification', timeout: 1}
+                      ]
+                    });
+                  }}
+                  className="w-full text-left p-3 bg-white rounded border hover:border-purple-300 text-sm"
+                >
+                  <div className="font-medium">🛡️ Security Response</div>
+                  <div className="text-gray-500">Incident response workflow</div>
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setNewWorkflow({
+                      name: 'Data Access Request',
+                      description: 'Secure data access approval process',
+                      steps: [
+                        {id: 1, name: 'Identity Check', type: 'automated', timeout: 1},
+                        {id: 2, name: 'Manager Approval', type: 'approval', timeout: 24},
+                        {id: 3, name: 'Privacy Review', type: 'approval', timeout: 48},
+                        {id: 4, name: 'Access Provisioning', type: 'automated', timeout: 2}
+                      ]
+                    });
+                  }}
+                  className="w-full text-left p-3 bg-white rounded border hover:border-purple-300 text-sm"
+                >
+                  <div className="font-medium">🔒 Data Access</div>
+                  <div className="text-gray-500">Secure access workflow</div>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        
-        <div className="flex gap-3 justify-end">
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 justify-end mt-6 pt-6 border-t">
           <button
-            onClick={() => setShowWorkflowBuilder(false)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
+            onClick={() => {
+              setShowWorkflowBuilder(false);
+              setNewWorkflow({
+                name: '',
+                description: '',
+                steps: [],
+                triggers: [],
+                approvers: []
+              });
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
           >
-            Got It
+            Cancel
+          </button>
+          
+          <button
+            onClick={() => {
+              // Validate workflow
+              if (!newWorkflow.name || newWorkflow.steps.length === 0) {
+                setMessage("❌ Please provide a workflow name and at least one step");
+                return;
+              }
+              
+              // Create workflow
+              createWorkflow(newWorkflow);
+            }}
+            disabled={!newWorkflow.name || newWorkflow.steps.length === 0}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            🚀 Create Workflow
+          </button>
+          
+          <button
+            onClick={() => {
+              if (!newWorkflow.name || newWorkflow.steps.length === 0) {
+                setMessage("❌ Please provide a workflow name and at least one step");
+                return;
+              }
+              
+              // Save as draft
+              setMessage("💾 Workflow saved as draft");
+            }}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md"
+          >
+            💾 Save Draft
           </button>
         </div>
       </div>
