@@ -1128,9 +1128,6 @@ const fetchWorkflowOrchestrations = async () => {
     );
   }
 
-  // Call the compatibility function
-  ensureEnterpriseDataCompatibility();
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-6">
