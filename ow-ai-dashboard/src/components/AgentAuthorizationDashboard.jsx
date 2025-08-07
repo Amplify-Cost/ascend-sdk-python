@@ -689,8 +689,11 @@ const fetchWorkflowOrchestrations = async () => {
       
       // Simulate realistic execution time
       setTimeout(() => {
-        const riskScore = Math.floor(Math.random() * 40) + 10;
-        setMessage(`✅ "${playbook.name}" executed successfully! Risk score: ${riskScore} | Cost savings: $${Math.floor(Math.random() * 200) + 100}`);
+  const riskScore = Math.floor(Math.random() * 40) + 10;
+  setMessage(`✅ "${playbook.name}" executed successfully! Risk score: ${riskScore} | Cost savings: $${Math.floor(Math.random() * 200) + 100}`);
+  
+  // Clear message after 10 seconds instead of letting it stay forever
+  setTimeout(() => setMessage(""), 10000);
         
         // Add to recent activity
         if (dashboardData) {
