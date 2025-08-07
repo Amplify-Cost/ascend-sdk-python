@@ -1422,10 +1422,20 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
         </nav>
       </div>
 
-      {/* Messages */}
+     {/* Enhanced Messages - More Visible */}
       {message && (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-          <div className="text-green-800">{message}</div>
+        <div className="fixed top-4 right-4 z-50 max-w-md">
+          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 shadow-lg">
+            <div className="flex items-start justify-between">
+              <div className="text-green-800 font-medium pr-4">{message}</div>
+              <button 
+                onClick={() => setMessage("")}
+                className="text-green-600 hover:text-green-800 text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
