@@ -23,6 +23,12 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [selectedPlaybook, setSelectedPlaybook] = useState(null);
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
 
+  // 🚀 NEW: Real-Time Execution State
+  const [executionStatus, setExecutionStatus] = useState({});
+  const [executionHistory, setExecutionHistory] = useState([]);
+  const [showExecutionModal, setShowExecutionModal] = useState(false);
+  const [selectedExecution, setSelectedExecution] = useState(null);
+
   const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   // Fixed useEffect for real-time updates
@@ -43,6 +49,11 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
       fetchAutomationData();
       fetchWorkflowOrchestrations();
     }
+
+    // 🚀 NEW: Fetch execution data when on execution tab
+    if (activeTab === "execution") {
+      fetchExecutionHistory();
+    }
         
     // Real-time refresh every 15 seconds for more responsive updates
     const interval = setInterval(() => {
@@ -59,6 +70,11 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
       if (activeTab === "automation") {
         fetchAutomationData();
         fetchWorkflowOrchestrations();
+      }
+
+      // 🚀 NEW: Update execution data in real-time
+      if (activeTab === "execution") {
+        fetchExecutionHistory();
       }
     }, 15000); // Reduced from 30 seconds to 15 seconds
         
@@ -217,7 +233,7 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     if (response.ok) {
       const data = await response.json();
       
-      // 🛡️ SAFETY CHECK: Ensure data structure is safe
+      // ✅ REAL DATA: Ensure data structure is safe but keep real enterprise data
       const safeData = {
         playbooks: data?.playbooks || {},
         automation_summary: data?.automation_summary || {
@@ -226,14 +242,19 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
           total_triggers_24h: 0,
           total_cost_savings_24h: 0,
           average_success_rate: 0
-        }
+        },
+        real_data_metrics: data?.real_data_metrics || null // Enterprise real data indicator
       };
       
       setAutomationData(safeData);
-      console.log("🤖 Automation data loaded safely:", safeData);
+      console.log("🤖 REAL enterprise automation data loaded:", safeData);
+      
+      // Log real data metrics for enterprise monitoring
+      if (safeData.real_data_metrics) {
+        console.log("📊 Enterprise real data metrics:", safeData.real_data_metrics);
+      }
     } else {
-      console.error("❌ Automation API error:", response.status);
-      // Set safe fallback data
+      console.error("❌ Real automation API error:", response.status);
       setAutomationData({
         playbooks: {},
         automation_summary: {
@@ -246,8 +267,7 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
       });
     }
   } catch (err) {
-    console.error("❌ Error fetching automation data:", err);
-    // Set safe fallback data on error
+    console.error("❌ Error fetching real automation data:", err);
     setAutomationData({
       playbooks: {},
       automation_summary: {
@@ -270,21 +290,26 @@ const fetchWorkflowOrchestrations = async () => {
     if (response.ok) {
       const data = await response.json();
       
-      // 🛡️ SAFETY CHECK: Ensure data structure is safe
+      // ✅ REAL DATA: Ensure data structure is safe but keep real enterprise data
       const safeData = {
         active_workflows: data?.active_workflows || {},
         summary: data?.summary || {
           total_active: 0,
           total_executions_24h: 0,
           average_success_rate: 0
-        }
+        },
+        real_data_metrics: data?.real_data_metrics || null // Enterprise real data indicator
       };
       
       setWorkflowOrchestrations(safeData);
-      console.log("🔄 Workflow orchestrations loaded safely:", safeData);
+      console.log("🔄 REAL enterprise workflow data loaded:", safeData);
+      
+      // Log real data metrics for enterprise monitoring
+      if (safeData.real_data_metrics) {
+        console.log("📊 Enterprise workflow real data:", safeData.real_data_metrics);
+      }
     } else {
-      console.error("❌ Workflow API error:", response.status);
-      // Set safe fallback data
+      console.error("❌ Real workflow API error:", response.status);
       setWorkflowOrchestrations({
         active_workflows: {},
         summary: {
@@ -295,8 +320,7 @@ const fetchWorkflowOrchestrations = async () => {
       });
     }
   } catch (err) {
-    console.error("❌ Error fetching workflow orchestrations:", err);
-    // Set safe fallback data on error
+    console.error("❌ Error fetching real workflow data:", err);
     setWorkflowOrchestrations({
       active_workflows: {},
       summary: {
@@ -307,6 +331,38 @@ const fetchWorkflowOrchestrations = async () => {
     });
   }
 };
+
+  // 🚀 NEW: Fetch execution history
+  const fetchExecutionHistory = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/execution-history`, {
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setExecutionHistory(data.execution_history || []);
+        console.log("🚀 Execution history loaded:", data);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching execution history:", err);
+    }
+  };
+
+  // 🚀 NEW: Get execution status for specific action
+  const fetchExecutionStatus = async (actionId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setExecutionStatus(prev => ({...prev, [actionId]: data}));
+        return data;
+      }
+    } catch (err) {
+      console.error("❌ Error fetching execution status:", err);
+    }
+  };
 
   const togglePlaybook = async (playbookId) => {
     try {
@@ -382,6 +438,74 @@ const fetchWorkflowOrchestrations = async () => {
     }
   };
 
+  // 🚀 NEW: Manual execution function
+  const executeAction = async (actionId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/execute/${actionId}`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("🚀 Execution result:", result);
+        
+        // Update the action in pending actions list with execution results
+        setPendingActions(prev => prev.map(action => 
+          action.id === actionId ? {
+            ...action,
+            execution_status: result.execution_success ? "executed" : "execution_failed",
+            execution_result: {
+              success: result.execution_success,
+              message: result.execution_message,
+              details: result.execution_details
+            },
+            executed_at: result.executed_at,
+            executed_by: result.executed_by
+          } : action
+        ));
+        
+        // Refresh execution history
+        fetchExecutionHistory();
+        
+        setMessage(result.message);
+        setTimeout(() => setMessage(null), 5000);
+        
+      } else {
+        const error = await response.json();
+        setError(`❌ Failed to execute action: ${error.detail}`);
+      }
+    } catch (err) {
+      console.error("Error executing action:", err);
+      setError("❌ Failed to execute action. Please try again.");
+    }
+  };
+
+  const displayRealDataIndicator = (dataMetrics) => {
+  if (!dataMetrics) return null;
+  
+  return (
+    <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+      <div className="flex items-center gap-2">
+        <span className="text-green-600">📊</span>
+        <span className="text-green-800 font-medium">Enterprise Real Data Active</span>
+      </div>
+      <div className="text-sm text-green-700 mt-1">
+        {dataMetrics.database_actions_analyzed && (
+          <span>Analyzed {dataMetrics.database_actions_analyzed} real database actions • </span>
+        )}
+        {dataMetrics.database_executions_analyzed && (
+          <span>Analyzed {dataMetrics.database_executions_analyzed} real executions • </span>
+        )}
+        <span>Data Source: {dataMetrics.data_source || 'Enterprise Database'}</span>
+        {dataMetrics.enterprise_cost_per_trigger && (
+          <span> • Cost Savings: ${dataMetrics.enterprise_cost_per_trigger}/action</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
   const updateWorkflow = async (workflowId, updates) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
@@ -408,6 +532,7 @@ const fetchWorkflowOrchestrations = async () => {
     }
   };
 
+  // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/authorize/${actionId}`, {
@@ -417,7 +542,8 @@ const fetchWorkflowOrchestrations = async () => {
           decision: decision,
           notes: notes,
           conditions: conditions,
-          approval_duration: conditions?.duration || null
+          approval_duration: conditions?.duration || null,
+          execute_immediately: true  // 🚀 NEW: Enable real-time execution
         })
       });
 
@@ -438,11 +564,22 @@ const fetchWorkflowOrchestrations = async () => {
         setTimeout(() => {
           fetchDashboardData();
           fetchApprovalMetrics();
+          fetchExecutionHistory(); // 🚀 NEW: Refresh execution history
         }, 100); // Small delay to ensure state update
                 
-        // Show success message with real-time update confirmation
-        setMessage(`✅ Action ${decision} successfully! Metrics updated in real-time.`);
-        setTimeout(() => setMessage(null), 3000);
+        // 🚀 NEW: Enhanced success message with execution details
+        let successMessage = `✅ Action ${decision} successfully!`;
+        
+        if (result.execution_performed) {
+          if (result.execution_success) {
+            successMessage = `🚀 Action ${decision} and EXECUTED successfully! ${result.execution_message}`;
+          } else {
+            successMessage = `⚠️ Action ${decision} but execution failed: ${result.execution_message}`;
+          }
+        }
+        
+        setMessage(successMessage);
+        setTimeout(() => setMessage(null), 5000); // Longer display for execution messages
         
       } else {
         const error = await response.json();
@@ -486,10 +623,22 @@ const fetchWorkflowOrchestrations = async () => {
         setTimeout(() => {
           fetchApprovalMetrics();
           fetchDashboardData();
+          fetchExecutionHistory(); // 🚀 NEW: Refresh execution history
         }, 100);
                 
-        setMessage("🚨 EMERGENCY OVERRIDE GRANTED - Metrics updated in real-time. This action has been logged for audit.");
-        setTimeout(() => setMessage(null), 5000);
+        // 🚀 NEW: Enhanced emergency message with execution details
+        let emergencyMessage = "🚨 EMERGENCY OVERRIDE GRANTED - This action has been logged for audit.";
+        
+        if (result.execution_performed) {
+          if (result.execution_success) {
+            emergencyMessage = `🚨 EMERGENCY OVERRIDE GRANTED AND EXECUTED: ${result.execution_message}`;
+          } else {
+            emergencyMessage = `🚨 EMERGENCY OVERRIDE GRANTED but execution failed: ${result.execution_message}`;
+          }
+        }
+        
+        setMessage(emergencyMessage);
+        setTimeout(() => setMessage(null), 6000);
         
       } else {
         const error = await response.json();
@@ -532,6 +681,31 @@ const fetchWorkflowOrchestrations = async () => {
     if (hours < 0 || minutes < 0) return "⚠️ OVERDUE";
     if (hours > 0) return `${hours}h ${minutes}m remaining`;
     return `${minutes}m remaining`;
+  };
+
+  // 🚀 NEW: Get execution status badge
+  const getExecutionStatusBadge = (action) => {
+    const executionStatus = action.execution_status;
+    
+    if (!executionStatus || executionStatus === "pending_approval") {
+      return null;
+    }
+    
+    const statusConfig = {
+      "executed": { color: "bg-green-100 text-green-800 border-green-200", icon: "✅", text: "Executed" },
+      "execution_failed": { color: "bg-red-100 text-red-800 border-red-200", icon: "❌", text: "Execution Failed" },
+      "conditionally_executed": { color: "bg-yellow-100 text-yellow-800 border-yellow-200", icon: "⚡", text: "Conditional" },
+      "emergency_executed": { color: "bg-orange-100 text-orange-800 border-orange-200", icon: "🚨", text: "Emergency" },
+      "denied_no_execution": { color: "bg-gray-100 text-gray-800 border-gray-200", icon: "🚫", text: "Denied" }
+    };
+    
+    const config = statusConfig[executionStatus] || statusConfig["executed"];
+    
+    return (
+      <span className={`px-2 py-1 rounded text-xs font-medium border ${config.color}`}>
+        {config.icon} {config.text}
+      </span>
+    );
   };
 
   // Workflow Editor Component
@@ -703,7 +877,7 @@ const fetchWorkflowOrchestrations = async () => {
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
           🛡️ Enterprise Authorization Center
         </h1>
-        <p className="text-gray-600">Multi-level approval workflows with emergency procedures</p>
+        <p className="text-gray-600">Multi-level approval workflows with emergency procedures and real-time execution</p>
       </div>
 
       {/* Dashboard Summary Cards */}
@@ -778,10 +952,10 @@ const fetchWorkflowOrchestrations = async () => {
         </div>
       )}
 
-      {/* Tabs - UPDATED with automation tab */}
+      {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "automation"].map((tab) => (
+          {["pending", "metrics", "workflows", "automation", "execution"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -795,6 +969,7 @@ const fetchWorkflowOrchestrations = async () => {
               {tab === "metrics" && "📊 Performance Metrics"}
               {tab === "workflows" && "⚙️ Workflow Management"}
               {tab === "automation" && "🤖 Automation Center"}
+              {tab === "execution" && "🚀 Execution Center"}
             </button>
           ))}
         </nav>
@@ -844,6 +1019,8 @@ const fetchWorkflowOrchestrations = async () => {
                               🚨 EMERGENCY
                             </span>
                           )}
+                          {/* 🚀 NEW: Execution status badge */}
+                          {getExecutionStatusBadge(action)}
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
@@ -868,6 +1045,57 @@ const fetchWorkflowOrchestrations = async () => {
                                   {factor}
                                 </span>
                               ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 🚀 NEW: Execution Status Display */}
+                        {action.execution_status && action.execution_status !== "pending_approval" && (
+                          <div className={`mt-3 pt-3 border-t border-gray-200 ${
+                            action.execution_status === "executed" ? "bg-green-50" :
+                            action.execution_status === "execution_failed" ? "bg-red-50" :
+                            "bg-yellow-50"
+                          } p-3 rounded`}>
+                            <h5 className="text-sm font-medium mb-2">🚀 Execution Status</h5>
+                            <div className="text-sm">
+                              <div className="flex justify-between items-center mb-1">
+                                <span>Status:</span>
+                                <span className={`font-medium ${
+                                  action.execution_status === "executed" ? "text-green-600" :
+                                  action.execution_status === "execution_failed" ? "text-red-600" :
+                                  "text-yellow-600"
+                                }`}>
+                                  {action.execution_status === "executed" ? "✅ Executed Successfully" :
+                                   action.execution_status === "execution_failed" ? "❌ Execution Failed" :
+                                   action.execution_status === "conditionally_executed" ? "⚡ Conditionally Executed" :
+                                   action.execution_status}
+                                </span>
+                              </div>
+                              {action.executed_at && (
+                                <div className="flex justify-between items-center mb-1">
+                                  <span>Executed:</span>
+                                  <span className="font-medium">{new Date(action.executed_at).toLocaleString()}</span>
+                                </div>
+                              )}
+                              {action.executed_by && (
+                                <div className="flex justify-between items-center mb-1">
+                                  <span>Executed by:</span>
+                                  <span className="font-medium">{action.executed_by}</span>
+                                </div>
+                              )}
+                              {action.execution_result && (
+                                <div className="mt-2 pt-2 border-t border-gray-300">
+                                  <div className="text-xs text-gray-600">Execution Details:</div>
+                                  <div className="text-sm font-medium">{action.execution_result.message}</div>
+                                  {action.execution_result.details && Object.keys(action.execution_result.details).length > 0 && (
+                                    <div className="mt-1 text-xs text-gray-500">
+                                      {Object.entries(action.execution_result.details).map(([key, value], index) => (
+                                        <div key={index}>{key}: {String(value)}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}
@@ -904,6 +1132,17 @@ const fetchWorkflowOrchestrations = async () => {
                             className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm transition-colors"
                           >
                             ⬆️ Escalate
+                          </button>
+                        )}
+
+                        {/* 🚀 NEW: Execute button for approved actions */}
+                        {action.authorization_status === "approved" && 
+                         action.execution_status !== "executed" && (
+                          <button
+                            onClick={() => executeAction(action.id)}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                          >
+                            🚀 Execute Now
                           </button>
                         )}
                         
@@ -1495,6 +1734,131 @@ const fetchWorkflowOrchestrations = async () => {
   </div>
 )}
 
+      {/* 🚀 NEW: Execution Center Tab */}
+      {activeTab === "execution" && (
+        <div className="space-y-6">
+          {/* Execution Overview */}
+          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4">🚀 Real-Time Execution Center</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <span className="text-green-100">Total Executed:</span>
+                <span className="ml-2 text-2xl font-bold">{executionHistory.length}</span>
+              </div>
+              <div>
+                <span className="text-green-100">Successful:</span>
+                <span className="ml-2 text-2xl font-bold">
+                  {executionHistory.filter(e => e.execution_success).length}
+                </span>
+              </div>
+              <div>
+                <span className="text-green-100">Failed:</span>
+                <span className="ml-2 text-2xl font-bold">
+                  {executionHistory.filter(e => !e.execution_success).length}
+                </span>
+              </div>
+              <div>
+                <span className="text-green-100">Success Rate:</span>
+                <span className="ml-2 text-2xl font-bold">
+                  {executionHistory.length > 0 
+                    ? ((executionHistory.filter(e => e.execution_success).length / executionHistory.length) * 100).toFixed(1)
+                    : 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Execution History */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">📋 Execution History</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fetchExecutionHistory()}
+                  className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
+            </div>
+
+            {executionHistory.length > 0 ? (
+              <div className="space-y-3">
+                {executionHistory.map((execution, index) => (
+                  <div key={index} className={`border rounded-lg p-4 ${
+                    execution.execution_success 
+                      ? 'border-green-200 bg-green-50' 
+                      : 'border-red-200 bg-red-50'
+                  }`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`text-lg ${
+                            execution.execution_success ? '✅' : '❌'
+                          }`}></span>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">
+                              Action {execution.action_id} - {execution.action_type}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              Agent: {execution.agent_id} | Status: {execution.execution_status}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="text-sm">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-gray-600">Executed:</span>
+                            <span className="font-medium">
+                              {execution.executed_at ? new Date(execution.executed_at).toLocaleString() : 'Unknown'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-gray-600">Executed by:</span>
+                            <span className="font-medium">{execution.executed_by || 'System'}</span>
+                          </div>
+                          <div className="mt-2">
+                            <span className="text-gray-600 text-xs">Result:</span>
+                            <p className={`text-sm font-medium mt-1 ${
+                              execution.execution_success ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {execution.execution_message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedExecution(execution)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+                        >
+                          📊 Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">🚀</div>
+                <h4 className="text-lg font-medium text-gray-900 mb-2">No Executions Yet</h4>
+                <p className="text-gray-500 mb-4">
+                  When actions are approved and executed, they will appear here.
+                </p>
+                <button
+                  onClick={() => fetchExecutionHistory()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                >
+                  🔄 Check for Updates
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Action Review Modal */}
       {selectedAction && !showEmergencyModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -1535,6 +1899,32 @@ const fetchWorkflowOrchestrations = async () => {
                       <div><strong>Approval Progress:</strong> {selectedAction.current_approval_level}/{selectedAction.required_approval_level}</div>
                     </div>
                   </div>
+
+                  {/* 🚀 NEW: Execution Status in Modal */}
+                  {selectedAction.execution_status && selectedAction.execution_status !== "pending_approval" && (
+                    <div className={`p-4 rounded-lg ${
+                      selectedAction.execution_status === "executed" ? "bg-green-50" :
+                      selectedAction.execution_status === "execution_failed" ? "bg-red-50" :
+                      "bg-yellow-50"
+                    }`}>
+                      <h4 className="font-semibold mb-2">🚀 Execution Status</h4>
+                      <div className="space-y-2 text-sm">
+                        <div><strong>Status:</strong> {selectedAction.execution_status}</div>
+                        {selectedAction.executed_at && (
+                          <div><strong>Executed:</strong> {new Date(selectedAction.executed_at).toLocaleString()}</div>
+                        )}
+                        {selectedAction.executed_by && (
+                          <div><strong>Executed by:</strong> {selectedAction.executed_by}</div>
+                        )}
+                        {selectedAction.execution_result && (
+                          <div>
+                            <strong>Result:</strong>
+                            <p className="mt-1">{selectedAction.execution_result.message}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
@@ -1585,6 +1975,17 @@ const fetchWorkflowOrchestrations = async () => {
                       ✅ Approve Action
                     </button>
                   </>
+                )}
+
+                {/* 🚀 NEW: Execute button in modal */}
+                {selectedAction.authorization_status === "approved" && 
+                 selectedAction.execution_status !== "executed" && (
+                  <button
+                    onClick={() => executeAction(selectedAction.id)}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md"
+                  >
+                    🚀 Execute Now
+                  </button>
                 )}
                 
                 {dashboardData?.user_info?.is_emergency_approver && (
@@ -1810,6 +2211,61 @@ const fetchWorkflowOrchestrations = async () => {
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md"
                 >
                   ▶️ Execute Workflow
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 NEW: Execution Details Modal */}
+      {selectedExecution && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold">🚀 Execution Details</h3>
+                <button
+                  onClick={() => setSelectedExecution(null)}
+                  className="text-gray-400 hover:text-gray-600 text-3xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className={`p-4 rounded-lg ${
+                  selectedExecution.execution_success ? 'bg-green-50' : 'bg-red-50'
+                }`}>
+                  <h4 className="font-semibold mb-2">
+                    {selectedExecution.execution_success ? '✅ Execution Successful' : '❌ Execution Failed'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><strong>Action ID:</strong> {selectedExecution.action_id}</div>
+                    <div><strong>Agent:</strong> {selectedExecution.agent_id}</div>
+                    <div><strong>Action Type:</strong> {selectedExecution.action_type}</div>
+                    <div><strong>Status:</strong> {selectedExecution.execution_status}</div>
+                    <div><strong>Executed At:</strong> {new Date(selectedExecution.executed_at).toLocaleString()}</div>
+                    <div><strong>Executed By:</strong> {selectedExecution.executed_by}</div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Execution Result</h4>
+                  <p className={`font-medium ${
+                    selectedExecution.execution_success ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {selectedExecution.execution_message}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex gap-3 justify-end mt-6 pt-6 border-t">
+                <button
+                  onClick={() => setSelectedExecution(null)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                >
+                  Close
                 </button>
               </div>
             </div>
