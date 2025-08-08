@@ -11,6 +11,13 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [emergencyJustification, setEmergencyJustification] = useState("");
   const [compatibilityApplied, setCompatibilityApplied] = useState(false);
+  const [newWorkflow, setNewWorkflow] = useState({
+  name: '',
+  description: '',
+  steps: [],
+  triggers: [],
+  approvers: []
+});
 
   // Existing workflow management state
   const [workflows, setWorkflows] = useState({});
