@@ -2972,6 +2972,131 @@ async def delete_workflow(
         raise HTTPException(status_code=500, detail=f"Failed to delete workflow: {str(e)}")
 
 
+# ========== MISSING WORKFLOW API ENDPOINTS ==========
+
+@api_router.post("/workflows/create")
+async def create_workflow_api(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """🏗️ ENTERPRISE: Create new workflow via API"""
+    try:
+        data = await request.json()
+        workflow_data = data.get("workflow_data", {})
+        workflow_id = data.get("workflow_id")
+        created_by = data.get("created_by", current_user.get("email", "admin"))
+        
+        logger.info(f"🏗️ Creating workflow: {workflow_id}")
+        
+        # Insert workflow into database
+        db.execute(text("""
+            INSERT INTO workflows 
+            (id, name, description, created_by, status, steps, trigger_conditions, workflow_metadata)
+            VALUES (:id, :name, :description, :created_by, :status, :steps, :trigger_conditions, :workflow_metadata)
+        """), {
+            "id": workflow_id,
+            "name": workflow_data.get("name", "New Workflow"),
+            "description": workflow_data.get("description", ""),
+            "created_by": created_by,
+            "status": "active",
+            "steps": json.dumps(workflow_data.get("steps", [])),
+            "trigger_conditions": json.dumps(workflow_data.get("triggers", [])),
+            "workflow_metadata": json.dumps({
+                "created_via": "enterprise_ui",
+                "version": "1.0",
+                "real_time_stats": workflow_data.get("real_time_stats", {}),
+                "success_metrics": workflow_data.get("success_metrics", {})
+            })
+        })
+        
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "✅ Workflow created successfully",
+            "workflow_id": workflow_id,
+            "created_by": created_by
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Workflow creation failed: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create workflow")
+
+@api_router.get("/orchestration/active-workflows")
+async def get_active_workflows_api(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """🔄 ENTERPRISE: Get active workflows via API"""
+    try:
+        # Get workflows from database
+        workflows = db.execute(text("""
+            SELECT id, name, description, created_by, created_at, status, steps, workflow_metadata
+            FROM workflows 
+            WHERE status = 'active'
+            ORDER BY created_at DESC
+        """)).fetchall()
+        
+        workflow_data = []
+        for row in workflows:
+            workflow_data.append({
+                "id": row[0],
+                "name": row[1],
+                "description": row[2],
+                "created_by": row[3],
+                "created_at": row[4].isoformat() if row[4] else None,
+                "status": row[5],
+                "steps": json.loads(row[6]) if row[6] else [],
+                "metadata": json.loads(row[7]) if row[7] else {}
+            })
+        
+        return {
+            "active_workflows": {workflow["id"]: workflow for workflow in workflow_data},
+            "summary": {
+                "total_active": len(workflow_data),
+                "total_executing": 0,
+                "total_queued": 0
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get workflows: {e}")
+        return {
+            "active_workflows": {},
+            "summary": {"total_active": 0, "total_executing": 0, "total_queued": 0}
+        }
+
+@api_router.get("/automation/playbooks")
+async def get_automation_playbooks_api(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """🤖 ENTERPRISE: Get automation playbooks via API"""
+    try:
+        # Return demo automation data for now
+        return {
+            "playbooks": {
+                "security_incident_response": {
+                    "name": "Security Incident Response",
+                    "description": "Automated security incident handling",
+                    "steps": 4,
+                    "status": "active"
+                },
+                "compliance_audit": {
+                    "name": "Compliance Audit", 
+                    "description": "Automated compliance checking",
+                    "steps": 3,
+                    "status": "active"
+                }
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to get playbooks: {e}")
+        return {"playbooks": {}}
+
 # ========== EXPORT ROUTERS ==========
 authorization_router = router  # Original router with /agent-control prefix  
 authorization_api_router = api_router  # New router with /api/authorization prefix
