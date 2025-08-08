@@ -118,7 +118,17 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         targets: "Cloud Infrastructure", 
         first_seen: "2025-07-28",
         indicators: 15,
-        description: "Sophisticated APT targeting cloud environments"
+        description: "Sophisticated APT targeting cloud environments",
+        attribution: "APT-2024-07",
+        confidence: "High",
+        affected_regions: ["North America", "Europe"],
+        industry_impact: ["Technology", "Finance"],
+        ttps: ["T1190", "T1078", "T1055"],
+        mitigations: [
+          "Implement zero-trust architecture",
+          "Enhanced cloud monitoring",
+          "Multi-factor authentication for all cloud access"
+        ]
       },
       {
         name: "Ransomware-as-a-Service",
@@ -126,33 +136,87 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         targets: "Healthcare, Finance",
         first_seen: "2025-07-25", 
         indicators: 32,
-        description: "New ransomware variant targeting critical infrastructure"
+        description: "New ransomware variant targeting critical infrastructure",
+        attribution: "Lazarus Group",
+        confidence: "Medium",
+        affected_regions: ["Global"],
+        industry_impact: ["Healthcare", "Finance", "Manufacturing"],
+        ttps: ["T1486", "T1083", "T1012"],
+        mitigations: [
+          "Offline backup verification",
+          "Network segmentation",
+          "Employee security awareness training"
+        ]
       }
     ],
     ioc_matches: 7,
     new_indicators: 23,
     threat_actors: [
-      { name: "APT-2024-07", activity: "Active", risk_level: "High" },
-      { name: "Lazarus Group", activity: "Monitoring", risk_level: "Critical" }
-    ]
+      { 
+        name: "APT-2024-07", 
+        activity: "Active", 
+        risk_level: "High",
+        motivation: "Espionage",
+        primary_targets: "Cloud Infrastructure",
+        sophistication: "Advanced",
+        last_activity: "2025-08-07",
+        recent_activity: "Targeting cloud service providers with new exploitation techniques",
+        recent_campaigns: ["Operation CloudStrike", "SolarWinds 2.0"]
+      },
+      { 
+        name: "Lazarus Group", 
+        activity: "Monitoring", 
+        risk_level: "Critical",
+        motivation: "Financial",
+        primary_targets: "Financial Institutions",
+        sophistication: "Nation-State",
+        last_activity: "2025-08-05",
+        recent_activity: "Deploying new ransomware variants with improved encryption",
+        recent_campaigns: ["Ransomware-as-a-Service", "CryptoHeist 3.0"]
+      }
+    ],
+    feed_sources: [
+      { name: "MISP Feed", status: "active", reliability: "High" },
+      { name: "CISA Alerts", status: "active", reliability: "Very High" },
+      { name: "VirusTotal Intelligence", status: "active", reliability: "High" },
+      { name: "AlienVault OTX", status: "maintenance", reliability: "Medium" }
+    ],
+    threat_landscape: {
+      current_risk: "elevated",
+      global_activity: "High",
+      attack_sophistication: "Advanced",
+      trending_threats: [
+        "AI-powered social engineering",
+        "Supply chain compromises",
+        "Cloud infrastructure attacks",
+        "Ransomware evolution"
+      ]
+    },
+    intelligence_summary: {
+      new_campaigns: 2,
+      updated_campaigns: 5,
+      new_actors: 1,
+      ioc_updates: 156,
+      last_refresh: new Date().toISOString()
+    }
   });
 
   const generateDemoExecutiveBrief = () => ({
-  summary: "In the past 24 hours, our AI security systems processed 1,247 alerts, identifying 23 genuine threats and preventing potential damages of $125,000. System accuracy improved by 8% while reducing response times by 23%.",
-  key_metrics: {
-    threats_detected: 23,
-    threats_prevented: 21,
-    cost_savings: "$125,000",
-    system_accuracy: "94.2%"
-  },
-  recommendations: [
-    "Consider increasing monitoring on cloud infrastructure following Operation CloudStrike intelligence",
-    "Review and update incident response procedures for ransomware threats", 
-    "Implement additional MFA controls for high-privilege accounts"
-  ],
-  risk_assessment: "ELEVATED",
-  next_review: "2025-08-01T09:00:00Z"
-});
+    summary: "In the past 24 hours, our AI security systems processed 1,247 alerts, identifying 23 genuine threats and preventing potential damages of $125,000. System accuracy improved by 8% while reducing response times by 23%.",
+    key_metrics: {
+      threats_detected: 23,
+      threats_prevented: 21,
+      cost_savings: "$125,000",
+      system_accuracy: "94.2%"
+    },
+    recommendations: [
+      "Consider increasing monitoring on cloud infrastructure following Operation CloudStrike intelligence",
+      "Review and update incident response procedures for ransomware threats", 
+      "Implement additional MFA controls for high-privilege accounts"
+    ],
+    risk_assessment: "ELEVATED",
+    next_review: "2025-08-01T09:00:00Z"
+  });
 
   useEffect(() => {
     console.log("🚀 AIAlertManagementSystem: Initial load");
@@ -318,81 +382,81 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   };
 
   const generateExecutiveBrief = async () => {
-  console.log("🔄 Generating executive brief...");
-  setBriefLoading(true);
-  
-  try {
-    const response = await fetch(`${API_BASE_URL}/alerts/executive-brief`, {
-      method: "POST",
-      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        time_period: "24h",
-        include_predictions: true 
-      })
-    });
+    console.log("🔄 Generating executive brief...");
+    setBriefLoading(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts/executive-brief`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          time_period: "24h",
+          include_predictions: true 
+        })
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("✅ Executive brief received from backend:", data);
-      
-      // Handle different possible response formats from your OpenAI backend
-      let processedBrief;
-      
-      if (data.brief || data.summary) {
-        // If backend returns the brief directly
-        processedBrief = {
-          summary: data.brief || data.summary || data.content,
-          key_metrics: data.key_metrics || data.metrics || data.statistics || {
-            threats_detected: data.threats_detected || 23,
-            threats_prevented: data.threats_prevented || 21,
-            cost_savings: data.cost_savings || "$125,000",
-            system_accuracy: data.accuracy || data.system_accuracy || "94.2%"
-          },
-          recommendations: data.recommendations || data.actions || [
-            "Review high-priority alerts for potential threats",
-            "Consider implementing additional monitoring controls",
-            "Update incident response procedures based on recent patterns"
-          ],
-          risk_assessment: data.risk_assessment || data.risk_level || "ELEVATED",
-          next_review: data.next_review || new Date(Date.now() + 24*60*60*1000).toISOString()
-        };
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Executive brief received from backend:", data);
+        
+        // Handle different possible response formats from your OpenAI backend
+        let processedBrief;
+        
+        if (data.brief || data.summary) {
+          // If backend returns the brief directly
+          processedBrief = {
+            summary: data.brief || data.summary || data.content,
+            key_metrics: data.key_metrics || data.metrics || data.statistics || {
+              threats_detected: data.threats_detected || 23,
+              threats_prevented: data.threats_prevented || 21,
+              cost_savings: data.cost_savings || "$125,000",
+              system_accuracy: data.accuracy || data.system_accuracy || "94.2%"
+            },
+            recommendations: data.recommendations || data.actions || [
+              "Review high-priority alerts for potential threats",
+              "Consider implementing additional monitoring controls",
+              "Update incident response procedures based on recent patterns"
+            ],
+            risk_assessment: data.risk_assessment || data.risk_level || "ELEVATED",
+            next_review: data.next_review || new Date(Date.now() + 24*60*60*1000).toISOString()
+          };
+        } else {
+          // If backend returns raw OpenAI response, try to extract useful data
+          processedBrief = {
+            summary: typeof data === 'string' ? data : (data.message || "Executive brief generated successfully"),
+            key_metrics: {
+              threats_detected: 23,
+              threats_prevented: 21,
+              cost_savings: "$125,000",
+              system_accuracy: "94.2%"
+            },
+            recommendations: [
+              "Based on current AI analysis, monitor high-risk patterns",
+              "Consider increasing security controls for critical systems",
+              "Review and update threat response procedures"
+            ],
+            risk_assessment: "ELEVATED",
+            next_review: new Date(Date.now() + 24*60*60*1000).toISOString(),
+            raw_response: data // Include original response for debugging
+          };
+        }
+        
+        console.log("📊 Processed executive brief:", processedBrief);
+        setExecutiveBrief(processedBrief);
+        
       } else {
-        // If backend returns raw OpenAI response, try to extract useful data
-        processedBrief = {
-          summary: typeof data === 'string' ? data : (data.message || "Executive brief generated successfully"),
-          key_metrics: {
-            threats_detected: 23,
-            threats_prevented: 21,
-            cost_savings: "$125,000",
-            system_accuracy: "94.2%"
-          },
-          recommendations: [
-            "Based on current AI analysis, monitor high-risk patterns",
-            "Consider increasing security controls for critical systems",
-            "Review and update threat response procedures"
-          ],
-          risk_assessment: "ELEVATED",
-          next_review: new Date(Date.now() + 24*60*60*1000).toISOString(),
-          raw_response: data // Include original response for debugging
-        };
+        console.log("⚠️ Backend brief generation failed, using demo data");
+        setExecutiveBrief(generateDemoExecutiveBrief());
       }
       
-      console.log("📊 Processed executive brief:", processedBrief);
-      setExecutiveBrief(processedBrief);
-      
-    } else {
-      console.log("⚠️ Backend brief generation failed, using demo data");
+    } catch (err) {
+      console.error("❌ Error generating executive brief:", err);
+      console.log("🎯 Loading demo executive brief as fallback");
       setExecutiveBrief(generateDemoExecutiveBrief());
+    } finally {
+      setBriefLoading(false);
     }
-    
-  } catch (err) {
-    console.error("❌ Error generating executive brief:", err);
-    console.log("🎯 Loading demo executive brief as fallback");
-    setExecutiveBrief(generateDemoExecutiveBrief());
-  } finally {
-    setBriefLoading(false);
-  }
-};
+  };
 
   // Helper functions
   const getRandomThreatCategory = () => {
@@ -665,7 +729,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                     <div className="mt-3">
                       <strong className="text-sm">Recommended Actions:</strong>
                       <ul className="list-disc list-inside text-sm text-gray-600 mt-1">
-                        {group.actions.map((action, idx) => (
+                        {group.actions && group.actions.map((action, idx) => (
                           <li key={idx}>{action}</li>
                         ))}
                       </ul>
@@ -678,362 +742,673 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         </div>
       )}
 
-      // Replace the AI Insights Tab section in your AIAlertManagementSystem.jsx with this fixed version:
-
-{/* AI Insights Tab - FIXED VERSION */}
-{activeTab === "insights" && aiInsights && (
-  <div className="space-y-6">
-    {/* Executive Brief Section - FIXED */}
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">📋 Executive Security Brief</h3>
-        <button
-          onClick={generateExecutiveBrief}
-          disabled={briefLoading}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
-        >
-          {briefLoading ? "🔄 Generating..." : "📊 Generate AI Brief"}
-        </button>
-      </div>
-      
-      {executiveBrief && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-semibold text-blue-900 mb-2">AI-Generated Executive Summary</h4>
-          
-          {/* Safe Summary Display */}
-          <p className="text-blue-800 text-sm mb-3">
-            {executiveBrief.summary || executiveBrief.brief || "Executive brief generated successfully"}
-          </p>
-          
-          {/* Safe Metrics Display with Fallbacks */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="text-center">
-              <div className="font-bold text-blue-900">
-                {executiveBrief.key_metrics?.threats_detected || 
-                 executiveBrief.threats_detected || 
-                 executiveBrief.statistics?.threats_detected || 
-                 '23'}
-              </div>
-              <div className="text-blue-700">Threats Detected</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold text-blue-900">
-                {executiveBrief.key_metrics?.threats_prevented || 
-                 executiveBrief.threats_prevented || 
-                 executiveBrief.statistics?.threats_prevented || 
-                 '21'}
-              </div>
-              <div className="text-blue-700">Threats Prevented</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold text-blue-900">
-                {executiveBrief.key_metrics?.cost_savings || 
-                 executiveBrief.cost_savings || 
-                 executiveBrief.statistics?.cost_savings || 
-                 '$125K'}
-              </div>
-              <div className="text-blue-700">Cost Savings</div>
-            </div>
-            <div className="text-center">
-              <div className="font-bold text-blue-900">
-                {executiveBrief.key_metrics?.system_accuracy || 
-                 executiveBrief.accuracy || 
-                 executiveBrief.statistics?.accuracy || 
-                 '94.2%'}
-              </div>
-              <div className="text-blue-700">Accuracy</div>
-            </div>
-          </div>
-
-          {/* Additional Brief Content */}
-          {executiveBrief.recommendations && (
-            <div className="mt-4 pt-4 border-t border-blue-200">
-              <h5 className="font-semibold text-blue-900 mb-2">Key Recommendations:</h5>
-              <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-                {(Array.isArray(executiveBrief.recommendations) ? 
-                  executiveBrief.recommendations : 
-                  [executiveBrief.recommendations]).map((rec, idx) => (
-                  <li key={idx}>{rec}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Risk Assessment */}
-          {executiveBrief.risk_assessment && (
-            <div className="mt-3">
-              <span className="text-sm font-medium text-blue-900">Risk Level: </span>
-              <span className={`px-2 py-1 rounded text-xs font-bold ${
-                executiveBrief.risk_assessment === 'ELEVATED' ? 'bg-yellow-200 text-yellow-800' : 
-                executiveBrief.risk_assessment === 'HIGH' ? 'bg-red-200 text-red-800' : 
-                'bg-green-200 text-green-800'
-              }`}>
-                {executiveBrief.risk_assessment}
-              </span>
-            </div>
-          )}
-
-          {/* Debug Info */}
-          <div className="mt-3 pt-3 border-t border-blue-200">
-            <details className="text-xs text-blue-600">
-              <summary className="cursor-pointer hover:text-blue-800">🔧 Debug: View Raw Brief Data</summary>
-              <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
-                {JSON.stringify(executiveBrief, null, 2)}
-              </pre>
-            </details>
-          </div>
-        </div>
-      )}
-    </div>
-
-    {/* AI Recommendations */}
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 AI Recommendations</h3>
-      <div className="space-y-4">
-        {aiInsights.ai_recommendations.map((rec, idx) => (
-          <div key={idx} className={`border-l-4 p-4 ${
-            rec.priority === 'critical' ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'
-          }`}>
-            <h4 className="font-semibold mb-1">{rec.title}</h4>
-            <p className="text-sm text-gray-700 mb-2">{rec.description}</p>
-            <p className="text-sm font-medium">Action: {rec.action}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-
-    {/* Predictive Analysis */}
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">🔮 Predictive Analysis</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-3">
-          <div className="flex justify-between">
-            <span>Current Risk Score:</span>
-            <span className={`font-bold ${getRiskScoreColor(aiInsights.predictive_analysis.risk_score)}`}>
-              {aiInsights.predictive_analysis.risk_score}/100
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span>Trend Direction:</span>
-            <span className="font-semibold">
-              {aiInsights.predictive_analysis.trend_direction === 'increasing' ? '📈 Increasing' : '📊 Stable'}
-            </span>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <div className="flex justify-between">
-            <span>Predicted Incidents:</span>
-            <span className="font-bold text-orange-600">{aiInsights.predictive_analysis.predicted_incidents}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Confidence Level:</span>
-            <span className="font-semibold">{aiInsights.predictive_analysis.confidence_level}%</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-      {/* Threat Intelligence Tab */}
-      {activeTab === "intelligence" && threatIntelligence && (
+      {/* AI Insights Tab - FIXED VERSION */}
+      {activeTab === "insights" && aiInsights && (
         <div className="space-y-6">
+          {/* Executive Brief Section - FIXED */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">🚨 Active Threat Campaigns</h3>
-            <div className="space-y-4">
-              {threatIntelligence.active_campaigns.map((campaign, idx) => (
-                <div key={idx} className={`border rounded-lg p-4 ${
-                  campaign.severity === 'critical' ? 'border-red-300 bg-red-50' : 'border-orange-300 bg-orange-50'
-                }`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="font-semibold text-gray-900">{campaign.name}</h4>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      campaign.severity === 'critical' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">📋 Executive Security Brief</h3>
+              <button
+                onClick={generateExecutiveBrief}
+                disabled={briefLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+              >
+                {briefLoading ? "🔄 Generating..." : "📊 Generate AI Brief"}
+              </button>
+            </div>
+            
+            {executiveBrief && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">AI-Generated Executive Summary</h4>
+                
+                {/* Safe Summary Display */}
+                <p className="text-blue-800 text-sm mb-3">
+                  {executiveBrief.summary || executiveBrief.brief || "Executive brief generated successfully"}
+                </p>
+                
+                {/* Safe Metrics Display with Fallbacks */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="text-center">
+                    <div className="font-bold text-blue-900">
+                      {executiveBrief.key_metrics?.threats_detected || 
+                       executiveBrief.threats_detected || 
+                       (executiveBrief.statistics && executiveBrief.statistics.threats_detected) || 
+                       '23'}
+                    </div>
+                    <div className="text-blue-700">Threats Detected</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-blue-900">
+                      {executiveBrief.key_metrics?.threats_prevented || 
+                       executiveBrief.threats_prevented || 
+                       (executiveBrief.statistics && executiveBrief.statistics.threats_prevented) || 
+                       '21'}
+                    </div>
+                    <div className="text-blue-700">Threats Prevented</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-blue-900">
+                      {executiveBrief.key_metrics?.cost_savings || 
+                       executiveBrief.cost_savings || 
+                       (executiveBrief.statistics && executiveBrief.statistics.cost_savings) || 
+                       '$125K'}
+                    </div>
+                    <div className="text-blue-700">Cost Savings</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="font-bold text-blue-900">
+                      {executiveBrief.key_metrics?.system_accuracy || 
+                       executiveBrief.accuracy || 
+                       (executiveBrief.statistics && executiveBrief.statistics.accuracy) || 
+                       '94.2%'}
+                    </div>
+                    <div className="text-blue-700">Accuracy</div>
+                  </div>
+                </div>
+
+                {/* Additional Brief Content */}
+                {executiveBrief.recommendations && (
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <h5 className="font-semibold text-blue-900 mb-2">Key Recommendations:</h5>
+                    <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
+                      {(Array.isArray(executiveBrief.recommendations) ? 
+                        executiveBrief.recommendations : 
+                        [executiveBrief.recommendations]).map((rec, idx) => (
+                        <li key={idx}>{rec}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Risk Assessment */}
+                {executiveBrief.risk_assessment && (
+                  <div className="mt-3">
+                    <span className="text-sm font-medium text-blue-900">Risk Level: </span>
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${
+                      executiveBrief.risk_assessment === 'ELEVATED' ? 'bg-yellow-200 text-yellow-800' : 
+                      executiveBrief.risk_assessment === 'HIGH' ? 'bg-red-200 text-red-800' : 
+                      'bg-green-200 text-green-800'
                     }`}>
-                      {campaign.severity.toUpperCase()}
+                      {executiveBrief.risk_assessment}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-700 mb-2">{campaign.description}</p>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-gray-600">
-                    <div><strong>Targets:</strong> {campaign.targets}</div>
-                    <div><strong>First Seen:</strong> {campaign.first_seen}</div>
-                    <div><strong>Indicators:</strong> {campaign.indicators} IoCs</div>
-                  </div>
+                )}
+
+                {/* Debug Info */}
+                <div className="mt-3 pt-3 border-t border-blue-200">
+                  <details className="text-xs text-blue-600">
+                    <summary className="cursor-pointer hover:text-blue-800">🔧 Debug: View Raw Brief Data</summary>
+                    <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
+                      {JSON.stringify(executiveBrief, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI Recommendations */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 AI Recommendations</h3>
+            <div className="space-y-4">
+              {aiInsights.ai_recommendations.map((rec, idx) => (
+                <div key={idx} className={`border-l-4 p-4 ${
+                  rec.priority === 'critical' ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'
+                }`}>
+                  <h4 className="font-semibold mb-1">{rec.title}</h4>
+                  <p className="text-sm text-gray-700 mb-2">{rec.description}</p>
+                  <p className="text-sm font-medium">Action: {rec.action}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-              <div className="text-3xl font-bold text-blue-600">{threatIntelligence.ioc_matches}</div>
-              <div className="text-sm text-gray-600">IoC Matches</div>
-              <div className="text-xs text-gray-500 mt-1">Past 24 hours</div>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-              <div className="text-3xl font-bold text-green-600">{threatIntelligence.new_indicators}</div>
-              <div className="text-sm text-gray-600">New Indicators</div>
-              <div className="text-xs text-gray-500 mt-1">Added today</div>
-            </div>
-            
-            <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
-              <div className="text-3xl font-bold text-purple-600">{threatIntelligence.threat_actors.length}</div>
-              <div className="text-sm text-gray-600">Threat Actors</div>
-              <div className="text-xs text-gray-500 mt-1">Being monitored</div>
-            </div>
-          </div>
-
+          {/* Predictive Analysis */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">👥 Threat Actor Monitoring</h3>
-            <div className="space-y-3">
-              {threatIntelligence.threat_actors.map((actor, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <div className="font-semibold text-gray-900">{actor.name}</div>
-                    <div className="text-sm text-gray-600">Activity: {actor.activity}</div>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    actor.risk_level === 'Critical' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
-                  }`}>
-                    {actor.risk_level}
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🔮 Predictive Analysis</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Current Risk Score:</span>
+                  <span className={`font-bold ${getRiskScoreColor(aiInsights.predictive_analysis.risk_score)}`}>
+                    {aiInsights.predictive_analysis.risk_score}/100
                   </span>
                 </div>
-              ))}
+                <div className="flex justify-between">
+                  <span>Trend Direction:</span>
+                  <span className="font-semibold">
+                    {aiInsights.predictive_analysis.trend_direction === 'increasing' ? '📈 Increasing' : '📊 Stable'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Predicted Incidents:</span>
+                  <span className="font-bold text-orange-600">{aiInsights.predictive_analysis.predicted_incidents}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Confidence Level:</span>
+                  <span className="font-semibold">{aiInsights.predictive_analysis.confidence_level}%</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Performance Metrics Tab - FIXED WITH PROPER ROI */}
-      {activeTab === "metrics" && (
+      {/* Enhanced Threat Intelligence Tab */}
+      {activeTab === "intelligence" && threatIntelligence && (
         <div className="space-y-6">
-          {/* Debug Info - Shows loading state */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm">
-            <div className="text-yellow-800">
-              <strong>🔧 Debug Info:</strong> Performance Metrics State: {performanceMetrics ? 'Loaded ✅' : 'Loading ⏳'}
-              {performanceMetrics && (
-                <span className="ml-4">
-                  ROI Data: {performanceMetrics.trend_analysis?.roi_percentage || 'Missing'}%
-                </span>
-              )}
+          {/* Intelligence Summary Dashboard */}
+          <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4">🌐 Global Threat Intelligence</h3>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{threatIntelligence.active_campaigns?.length || 0}</div>
+                <div className="text-red-100">Active Campaigns</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{threatIntelligence.ioc_matches || 0}</div>
+                <div className="text-red-100">IOC Matches</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{threatIntelligence.new_indicators || 0}</div>
+                <div className="text-red-100">New Indicators</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{threatIntelligence.threat_actors?.length || 0}</div>
+                <div className="text-red-100">Threat Actors</div>
+              </div>
             </div>
           </div>
 
-          {performanceMetrics ? (
-            <>
-              {/* AI Performance Overview */}
-              <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6">
-                <h3 className="text-xl font-semibold mb-4">🤖 AI System Performance</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{performanceMetrics.ai_performance?.accuracy_rate || 'N/A'}%</div>
-                    <div className="text-green-100">Accuracy Rate</div>
+          {/* Feed Status */}
+          {threatIntelligence.feed_sources && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">📡 Intelligence Feed Status</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {threatIntelligence.feed_sources.map((feed, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <div className="font-semibold text-gray-900">{feed.name}</div>
+                      <div className="text-xs text-gray-600">
+                        {feed.reliability && `Reliability: ${feed.reliability}`}
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      feed.status === 'active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {feed.status === 'active' ? '🟢 Live' : '🔴 Down'}
+                    </span>
                   </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{performanceMetrics.ai_performance?.avg_processing_time || 'N/A'}</div>
-                    <div className="text-green-100">Avg Processing</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{performanceMetrics.ai_performance?.cost_savings || 'N/A'}</div>
-                    <div className="text-green-100">Cost Savings</div>
-                  </div>
-                </div>
+                ))}
               </div>
+            </div>
+          )}
 
-              {/* Detailed Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-lg shadow-sm border">
-                  <h4 className="font-semibold text-gray-900 mb-4">📊 24-Hour Performance</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span>Alerts Processed:</span>
-                      <span className="font-semibold">{performanceMetrics.ai_performance?.alerts_processed_24h || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Threats Prevented:</span>
-                      <span className="font-semibold text-green-600">{performanceMetrics.ai_performance?.threats_prevented || 0}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>False Positive Rate:</span>
-                      <span className="font-semibold">{performanceMetrics.ai_performance?.false_positive_rate || 0}%</span>
+          {/* Active Threat Campaigns - Enhanced */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🚨 Active Global Threat Campaigns</h3>
+            <div className="space-y-4">
+              {threatIntelligence.active_campaigns?.map((campaign, idx) => (
+                <div key={idx} className={`border rounded-lg p-6 ${
+                  campaign.severity === 'critical' ? 'border-red-300 bg-red-50' : 
+                  campaign.severity === 'high' ? 'border-orange-300 bg-orange-50' :
+                  'border-yellow-300 bg-yellow-50'
+                }`}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="font-semibold text-gray-900 text-lg">{campaign.name}</h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          campaign.severity === 'critical' ? 'bg-red-100 text-red-800' : 
+                          campaign.severity === 'high' ? 'bg-orange-100 text-orange-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {campaign.severity.toUpperCase()}
+                        </span>
+                        {campaign.confidence && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                            {campaign.confidence} confidence
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-gray-700 mb-3">{campaign.description}</p>
+                      
+                      {/* Campaign Details Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-600">Targets:</span>
+                          <div className="text-gray-900">{campaign.targets}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Attribution:</span>
+                          <div className="text-gray-900">{campaign.attribution || 'Unknown'}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">First Seen:</span>
+                          <div className="text-gray-900">{campaign.first_seen}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Indicators:</span>
+                          <div className="text-gray-900">{campaign.indicators} IoCs</div>
+                        </div>
+                        {campaign.affected_regions && (
+                          <div>
+                            <span className="font-medium text-gray-600">Regions:</span>
+                            <div className="text-gray-900">{campaign.affected_regions.join(', ')}</div>
+                          </div>
+                        )}
+                        {campaign.industry_impact && (
+                          <div>
+                            <span className="font-medium text-gray-600">Industries:</span>
+                            <div className="text-gray-900">{campaign.industry_impact.join(', ')}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* TTPs (Tactics, Techniques, Procedures) */}
+                      {campaign.ttps && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <span className="font-medium text-gray-600">MITRE ATT&CK TTPs:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {campaign.ttps.map((ttp, ttpIdx) => (
+                              <span key={ttpIdx} className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-mono">
+                                {ttp}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mitigations */}
+                      {campaign.mitigations && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <span className="font-medium text-gray-600">Recommended Mitigations:</span>
+                          <ul className="list-disc list-inside text-sm text-gray-700 mt-1 space-y-1">
+                            {campaign.mitigations.map((mitigation, mitIdx) => (
+                              <li key={mitIdx}>{mitigation}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-sm border">
-                  <h4 className="font-semibold text-gray-900 mb-4">📈 Trend Analysis</h4>
-                  <div className="space-y-3">
+          {/* Threat Landscape Analysis */}
+          {threatIntelligence.threat_landscape && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">🌍 Global Threat Landscape</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Current Risk Assessment</h4>
+                  <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span>Alert Volume Change:</span>
-                      <span className={`font-semibold ${
-                        (performanceMetrics.trend_analysis?.alert_volume_change || '').startsWith('+') ? 'text-orange-600' : 'text-green-600'
+                      <span>Risk Level:</span>
+                      <span className={`font-semibold px-2 py-1 rounded text-sm ${
+                        threatIntelligence.threat_landscape.current_risk === 'elevated' ? 'bg-orange-100 text-orange-800' :
+                        threatIntelligence.threat_landscape.current_risk === 'high' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {performanceMetrics.trend_analysis?.alert_volume_change || 'N/A'}
+                        {threatIntelligence.threat_landscape.current_risk?.toUpperCase()}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Accuracy Improvement:</span>
-                      <span className="font-semibold text-green-600">{performanceMetrics.trend_analysis?.accuracy_improvement || 'N/A'}</span>
+                      <span>Activity Level:</span>
+                      <span className="font-semibold">{threatIntelligence.threat_landscape.global_activity}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Response Time:</span>
-                      <span className="font-semibold text-green-600">{performanceMetrics.trend_analysis?.response_time_improvement || 'N/A'}</span>
+                      <span>Sophistication:</span>
+                      <span className="font-semibold">{threatIntelligence.threat_landscape.attack_sophistication}</span>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* FIXED ROI Section */}
-              <div className="bg-white p-6 rounded-lg shadow-sm border">
-                <h4 className="font-semibold text-gray-900 mb-4">💰 Return on Investment</h4>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-green-600 mb-2">
-                      {performanceMetrics.trend_analysis?.roi_percentage || performanceMetrics.roi_details?.roi_calculation || 340}%
-                    </div>
-                    <div className="text-green-800 font-medium">ROI in First Year</div>
-                    <p className="text-sm text-green-700 mt-2">
-                      AI-powered threat detection has delivered significant cost savings through automated response 
-                      and reduced false positives, resulting in improved security team efficiency.
-                    </p>
-                    
-                    {/* Additional ROI Details */}
-                    {performanceMetrics.roi_details && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-xs">
-                        <div className="text-center">
-                          <div className="font-bold text-green-800">${(performanceMetrics.roi_details.annual_savings || 450000).toLocaleString()}</div>
-                          <div className="text-green-600">Annual Savings</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-bold text-green-800">{(performanceMetrics.roi_details.time_savings_hours || 2400).toLocaleString()}h</div>
-                          <div className="text-green-600">Time Saved</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="font-bold text-green-800">{performanceMetrics.roi_details.false_positive_reduction || 67}%</div>
-                          <div className="text-green-600">False Positive Reduction</div>
-                        </div>
+                
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Trending Threats</h4>
+                  <div className="space-y-2">
+                    {threatIntelligence.threat_landscape.trending_threats?.map((threat, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                        <span className="text-sm text-gray-700">{threat}</span>
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading Performance Metrics...</p>
-              <button 
-                onClick={() => {
-                  console.log("🔄 Manually triggering performance metrics fetch");
-                  fetchPerformanceMetrics();
-                }}
-                className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
-              >
-                🔄 Reload Metrics
-              </button>
             </div>
           )}
+
+          {/* Enhanced Threat Actor Monitoring */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">👥 Threat Actor Intelligence</h3>
+            <div className="space-y-4">
+              {threatIntelligence.threat_actors?.map((actor, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h4 className="font-semibold text-gray-900">{actor.name}</h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          actor.risk_level === 'Critical' ? 'bg-red-100 text-red-800' : 
+                          actor.risk_level === 'High' ? 'bg-orange-100 text-orange-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {actor.risk_level}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          actor.activity === 'Active' ? 'bg-red-100 text-red-800' :
+                          actor.activity === 'Monitoring' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {actor.activity}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-600">Motivation:</span>
+                          <div className="text-gray-900">{actor.motivation || 'Unknown'}</div>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-600">Primary Targets:</span>
+                          <div className="text-gray-900">{actor.primary_targets || 'Various'}</div>
+                        </div>
+                        {actor.sophistication && (
+                          <div>
+                            <span className="font-medium text-gray-600">Sophistication:</span>
+                            <div className="text-gray-900">{actor.sophistication}</div>
+                          </div>
+                        )}
+                        {actor.last_activity && (
+                          <div>
+                            <span className="font-medium text-gray-600">Last Seen:</span>
+                            <div className="text-gray-900">{actor.last_activity}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Recent Activity */}
+                      {actor.recent_activity && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <span className="font-medium text-gray-600">Recent Activity:</span>
+                          <p className="text-sm text-gray-700 mt-1">{actor.recent_activity}</p>
+                        </div>
+                      )}
+
+                      {/* Associated Campaigns */}
+                      {actor.recent_campaigns && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <span className="font-medium text-gray-600">Associated Campaigns:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {actor.recent_campaigns.map((campaign, campIdx) => (
+                              <span key={campIdx} className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">
+                                {campaign}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* IOC Matches and Indicators */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
+              <div className="text-3xl font-bold text-blue-600">{threatIntelligence.ioc_matches || 0}</div>
+              <div className="text-sm text-gray-600">IOC Matches</div>
+              <div className="text-xs text-gray-500 mt-1">In your environment</div>
+              {threatIntelligence.ioc_matches > 0 && (
+                <button className="mt-2 px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200">
+                  🚨 Investigate
+                </button>
+              )}
+            </div>
+            
+            <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
+              <div className="text-3xl font-bold text-green-600">{threatIntelligence.new_indicators || 0}</div>
+              <div className="text-sm text-gray-600">New Indicators</div>
+              <div className="text-xs text-gray-500 mt-1">Added today</div>
+              <button className="mt-2 px-3 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium hover:bg-blue-200">
+                📥 Import
+              </button>
+            </div>
+            
+            <div className="bg-white p-6 rounded-lg shadow-sm border text-center">
+              <div className="text-3xl font-bold text-purple-600">
+                {threatIntelligence.intelligence_summary?.ioc_updates || 156}
+              </div>
+              <div className="text-sm text-gray-600">IOC Updates</div>
+              <div className="text-xs text-gray-500 mt-1">Past 24 hours</div>
+              <button className="mt-2 px-3 py-1 bg-purple-100 text-purple-800 rounded text-xs font-medium hover:bg-purple-200">
+                📊 Review
+              </button>
+            </div>
+          </div>
+
+          {/* Intelligence Summary Stats */}
+          {threatIntelligence.intelligence_summary && (
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-indigo-900 mb-4">📊 Intelligence Summary</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {threatIntelligence.intelligence_summary.new_campaigns || 0}
+                  </div>
+                  <div className="text-indigo-700">New Campaigns</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {threatIntelligence.intelligence_summary.updated_campaigns || 0}
+                  </div>
+                  <div className="text-indigo-700">Updated Campaigns</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {threatIntelligence.intelligence_summary.new_actors || 0}
+                  </div>
+                  <div className="text-indigo-700">New Actors</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {threatIntelligence.intelligence_summary.ioc_updates || 0}
+                  </div>
+                  <div className="text-indigo-700">IOC Updates</div>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-indigo-200 text-center">
+                <span className="text-sm text-indigo-700">
+                  Last Updated: {new Date(threatIntelligence.intelligence_summary.last_refresh || Date.now()).toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Performance Metrics Tab */}
+      {activeTab === "metrics" && performanceMetrics && (
+        <div className="space-y-6">
+          {/* AI Performance Overview */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">🤖 AI Performance Metrics</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="text-3xl font-bold text-green-600">
+                  {performanceMetrics.ai_performance.accuracy_rate}%
+                </div>
+                <div className="text-sm text-green-700">Detection Accuracy</div>
+                <div className="text-xs text-green-600 mt-1">
+                  Industry benchmark: 89%
+                </div>
+              </div>
+              
+              <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="text-3xl font-bold text-blue-600">
+                  {performanceMetrics.ai_performance.false_positive_rate}%
+                </div>
+                <div className="text-sm text-blue-700">False Positive Rate</div>
+                <div className="text-xs text-blue-600 mt-1">
+                  Target: &lt;8%
+                </div>
+              </div>
+              
+              <div className="text-center p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="text-3xl font-bold text-purple-600">
+                  {performanceMetrics.ai_performance.avg_processing_time}
+                </div>
+                <div className="text-sm text-purple-700">Avg Processing Time</div>
+                <div className="text-xs text-purple-600 mt-1">
+                  Per alert analysis
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ROI Analysis */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">💰 ROI Analysis</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Cost Savings Breakdown</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Annual Savings:</span>
+                    <span className="font-bold text-green-600">
+                      ${performanceMetrics.roi_details.annual_savings.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Implementation Cost:</span>
+                    <span className="font-bold text-gray-900">
+                      ${performanceMetrics.roi_details.implementation_cost.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-gray-600 font-medium">Net ROI:</span>
+                    <span className="font-bold text-green-600 text-xl">
+                      {performanceMetrics.roi_details.roi_calculation}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-gray-900 mb-4">Efficiency Gains</h4>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Time Savings (Annual):</span>
+                    <span className="font-bold text-blue-600">
+                      {performanceMetrics.roi_details.time_savings_hours.toLocaleString()} hours
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">False Positive Reduction:</span>
+                    <span className="font-bold text-orange-600">
+                      {performanceMetrics.roi_details.false_positive_reduction}%
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Threats Prevented (24h):</span>
+                    <span className="font-bold text-red-600">
+                      {performanceMetrics.ai_performance.threats_prevented}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Trend Analysis */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">📈 Performance Trends</h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-900">
+                  {performanceMetrics.trend_analysis.alert_volume_change}
+                </div>
+                <div className="text-sm text-gray-600">Alert Volume</div>
+                <div className="text-xs text-gray-500 mt-1">vs. last month</div>
+              </div>
+              
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  {performanceMetrics.trend_analysis.accuracy_improvement}
+                </div>
+                <div className="text-sm text-green-700">Accuracy Improvement</div>
+                <div className="text-xs text-green-600 mt-1">vs. last month</div>
+              </div>
+              
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">
+                  {performanceMetrics.trend_analysis.response_time_improvement}
+                </div>
+                <div className="text-sm text-blue-700">Response Time</div>
+                <div className="text-xs text-blue-600 mt-1">improvement</div>
+              </div>
+              
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">
+                  {performanceMetrics.trend_analysis.roi_percentage}%
+                </div>
+                <div className="text-sm text-purple-700">ROI Achievement</div>
+                <div className="text-xs text-purple-600 mt-1">annual target</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 24-Hour Activity Summary */}
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-indigo-900 mb-4">📊 24-Hour Activity Summary</h3>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-indigo-600">
+                  {performanceMetrics.ai_performance.alerts_processed_24h.toLocaleString()}
+                </div>
+                <div className="text-indigo-700">Alerts Processed</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-indigo-600">
+                  {performanceMetrics.ai_performance.threats_prevented}
+                </div>
+                <div className="text-indigo-700">Threats Prevented</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-indigo-600">
+                  {performanceMetrics.ai_performance.cost_savings}
+                </div>
+                <div className="text-indigo-700">Cost Savings</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-indigo-600">
+                  {performanceMetrics.ai_performance.accuracy_rate}%
+                </div>
+                <div className="text-indigo-700">System Accuracy</div>
+              </div>
+            </div>
+            
+            <div className="mt-4 pt-4 border-t border-indigo-200 text-center">
+              <span className="text-sm text-indigo-700">
+                Performance metrics updated in real-time • Last refresh: {new Date().toLocaleString()}
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </div>
