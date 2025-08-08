@@ -381,3 +381,45 @@ class IntegrationEndpoint(Base):
     
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
+
+
+# Add these workflow models to the end of your models.py file
+
+class Workflow(Base):
+    __tablename__ = "workflows"
+    
+    id = Column(String, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    created_by = Column(String)
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    status = Column(String, default='active')
+    steps = Column(JSON)
+    trigger_conditions = Column(JSON)
+    metadata = Column(JSON)
+
+class WorkflowExecution(Base):
+    __tablename__ = "workflow_executions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(String, ForeignKey('workflows.id'))
+    executed_by = Column(String)
+    execution_status = Column(String)
+    execution_details = Column(JSON)
+    input_data = Column(JSON)
+    started_at = Column(DateTime, default=datetime.now(UTC))
+    completed_at = Column(DateTime, nullable=True)
+    execution_time_seconds = Column(Integer, nullable=True)
+
+class WorkflowStep(Base):
+    __tablename__ = "workflow_steps"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_id = Column(String, ForeignKey('workflows.id'))
+    step_order = Column(Integer)
+    step_name = Column(String)
+    step_type = Column(String)
+    timeout_hours = Column(Integer, default=24)
+    conditions = Column(JSON)
+    created_at = Column(DateTime, default=datetime.now(UTC))    

@@ -382,3 +382,50 @@ class EmergencyOverrideResponse(BaseModel):
     execution_performed: bool = False
     execution_success: Optional[bool] = None
     execution_message: Optional[str] = None    
+
+
+# Add to your schemas.py file
+
+class WorkflowStepCreate(BaseModel):
+    name: str
+    type: str  # 'approval', 'automated', 'notification', 'escalation'
+    timeout: int = 24
+    conditions: Optional[dict] = None
+    
+    @validator('type')
+    def validate_step_type(cls, v):
+        allowed_types = ['approval', 'automated', 'notification', 'escalation']
+        if v not in allowed_types:
+            raise ValueError(f'Step type must be one of: {allowed_types}')
+        return v
+
+class WorkflowCreateRequest(BaseModel):
+    workflow_id: str
+    workflow_data: dict
+    created_by: Optional[str] = None
+    
+    @validator('workflow_id')
+    def validate_workflow_id(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Workflow ID cannot be empty')
+        if len(v) > 255:
+            raise ValueError('Workflow ID too long')
+        return v.strip()
+
+class WorkflowExecutionRequest(BaseModel):
+    input_data: Optional[dict] = None
+    execution_context: Optional[str] = "manual"
+    
+class WorkflowResponse(BaseModel):
+    id: str
+    name: str
+    description: Optional[str]
+    created_by: Optional[str]
+    created_at: datetime
+    status: str
+    steps: list
+    real_time_stats: Optional[dict] = None
+    success_metrics: Optional[dict] = None
+    
+    class Config:
+        from_attributes = True    
