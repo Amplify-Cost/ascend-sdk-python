@@ -3097,6 +3097,66 @@ async def get_automation_playbooks_api(
         logger.error(f"❌ Failed to get playbooks: {e}")
         return {"playbooks": {}}
 
+
+@api_router.post("/create-test-data")
+async def create_test_data(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Create test data for demo purposes"""
+    try:
+        # Create test pending actions
+        test_actions = [
+            {
+                "agent_id": "security-scanner-01",
+                "action_type": "vulnerability_scan", 
+                "description": "Production infrastructure vulnerability assessment",
+                "risk_level": "high",
+                "status": "pending",
+                "user_id": current_user.get("user_id", 1),
+                "tool_name": "enterprise-scanner"
+            },
+            {
+                "agent_id": "compliance-agent",
+                "action_type": "compliance_check",
+                "description": "SOX compliance audit of financial systems", 
+                "risk_level": "medium",
+                "status": "pending",
+                "user_id": current_user.get("user_id", 1),
+                "tool_name": "compliance-auditor"
+            },
+            {
+                "agent_id": "threat-detector",
+                "action_type": "anomaly_detection",
+                "description": "Advanced threat correlation analysis",
+                "risk_level": "high", 
+                "status": "pending",
+                "user_id": current_user.get("user_id", 1),
+                "tool_name": "threat-intelligence"
+            }
+        ]
+        
+        created_ids = []
+        for action in test_actions:
+            result = db.execute(text("""
+                INSERT INTO agent_actions (agent_id, action_type, description, risk_level, status, user_id, tool_name, approved)
+                VALUES (:agent_id, :action_type, :description, :risk_level, :status, :user_id, :tool_name, false)
+                RETURNING id
+            """), action)
+            created_ids.append(result.fetchone()[0])
+        
+        db.commit()
+        
+        return {
+            "message": "✅ Test data created successfully!",
+            "created_action_ids": created_ids,
+            "count": len(created_ids)
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+
 # ========== EXPORT ROUTERS ==========
 authorization_router = router  # Original router with /agent-control prefix  
 authorization_api_router = api_router  # New router with /api/authorization prefix
