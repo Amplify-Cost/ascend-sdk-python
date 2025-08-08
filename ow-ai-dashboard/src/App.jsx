@@ -24,6 +24,7 @@ import EnterpriseUserManagement from "./components/EnterpriseUserManagement";
 import EnterpriseSettings from "./components/EnterpriseSettings";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
 import { useTheme } from "./contexts/ThemeContext";
+import EnterpriseSecurityReports from "./components/EnterpriseSecurityReports";
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
