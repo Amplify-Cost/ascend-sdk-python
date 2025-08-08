@@ -24,7 +24,6 @@ import EnterpriseUserManagement from "./components/EnterpriseUserManagement";
 import EnterpriseSettings from "./components/EnterpriseSettings";
 import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
 import { useTheme } from "./contexts/ThemeContext";
-import EnterpriseSecurityReports from "./components/EnterpriseSecurityReports";
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
@@ -415,7 +414,7 @@ const AppContent = () => {
       case "activity":
         return contentWithTransition(<AgentActivityFeed getAuthHeaders={getAuthHeaders} />);
       case "reports":
-  return contentWithTransition(<EnterpriseSecurityReports getAuthHeaders={getAuthHeaders} user={user} />);
+  return contentWithTransition(<SecurityInsights getAuthHeaders={getAuthHeaders} />);
       case "support":
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
