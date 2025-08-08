@@ -19,7 +19,9 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   approvers: []
 });
 
-  // Existing workflow management state
+console.log("🧪 Testing newWorkflow:", newWorkflow);
+  
+// Existing workflow management state
   const [workflows, setWorkflows] = useState({});
   const [editingWorkflow, setEditingWorkflow] = useState(null);
   const [message, setMessage] = useState(null);
@@ -75,13 +77,6 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
         fetchWorkflows();
       }
 
-      const [newWorkflow, setNewWorkflow] = useState({
-  name: '',
-  description: '',
-  steps: [],
-  triggers: [],
-  approvers: []
-});
 
       // NEW: Update automation data in real-time
       if (activeTab === "automation") {
