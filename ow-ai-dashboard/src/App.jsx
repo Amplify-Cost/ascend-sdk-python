@@ -414,7 +414,7 @@ const AppContent = () => {
       case "activity":
         return contentWithTransition(<AgentActivityFeed getAuthHeaders={getAuthHeaders} />);
       case "reports":
-  return contentWithTransition(<SecurityInsights getAuthHeaders={getAuthHeaders} />);
+  return contentWithTransition(<EnterpriseSecurityReports getAuthHeaders={getAuthHeaders} user={user} />);
       case "support":
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
