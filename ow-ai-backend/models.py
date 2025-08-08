@@ -397,7 +397,7 @@ class Workflow(Base):
     status = Column(String, default='active')
     steps = Column(JSON)
     trigger_conditions = Column(JSON)
-    metadata = Column(JSON)
+    workflow_metadata = Column(JSON)
 
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"

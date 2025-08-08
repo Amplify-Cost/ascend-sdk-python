@@ -2600,7 +2600,7 @@ async def create_workflow(
             "status": "active",
             "steps": json.dumps(workflow_data.get("steps", [])),
             "trigger_conditions": json.dumps(workflow_data.get("trigger_conditions", {})),
-            "metadata": json.dumps({
+            "workflow_metadata": json.dumps({
                 "created_via": "enterprise_ui",
                 "version": "1.0",
                 "real_time_stats": workflow_data.get("real_time_stats", {}),
@@ -2652,7 +2652,7 @@ async def get_active_workflows(
         # Get workflows from database
         workflows_result = db.execute(text("""
             SELECT w.id, w.name, w.description, w.created_by, w.created_at, 
-                   w.status, w.steps, w.metadata,
+                   w.status, w.steps, w.workflow_metadata,
                    COUNT(we.id) as total_executions,
                    COUNT(CASE WHEN we.execution_status = 'completed' THEN 1 END) as successful_executions,
                    COUNT(CASE WHEN we.started_at >= NOW() - INTERVAL '24 hours' THEN 1 END) as executions_24h,
