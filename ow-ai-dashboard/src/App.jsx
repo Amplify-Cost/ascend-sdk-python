@@ -1,5 +1,5 @@
+// App.jsx - Updated for secure cookie authentication (PHASE 2)
 import React, { useState, useEffect } from "react";
-import { jwtDecode } from "jwt-decode";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ToastProvider, useToast } from "./components/ToastNotification";
 import { AccessibilityProvider, useScreenReaderAnnounce } from "./contexts/AccessibilityContext";
@@ -10,26 +10,22 @@ import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
 import Sidebar from "./components/Sidebar";
 import SupportModal from "./components/SupportModal";
-import AgentActionsPanel from "./components/AgentActionsPanel";
-import AgentActivityFeed from "./components/AgentActivityFeed";
 import Dashboard from "./components/Dashboard";
-import SubmitActionForm from "./components/SubmitActionForm";
-import AlertPanel from "./components/AlertPanel";
-import SmartRuleGen from "./components/SmartRuleGen";
-import RulesPanel from "./components/RulesPanel";
 import SecurityInsights from "./components/SecurityInsights";
-import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
-import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
+import AgentActivityFeed from "./components/AgentActivityFeed";
+import SmartRuleGen from "./components/SmartRuleGen";
 import EnterpriseUserManagement from "./components/EnterpriseUserManagement";
 import EnterpriseSettings from "./components/EnterpriseSettings";
-import { fetchWithAuth, logout } from "./utils/fetchWithAuth";
-import { useTheme } from "./contexts/ThemeContext";
 import EnterpriseSecurityReports from "./components/EnterpriseSecurityReports";
+import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
+import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
+import { fetchWithAuth, logout, getCurrentUser } from "./utils/fetchWithAuth";
+import { useTheme } from "./contexts/ThemeContext";
 
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
-// Enhanced Loading Screen (accessibility added to existing)
+// Enhanced Loading Screen
 const LoadingScreen = () => {
   const { isDarkMode } = useTheme();
   
@@ -49,23 +45,22 @@ const LoadingScreen = () => {
         <div className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
           isDarkMode ? 'text-white' : 'text-gray-900'
         }`}>
-          🛡️ OW-AI Platform
+          🛡️ OW-AI Enterprise Platform
         </div>
         <p className={`transition-colors duration-300 ${
           isDarkMode ? 'text-slate-300' : 'text-gray-600'
         }`}>
-          Loading OW-AI...
+          Loading secure enterprise interface...
         </p>
-        {/* Hidden live region for status updates */}
-        <div className="sr-only" aria-live="polite" aria-atomic="true">
-          Loading enterprise security platform. Please wait.
+        <div className="mt-4 text-xs px-3 py-1 bg-green-100 text-green-800 rounded-full inline-block">
+          🔒 Cookie-Based Authentication Active
         </div>
       </div>
     </div>
   );
 };
 
-// Original Profile component with accessibility enhancements
+// Profile component (updated for cookie auth)
 const Profile = ({ user, onUpdateProfile }) => {
   const { isDarkMode } = useTheme();
   const { toast } = useToast();
@@ -111,8 +106,20 @@ const Profile = ({ user, onUpdateProfile }) => {
       <h2 className={`text-xl font-semibold mb-4 transition-colors duration-300 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>
-        Profile Settings
+        Enterprise Profile Settings
       </h2>
+      
+      {/* Security Notice */}
+      <div className={`mb-4 p-3 rounded-lg border ${
+        isDarkMode 
+          ? 'bg-blue-900/20 border-blue-400 text-blue-300' 
+          : 'bg-blue-50 border-blue-200 text-blue-800'
+      }`}>
+        <div className="flex items-center text-sm">
+          <span className="mr-2">🔒</span>
+          Profile updates are secured with enterprise authentication
+        </div>
+      </div>
       
       {message && (
         <div 
@@ -230,92 +237,137 @@ const AppContent = () => {
   const { toast } = useToast();
   const { announce } = useScreenReaderAnnounce();
   const [view, setView] = useState("login");
-  const [token, setToken] = useState("");
   const [user, setUser] = useState(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
+  const [authMode, setAuthMode] = useState("cookie");
 
-  // Page transition state (accessibility enhancement)
+  // Page transition state
   const [pageTransition, setPageTransition] = useState(false);
 
-  // Check for existing token on app load
+  // Check for existing authentication on app load
   useEffect(() => {
-    const checkAuthStatus = () => {
-      const storedToken = localStorage.getItem("access_token");
-      
-      if (storedToken) {
-        try {
-          const decoded = jwtDecode(storedToken);
-          const currentTime = Date.now() / 1000;
+    const checkAuthStatus = async () => {
+      try {
+        console.log("🔍 Checking enterprise authentication status...");
+        
+        // Try to get current user info via cookie authentication
+        const currentUser = await getCurrentUser();
+        
+        if (currentUser) {
+          console.log("✅ Enterprise authentication verified:", currentUser.email);
+          setUser({
+            id: currentUser.id,
+            email: currentUser.email,
+            role: currentUser.role,
+          });
+          setView("app");
+          setAuthMode("cookie");
           
-          // Check if token is expired
-          if (decoded.exp && decoded.exp < currentTime) {
-            console.warn("Stored token is expired. Logging out.");
-            handleLogout();
-          } else {
-            // Token is valid, set user state
-            setUser({
-              id: Number(decoded.sub),
-              email: decoded.email || decoded.sub,
-              role: decoded.role,
-            });
-            setToken(storedToken);
-            setView("app");
-            
-            // Set up automatic logout when token expires
-            const timeUntilExpiry = (decoded.exp - currentTime) * 1000;
-            const logoutTimer = setTimeout(() => {
-              console.warn("Token has expired. Logging out.");
+          // Clear any legacy localStorage tokens
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          
+        } else {
+          // Check for legacy token authentication
+          const storedToken = localStorage.getItem("access_token");
+          
+          if (storedToken) {
+            console.log("⚠️ Legacy token found, attempting migration...");
+            try {
+              // Try to decode the legacy token
+              const { jwtDecode } = await import("jwt-decode");
+              const decoded = jwtDecode(storedToken);
+              const currentTime = Date.now() / 1000;
+              
+              if (decoded.exp && decoded.exp < currentTime) {
+                console.warn("Legacy token expired, clearing...");
+                handleLogout();
+              } else {
+                // Use legacy token temporarily
+                setUser({
+                  id: Number(decoded.sub),
+                  email: decoded.email || decoded.sub,
+                  role: decoded.role,
+                });
+                setView("app");
+                setAuthMode("token");
+                console.log("⚠️ Using legacy token authentication (consider upgrading)");
+              }
+            } catch (err) {
+              console.error("Invalid legacy token:", err);
               handleLogout();
-            }, timeUntilExpiry);
-            
-            return () => clearTimeout(logoutTimer);
+            }
+          } else {
+            console.log("No authentication found, showing login");
           }
-        } catch (err) {
-          console.error("Invalid token found:", err);
-          handleLogout();
         }
+      } catch (error) {
+        console.error("Authentication check failed:", error);
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
     
     checkAuthStatus();
   }, []);
 
-  const handleLoginSuccess = (receivedToken, refreshToken = null) => {
+  const handleLoginSuccess = async (receivedToken = null, refreshToken = null) => {
     try {
-      // Store tokens
-      localStorage.setItem("access_token", receivedToken);
-      if (refreshToken) {
-        localStorage.setItem("refresh_token", refreshToken);
+      if (receivedToken) {
+        // Legacy token mode
+        console.log("⚠️ Legacy token authentication");
+        localStorage.setItem("access_token", receivedToken);
+        if (refreshToken) {
+          localStorage.setItem("refresh_token", refreshToken);
+        }
+        
+        const { jwtDecode } = await import("jwt-decode");
+        const decoded = jwtDecode(receivedToken);
+        setUser({
+          id: Number(decoded.sub),
+          email: decoded.email || decoded.sub,
+          role: decoded.role,
+        });
+        setAuthMode("token");
+      } else {
+        // Cookie mode - get user info from API
+        console.log("✅ Enterprise cookie authentication");
+        const currentUser = await getCurrentUser();
+        
+        if (currentUser) {
+          setUser({
+            id: currentUser.id,
+            email: currentUser.email,
+            role: currentUser.role,
+          });
+          setAuthMode("cookie");
+        } else {
+          throw new Error("Failed to retrieve user information");
+        }
       }
       
-      // Decode and set user info
-      const decoded = jwtDecode(receivedToken);
-      setUser({
-        id: Number(decoded.sub),
-        email: decoded.email || decoded.sub,
-        role: decoded.role,
-      });
-      setToken(receivedToken);
       setView("app");
-      
       console.log("✅ Login successful");
     } catch (err) {
-      console.error("Login token processing error:", err);
+      console.error("Login processing error:", err);
       handleLogout();
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    setToken("");
-    setUser(null);
-    setView("login");
-    setActiveTab("dashboard");
-    console.log("✅ Logged out successfully");
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.warn("Logout error:", error);
+    } finally {
+      setUser(null);
+      setView("login");
+      setActiveTab("dashboard");
+      setAuthMode("cookie");
+      console.log("✅ Logged out successfully");
+    }
   };
 
   const handleProfileUpdate = async ({ email, password }) => {
@@ -348,8 +400,14 @@ const AppContent = () => {
     }
   };
 
+  // For legacy components that still expect getAuthHeaders
   const getAuthHeaders = () => {
-    return { Authorization: `Bearer ${token}` };
+    if (authMode === "cookie") {
+      return {}; // No headers needed for cookie auth
+    }
+    // Legacy token fallback
+    const token = localStorage.getItem("access_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
   // Enhanced tab navigation with accessibility
@@ -363,7 +421,6 @@ const AppContent = () => {
       setActiveTab(newTab);
       setPageTransition(false);
       
-      // Focus management - focus main content after navigation
       const mainContent = document.getElementById('main-content');
       if (mainContent) {
         mainContent.focus();
@@ -415,7 +472,7 @@ const AppContent = () => {
       case "activity":
         return contentWithTransition(<AgentActivityFeed getAuthHeaders={getAuthHeaders} />);
       case "reports":
-  return contentWithTransition(<EnterpriseSecurityReports getAuthHeaders={getAuthHeaders} user={user} />);
+        return contentWithTransition(<EnterpriseSecurityReports getAuthHeaders={getAuthHeaders} user={user} />);
       case "support":
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
@@ -429,10 +486,10 @@ const AppContent = () => {
               <h3 className={`text-lg font-semibold mb-2 ${
                 isDarkMode ? 'text-blue-200' : 'text-blue-800'
               }`}>
-                🆘 Support Center
+                🆘 Enterprise Support Center
               </h3>
               <p className={`mb-4 ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
-                Need help? Contact our support team.
+                24/7 enterprise support available for critical issues.
               </p>
               <button
                 onClick={() => setShowSupportModal(true)}
@@ -443,7 +500,7 @@ const AppContent = () => {
                 }`}
                 aria-label="Open support ticket form"
               >
-                Open Support Ticket
+                Open Enterprise Support Ticket
               </button>
             </div>
           </div>
@@ -533,9 +590,16 @@ const AppContent = () => {
               }`}>
                 Logged in as: <span className="font-medium">{user?.email}</span> ({user?.role})
                 <span className={`ml-4 text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                  authMode === "cookie"
+                    ? (isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
+                    : (isDarkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
+                }`}>
+                  {authMode === "cookie" ? "🔒 Secure Cookies" : "⚠️ Legacy Token"}
+                </span>
+                <span className={`ml-2 text-xs px-2 py-1 rounded transition-colors duration-300 ${
                   isDarkMode 
-                    ? 'bg-green-900/30 text-green-300' 
-                    : 'bg-green-100 text-green-800'
+                    ? 'bg-blue-900/30 text-blue-300' 
+                    : 'bg-blue-100 text-blue-800'
                 }`}>
                   API: {API_BASE_URL}
                 </span>
