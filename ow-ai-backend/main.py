@@ -1452,7 +1452,7 @@ async def alerts_summary_llm(request: Request, current_user: dict = Depends(get_
             alert_texts = [str(data)]
         
         # Combine all alert texts for LLM processing
-        combined_alert_text = "\\n\\n".join(alert_texts)
+        combined_alert_text = "\n\n".join(alert_texts)
         
         # Enterprise LLM Summary Generation using your existing generate_summary function
         try:
@@ -1725,7 +1725,7 @@ async def root():
         "enterprise_ready": True
     }
 
-@@app.get("/health")
+@app.get("/health")
 async def health_check():
     """Detailed health check"""
     try:
@@ -1873,7 +1873,7 @@ async def get_pending_actions_persistent(
         
     except Exception as e:
         logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
-        return []
+       
 
         return []
 
