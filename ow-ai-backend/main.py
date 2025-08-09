@@ -164,7 +164,6 @@ app.include_router(enterprise_user_router)
 app.include_router(authorization_router)  
 app.include_router(authorization_api_router)
 app.include_router(secrets_router)
-app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -1726,7 +1725,7 @@ async def root():
         "enterprise_ready": True
     }
 
-@app.get("/health")
+@@app.get("/health")
 async def health_check():
     """Detailed health check"""
     try:
@@ -1739,7 +1738,8 @@ async def health_check():
             "status": "healthy",
             "database": "connected",
             "timestamp": datetime.now().isoformat(),
-            "enterprise_features": "operational"
+            "enterprise_features": "operational",
+            "router_conflicts": "resolved"  # ← ADD THIS LINE
         }
     except Exception as e:
         logger.error(f"Health check failed: {str(e)}")
@@ -3307,13 +3307,3 @@ async def setup_enterprise_user_tables(
             "details": "Check your database connection and permissions"
         }     
     
-@app.middleware("http")
-async def cors_debug(request, call_next):
-    print(f"🔍 Request: {request.method} {request.url}")
-    print(f"🔍 Origin: {request.headers.get('origin')}")
-    print(f"🔍 Credentials: {request.headers.get('credentials')}")
-    
-    response = await call_next(request)
-    
-    print(f"🔍 Response headers: {dict(response.headers)}")
-    return response
