@@ -370,3 +370,24 @@ async def refresh_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token refresh failed"
         )
+    
+# Add this endpoint to your auth_routes.py
+
+@router.get("/me")
+async def get_current_user_info(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get current user information for cookie-based auth"""
+    try:
+        return {
+            "id": current_user["user_id"],
+            "email": current_user["email"], 
+            "role": current_user["role"],
+            "auth_method": current_user.get("auth_method", "cookie")
+        }
+    except Exception as e:
+        logger.error(f"Error getting user info: {e}")
+        raise HTTPException(
+            status_code=401,
+            detail="Unable to retrieve user information"
+        )    

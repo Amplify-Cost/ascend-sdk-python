@@ -66,9 +66,14 @@ app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
 # CORS Configuration (unchanged)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://owai.vercel.app", "*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=[
+        "https://passionate-elegance-production.up.railway.app",
+        "https://owai-production.up.railway.app", 
+        "http://localhost:3000",  # For development
+        "http://localhost:5173"   # For Vite dev server
+    ],  # NO WILDCARDS when using credentials
+    allow_credentials=True,  # Required for cookies
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -158,6 +163,7 @@ app.include_router(enterprise_user_router)
 app.include_router(authorization_router)  
 app.include_router(authorization_api_router)
 app.include_router(secrets_router)
+app.include_router(auth_router, prefix="/auth", tags=["authentication"])
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -3300,3 +3306,13 @@ async def setup_enterprise_user_tables(
             "details": "Check your database connection and permissions"
         }     
     
+@app.middleware("http")
+async def cors_debug(request, call_next):
+    print(f"🔍 Request: {request.method} {request.url}")
+    print(f"🔍 Origin: {request.headers.get('origin')}")
+    print(f"🔍 Credentials: {request.headers.get('credentials')}")
+    
+    response = await call_next(request)
+    
+    print(f"🔍 Response headers: {dict(response.headers)}")
+    return response
