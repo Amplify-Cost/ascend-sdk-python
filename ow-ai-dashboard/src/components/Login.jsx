@@ -1,4 +1,4 @@
-// components/Login.jsx - Updated for secure cookie authentication (PHASE 2)
+// components/Login.jsx - TEMPORARY FALLBACK VERSION
 import React, { useState } from "react";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
@@ -16,14 +16,15 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
     setLoading(true);
 
     try {
-      // Enterprise: Use cookie-based authentication
+      // TEMPORARY: Use token-based authentication (not cookies)
       const res = await fetch(`${API_BASE_URL}/auth/token`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "X-Auth-Mode": "cookie"  // Signal cookie preference
+          "X-Auth-Mode": "token"  // Signal token preference
         },
-        credentials: "include",  // Include cookies in request
+        // TEMPORARY: Don't include credentials
+        // credentials: "include",
         body: JSON.stringify({ email, password }),
       });
 
@@ -35,22 +36,9 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         return;
       }
 
-      // Enterprise Security: Validate response
-      if (data.token_type === "cookie") {
-        // Cookie-based authentication successful
-        // Tokens are now stored in secure httpOnly cookies
-        console.log("✅ Enterprise cookie authentication successful");
-        
-        // Clear any legacy localStorage tokens
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        
-        // No token to pass - authentication is handled via cookies
-        onLoginSuccess(null, null);
-        
-      } else if (data.access_token) {
-        // Legacy token mode fallback
-        console.log("⚠️ Fallback to legacy token authentication");
+      // TEMPORARY: Always use token mode
+      if (data.access_token) {
+        console.log("✅ Token authentication successful");
         
         localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) {
@@ -75,11 +63,11 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        {/* Enterprise Security Badge */}
+        {/* Temporary notice */}
         <div className="flex items-center justify-center mb-4">
-          <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium flex items-center">
-            <span className="mr-2">🔒</span>
-            Enterprise Security Enabled
+          <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium flex items-center">
+            <span className="mr-2">🔧</span>
+            Development Mode
           </div>
         </div>
         
@@ -177,7 +165,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
                 Logging in...
               </div>
             ) : (
-              "Login to Enterprise Platform"
+              "Login to Platform"
             )}
           </button>
         </form>
@@ -191,24 +179,8 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
             className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
             disabled={loading}
           >
-            Create Enterprise Account
+            Create Account
           </button>
-        </div>
-        
-        {/* Enterprise Features Notice */}
-        <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800">
-          <div className="flex items-start">
-            <span className="mr-2 mt-0.5">🛡️</span>
-            <div>
-              <div className="font-semibold mb-1">Enterprise Security Features:</div>
-              <ul className="list-disc list-inside space-y-0.5 text-blue-700">
-                <li>Secure httpOnly cookie authentication</li>
-                <li>Automatic CSRF protection</li>
-                <li>Session management and rotation</li>
-                <li>SOC 2 compliant audit logging</li>
-              </ul>
-            </div>
-          </div>
         </div>
       </div>
     </div>
