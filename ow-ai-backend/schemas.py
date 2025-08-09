@@ -1,152 +1,25 @@
-from pydantic import BaseModel, EmailStr, validator
-from typing import Optional
+# schemas.py - Enterprise Security Compliant with Pydantic V2
+from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 import re
 
 # ------------------------------
-# User Schemas
-# ------------------------------
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-    role: Optional[str] = "user"
-
-class UserOut(BaseModel):
-    id: int
-    email: EmailStr
-    role: str
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# ------------------------------
-# Auth Schemas
-# ------------------------------
-
-class LoginInput(BaseModel):
-    email: EmailStr
-    password: str
-
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-# ------------------------------
-# AgentAction Schemas
-# ------------------------------
-
-class AgentActionBase(BaseModel):
-    agent_id: str
-    action_type: str
-    description: Optional[str]
-    tool_name: Optional[str]
-    risk_level: Optional[str]
-    rule_id: Optional[int]
-    nist_control: Optional[str]
-    nist_description: Optional[str]
-    mitre_tactic: Optional[str]
-    mitre_technique: Optional[str]
-    recommendation: Optional[str]
-    summary: Optional[str]
-    status: Optional[str]
-    is_false_positive: Optional[bool]
-    approved: Optional[bool]
-    reviewed_by: Optional[str]
-    reviewed_at: Optional[datetime]
-
-    class Config:
-        from_attributes = True
-
-class AgentActionCreate(AgentActionBase):
-    user_id: int
-    timestamp: datetime
-
-class AgentActionOut(AgentActionBase):
-    id: int
-    timestamp: datetime
-
-# ------------------------------
-# Alert Schemas
-# ------------------------------
-
-class AlertOut(BaseModel):
-    id: int
-    timestamp: datetime
-    alert_type: str
-    severity: str
-    message: str
-
-    # From related AgentAction
-    agent_id: str
-    tool_name: Optional[str]
-    risk_level: Optional[str]
-    mitre_tactic: Optional[str]
-    mitre_technique: Optional[str]
-    nist_control: Optional[str]
-    nist_description: Optional[str]
-    recommendation: Optional[str]
-
-    class Config:
-        from_attributes = True
-
-# ------------------------------
-# Rule Feedback Schemas
-# ------------------------------
-
-class RuleFeedbackRequest(BaseModel):
-    rule_id: int
-    correct: int = 0
-    false_positive: int = 0
-
-class RuleFeedbackResponse(BaseModel):
-    message: str
-
-# ------------------------------
-# Smart Rule Generation
-# ------------------------------
-
-class SmartRuleResponse(BaseModel):
-    id: str
-    agent_id: str
-    action_type: str
-    description: str
-    condition: str
-    action: str
-    risk_level: str
-    recommendation: str
-
-
-class SmartRuleOut(BaseModel):
-    id: int
-    agent_id: str
-    action_type: str
-    description: str
-    condition: str
-    action: str
-    risk_level: str
-    recommendation: str
-    justification: Optional[str]
-    created_at: datetime
-
-    class Config:
-        orm_mode = True
-
-        # User Schemas with Security
+# User Schemas - Enterprise Security
 # ------------------------------
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    # Remove role field - only backend can assign roles
     
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email(cls, v):
         if len(v) > 254:  # RFC 5321 limit
             raise ValueError('Email address too long')
         return v.lower()  # Normalize email to lowercase
     
-    @validator('password')
+    @field_validator('password')
+    @classmethod
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
@@ -163,22 +36,22 @@ class UserCreate(BaseModel):
         return v
 
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     email: EmailStr
     role: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 # ------------------------------
-# Auth Schemas with Security
+# Auth Schemas - Enterprise Security
 # ------------------------------
 class LoginInput(BaseModel):
     email: EmailStr
     password: str
     
-    @validator('email')
+    @field_validator('email')
+    @classmethod
     def validate_email(cls, v):
         return v.lower()  # Normalize email
 
@@ -191,15 +64,36 @@ class TokenResponse(BaseModel):
 class TokenRefreshRequest(BaseModel):
     refresh_token: str
 
-# Add validation for all other schemas...
-class AgentActionCreate(BaseModel):
+# ------------------------------
+# AgentAction Schemas - Enterprise Security
+# ------------------------------
+class AgentActionBase(BaseModel):
     agent_id: str
     action_type: str
     description: Optional[str] = None
     tool_name: Optional[str] = None
+    risk_level: Optional[str] = None
+    rule_id: Optional[int] = None
+    nist_control: Optional[str] = None
+    nist_description: Optional[str] = None
+    mitre_tactic: Optional[str] = None
+    mitre_technique: Optional[str] = None
+    recommendation: Optional[str] = None
+    summary: Optional[str] = None
+    status: Optional[str] = None
+    is_false_positive: Optional[bool] = None
+    approved: Optional[bool] = None
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+
+class AgentActionCreate(AgentActionBase):
+    model_config = ConfigDict(from_attributes=True)
+    
+    user_id: int
     timestamp: datetime
     
-    @validator('agent_id')
+    @field_validator('agent_id')
+    @classmethod
     def validate_agent_id(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Agent ID cannot be empty')
@@ -207,19 +101,84 @@ class AgentActionCreate(BaseModel):
             raise ValueError('Agent ID too long')
         return v.strip()
     
-    @validator('action_type') 
+    @field_validator('action_type') 
+    @classmethod
     def validate_action_type(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Action type cannot be empty')
         if len(v) > 100:
             raise ValueError('Action type too long')
         return v.strip()
+
+class AgentActionOut(AgentActionBase):
+    model_config = ConfigDict(from_attributes=True)
     
+    id: int
+    timestamp: datetime
 
 # ------------------------------
-# Automation & Workflow Schemas
+# Alert Schemas - Enterprise Security
 # ------------------------------
+class AlertOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    timestamp: datetime
+    alert_type: str
+    severity: str
+    message: str
+    
+    # From related AgentAction
+    agent_id: str
+    tool_name: Optional[str] = None
+    risk_level: Optional[str] = None
+    mitre_tactic: Optional[str] = None
+    mitre_technique: Optional[str] = None
+    nist_control: Optional[str] = None
+    nist_description: Optional[str] = None
+    recommendation: Optional[str] = None
 
+# ------------------------------
+# Rule Feedback Schemas - Enterprise Security
+# ------------------------------
+class RuleFeedbackRequest(BaseModel):
+    rule_id: int
+    correct: int = 0
+    false_positive: int = 0
+
+class RuleFeedbackResponse(BaseModel):
+    message: str
+
+# ------------------------------
+# Smart Rule Generation - Enterprise Security
+# ------------------------------
+class SmartRuleResponse(BaseModel):
+    id: str
+    agent_id: str
+    action_type: str
+    description: str
+    condition: str
+    action: str
+    risk_level: str
+    recommendation: str
+
+class SmartRuleOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    agent_id: str
+    action_type: str
+    description: str
+    condition: str
+    action: str
+    risk_level: str
+    recommendation: str
+    justification: Optional[str] = None
+    created_at: datetime
+
+# ------------------------------
+# Automation & Workflow Schemas - Enterprise Security
+# ------------------------------
 class AutomationPlaybookBase(BaseModel):
     name: str
     description: Optional[str] = None
@@ -227,7 +186,8 @@ class AutomationPlaybookBase(BaseModel):
     trigger_conditions: Optional[dict] = None
     success_rate: Optional[float] = 0.0
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Playbook name cannot be empty')
@@ -239,7 +199,8 @@ class AutomationPlaybookCreate(AutomationPlaybookBase):
     id: str
     created_by: Optional[str] = None
     
-    @validator('id')
+    @field_validator('id')
+    @classmethod
     def validate_id(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Playbook ID cannot be empty')
@@ -251,27 +212,29 @@ class AutomationPlaybookCreate(AutomationPlaybookBase):
         return v.strip()
 
 class AutomationPlaybookOut(AutomationPlaybookBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     created_by: Optional[str] = None
     updated_by: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 class AutomationExecutionCreate(BaseModel):
     playbook_id: str
     execution_context: Optional[str] = "manual"
     input_data: Optional[dict] = None
     
-    @validator('playbook_id')
+    @field_validator('playbook_id')
+    @classmethod
     def validate_playbook_id(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Playbook ID cannot be empty')
         return v.strip()
 
 class AutomationExecutionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     playbook_id: str
     executed_by: Optional[str] = None
@@ -279,16 +242,17 @@ class AutomationExecutionOut(BaseModel):
     execution_details: Optional[dict] = None
     executed_at: datetime
 
-    class Config:
-        from_attributes = True
-
+# ------------------------------
+# Workflow Schemas - Enterprise Security
+# ------------------------------
 class WorkflowBase(BaseModel):
     name: str
     description: Optional[str] = None
     steps: Optional[list] = None
     created_by: Optional[str] = None
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_name(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Workflow name cannot be empty')
@@ -299,7 +263,8 @@ class WorkflowBase(BaseModel):
 class WorkflowCreate(WorkflowBase):
     id: str
     
-    @validator('id')
+    @field_validator('id')
+    @classmethod
     def validate_id(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Workflow ID cannot be empty')
@@ -310,26 +275,28 @@ class WorkflowCreate(WorkflowBase):
         return v.strip()
 
 class WorkflowOut(WorkflowBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     updated_by: Optional[str] = None
-
-    class Config:
-        from_attributes = True
 
 class WorkflowExecutionCreate(BaseModel):
     workflow_id: str
     input_data: Optional[dict] = None
     execution_context: Optional[str] = "manual"
     
-    @validator('workflow_id')
+    @field_validator('workflow_id')
+    @classmethod
     def validate_workflow_id(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Workflow ID cannot be empty')
         return v.strip()
 
 class WorkflowExecutionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     workflow_id: str
     executed_by: Optional[str] = None
@@ -337,13 +304,23 @@ class WorkflowExecutionOut(BaseModel):
     execution_details: Optional[dict] = None
     executed_at: datetime
 
-    class Config:
-        from_attributes = True
+class WorkflowStepCreate(BaseModel):
+    name: str
+    type: str  # 'approval', 'automated', 'notification', 'escalation'
+    timeout: int = 24
+    conditions: Optional[dict] = None
+    
+    @field_validator('type')
+    @classmethod
+    def validate_step_type(cls, v):
+        allowed_types = ['approval', 'automated', 'notification', 'escalation']
+        if v not in allowed_types:
+            raise ValueError(f'Step type must be one of: {allowed_types}')
+        return v
 
 # ------------------------------
-# Authorization Schemas
+# Authorization Schemas - Enterprise Security
 # ------------------------------
-
 class AuthorizationRequest(BaseModel):
     decision: str  # 'approved', 'denied', 'conditional_approved', 'escalated'
     notes: Optional[str] = None
@@ -351,7 +328,8 @@ class AuthorizationRequest(BaseModel):
     approval_duration: Optional[int] = None  # minutes
     execute_immediately: bool = False
     
-    @validator('decision')
+    @field_validator('decision')
+    @classmethod
     def validate_decision(cls, v):
         allowed_decisions = ['approved', 'denied', 'conditional_approved', 'escalated']
         if v not in allowed_decisions:
@@ -368,7 +346,8 @@ class AuthorizationResponse(BaseModel):
 class EmergencyOverrideRequest(BaseModel):
     justification: str
     
-    @validator('justification')
+    @field_validator('justification')
+    @classmethod
     def validate_justification(cls, v):
         if not v or len(v.strip()) < 10:
             raise ValueError('Emergency justification must be at least 10 characters')
@@ -381,30 +360,18 @@ class EmergencyOverrideResponse(BaseModel):
     override_id: str
     execution_performed: bool = False
     execution_success: Optional[bool] = None
-    execution_message: Optional[str] = None    
+    execution_message: Optional[str] = None
 
-
-# Add to your schemas.py file
-
-class WorkflowStepCreate(BaseModel):
-    name: str
-    type: str  # 'approval', 'automated', 'notification', 'escalation'
-    timeout: int = 24
-    conditions: Optional[dict] = None
-    
-    @validator('type')
-    def validate_step_type(cls, v):
-        allowed_types = ['approval', 'automated', 'notification', 'escalation']
-        if v not in allowed_types:
-            raise ValueError(f'Step type must be one of: {allowed_types}')
-        return v
-
+# ------------------------------
+# Enterprise Workflow Schemas
+# ------------------------------
 class WorkflowCreateRequest(BaseModel):
     workflow_id: str
     workflow_data: dict
     created_by: Optional[str] = None
     
-    @validator('workflow_id')
+    @field_validator('workflow_id')
+    @classmethod
     def validate_workflow_id(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Workflow ID cannot be empty')
@@ -417,15 +384,14 @@ class WorkflowExecutionRequest(BaseModel):
     execution_context: Optional[str] = "manual"
     
 class WorkflowResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: str
     name: str
-    description: Optional[str]
-    created_by: Optional[str]
+    description: Optional[str] = None
+    created_by: Optional[str] = None
     created_at: datetime
     status: str
     steps: list
     real_time_stats: Optional[dict] = None
     success_metrics: Optional[dict] = None
-    
-    class Config:
-        from_attributes = True    
