@@ -1,80 +1,153 @@
-# auth_routes.py - FIXED IMPORTS
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+# auth_routes.py - Updated for dual authentication support (PHASE 1)
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Response
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from database import get_db
-from models import User
-from schemas import UserCreate, LoginInput, TokenResponse, TokenRefreshRequest
-from auth_utils import (
-    hash_password,
-    verify_password,
-    create_access_token,
-    create_refresh_token,
-    decode_refresh_token
-    # ✅ REMOVED verify_token - it's now in dependencies.py
-)
-from dependencies import get_current_user  # ✅ ADD THIS IMPORT
-from config import ACCESS_TOKEN_EXPIRE_MINUTES, LOGIN_RATE_LIMIT, REGISTER_RATE_LIMIT
-from datetime import timedelta
+from datetime import datetime, timedelta, UTC
 import logging
 
-logger = logging.getLogger(__name__)
+from database import get_db
+from models import User
+from schemas import UserCreate, LoginInput, TokenResponse
+from token_utils import create_access_token, create_refresh_token, decode_token
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
+from dependencies import get_current_user
+from passlib.context import CryptContext
+
+# Setup
+router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+# Enterprise cookie configuration
+COOKIE_CONFIG = {
+    "secure": True,      # HTTPS only in production
+    "httponly": True,    # Prevent XSS access
+    "samesite": "strict", # CSRF protection
+    "path": "/",         # Available site-wide
+    "domain": None,      # Auto-detect domain
+}
 
-# Keep all your existing route functions exactly the same, just change:
-# - Replace any `Depends(verify_token)` with `Depends(get_current_user)`
-# - Replace any `verify_token(token)` calls with `get_current_user(credentials)`
+def get_cookie_config(request: Request) -> dict:
+    """Get cookie configuration based on environment"""
+    config = COOKIE_CONFIG.copy()
+    
+    # Development adjustments
+    if request.url.hostname in ["localhost", "127.0.0.1"]:
+        config["secure"] = False  # Allow HTTP in development
+        config["samesite"] = "lax"  # Less strict for development
+    
+    return config
+
+def detect_auth_preference(request: Request) -> str:
+    """Detect if client wants cookie-based or token-based auth"""
+    # Check for cookie preference header
+    auth_mode = request.headers.get("X-Auth-Mode", "").lower()
+    if auth_mode in ["cookie", "cookies"]:
+        return "cookie"
+    
+    # Check if modern browser (supports cookies well)
+    user_agent = request.headers.get("User-Agent", "").lower()
+    if any(browser in user_agent for browser in ["chrome", "firefox", "safari", "edge"]):
+        # For now, default to token mode for compatibility
+        # Later we'll switch this to "cookie" as default
+        return "token"
+    
+    return "token"
 
 @router.post("/register", response_model=TokenResponse)
-@limiter.limit(REGISTER_RATE_LIMIT)
-async def register_user(
+@limiter.limit("3/minute")
+async def register(
     request: Request,
-    data: UserCreate,
+    response: Response,
+    user_data: UserCreate,
     db: Session = Depends(get_db)
 ):
-    """Register a new user"""
+    """Enterprise user registration with dual auth support"""
     try:
-        existing_user = db.query(User).filter(User.email == data.email.lower()).first()
+        # Check if user already exists
+        existing_user = db.query(User).filter(User.email == user_data.email).first()
         if existing_user:
-            logger.warning(f"Registration attempt for existing email: {data.email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User with this email already exists"
+                detail="Email already registered"
             )
-
-        hashed_password = hash_password(data.password)
+        
+        # Create new user (role assigned by backend only)
+        hashed_password = pwd_context.hash(user_data.password)
         new_user = User(
-            email=data.email.lower(),
-            password=hashed_password,
-            role="user"
+            email=user_data.email,
+            hashed_password=hashed_password,
+            role="user",  # Default role - enterprise security
+            is_active=True,
+            created_at=datetime.now(UTC)
         )
+        
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
-        logger.info(f"New user registered: {data.email}")
-
-        user_data = {
+        
+        # Generate tokens
+        access_token = create_access_token({
             "sub": str(new_user.id),
             "email": new_user.email,
-            "role": new_user.role
-        }
-        access_token = create_access_token(user_data)
-        refresh_token = create_refresh_token(user_data)
-
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
-
-    except HTTPException:
-        raise
+            "role": new_user.role,
+            "type": "access"
+        })
+        
+        refresh_token = create_refresh_token({
+            "sub": str(new_user.id),
+            "email": new_user.email,
+            "role": new_user.role,
+            "type": "refresh"
+        })
+        
+        # Detect authentication preference
+        auth_mode = detect_auth_preference(request)
+        
+        if auth_mode == "cookie":
+            # Set secure cookies
+            cookie_config = get_cookie_config(request)
+            
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                **cookie_config
+            )
+            
+            response.set_cookie(
+                key="refresh_token", 
+                value=refresh_token,
+                max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+                **cookie_config
+            )
+            
+            logger.info(f"✅ User registered with cookie auth: {new_user.email}")
+            
+            # Return minimal response for cookie mode
+            return TokenResponse(
+                access_token="",  # Empty for cookie mode
+                refresh_token="",
+                token_type="cookie",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        else:
+            # Legacy token mode
+            logger.info(f"✅ User registered with token auth: {new_user.email}")
+            
+            return TokenResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        
     except Exception as e:
-        logger.error(f"Registration error: {str(e)}")
+        logger.error(f"❌ Registration error: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -82,205 +155,218 @@ async def register_user(
         )
 
 @router.post("/token", response_model=TokenResponse)
-@limiter.limit(LOGIN_RATE_LIMIT)
-async def login_user(
+@limiter.limit("5/minute")
+async def login(
     request: Request,
-    data: LoginInput,
+    response: Response,
+    login_data: LoginInput,
     db: Session = Depends(get_db)
 ):
-    """Authenticate user and return tokens"""
+    """Enterprise login with dual authentication support"""
     try:
-        user = db.query(User).filter(User.email == data.email.lower()).first()
-        if not user or not verify_password(data.password, user.password):
-            logger.warning(f"Failed login attempt for: {data.email}")
+        # Authenticate user
+        user = db.query(User).filter(User.email == login_data.email).first()
+        
+        if not user or not pwd_context.verify(login_data.password, user.hashed_password):
+            logger.warning(f"❌ Failed login attempt: {login_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
+                detail="Invalid credentials"
             )
-
-        logger.info(f"Successful login: {data.email}")
-        user_data = {
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account deactivated"
+            )
+        
+        # Update last login
+        user.last_login = datetime.now(UTC)
+        db.commit()
+        
+        # Generate tokens
+        access_token = create_access_token({
             "sub": str(user.id),
             "email": user.email,
-            "role": user.role
-        }
-        access_token = create_access_token(user_data)
-        refresh_token = create_refresh_token(user_data)
-
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
-
+            "role": user.role,
+            "type": "access"
+        })
+        
+        refresh_token = create_refresh_token({
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "type": "refresh"
+        })
+        
+        # Detect authentication preference
+        auth_mode = detect_auth_preference(request)
+        
+        if auth_mode == "cookie":
+            # Set secure cookies
+            cookie_config = get_cookie_config(request)
+            
+            response.set_cookie(
+                key="access_token",
+                value=access_token,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                **cookie_config
+            )
+            
+            response.set_cookie(
+                key="refresh_token",
+                value=refresh_token, 
+                max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+                **cookie_config
+            )
+            
+            logger.info(f"✅ Cookie-based login: {user.email}")
+            
+            # Return minimal response for cookie mode
+            return TokenResponse(
+                access_token="",  # Empty for cookie mode
+                refresh_token="",
+                token_type="cookie",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        else:
+            # Legacy token mode
+            logger.info(f"✅ Token-based login: {user.email}")
+            
+            return TokenResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer", 
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")
+        logger.error(f"❌ Login error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Login failed"
         )
 
-@router.post("/refresh-token", response_model=TokenResponse)
-@limiter.limit("10/minute")
-async def refresh_access_token(
+@router.post("/logout")
+async def logout(
     request: Request,
-    data: TokenRefreshRequest
+    response: Response,
+    current_user: dict = Depends(get_current_user)
 ):
-    """Refresh access token using refresh token"""
+    """Enterprise logout with cookie clearing"""
     try:
-        payload = decode_refresh_token(data.refresh_token)
-        user_data = {
-            "sub": payload.get("sub"),
-            "email": payload.get("email"),
-            "role": payload.get("role", "user")
-        }
-        new_access_token = create_access_token(user_data)
-        new_refresh_token = create_refresh_token(user_data)
+        # Clear cookies
+        cookie_config = get_cookie_config(request)
+        cookie_config.update({"max_age": 0})  # Expire immediately
+        
+        response.set_cookie(key="access_token", value="", **cookie_config)
+        response.set_cookie(key="refresh_token", value="", **cookie_config)
+        
+        logger.info(f"✅ User logged out: {current_user.get('email')}")
+        
+        return {"message": "Successfully logged out"}
+        
+    except Exception as e:
+        logger.error(f"❌ Logout error: {str(e)}")
+        return {"message": "Logout completed"}
 
-        return TokenResponse(
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer",
-            expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-        )
-
+@router.post("/refresh-token", response_model=TokenResponse)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db)
+):
+    """Refresh tokens with dual auth support"""
+    try:
+        # Try to get refresh token from cookie first, then fallback to body
+        refresh_token = request.cookies.get("refresh_token")
+        auth_mode = "cookie"
+        
+        if not refresh_token:
+            # Fallback to legacy body-based refresh
+            body = await request.json()
+            refresh_token = body.get("refresh_token")
+            auth_mode = "token"
+        
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token required"
+            )
+        
+        # Decode and validate refresh token
+        payload = decode_token(refresh_token)
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+        
+        # Get user
+        user_id = payload.get("sub")
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive"
+            )
+        
+        # Generate new tokens
+        new_access_token = create_access_token({
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "type": "access"
+        })
+        
+        new_refresh_token = create_refresh_token({
+            "sub": str(user.id),
+            "email": user.email,
+            "role": user.role,
+            "type": "refresh"
+        })
+        
+        if auth_mode == "cookie":
+            # Update cookies
+            cookie_config = get_cookie_config(request)
+            
+            response.set_cookie(
+                key="access_token",
+                value=new_access_token,
+                max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                **cookie_config
+            )
+            
+            response.set_cookie(
+                key="refresh_token",
+                value=new_refresh_token,
+                max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+                **cookie_config
+            )
+            
+            return TokenResponse(
+                access_token="",  # Empty for cookie mode
+                refresh_token="",
+                token_type="cookie",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        else:
+            # Legacy token mode
+            return TokenResponse(
+                access_token=new_access_token,
+                refresh_token=new_refresh_token,
+                token_type="bearer",
+                expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            )
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Token refresh error: {str(e)}")
+        logger.error(f"❌ Token refresh error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token refresh failed"
-        )
-
-@router.post("/request-reset")
-@limiter.limit("3/minute")
-async def request_password_reset(
-    request: Request,
-    data: LoginInput,
-    db: Session = Depends(get_db)
-):
-    """Request password reset token"""
-    try:
-        user = db.query(User).filter(User.email == data.email.lower()).first()
-        if not user:
-            logger.warning(f"Password reset requested for non-existent email: {data.email}")
-            return {"message": "If email exists, reset instructions have been sent"}
-
-        reset_token = create_access_token(
-            data={"sub": str(user.id), "email": user.email, "reset": True},
-            expires_delta=timedelta(minutes=15)
-        )
-        logger.info(f"Password reset requested for: {data.email}")
-        return {
-            "message": "Reset token generated",
-            "reset_token": reset_token
-        }
-
-    except Exception as e:
-        logger.error(f"Password reset request error: {str(e)}")
-        return {"message": "If email exists, reset instructions have been sent"}
-
-@router.post("/reset-password")
-@limiter.limit("5/minute")
-async def reset_password(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Reset password using reset token"""
-    try:
-        data = await request.json()
-        token = data.get("token")
-        new_password = data.get("new_password")
-
-        if not token or not new_password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Token and new password are required"
-            )
-
-        # Use decode_access_token directly instead of verify_token
-        from auth_utils import decode_access_token
-        payload = decode_access_token(token)
-        if not payload.get("reset"):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid reset token"
-            )
-
-        user_id = payload.get("sub")
-        user = db.query(User).filter(User.id == int(user_id)).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-
-        user.password = hash_password(new_password)
-        db.commit()
-        logger.info(f"Password reset successful for user: {user.email}")
-        return {"message": "Password reset successful"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Password reset error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Password reset failed"
-        )
-
-@router.post("/update-profile")
-@limiter.limit("5/minute")
-async def update_profile(
-    request: Request,
-    current_user: dict = Depends(get_current_user),  # ✅ CHANGED: Use get_current_user instead of verify_token
-    db: Session = Depends(get_db)
-):
-    """Update user profile"""
-    try:
-        data = await request.json()
-        email = data.get("email")
-        password = data.get("password")
-
-        if not email and not password:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email or password required"
-            )
-
-        user = db.query(User).filter(User.id == int(current_user["user_id"])).first()  # ✅ CHANGED: Use user_id instead of sub
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
-
-        if email and email.lower() != user.email:
-            existing = db.query(User).filter(User.email == email.lower()).first()
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already in use"
-                )
-            user.email = email.lower()
-
-        if password:
-            user.password = hash_password(password)
-
-        db.commit()
-        logger.info(f"Profile updated for user: {user.email}")
-        return {"message": "Profile updated successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Profile update error: {str(e)}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Profile update failed"
         )
