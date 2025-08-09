@@ -9,3 +9,17 @@ slowapi
 passlib[bcrypt]
 python-jose[cryptography]
 aiohttp==3.9.1
+
+# Enterprise Secrets Management
+cryptography>=41.0.0
+hvac>=1.1.0                    # HashiCorp Vault client
+boto3>=1.26.0                  # AWS Secrets Manager
+azure-keyvault-secrets>=4.7.0  # Azure Key Vault
+azure-identity>=1.13.0        # Azure authentication
+schedule>=1.2.0                # Rotation scheduling
+python-jose[cryptography]>=3.3.0  # Enhanced JWT handling
+
+# Optional monitoring and notifications
+sentry-sdk>=1.28.0             # Error monitoring
+datadog>=0.45.0               # Application monitoring
+```

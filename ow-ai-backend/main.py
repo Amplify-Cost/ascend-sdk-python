@@ -21,6 +21,7 @@ from routes.smart_rules_routes import router as smart_rules_router
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
+from routes.enterprise_secrets_routes import router as secrets_router
 
 
 
@@ -156,6 +157,7 @@ app.include_router(smart_rules_router)
 app.include_router(enterprise_user_router)
 app.include_router(authorization_router)  
 app.include_router(authorization_api_router)
+app.include_router(secrets_router)
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
