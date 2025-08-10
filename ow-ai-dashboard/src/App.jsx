@@ -327,15 +327,39 @@ const AppContent = () => {
     checkEnterpriseAuthentication();
   }, []);
 
-  // 🍪 ENHANCED: Handle both cookie and token login responses
+  // 🍪 CRITICAL FIX: Handle login response properly for Feature #2
   const handleLoginSuccess = async (loginResponse) => {
     try {
       console.log("🏢 Processing enterprise login response...");
+      console.log("🔍 Login response received:", loginResponse);
       
       if (loginResponse && typeof loginResponse === 'object') {
-        // New cookie-based login response
-        if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
+        
+        // CRITICAL FIX: Handle the exact backend response format
+        if (loginResponse.access_token && loginResponse.user) {
           console.log("✅ Enterprise cookie authentication established");
+          
+          // Store tokens for compatibility (cookies are also set automatically)
+          localStorage.setItem("access_token", loginResponse.access_token);
+          if (loginResponse.refresh_token) {
+            localStorage.setItem("refresh_token", loginResponse.refresh_token);
+          }
+          
+          // Set user state from response
+          setUser({
+            id: loginResponse.user.user_id || loginResponse.user.id,
+            email: loginResponse.user.email,
+            role: loginResponse.user.role,
+          });
+          
+          // Set auth mode - cookies are working in background
+          setAuthMode("cookie"); // Enterprise security active
+          
+          toast("🍪 Secure cookie authentication activated", "success");
+          
+        } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
+          // Alternative cookie response format
+          console.log("✅ Enterprise cookie authentication (alt format)");
           
           setUser({
             id: loginResponse.user.user_id || loginResponse.user.id,
@@ -348,19 +372,15 @@ const AppContent = () => {
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
           
-          toast("Secure cookie authentication activated", "success");
+          toast("🍪 Secure cookie authentication activated", "success");
           
-        } else if (loginResponse.access_token) {
-          // Legacy token response
-          console.log("⚠️ Legacy token authentication");
+        } else if (typeof loginResponse === 'string') {
+          // Legacy string token (backward compatibility)
+          console.log("⚠️ Legacy string token received");
           
-          localStorage.setItem("access_token", loginResponse.access_token);
-          if (loginResponse.refresh_token) {
-            localStorage.setItem("refresh_token", loginResponse.refresh_token);
-          }
-          
+          localStorage.setItem("access_token", loginResponse);
           const { jwtDecode } = await import("jwt-decode");
-          const decoded = jwtDecode(loginResponse.access_token);
+          const decoded = jwtDecode(loginResponse);
           setUser({
             id: Number(decoded.sub),
             email: decoded.email || decoded.sub,
@@ -368,21 +388,8 @@ const AppContent = () => {
           });
           setAuthMode("token");
           
-          toast("Legacy authentication active - consider upgrading", "warning");
+          toast("Legacy authentication - consider upgrading to cookies", "warning");
         }
-      } else if (typeof loginResponse === 'string') {
-        // Legacy string token (backward compatibility)
-        console.log("⚠️ Legacy string token received");
-        
-        localStorage.setItem("access_token", loginResponse);
-        const { jwtDecode } = await import("jwt-decode");
-        const decoded = jwtDecode(loginResponse);
-        setUser({
-          id: Number(decoded.sub),
-          email: decoded.email || decoded.sub,
-          role: decoded.role,
-        });
-        setAuthMode("token");
       }
       
       setView("app");
@@ -391,8 +398,11 @@ const AppContent = () => {
       
     } catch (err) {
       console.error("❌ Login processing error:", err);
-      toast("Login processing failed", "error");
-      handleLogout(false);
+      console.error("❌ Error details:", err.message);
+      console.error("❌ Login response that failed:", loginResponse);
+      toast("Login processing failed - please try again", "error");
+      // Don't logout on processing errors, just show login again
+      setView("login");
     }
   };
 
