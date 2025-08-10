@@ -147,14 +147,29 @@ def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
 
 # 🔧 ENTERPRISE FIX: Enhanced debugging for cookie detection
 def get_authentication_source(request: Request, credentials: HTTPAuthorizationCredentials) -> tuple[str, str, str]:
-    """Get auth source - ENTERPRISE FIX: Enhanced cookie debugging"""
+    """Get auth source - ENTERPRISE FIX: Enhanced header and cookie debugging"""
     
     # Debug: Log ALL cookies present in the request
     logger.info(f"🔍 ENTERPRISE DEBUG: All cookies in request: {list(request.cookies.keys())}")
     for cookie_name, cookie_value in request.cookies.items():
         logger.info(f"🔍 ENTERPRISE DEBUG: Cookie '{cookie_name}' = {cookie_value[:50]}..." if len(cookie_value) > 50 else f"🔍 ENTERPRISE DEBUG: Cookie '{cookie_name}' = {cookie_value}")
     
-    # Check for access token cookie
+    # Debug: Log ALL headers present in the request
+    logger.info(f"🔍 ENTERPRISE DEBUG: All headers in request:")
+    for header_name, header_value in request.headers.items():
+        if header_name.lower() == "authorization":
+            logger.info(f"🔍 ENTERPRISE DEBUG: Header '{header_name}' = {header_value[:50]}..." if len(header_value) > 50 else f"🔍 ENTERPRISE DEBUG: Header '{header_name}' = {header_value}")
+        else:
+            logger.info(f"🔍 ENTERPRISE DEBUG: Header '{header_name}' = {header_value}")
+    
+    # 🔧 ENTERPRISE FIX: Check Authorization header FIRST (most reliable)
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        logger.info(f"🎫 ENTERPRISE: Found Authorization header, token length = {len(token)}")
+        return token, "bearer", "enterprise"
+    
+    # Check for access token cookie (secondary)
     access_cookie = request.cookies.get("access_token")
     if not access_cookie:
         access_cookie = request.cookies.get("ow_access_token")  # Fallback name
@@ -163,19 +178,10 @@ def get_authentication_source(request: Request, credentials: HTTPAuthorizationCr
         logger.info(f"🍪 ENTERPRISE: Found access cookie, length = {len(access_cookie)}")
         return access_cookie, "cookie", "enterprise"
     
-    # Check for Bearer token in headers
+    # 🔧 ENTERPRISE FIX: Also check HTTPBearer credentials (FastAPI automatic parsing)
     if credentials and credentials.credentials:
-        logger.info(f"🎫 ENTERPRISE: Found bearer token, length = {len(credentials.credentials)}")
-        return credentials.credentials, "bearer", "legacy"
-    
-    # Debug: Also check Authorization header manually
-    auth_header = request.headers.get("Authorization")
-    if auth_header:
-        logger.info(f"🔍 ENTERPRISE DEBUG: Authorization header found: {auth_header[:50]}...")
-        if auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            logger.info(f"🎫 ENTERPRISE: Manual bearer token extraction, length = {len(token)}")
-            return token, "bearer", "legacy"
+        logger.info(f"🎫 ENTERPRISE: Found FastAPI credentials, length = {len(credentials.credentials)}")
+        return credentials.credentials, "bearer", "fastapi"
     
     logger.warning("🚨 ENTERPRISE: No authentication found - no cookies or bearer token")
     return None, "none", "none"
