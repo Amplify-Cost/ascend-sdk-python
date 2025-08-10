@@ -251,6 +251,18 @@ const AppContent = () => {
   // Page transition state (preserved)
   const [pageTransition, setPageTransition] = useState(false);
 
+  // ENTERPRISE FIX: Enhanced tab change handler with proper scope
+  const handleTabChange = (tab) => {
+    console.log("🎯 Changing tab to:", tab);
+    setPageTransition(true);
+    
+    setTimeout(() => {
+      setActiveTab(tab);
+      setPageTransition(false);
+      announce(`Navigated to ${tab} section`, 'polite');
+    }, 150);
+  };
+
   // 🍪 ENHANCED: Enterprise Cookie Authentication Check
   useEffect(() => {
     const checkEnterpriseAuthentication = async () => {
@@ -327,88 +339,88 @@ const AppContent = () => {
     checkEnterpriseAuthentication();
   }, []);
 
-  // 🍪 MINIMAL FIX: Handle login response without problematic toast calls
-const handleLoginSuccess = async (loginResponse) => {
-  try {
-    console.log("🏢 Processing enterprise login response...");
-    console.log("🔍 Login response received:", loginResponse);
-    
-    if (loginResponse && typeof loginResponse === 'object') {
+  // 🍪 ENTERPRISE FIX: Handle login response without problematic toast calls
+  const handleLoginSuccess = async (loginResponse) => {
+    try {
+      console.log("🏢 Processing enterprise login response...");
+      console.log("🔍 Login response received:", loginResponse);
       
-      // Handle the backend response format we see in logs
-      if (loginResponse.access_token && loginResponse.user) {
-        console.log("✅ Enterprise cookie authentication established");
+      if (loginResponse && typeof loginResponse === 'object') {
         
-        // Store tokens for compatibility (cookies are also set automatically)
-        localStorage.setItem("access_token", loginResponse.access_token);
-        if (loginResponse.refresh_token) {
-          localStorage.setItem("refresh_token", loginResponse.refresh_token);
+        // Handle the backend response format we see in logs
+        if (loginResponse.access_token && loginResponse.user) {
+          console.log("✅ Enterprise cookie authentication established");
+          
+          // Store tokens for compatibility (cookies are also set automatically)
+          localStorage.setItem("access_token", loginResponse.access_token);
+          if (loginResponse.refresh_token) {
+            localStorage.setItem("refresh_token", loginResponse.refresh_token);
+          }
+          
+          // Set user state from response
+          setUser({
+            id: loginResponse.user.user_id || loginResponse.user.id,
+            email: loginResponse.user.email,
+            role: loginResponse.user.role,
+          });
+          
+          // Set auth mode - cookies are working in background
+          setAuthMode("cookie"); // Enterprise security active
+          
+          // FIXED: Use console.log instead of problematic toast
+          console.log("🍪 Secure cookie authentication activated");
+          
+        } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
+          // Alternative cookie response format
+          console.log("✅ Enterprise cookie authentication (alt format)");
+          
+          setUser({
+            id: loginResponse.user.user_id || loginResponse.user.id,
+            email: loginResponse.user.email,
+            role: loginResponse.user.role,
+          });
+          setAuthMode("cookie");
+          
+          // Clear any legacy tokens
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          
+          console.log("🍪 Secure cookie authentication activated");
+          
+        } else if (typeof loginResponse === 'string') {
+          // Legacy string token (backward compatibility)
+          console.log("⚠️ Legacy string token received");
+          
+          localStorage.setItem("access_token", loginResponse);
+          const { jwtDecode } = await import("jwt-decode");
+          const decoded = jwtDecode(loginResponse);
+          setUser({
+            id: Number(decoded.sub),
+            email: decoded.email || decoded.sub,
+            role: decoded.role,
+          });
+          setAuthMode("token");
+          
+          console.log("Legacy authentication - consider upgrading to cookies");
         }
-        
-        // Set user state from response
-        setUser({
-          id: loginResponse.user.user_id || loginResponse.user.id,
-          email: loginResponse.user.email,
-          role: loginResponse.user.role,
-        });
-        
-        // Set auth mode - cookies are working in background
-        setAuthMode("cookie"); // Enterprise security active
-        
-        // REMOVED: Problematic toast call that was causing the error
-        console.log("🍪 Secure cookie authentication activated");
-        
-      } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
-        // Alternative cookie response format
-        console.log("✅ Enterprise cookie authentication (alt format)");
-        
-        setUser({
-          id: loginResponse.user.user_id || loginResponse.user.id,
-          email: loginResponse.user.email,
-          role: loginResponse.user.role,
-        });
-        setAuthMode("cookie");
-        
-        // Clear any legacy tokens
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("refresh_token");
-        
-        console.log("🍪 Secure cookie authentication activated");
-        
-      } else if (typeof loginResponse === 'string') {
-        // Legacy string token (backward compatibility)
-        console.log("⚠️ Legacy string token received");
-        
-        localStorage.setItem("access_token", loginResponse);
-        const { jwtDecode } = await import("jwt-decode");
-        const decoded = jwtDecode(loginResponse);
-        setUser({
-          id: Number(decoded.sub),
-          email: decoded.email || decoded.sub,
-          role: decoded.role,
-        });
-        setAuthMode("token");
-        
-        console.log("Legacy authentication - consider upgrading to cookies");
       }
+      
+      setView("app");
+      setActiveTab("dashboard");
+      console.log("✅ Enterprise login processing complete");
+      
+    } catch (err) {
+      console.error("❌ Login processing error:", err);
+      console.error("❌ Error details:", err.message);
+      console.error("❌ Login response that failed:", loginResponse);
+      
+      // FIXED: Use console.log instead of problematic toast
+      console.log("Login processing failed - please try again");
+      
+      // Simple fallback - just show login again
+      setView("login");
     }
-    
-    setView("app");
-    setActiveTab("dashboard");
-    console.log("✅ Enterprise login processing complete");
-    
-  } catch (err) {
-    console.error("❌ Login processing error:", err);
-    console.error("❌ Error details:", err.message);
-    console.error("❌ Login response that failed:", loginResponse);
-    
-    // REMOVED: Problematic toast call
-    console.log("Login processing failed - please try again");
-    
-    // Simple fallback - just show login again
-    setView("login");
-  }
-};
+  };
 
   // 🍪 ENHANCED: Enterprise logout with cookie clearing
   const handleLogout = async (callAPI = true) => {
@@ -474,37 +486,37 @@ const handleLoginSuccess = async (loginResponse) => {
     }
   };
 
-  // 🍪 ENHANCED: Smart auth headers function (supports both modes)
-const getAuthHeaders = () => {
-  console.log("🔍 Getting auth headers for API call");
-  console.log("🔍 Current auth mode:", authMode);
-  
-  if (authMode === "cookie") {
-    // Cookie mode: Return minimal headers, cookies handle authentication automatically
-    console.log("🍪 Using cookie authentication - no headers needed");
+  // 🍪 ENTERPRISE FIX: Smart auth headers function with proper component scope
+  const getAuthHeaders = () => {
+    console.log("🔍 Getting auth headers for API call");
+    console.log("🔍 Current auth mode:", authMode);
+    
+    if (authMode === "cookie") {
+      // Cookie mode: Return minimal headers, cookies handle authentication automatically
+      console.log("🍪 Using cookie authentication - no headers needed");
+      return {
+        "Content-Type": "application/json",
+        // Don't add Authorization header - cookies handle this
+      };
+    }
+    
+    // Legacy token mode: Return Authorization header
+    const token = localStorage.getItem("access_token");
+    console.log("🎫 Using token authentication, token present:", !!token);
+    
+    if (token) {
+      return {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      };
+    }
+    
+    // Fallback: No authentication available
+    console.warn("⚠️ No authentication available");
     return {
-      "Content-Type": "application/json",
-      // Don't add Authorization header - cookies handle this
+      "Content-Type": "application/json"
     };
-  }
-  
-  // Legacy token mode: Return Authorization header
-  const token = localStorage.getItem("access_token");
-  console.log("🎫 Using token authentication, token present:", !!token);
-  
-  if (token) {
-    return {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`
-    };
-  }
-  
-  // Fallback: No authentication available
-  console.warn("⚠️ No authentication available");
-  return {
-    "Content-Type": "application/json"
   };
-};
 
   // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {
