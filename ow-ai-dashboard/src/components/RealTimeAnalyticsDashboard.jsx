@@ -1,9 +1,10 @@
 // components/RealTimeAnalyticsDashboard.jsx
-// Enterprise Real-Time Analytics Dashboard Component - Fixed Syntax
+// Enterprise Real-Time Analytics Dashboard Component - Fixed Props and Auth
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, TrendingUp, Users, Shield, Cpu, HardDrive, Wifi, AlertTriangle, CheckCircle, Target, BarChart3, PieChart, LineChart } from 'lucide-react';
 
-const RealTimeAnalyticsDashboard = () => {
+// 🔧 SURGICAL FIX: Accept props from App.jsx for proper authentication
+const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
   const [realTimeMetrics, setRealTimeMetrics] = useState(null);
   const [predictiveData, setPredictiveData] = useState(null);
   const [systemPerformance, setSystemPerformance] = useState(null);
@@ -12,35 +13,50 @@ const RealTimeAnalyticsDashboard = () => {
   const [error, setError] = useState(null);
   const wsRef = useRef(null);
 
-  // Get auth token from localStorage
-  const getAuthToken = () => {
-    return localStorage.getItem('access_token');
-  };
-
-  // Enhanced fetch with authentication
+  // 🔧 SURGICAL FIX: Use props for authentication instead of localStorage
   const fetchWithAuth = async (endpoint) => {
-    const token = getAuthToken();
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
-        'X-Enterprise-Client': 'OW-AI-Platform'
-      },
-      credentials: 'include'
-    });
+    try {
+      console.log('🔄 Real-Time Analytics: Fetching', endpoint);
+      console.log('🔄 User context:', user);
+      
+      // Use the getAuthHeaders function passed from App.jsx
+      const headers = getAuthHeaders ? getAuthHeaders() : {
+        'Content-Type': 'application/json'
+      };
+      
+      console.log('🔄 Auth headers:', headers);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}${endpoint}`, {
+        method: 'GET',
+        headers: {
+          ...headers,
+          'X-Enterprise-Client': 'OW-AI-Platform'
+        },
+        credentials: 'include'
+      });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      console.log('🔄 Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', response.status, errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Data received:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('❌ Fetch error for', endpoint, ':', error);
+      throw error;
     }
-
-    return response.json();
   };
 
   // 🔧 TEMPORARY: WebSocket function commented out to fix 403 errors
   /*
   const initializeWebSocket = () => {
-    const userEmail = localStorage.getItem('user_email') || 'admin@example.com';
+    const userEmail = user?.email || 'admin@example.com';
     const wsUrl = `${(import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
     
     try {
@@ -96,65 +112,93 @@ const RealTimeAnalyticsDashboard = () => {
   };
   */
 
-  // Fetch initial data
+  // 🔧 SURGICAL FIX: Enhanced data fetching with better error handling
   const fetchAnalyticsData = async () => {
     try {
       setLoading(true);
+      setError(null);
       console.log('🔄 Fetching enhanced analytics data...');
+      console.log('🔄 User authentication:', !!user, user?.email);
 
-      const [metricsData, predictiveData, performanceData] = await Promise.allSettled([
+      // Check if user is authenticated before making requests
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const [metricsResult, predictiveResult, performanceResult] = await Promise.allSettled([
         fetchWithAuth('/analytics/realtime/metrics'),
         fetchWithAuth('/analytics/predictive/trends'),
         fetchWithAuth('/analytics/performance/system')
       ]);
 
-      if (metricsData.status === 'fulfilled') {
-        setRealTimeMetrics(metricsData.value);
+      console.log('🔄 Metrics result:', metricsResult.status);
+      console.log('🔄 Predictive result:', predictiveResult.status);
+      console.log('🔄 Performance result:', performanceResult.status);
+
+      if (metricsResult.status === 'fulfilled') {
+        setRealTimeMetrics(metricsResult.value);
         console.log('✅ Real-time metrics loaded');
       } else {
-        console.error('❌ Failed to load real-time metrics:', metricsData.reason);
+        console.error('❌ Failed to load real-time metrics:', metricsResult.reason);
       }
 
-      if (predictiveData.status === 'fulfilled') {
-        setPredictiveData(predictiveData.value);
+      if (predictiveResult.status === 'fulfilled') {
+        setPredictiveData(predictiveResult.value);
         console.log('✅ Predictive data loaded');
       } else {
-        console.error('❌ Failed to load predictive data:', predictiveData.reason);
+        console.error('❌ Failed to load predictive data:', predictiveResult.reason);
       }
 
-      if (performanceData.status === 'fulfilled') {
-        setSystemPerformance(performanceData.value);
+      if (performanceResult.status === 'fulfilled') {
+        setSystemPerformance(performanceResult.value);
         console.log('✅ System performance loaded');
       } else {
-        console.error('❌ Failed to load system performance:', performanceData.reason);
+        console.error('❌ Failed to load system performance:', performanceResult.reason);
       }
 
-      setError(null);
+      // If all requests failed, show an error
+      if (metricsResult.status === 'rejected' && 
+          predictiveResult.status === 'rejected' && 
+          performanceResult.status === 'rejected') {
+        throw new Error('All analytics endpoints failed to load');
+      }
+
     } catch (err) {
       console.error('❌ Analytics fetch error:', err);
-      setError('Failed to load analytics data. Please check your connection and try again.');
+      setError(`Failed to load analytics data: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Initialize component
+  // 🔧 SURGICAL FIX: Only fetch data when user is available
   useEffect(() => {
-    fetchAnalyticsData();
-    // 🔧 TEMPORARY: WebSocket commented out to fix 403 errors
-    // initializeWebSocket();
+    if (user) {
+      console.log('🚀 RealTimeAnalyticsDashboard: User available, fetching data...');
+      fetchAnalyticsData();
+      // 🔧 TEMPORARY: WebSocket commented out to fix 403 errors
+      // initializeWebSocket();
 
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchAnalyticsData, 30000);
+      // Refresh data every 30 seconds
+      const interval = setInterval(() => {
+        if (user) {
+          fetchAnalyticsData();
+        }
+      }, 30000);
 
-    return () => {
-      clearInterval(interval);
-      // 🔧 TEMPORARY: WebSocket cleanup commented out
-      // if (wsRef.current) {
-      //   wsRef.current.close();
-      // }
-    };
-  }, []);
+      return () => {
+        clearInterval(interval);
+        // 🔧 TEMPORARY: WebSocket cleanup commented out
+        // if (wsRef.current) {
+        //   wsRef.current.close();
+        // }
+      };
+    } else {
+      console.log('⚠️ RealTimeAnalyticsDashboard: No user available');
+      setError('User authentication required');
+      setLoading(false);
+    }
+  }, [user]); // Only depend on user prop
 
   // Status indicator component
   const StatusIndicator = ({ status, label }) => {
@@ -236,7 +280,7 @@ const RealTimeAnalyticsDashboard = () => {
     );
   };
 
-  // Loading state
+  // 🔧 SURGICAL FIX: Enhanced loading state with user info
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -244,7 +288,9 @@ const RealTimeAnalyticsDashboard = () => {
           <div className="bg-white rounded-lg border border-gray-200 p-8">
             <div className="flex items-center justify-center space-x-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="text-lg text-gray-600">Loading enhanced analytics...</span>
+              <span className="text-lg text-gray-600">
+                Loading enhanced analytics for {user?.email || 'user'}...
+              </span>
             </div>
           </div>
         </div>
@@ -252,7 +298,7 @@ const RealTimeAnalyticsDashboard = () => {
     );
   }
 
-  // Error state
+  // 🔧 SURGICAL FIX: Enhanced error state with retry
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -263,14 +309,25 @@ const RealTimeAnalyticsDashboard = () => {
               <div>
                 <h3 className="text-lg font-medium">Analytics Error</h3>
                 <p className="text-sm text-red-500">{error}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  User: {user?.email || 'Not authenticated'} | Role: {user?.role || 'Unknown'}
+                </p>
               </div>
             </div>
-            <button 
-              onClick={fetchAnalyticsData}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Retry
-            </button>
+            <div className="mt-4 space-x-3">
+              <button 
+                onClick={fetchAnalyticsData}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+              <button 
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Refresh Page
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -286,7 +343,7 @@ const RealTimeAnalyticsDashboard = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Real-Time Analytics Dashboard</h1>
-              <p className="text-gray-600">Enterprise monitoring and predictive insights</p>
+              <p className="text-gray-600">Enterprise monitoring and predictive insights for {user?.email}</p>
             </div>
             <div className="flex items-center space-x-4">
               <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
@@ -517,6 +574,25 @@ const RealTimeAnalyticsDashboard = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Debug Info - Show when no data is available */}
+        {!realTimeMetrics && !predictiveData && !systemPerformance && !loading && !error && (
+          <div className="bg-white rounded-lg border border-yellow-200 p-6">
+            <h3 className="text-lg font-semibold text-yellow-800 mb-4">🔧 Debug Information</h3>
+            <div className="space-y-2 text-sm">
+              <p><strong>User:</strong> {user?.email || 'Not authenticated'}</p>
+              <p><strong>Role:</strong> {user?.role || 'Unknown'}</p>
+              <p><strong>Auth Headers Available:</strong> {!!getAuthHeaders ? 'Yes' : 'No'}</p>
+              <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}</p>
+            </div>
+            <button 
+              onClick={fetchAnalyticsData}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Try Loading Data
+            </button>
           </div>
         )}
 
