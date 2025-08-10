@@ -182,6 +182,7 @@ async def emergency_login(request: Request, db: Session = Depends(get_db)):
         
         logger.info(f"✅ EMERGENCY LOGIN SUCCESS: {user.email}")
         
+        # Enterprise frontend compatibility - exact format expected
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -190,11 +191,11 @@ async def emergency_login(request: Request, db: Session = Depends(get_db)):
             "user": {
                 "email": user.email,
                 "role": user.role,
-                "user_id": user.id
+                "user_id": user.id,
+                "id": user.id  # Frontend may expect 'id' field
             },
-            "auth_mode": "token",
-            "emergency_mode": True,
-            "timestamp": datetime.now(UTC).isoformat()
+            "auth_mode": "token"
+            # Removed emergency fields that might confuse frontend
         }
         
     except HTTPException:
@@ -234,13 +235,15 @@ async def emergency_get_user(
         
         logger.info(f"✅ EMERGENCY USER INFO SUCCESS: {user.email}")
         
+        # Enterprise frontend compatibility - match expected format
         return {
             "user_id": int(user_id),
             "email": user.email,
             "role": user.role,
+            "id": int(user_id),  # Frontend may expect 'id' field
             "auth_source": "bearer",
-            "enterprise_validated": True,
-            "emergency_mode": True
+            "enterprise_validated": True
+            # Removed emergency fields that might confuse frontend
         }
         
     except HTTPException:
