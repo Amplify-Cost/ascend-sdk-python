@@ -1,4 +1,4 @@
-# routes/auth.py - Enhanced with Enterprise Cookie Authentication (Phase 1)
+# routes/auth.py - ENTERPRISE-GRADE Authentication with Production Resilience
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -9,10 +9,18 @@ from datetime import datetime, timedelta, UTC
 import jwt
 import os
 import logging
+import json
+from typing import Optional, Dict, Any
+import traceback
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+# Enterprise Monitoring and Rate Limiting
+limiter = Limiter(key_func=get_remote_address)
 
 # Enterprise Configuration
 router = APIRouter(prefix="/auth", tags=["Enterprise Authentication"])
-security = HTTPBearer(auto_error=False)  # Allow both cookie and token auth
+security = HTTPBearer(auto_error=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logger = logging.getLogger(__name__)
 
@@ -22,74 +30,236 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Enterprise Cookie Configuration
-COOKIE_CONFIG = {
-    "httponly": True,      # Prevents XSS access
-    "secure": True,        # HTTPS only in production
-    "samesite": "lax",     # CSRF protection
-    "max_age": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # 30 minutes
-    "path": "/",           # Available site-wide
-    "domain": None         # Current domain only
+# Enterprise Cookie Configuration (for gradual rollout)
+ENTERPRISE_COOKIE_CONFIG = {
+    "httponly": True,
+    "secure": True,  # HTTPS only in production
+    "samesite": "lax",
+    "max_age": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    "path": "/",
+    "domain": None
 }
 
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    """Create JWT access token with enterprise security"""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
-    else:
-        expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({
-        "exp": expire,
-        "iat": datetime.now(UTC),
-        "type": "access"
-    })
-    
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+# Enterprise Feature Flags
+ENTERPRISE_FEATURES = {
+    "cookie_authentication": False,  # Disabled during emergency fix
+    "enhanced_logging": True,
+    "rate_limiting": True,
+    "audit_trail": True,
+    "graceful_degradation": True
+}
 
-def create_refresh_token(data: dict):
-    """Create JWT refresh token with extended expiry"""
-    to_encode = data.copy()
-    expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    
-    to_encode.update({
-        "exp": expire,
-        "iat": datetime.now(UTC),
-        "type": "refresh"
-    })
-    
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+class EnterpriseAuthError(Exception):
+    """Enterprise-specific authentication error with context"""
+    def __init__(self, message: str, error_code: str, context: Dict[str, Any] = None):
+        self.message = message
+        self.error_code = error_code
+        self.context = context or {}
+        super().__init__(self.message)
 
-def get_auth_mode(request: Request) -> str:
-    """Detect authentication mode: 'cookie' or 'token'"""
-    # Check if client wants cookie mode (Phase 2 frontend will send this header)
-    wants_cookies = request.headers.get("x-auth-mode") == "cookie"
-    has_auth_cookie = "ow_ai_access_token" in request.cookies
+def enterprise_error_handler(func):
+    """Enterprise decorator for comprehensive error handling and monitoring"""
+    async def wrapper(*args, **kwargs):
+        start_time = datetime.now(UTC)
+        try:
+            result = await func(*args, **kwargs)
+            
+            # Enterprise success logging
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            logger.info(f"✅ ENTERPRISE SUCCESS: {func.__name__} completed in {duration:.3f}s")
+            
+            return result
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions (expected errors)
+            raise
+        except EnterpriseAuthError as e:
+            # Enterprise-specific errors
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            logger.error(f"🏢 ENTERPRISE ERROR: {func.__name__} failed in {duration:.3f}s - {e.error_code}: {e.message}")
+            logger.error(f"🔍 ENTERPRISE CONTEXT: {e.context}")
+            raise HTTPException(status_code=500, detail=f"Enterprise authentication error: {e.error_code}")
+        except Exception as e:
+            # Unexpected errors - enterprise resilience
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            error_trace = traceback.format_exc()
+            logger.critical(f"🚨 ENTERPRISE CRITICAL: {func.__name__} unexpected failure in {duration:.3f}s")
+            logger.critical(f"🚨 ERROR TRACE: {error_trace}")
+            
+            # Enterprise monitoring alert would go here
+            # alert_enterprise_monitoring(func.__name__, str(e), error_trace)
+            
+            raise HTTPException(status_code=500, detail="Enterprise system temporarily unavailable")
     
-    if wants_cookies or has_auth_cookie:
-        return "cookie"
-    return "token"
+    return wrapper
+
+def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
+    """Enterprise JWT token creation with enhanced security"""
+    try:
+        to_encode = data.copy()
+        if expires_delta:
+            expire = datetime.now(UTC) + expires_delta
+        else:
+            expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        
+        # Enterprise token metadata
+        to_encode.update({
+            "exp": expire,
+            "iat": datetime.now(UTC),
+            "type": "access",
+            "iss": "ow-ai-enterprise",  # Enterprise issuer
+            "aud": "ow-ai-platform",    # Enterprise audience
+            "jti": f"{data.get('sub', 'unknown')}-{int(datetime.now(UTC).timestamp())}"  # Unique token ID
+        })
+        
+        token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        logger.debug(f"🔐 ENTERPRISE: Access token created for user {data.get('email', 'unknown')}")
+        
+        return token
+        
+    except Exception as e:
+        logger.error(f"🚨 ENTERPRISE TOKEN CREATION FAILED: {str(e)}")
+        raise EnterpriseAuthError(
+            "Token creation failed",
+            "TOKEN_CREATION_ERROR",
+            {"user_id": data.get("sub"), "error": str(e)}
+        )
+
+def create_refresh_token(data: dict) -> str:
+    """Enterprise refresh token creation with extended security"""
+    try:
+        to_encode = data.copy()
+        expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        
+        to_encode.update({
+            "exp": expire,
+            "iat": datetime.now(UTC),
+            "type": "refresh",
+            "iss": "ow-ai-enterprise",
+            "aud": "ow-ai-platform",
+            "jti": f"refresh-{data.get('sub', 'unknown')}-{int(datetime.now(UTC).timestamp())}"
+        })
+        
+        token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        logger.debug(f"🔐 ENTERPRISE: Refresh token created for user {data.get('email', 'unknown')}")
+        
+        return token
+        
+    except Exception as e:
+        logger.error(f"🚨 ENTERPRISE REFRESH TOKEN CREATION FAILED: {str(e)}")
+        raise EnterpriseAuthError(
+            "Refresh token creation failed",
+            "REFRESH_TOKEN_CREATION_ERROR",
+            {"user_id": data.get("sub"), "error": str(e)}
+        )
+
+def validate_enterprise_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
+    """Enterprise token validation with comprehensive security checks"""
+    try:
+        if not token:
+            raise EnterpriseAuthError("No token provided", "NO_TOKEN", {})
+        
+        # Decode with enterprise validation
+        payload = jwt.decode(
+            token, 
+            SECRET_KEY, 
+            algorithms=[ALGORITHM],
+            audience="ow-ai-platform",
+            issuer="ow-ai-enterprise"
+        )
+        
+        # Enterprise type validation
+        if payload.get("type") != expected_type:
+            raise EnterpriseAuthError(
+                f"Invalid token type: expected {expected_type}, got {payload.get('type')}",
+                "INVALID_TOKEN_TYPE",
+                {"expected": expected_type, "actual": payload.get("type")}
+            )
+        
+        # Enterprise expiry validation
+        if payload.get("exp", 0) < datetime.now(UTC).timestamp():
+            raise EnterpriseAuthError(
+                "Token expired",
+                "TOKEN_EXPIRED",
+                {"exp": payload.get("exp"), "now": datetime.now(UTC).timestamp()}
+            )
+        
+        logger.debug(f"✅ ENTERPRISE: Token validated for user {payload.get('email', 'unknown')}")
+        return payload
+        
+    except jwt.ExpiredSignatureError:
+        raise EnterpriseAuthError("Token expired", "TOKEN_EXPIRED", {})
+    except jwt.InvalidTokenError as e:
+        raise EnterpriseAuthError(f"Invalid token: {str(e)}", "INVALID_TOKEN", {"jwt_error": str(e)})
+    except EnterpriseAuthError:
+        raise
+    except Exception as e:
+        raise EnterpriseAuthError(f"Token validation failed: {str(e)}", "VALIDATION_ERROR", {"error": str(e)})
+
+def parse_request_body_safely(request_body: bytes) -> Dict[str, Any]:
+    """Enterprise-grade request body parsing with comprehensive error handling"""
+    try:
+        if not request_body:
+            logger.warning("🔍 ENTERPRISE: Empty request body received")
+            return {}
+        
+        # Decode bytes to string
+        body_str = request_body.decode('utf-8')
+        
+        if not body_str.strip():
+            logger.warning("🔍 ENTERPRISE: Whitespace-only request body")
+            return {}
+        
+        # Parse JSON with enterprise error handling
+        data = json.loads(body_str)
+        
+        logger.debug(f"✅ ENTERPRISE: Request body parsed successfully, keys: {list(data.keys())}")
+        return data
+        
+    except UnicodeDecodeError as e:
+        logger.error(f"🚨 ENTERPRISE: Unicode decode error: {str(e)}")
+        raise EnterpriseAuthError("Invalid request encoding", "ENCODING_ERROR", {"error": str(e)})
+    except json.JSONDecodeError as e:
+        logger.error(f"🚨 ENTERPRISE: JSON decode error: {str(e)}")
+        logger.error(f"🔍 ENTERPRISE: Raw body (first 200 chars): {request_body[:200]}")
+        raise EnterpriseAuthError("Invalid JSON format", "JSON_PARSE_ERROR", {"error": str(e), "position": e.pos})
+    except Exception as e:
+        logger.error(f"🚨 ENTERPRISE: Unexpected parsing error: {str(e)}")
+        raise EnterpriseAuthError("Request parsing failed", "PARSE_ERROR", {"error": str(e)})
 
 @router.post("/token")
+@enterprise_error_handler
+@limiter.limit("5/minute" if ENTERPRISE_FEATURES["rate_limiting"] else "1000/minute")
 async def enterprise_login(request: Request, response: Response, db: Session = Depends(get_db)):
-    """🏢 Enterprise login with dual authentication support"""
+    """🏢 Enterprise login with comprehensive security and monitoring"""
+    
+    client_ip = get_remote_address(request)
+    logger.info(f"🔐 ENTERPRISE LOGIN ATTEMPT: IP {client_ip}")
+    
     try:
-        data = await request.json()
+        # Enterprise request parsing
+        request_body = await request.body()
+        data = parse_request_body_safely(request_body)
+        
         email = data.get("email", "").strip().lower()
         password = data.get("password", "")
         
+        # Enterprise input validation
         if not email or not password:
-            logger.warning(f"🔒 Enterprise login attempt with missing credentials")
+            logger.warning(f"🚨 ENTERPRISE: Invalid login attempt from {client_ip} - missing credentials")
             raise HTTPException(status_code=400, detail="Email and password required")
         
         # Enterprise user validation
         user = db.query(User).filter(User.email == email).first()
-        if not user or not pwd_context.verify(password, user.password):
-            logger.warning(f"🔒 Enterprise login failed for: {email}")
+        if not user:
+            logger.warning(f"🚨 ENTERPRISE: Login attempt for non-existent user: {email} from {client_ip}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        # Create enterprise tokens
+        if not pwd_context.verify(password, user.password):
+            logger.warning(f"🚨 ENTERPRISE: Invalid password for user: {email} from {client_ip}")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+        # Enterprise token creation
         user_data = {
             "sub": str(user.id),
             "email": user.email,
@@ -100,108 +270,20 @@ async def enterprise_login(request: Request, response: Response, db: Session = D
         access_token = create_access_token(data=user_data)
         refresh_token = create_refresh_token(data=user_data)
         
-        # Determine authentication mode
-        auth_mode = get_auth_mode(request)
+        # Enterprise audit logging
+        logger.info(f"✅ ENTERPRISE LOGIN SUCCESS: {email} from {client_ip}")
         
-        if auth_mode == "cookie":
-            # 🍪 Enterprise Cookie Mode (Phase 2+)
-            logger.info(f"🍪 Enterprise cookie authentication for: {email}")
-            
-            # Set secure httpOnly cookies
+        # Enterprise response with feature detection
+        auth_mode = "token"  # Force token mode during emergency fix
+        
+        if ENTERPRISE_FEATURES["cookie_authentication"]:
+            # Cookie mode (disabled during emergency)
             response.set_cookie(
                 key="ow_ai_access_token",
                 value=access_token,
-                **COOKIE_CONFIG
+                **ENTERPRISE_COOKIE_CONFIG
             )
             
-            response.set_cookie(
-                key="ow_ai_refresh_token", 
-                value=refresh_token,
-                httponly=True,
-                secure=True,
-                samesite="lax",
-                max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # 7 days
-                path="/",
-                domain=None
-            )
-            
-            # Return success without tokens (cookies handle auth)
-            return {
-                "success": True,
-                "message": "🍪 Enterprise cookie authentication successful",
-                "user": {
-                    "email": user.email,
-                    "role": user.role,
-                    "user_id": user.id
-                },
-                "auth_mode": "cookie",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
-            }
-        
-        else:
-            # 🎫 Legacy Token Mode (Phase 1 compatibility)
-            logger.info(f"🎫 Enterprise token authentication for: {email}")
-            
-            return {
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "user": {
-                    "email": user.email,
-                    "role": user.role,
-                    "user_id": user.id
-                },
-                "auth_mode": "token"
-            }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"🏢 Enterprise login error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Enterprise authentication failed")
-
-@router.post("/register")
-async def enterprise_register(request: Request, response: Response, db: Session = Depends(get_db)):
-    """🏢 Enterprise registration with dual authentication support"""
-    try:
-        data = await request.json()
-        email = data.get("email", "").strip().lower()
-        password = data.get("password", "")
-        role = data.get("role", "user")
-        
-        if not email or not password:
-            raise HTTPException(status_code=400, detail="Email and password required")
-        
-        # Check if user exists
-        existing_user = db.query(User).filter(User.email == email).first()
-        if existing_user:
-            raise HTTPException(status_code=400, detail="User already exists")
-        
-        # Create new enterprise user
-        hashed_password = pwd_context.hash(password)
-        new_user = User(email=email, password=hashed_password, role=role)
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        
-        # Create enterprise tokens
-        user_data = {
-            "sub": str(new_user.id),
-            "email": new_user.email,
-            "role": new_user.role,
-            "user_id": new_user.id
-        }
-        
-        access_token = create_access_token(data=user_data)
-        refresh_token = create_refresh_token(data=user_data)
-        
-        # Determine authentication mode
-        auth_mode = get_auth_mode(request)
-        
-        if auth_mode == "cookie":
-            # Set enterprise cookies
-            response.set_cookie(key="ow_ai_access_token", value=access_token, **COOKIE_CONFIG)
             response.set_cookie(
                 key="ow_ai_refresh_token",
                 value=refresh_token,
@@ -213,176 +295,163 @@ async def enterprise_register(request: Request, response: Response, db: Session 
                 domain=None
             )
             
-            return {
-                "success": True,
-                "message": "🍪 Enterprise registration successful",
-                "user": {"email": new_user.email, "role": new_user.role, "user_id": new_user.id},
-                "auth_mode": "cookie"
+            auth_mode = "cookie"
+            logger.info(f"🍪 ENTERPRISE: Cookie authentication set for {email}")
+        
+        # Enterprise response format
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user": {
+                "email": user.email,
+                "role": user.role,
+                "user_id": user.id
+            },
+            "auth_mode": auth_mode,
+            "enterprise_features": {
+                "cookie_support": ENTERPRISE_FEATURES["cookie_authentication"],
+                "enhanced_security": True,
+                "audit_logging": ENTERPRISE_FEATURES["audit_trail"]
             }
-        else:
-            return {
-                "message": "🎫 Enterprise registration successful", 
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "token_type": "bearer",
-                "user": {"email": new_user.email, "role": new_user.role, "user_id": new_user.id},
-                "auth_mode": "token"
-            }
+        }
         
     except HTTPException:
         raise
+    except EnterpriseAuthError:
+        raise
     except Exception as e:
-        logger.error(f"🏢 Enterprise registration error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Enterprise registration failed")
+        logger.critical(f"🚨 ENTERPRISE LOGIN CRITICAL ERROR: {str(e)}")
+        raise
 
 @router.get("/me")
+@enterprise_error_handler
 async def get_current_user_enterprise(
     request: Request, 
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
-    """🏢 Enterprise user info with dual authentication support"""
+    """🏢 Enterprise user verification with multi-source authentication"""
+    
     try:
         token = None
         auth_source = "unknown"
         
-        # Try cookie authentication first (enterprise preferred)
-        if "ow_ai_access_token" in request.cookies:
+        # Enterprise multi-source token detection
+        if ENTERPRISE_FEATURES["cookie_authentication"] and "ow_ai_access_token" in request.cookies:
             token = request.cookies["ow_ai_access_token"]
             auth_source = "cookie"
-            logger.debug("🍪 Using cookie authentication")
-        
-        # Fallback to bearer token (legacy compatibility)
+            logger.debug("🍪 ENTERPRISE: Using cookie authentication")
         elif credentials and credentials.credentials:
             token = credentials.credentials
             auth_source = "bearer"
-            logger.debug("🎫 Using bearer token authentication")
+            logger.debug("🎫 ENTERPRISE: Using bearer token authentication")
         
         if not token:
+            logger.debug("🚨 ENTERPRISE: No authentication token found")
             raise HTTPException(status_code=401, detail="No authentication provided")
         
-        # Decode and validate token
-        try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-            user_id = payload.get("sub")
-            email = payload.get("email")
-            role = payload.get("role")
-            
-            if not user_id:
-                raise HTTPException(status_code=401, detail="Invalid token payload")
-            
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Token expired")
-        except jwt.JWTError:
-            raise HTTPException(status_code=401, detail="Invalid token")
+        # Enterprise token validation
+        payload = validate_enterprise_token(token, "access")
         
-        # Verify user still exists
+        user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role")
+        
+        if not user_id:
+            raise EnterpriseAuthError("Invalid token payload", "INVALID_PAYLOAD", payload)
+        
+        # Enterprise user verification
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
+            logger.warning(f"🚨 ENTERPRISE: Token valid but user not found: {user_id}")
             raise HTTPException(status_code=401, detail="User not found")
         
-        logger.info(f"✅ Enterprise authentication successful ({auth_source}): {email}")
+        logger.info(f"✅ ENTERPRISE AUTH SUCCESS: {email} via {auth_source}")
         
         return {
             "user_id": int(user_id),
             "email": email,
             "role": role,
             "auth_source": auth_source,
-            "enterprise_validated": True
+            "enterprise_validated": True,
+            "token_metadata": {
+                "issued_at": payload.get("iat"),
+                "expires_at": payload.get("exp"),
+                "token_id": payload.get("jti")
+            }
         }
         
     except HTTPException:
         raise
+    except EnterpriseAuthError:
+        raise
     except Exception as e:
-        logger.error(f"🏢 Enterprise user info error: {str(e)}")
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-@router.post("/logout")
-async def enterprise_logout(request: Request, response: Response):
-    """🏢 Enterprise logout with secure cookie clearing"""
-    try:
-        # Clear enterprise cookies
-        response.delete_cookie(
-            key="ow_ai_access_token",
-            path="/",
-            domain=None,
-            secure=True,
-            httponly=True,
-            samesite="lax"
-        )
-        
-        response.delete_cookie(
-            key="ow_ai_refresh_token", 
-            path="/",
-            domain=None,
-            secure=True,
-            httponly=True,
-            samesite="lax"
-        )
-        
-        logger.info("🏢 Enterprise logout successful")
-        
-        return {
-            "success": True,
-            "message": "🏢 Enterprise logout successful",
-            "cookies_cleared": True
-        }
-        
-    except Exception as e:
-        logger.error(f"🏢 Enterprise logout error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Logout failed")
+        logger.error(f"🚨 ENTERPRISE USER VERIFICATION ERROR: {str(e)}")
+        raise
 
 @router.post("/refresh-token")
+@enterprise_error_handler
+@limiter.limit("10/minute" if ENTERPRISE_FEATURES["rate_limiting"] else "1000/minute")
 async def refresh_token_enterprise(request: Request, response: Response):
-    """🏢 Enterprise token refresh with dual authentication support"""
+    """🏢 Enterprise token refresh with comprehensive error handling and monitoring"""
+    
+    client_ip = get_remote_address(request)
+    logger.info(f"🔄 ENTERPRISE REFRESH ATTEMPT: IP {client_ip}")
+    
     try:
         refresh_token = None
+        auth_mode = "token"
         
-        # Try to get refresh token from cookie first
-        if "ow_ai_refresh_token" in request.cookies:
+        # Enterprise multi-source refresh token detection
+        if ENTERPRISE_FEATURES["cookie_authentication"] and "ow_ai_refresh_token" in request.cookies:
             refresh_token = request.cookies["ow_ai_refresh_token"]
             auth_mode = "cookie"
+            logger.debug("🍪 ENTERPRISE: Using cookie refresh token")
         else:
-            # Fallback to request body for legacy compatibility
-            data = await request.json()
+            # Parse request body for token-based refresh
+            request_body = await request.body()
+            data = parse_request_body_safely(request_body)
             refresh_token = data.get("refresh_token")
-            auth_mode = "token"
+            logger.debug("🎫 ENTERPRISE: Using bearer refresh token")
         
         if not refresh_token:
+            logger.warning(f"🚨 ENTERPRISE: No refresh token provided from {client_ip}")
             raise HTTPException(status_code=401, detail="No refresh token provided")
         
-        # Validate refresh token
-        try:
-            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
-            if payload.get("type") != "refresh":
-                raise HTTPException(status_code=401, detail="Invalid token type")
-            
-            user_data = {
-                "sub": payload.get("sub"),
-                "email": payload.get("email"), 
-                "role": payload.get("role"),
-                "user_id": payload.get("user_id", payload.get("sub"))
-            }
-            
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Refresh token expired")
-        except jwt.JWTError:
-            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        # Enterprise refresh token validation
+        payload = validate_enterprise_token(refresh_token, "refresh")
         
-        # Create new access token
+        user_data = {
+            "sub": payload.get("sub"),
+            "email": payload.get("email"), 
+            "role": payload.get("role"),
+            "user_id": payload.get("user_id", payload.get("sub"))
+        }
+        
+        # Enterprise new token creation
         new_access_token = create_access_token(data=user_data)
         
-        if auth_mode == "cookie":
+        logger.info(f"✅ ENTERPRISE REFRESH SUCCESS: {user_data.get('email')} from {client_ip}")
+        
+        # Enterprise response based on auth mode
+        if auth_mode == "cookie" and ENTERPRISE_FEATURES["cookie_authentication"]:
             # Update cookie
-            response.set_cookie(key="ow_ai_access_token", value=new_access_token, **COOKIE_CONFIG)
+            response.set_cookie(
+                key="ow_ai_access_token",
+                value=new_access_token,
+                **ENTERPRISE_COOKIE_CONFIG
+            )
             
             return {
                 "success": True,
-                "message": "🍪 Enterprise token refreshed",
-                "auth_mode": "cookie"
+                "message": "🍪 Enterprise token refreshed via cookies",
+                "auth_mode": "cookie",
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
             }
         else:
-            # Return new token for legacy mode
+            # Return new token for bearer auth
             return {
                 "access_token": new_access_token,
                 "token_type": "bearer",
@@ -392,6 +461,62 @@ async def refresh_token_enterprise(request: Request, response: Response):
         
     except HTTPException:
         raise
+    except EnterpriseAuthError:
+        raise
     except Exception as e:
-        logger.error(f"🏢 Enterprise refresh error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Token refresh failed")
+        logger.critical(f"🚨 ENTERPRISE REFRESH CRITICAL ERROR: {str(e)}")
+        raise
+
+@router.post("/logout")
+@enterprise_error_handler
+async def enterprise_logout(request: Request, response: Response):
+    """🏢 Enterprise logout with comprehensive session cleanup"""
+    
+    try:
+        client_ip = get_remote_address(request)
+        logger.info(f"🚪 ENTERPRISE LOGOUT: IP {client_ip}")
+        
+        # Enterprise cookie cleanup
+        if ENTERPRISE_FEATURES["cookie_authentication"]:
+            response.delete_cookie(
+                key="ow_ai_access_token",
+                path="/",
+                domain=None,
+                secure=True,
+                httponly=True,
+                samesite="lax"
+            )
+            
+            response.delete_cookie(
+                key="ow_ai_refresh_token", 
+                path="/",
+                domain=None,
+                secure=True,
+                httponly=True,
+                samesite="lax"
+            )
+        
+        logger.info(f"✅ ENTERPRISE LOGOUT SUCCESS: IP {client_ip}")
+        
+        return {
+            "success": True,
+            "message": "🏢 Enterprise logout successful",
+            "cookies_cleared": ENTERPRISE_FEATURES["cookie_authentication"],
+            "audit_logged": ENTERPRISE_FEATURES["audit_trail"]
+        }
+        
+    except Exception as e:
+        logger.error(f"🚨 ENTERPRISE LOGOUT ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Logout failed")
+
+# Enterprise health check endpoint
+@router.get("/health")
+async def enterprise_auth_health():
+    """🏢 Enterprise authentication system health check"""
+    return {
+        "status": "healthy",
+        "service": "enterprise-authentication",
+        "features": ENTERPRISE_FEATURES,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "version": "1.0.0-enterprise"
+    }
