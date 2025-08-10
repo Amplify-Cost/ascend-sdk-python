@@ -1,4 +1,4 @@
-// App.jsx - Updated for secure cookie authentication (PHASE 2)
+// App.jsx - Enhanced Enterprise Cookie Authentication (Phase 2 Complete)
 import React, { useState, useEffect } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ToastProvider, useToast } from "./components/ToastNotification";
@@ -25,7 +25,7 @@ import { useTheme } from "./contexts/ThemeContext";
 // Consistent API URL handling
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
-// Enhanced Loading Screen
+// Enhanced Loading Screen with Enterprise Branding
 const LoadingScreen = () => {
   const { isDarkMode } = useTheme();
   
@@ -36,7 +36,7 @@ const LoadingScreen = () => {
       }`}
       role="status"
       aria-live="polite"
-      aria-label="Loading OW-AI Platform"
+      aria-label="Loading OW-AI Enterprise Platform"
     >
       <div className="text-center">
         <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-6 ${
@@ -50,17 +50,20 @@ const LoadingScreen = () => {
         <p className={`transition-colors duration-300 ${
           isDarkMode ? 'text-slate-300' : 'text-gray-600'
         }`}>
-          Loading secure enterprise interface...
+          Validating enterprise security credentials...
         </p>
-        <div className="mt-4 text-xs px-3 py-1 bg-green-100 text-green-800 rounded-full inline-block">
-          🔒 Cookie-Based Authentication Active
+        <div className="mt-4 flex items-center justify-center space-x-2 text-xs text-gray-500">
+          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <span>🍪 Enterprise Cookie Authentication</span>
         </div>
       </div>
     </div>
   );
 };
 
-// Profile component (updated for cookie auth)
+// Enhanced Profile component with Enterprise Security
 const Profile = ({ user, onUpdateProfile }) => {
   const { isDarkMode } = useTheme();
   const { toast } = useToast();
@@ -89,13 +92,15 @@ const Profile = ({ user, onUpdateProfile }) => {
 
     try {
       await onUpdateProfile({ email, password });
-      setMessage("Profile updated successfully.");
+      setMessage("Profile updated successfully with enterprise security.");
       announce("Profile updated successfully", 'polite');
+      toast("Profile updated successfully", "success");
       setPassword("");
       setConfirmPassword("");
     } catch (err) {
       setError("Failed to update profile. Please try again.");
       announce("Failed to update profile. Please try again.", 'assertive');
+      toast("Failed to update profile", "error");
     }
   };
 
@@ -106,10 +111,10 @@ const Profile = ({ user, onUpdateProfile }) => {
       <h2 className={`text-xl font-semibold mb-4 transition-colors duration-300 ${
         isDarkMode ? 'text-white' : 'text-gray-900'
       }`}>
-        Enterprise Profile Settings
+        🏢 Enterprise Profile Settings
       </h2>
       
-      {/* Security Notice */}
+      {/* Enhanced Security Notice */}
       <div className={`mb-4 p-3 rounded-lg border ${
         isDarkMode 
           ? 'bg-blue-900/20 border-blue-400 text-blue-300' 
@@ -117,7 +122,7 @@ const Profile = ({ user, onUpdateProfile }) => {
       }`}>
         <div className="flex items-center text-sm">
           <span className="mr-2">🔒</span>
-          Profile updates are secured with enterprise authentication
+          Profile updates secured with enterprise cookie authentication
         </div>
       </div>
       
@@ -225,7 +230,7 @@ const Profile = ({ user, onUpdateProfile }) => {
           }`}
           aria-label="Update profile information"
         >
-          Update Profile
+          🔐 Update Profile
         </button>
       </div>
     </div>
@@ -241,49 +246,55 @@ const AppContent = () => {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState("cookie");
+  const [authMode, setAuthMode] = useState("unknown");
 
-  // Page transition state
+  // Page transition state (preserved)
   const [pageTransition, setPageTransition] = useState(false);
 
-  // Check for existing authentication on app load
+  // 🍪 ENHANCED: Enterprise Cookie Authentication Check
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const checkEnterpriseAuthentication = async () => {
       try {
         console.log("🔍 Checking enterprise authentication status...");
-        
-        // Try to get current user info via cookie authentication
+        setLoading(true);
+
+        // 🍪 PRIMARY: Try cookie authentication first (enterprise preferred)
         const currentUser = await getCurrentUser();
         
-        if (currentUser) {
-          console.log("✅ Enterprise authentication verified:", currentUser.email);
+        if (currentUser && currentUser.enterprise_validated) {
+          console.log("✅ Enterprise cookie authentication confirmed:", currentUser.email);
+          
           setUser({
-            id: currentUser.id,
+            id: currentUser.user_id || currentUser.id,
             email: currentUser.email,
             role: currentUser.role,
           });
           setView("app");
-          setAuthMode("cookie");
+          setAuthMode(currentUser.auth_source || "cookie");
           
-          // Clear any legacy localStorage tokens
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
+          // 🧹 Clean up any legacy tokens when using cookies
+          if (currentUser.auth_source === "cookie") {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
+            console.log("🧹 Legacy tokens cleaned up - using secure cookies");
+          }
           
         } else {
-          // Check for legacy token authentication
+          // 🎫 FALLBACK: Check for legacy token authentication
+          console.log("🔍 No cookie authentication, checking legacy tokens...");
           const storedToken = localStorage.getItem("access_token");
           
           if (storedToken) {
-            console.log("⚠️ Legacy token found, attempting migration...");
+            console.log("⚠️ Legacy token found, attempting validation...");
             try {
-              // Try to decode the legacy token
+              // Import jwt-decode dynamically to avoid bundle issues
               const { jwtDecode } = await import("jwt-decode");
               const decoded = jwtDecode(storedToken);
               const currentTime = Date.now() / 1000;
               
               if (decoded.exp && decoded.exp < currentTime) {
-                console.warn("Legacy token expired, clearing...");
-                handleLogout();
+                console.warn("❌ Legacy token expired, clearing...");
+                handleLogout(false);
               } else {
                 // Use legacy token temporarily
                 setUser({
@@ -293,83 +304,132 @@ const AppContent = () => {
                 });
                 setView("app");
                 setAuthMode("token");
-                console.log("⚠️ Using legacy token authentication (consider upgrading)");
+                console.log("⚠️ Using legacy token authentication");
+                toast("Using legacy authentication - consider logging out and back in for enhanced security", "warning");
               }
             } catch (err) {
-              console.error("Invalid legacy token:", err);
-              handleLogout();
+              console.error("❌ Invalid legacy token:", err);
+              handleLogout(false);
             }
           } else {
-            console.log("No authentication found, showing login");
+            console.log("ℹ️ No authentication found, showing login");
+            setView("login");
           }
         }
       } catch (error) {
-        console.error("Authentication check failed:", error);
+        console.error("❌ Enterprise authentication check failed:", error);
+        setView("login");
       } finally {
         setLoading(false);
       }
     };
     
-    checkAuthStatus();
+    checkEnterpriseAuthentication();
   }, []);
 
-  const handleLoginSuccess = async (receivedToken = null, refreshToken = null) => {
+  // 🍪 ENHANCED: Handle both cookie and token login responses
+  const handleLoginSuccess = async (loginResponse) => {
     try {
-      if (receivedToken) {
-        // Legacy token mode
-        console.log("⚠️ Legacy token authentication");
-        localStorage.setItem("access_token", receivedToken);
-        if (refreshToken) {
-          localStorage.setItem("refresh_token", refreshToken);
+      console.log("🏢 Processing enterprise login response...");
+      
+      if (loginResponse && typeof loginResponse === 'object') {
+        // New cookie-based login response
+        if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
+          console.log("✅ Enterprise cookie authentication established");
+          
+          setUser({
+            id: loginResponse.user.user_id || loginResponse.user.id,
+            email: loginResponse.user.email,
+            role: loginResponse.user.role,
+          });
+          setAuthMode("cookie");
+          
+          // Clear any legacy tokens
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          
+          toast("Secure cookie authentication activated", "success");
+          
+        } else if (loginResponse.access_token) {
+          // Legacy token response
+          console.log("⚠️ Legacy token authentication");
+          
+          localStorage.setItem("access_token", loginResponse.access_token);
+          if (loginResponse.refresh_token) {
+            localStorage.setItem("refresh_token", loginResponse.refresh_token);
+          }
+          
+          const { jwtDecode } = await import("jwt-decode");
+          const decoded = jwtDecode(loginResponse.access_token);
+          setUser({
+            id: Number(decoded.sub),
+            email: decoded.email || decoded.sub,
+            role: decoded.role,
+          });
+          setAuthMode("token");
+          
+          toast("Legacy authentication active - consider upgrading", "warning");
         }
+      } else if (typeof loginResponse === 'string') {
+        // Legacy string token (backward compatibility)
+        console.log("⚠️ Legacy string token received");
         
+        localStorage.setItem("access_token", loginResponse);
         const { jwtDecode } = await import("jwt-decode");
-        const decoded = jwtDecode(receivedToken);
+        const decoded = jwtDecode(loginResponse);
         setUser({
           id: Number(decoded.sub),
           email: decoded.email || decoded.sub,
           role: decoded.role,
         });
         setAuthMode("token");
-      } else {
-        // Cookie mode - get user info from API
-        console.log("✅ Enterprise cookie authentication");
-        const currentUser = await getCurrentUser();
-        
-        if (currentUser) {
-          setUser({
-            id: currentUser.id,
-            email: currentUser.email,
-            role: currentUser.role,
-          });
-          setAuthMode("cookie");
-        } else {
-          throw new Error("Failed to retrieve user information");
-        }
       }
       
       setView("app");
-      console.log("✅ Login successful");
+      setActiveTab("dashboard");
+      console.log("✅ Enterprise login processing complete");
+      
     } catch (err) {
-      console.error("Login processing error:", err);
-      handleLogout();
+      console.error("❌ Login processing error:", err);
+      toast("Login processing failed", "error");
+      handleLogout(false);
     }
   };
 
-  const handleLogout = async () => {
+  // 🍪 ENHANCED: Enterprise logout with cookie clearing
+  const handleLogout = async (callAPI = true) => {
     try {
-      await logout();
+      console.log("🚪 Enterprise logout initiated...");
+      
+      if (callAPI) {
+        // Call the enterprise logout API to clear cookies
+        await logout();
+        console.log("✅ Enterprise logout API called");
+      } else {
+        console.log("🧹 Local session cleanup only");
+      }
+      
+      toast("Logged out successfully", "success");
+      
     } catch (error) {
-      console.warn("Logout error:", error);
+      console.warn("⚠️ Logout API error:", error);
+      // Continue with cleanup even if API fails
     } finally {
+      // Always clean up state and localStorage
       setUser(null);
       setView("login");
       setActiveTab("dashboard");
-      setAuthMode("cookie");
-      console.log("✅ Logged out successfully");
+      setAuthMode("unknown");
+      
+      // Clear any remaining localStorage
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      
+      console.log("✅ Enterprise logout complete");
     }
   };
 
+  // PRESERVED: Your existing profile update function
   const handleProfileUpdate = async ({ email, password }) => {
     try {
       const updateData = {};
@@ -400,17 +460,18 @@ const AppContent = () => {
     }
   };
 
-  // For legacy components that still expect getAuthHeaders
+  // 🍪 ENHANCED: Smart auth headers function (supports both modes)
   const getAuthHeaders = () => {
     if (authMode === "cookie") {
-      return {}; // No headers needed for cookie auth
+      // Cookie mode: No headers needed, cookies handle authentication
+      return {};
     }
-    // Legacy token fallback
+    // Legacy token mode: Return Authorization header
     const token = localStorage.getItem("access_token");
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
-  // Enhanced tab navigation with accessibility
+  // PRESERVED: Enhanced tab navigation with accessibility
   const handleTabChange = (newTab) => {
     if (newTab === activeTab) return;
     
@@ -428,6 +489,7 @@ const AppContent = () => {
     }, 150);
   };
 
+  // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {
     console.log("🎯 Rendering tab:", activeTab);
     console.log("🎯 User role:", user?.role);
@@ -464,6 +526,7 @@ const AppContent = () => {
       </div>
     );
     
+    // PRESERVED: All your existing switch cases (unchanged)
     switch (activeTab) {
       case "dashboard":
         return contentWithTransition(<Dashboard getAuthHeaders={getAuthHeaders} user={user} />);
@@ -538,7 +601,7 @@ const AppContent = () => {
     }
   };
 
-  // Show loading screen while checking auth status
+  // Show enhanced loading screen while checking auth status
   if (loading) {
     return <LoadingScreen />;
   }
@@ -576,7 +639,7 @@ const AppContent = () => {
             role="main"
             aria-label="Main content"
           >
-            {/* Header with search and breadcrumbs */}
+            {/* ENHANCED: Header with enterprise security status */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -585,37 +648,52 @@ const AppContent = () => {
                 <GlobalSearch onNavigate={handleTabChange} />
               </div>
               
+              {/* ENHANCED: Enterprise Security Status Bar */}
               <div className={`text-sm transition-colors duration-300 ${
                 isDarkMode ? 'text-slate-400' : 'text-gray-600'
               }`}>
-                Logged in as: <span className="font-medium">{user?.email}</span> ({user?.role})
-                <span className={`ml-4 text-xs px-2 py-1 rounded transition-colors duration-300 ${
-                  authMode === "cookie"
-                    ? (isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
-                    : (isDarkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
-                }`}>
-                  {authMode === "cookie" ? "🔒 Secure Cookies" : "⚠️ Legacy Token"}
-                </span>
-                <span className={`ml-2 text-xs px-2 py-1 rounded transition-colors duration-300 ${
-                  isDarkMode 
-                    ? 'bg-blue-900/30 text-blue-300' 
-                    : 'bg-blue-100 text-blue-800'
-                }`}>
-                  API: {API_BASE_URL}
-                </span>
+                <div className="flex items-center justify-between">
+                  <div>
+                    Logged in as: <span className="font-medium">{user?.email}</span> ({user?.role})
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {/* Authentication Mode Indicator */}
+                    <span className={`text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                      authMode === "cookie"
+                        ? (isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-800')
+                        : authMode === "token" 
+                        ? (isDarkMode ? 'bg-yellow-900/30 text-yellow-300' : 'bg-yellow-100 text-yellow-800')
+                        : (isDarkMode ? 'bg-gray-900/30 text-gray-300' : 'bg-gray-100 text-gray-800')
+                    }`}>
+                      {authMode === "cookie" ? "🔒 Secure Cookies" : 
+                       authMode === "token" ? "⚠️ Legacy Token" : "❓ Unknown Auth"}
+                    </span>
+                    
+                    {/* API Endpoint Indicator */}
+                    <span className={`text-xs px-2 py-1 rounded transition-colors duration-300 ${
+                      isDarkMode 
+                        ? 'bg-blue-900/30 text-blue-300' 
+                        : 'bg-blue-100 text-blue-800'
+                    }`}>
+                      API: {API_BASE_URL.replace('https://', '').split('.')[0]}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
             
-            {/* Main content */}
+            {/* PRESERVED: Main content rendering (unchanged) */}
             {renderAppContent()}
           </main>
           
+          {/* PRESERVED: Support modal (unchanged) */}
           {showSupportModal && (
             <SupportModal
               onClose={() => setShowSupportModal(false)}
               onSubmit={(message) => {
                 console.log("Support message submitted:", message);
                 setShowSupportModal(false);
+                toast("Support ticket submitted successfully", "success");
               }}
             />
           )}
@@ -625,6 +703,7 @@ const AppContent = () => {
   );
 };
 
+// PRESERVED: App wrapper (unchanged)
 const App = () => {
   return (
     <ThemeProvider>
