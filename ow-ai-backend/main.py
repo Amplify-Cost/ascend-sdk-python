@@ -23,6 +23,7 @@ from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
 from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics import router as analytics_router
+from analytics import router as analytics_router
 
 
 
@@ -166,6 +167,8 @@ app.include_router(authorization_router)
 app.include_router(authorization_api_router)
 app.include_router(secrets_router)
 app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+
+
 
 # Security and API-key setup (unchanged)
 security = HTTPBearer()
