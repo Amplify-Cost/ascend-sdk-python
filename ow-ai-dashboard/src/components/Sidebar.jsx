@@ -21,6 +21,8 @@ const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
     Lock: "🔒",
     Sun: "☀️",
     Moon: "🌙",
+    // 🚀 NEW: Real-Time Analytics icon
+    Radar: "📡",
   };
 
   return (
@@ -42,6 +44,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
   
   console.log("🔧 Sidebar rendering with user:", user?.role);
 
+  // ✅ PRESERVED: All existing menu items unchanged
   const menuItems = [
     { 
       label: "Dashboard", 
@@ -54,6 +57,15 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       icon: <SafeIcon iconName="BarChart" size={18} ariaLabel="Analytics charts" />, 
       tab: "analytics",
       description: "Security analytics and insights"
+    },
+    // 🚀 NEW: Real-Time Analytics tab (enterprise feature)
+    { 
+      label: "Real-Time Analytics", 
+      icon: <SafeIcon iconName="Radar" size={18} ariaLabel="Real-time radar monitoring" />, 
+      tab: "realtime-analytics",
+      badge: "Live",
+      description: "Real-time monitoring, predictive analytics, and live system performance",
+      adminOnly: false // Available to all enterprise users
     },
     { 
       label: "Activity", 
@@ -75,7 +87,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
     },
   ];
 
-  // Add admin-only features
+  // ✅ PRESERVED: Add admin-only features (unchanged)
   if (user?.role === "admin") {
     menuItems.push(
       { 
@@ -118,6 +130,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
     );
   }
 
+  // ✅ PRESERVED: All existing functions unchanged
   const handleTabChange = (tab, itemLabel) => {
     if (tab === activeTab) return;
     
@@ -145,7 +158,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       role="navigation"
       aria-label="Main navigation"
     >
-      {/* Header */}
+      {/* ✅ PRESERVED: Header unchanged */}
       <header className={`p-6 border-b transition-colors duration-300 ${
         isDarkMode ? 'border-slate-600' : 'border-blue-700'
       }`}>
@@ -189,7 +202,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         </div>
       </header>
 
-      {/* User Info */}
+      {/* ✅ PRESERVED: User Info unchanged */}
       <div className={`p-4 border-b transition-colors duration-300 ${
         isDarkMode 
           ? 'border-slate-600 bg-slate-700/50' 
@@ -219,7 +232,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* ✅ ENHANCED: Navigation with Real-Time Analytics */}
       <nav className="flex-1 py-4" role="navigation" aria-label="Platform sections">
         <ul className="space-y-1 px-3">
           {menuItems.map((item) => (
@@ -256,10 +269,14 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
                       ? isDarkMode
                         ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-white"
                         : "bg-gradient-to-r from-green-400 to-blue-500 text-white"
-                      : item.badge === "RBAC"
+                    : item.badge === "RBAC"
                       ? isDarkMode
                         ? "bg-gradient-to-r from-violet-500 to-purple-500 text-white"
                         : "bg-gradient-to-r from-purple-400 to-pink-500 text-white"
+                    : item.badge === "Live" // 🚀 NEW: Live badge styling for Real-Time Analytics
+                      ? isDarkMode
+                        ? "bg-gradient-to-r from-red-500 to-pink-500 text-white animate-pulse"
+                        : "bg-gradient-to-r from-red-400 to-pink-500 text-white animate-pulse"
                       : isDarkMode
                         ? "bg-gradient-to-r from-slate-500 to-slate-600 text-white"
                         : "bg-gradient-to-r from-blue-400 to-purple-500 text-white"
@@ -282,7 +299,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         </ul>
       </nav>
 
-      {/* Footer */}
+      {/* ✅ PRESERVED: Footer unchanged */}
       <footer className={`p-4 border-t transition-colors duration-300 ${
         isDarkMode ? 'border-slate-600' : 'border-blue-700'
       }`}>
