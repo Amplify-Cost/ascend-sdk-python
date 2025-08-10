@@ -95,6 +95,25 @@ def get_current_user(
             detail="Authentication failed"
         )
 
+# 🔧 SURGICAL FIX: Add missing enterprise authentication function
+def get_current_user_enterprise(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+):
+    """Enterprise authentication wrapper - same as get_current_user with enhanced logging"""
+    try:
+        # Use the same authentication logic as get_current_user
+        user = get_current_user(request, credentials)
+        
+        # Enhanced enterprise logging
+        logger.info(f"🏢 ENTERPRISE: User authenticated - {user.get('email')}, role: {user.get('role')}")
+        
+        return user
+        
+    except HTTPException as e:
+        logger.error(f"🏢 ENTERPRISE: Authentication failed - {e.detail}")
+        raise
+
 def require_admin(current_user: dict = Depends(get_current_user)):
     """Require admin role with enterprise logging"""
     if current_user.get("role") != "admin":
