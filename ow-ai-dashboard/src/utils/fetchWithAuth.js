@@ -37,10 +37,16 @@ export async function fetchWithAuth(url, options = {}) {
       ...options
     };
 
-    // Remove any legacy Authorization headers when using cookie mode
-    if (ENTERPRISE_CONFIG.cookieMode && enterpriseOptions.headers.Authorization) {
-      console.log('🍪 Cookie mode: Removing legacy Authorization header');
-      delete enterpriseOptions.headers.Authorization;
+    // 🔧 ENTERPRISE FIX: Hybrid authentication support
+    // Send BOTH cookies AND token for maximum compatibility during transition
+    if (ENTERPRISE_CONFIG.cookieMode) {
+      const token = localStorage.getItem("access_token");
+      if (token) {
+        console.log('🔄 Hybrid mode: Sending both cookies and token for compatibility');
+        enterpriseOptions.headers.Authorization = `Bearer ${token}`;
+      } else {
+        console.log('🍪 Pure cookie mode: No token available, relying on cookies');
+      }
     }
 
     console.log(`🔍 Request headers:`, enterpriseOptions.headers);
@@ -58,6 +64,13 @@ export async function fetchWithAuth(url, options = {}) {
       
       if (refreshSuccess) {
         console.log('✅ Enterprise token refresh successful, retrying request');
+        
+        // 🔧 ENTERPRISE FIX: Retry with updated token
+        const retryToken = localStorage.getItem("access_token");
+        if (retryToken && ENTERPRISE_CONFIG.cookieMode) {
+          enterpriseOptions.headers.Authorization = `Bearer ${retryToken}`;
+        }
+        
         // Retry the original request
         response = await fetch(url, enterpriseOptions);
       } else {
@@ -102,19 +115,19 @@ async function attemptTokenRefresh() {
       const refreshData = await refreshResponse.json();
       console.log('✅ Enterprise token refresh successful');
       
-      // Cookie mode: No need to store tokens, cookies are managed automatically
-      if (refreshData.auth_mode === 'cookie') {
-        console.log('🍪 Enterprise cookies refreshed automatically');
-        return true;
-      }
-      
-      // Legacy token mode fallback
+      // 🔧 ENTERPRISE FIX: Always store tokens for compatibility
       if (refreshData.access_token) {
-        console.log('🎫 Legacy token mode: Storing new token');
+        console.log('🔄 Storing refreshed token for hybrid authentication');
         localStorage.setItem("access_token", refreshData.access_token);
         if (refreshData.refresh_token) {
           localStorage.setItem("refresh_token", refreshData.refresh_token);
         }
+        return true;
+      }
+      
+      // Cookie mode: No need to store tokens, cookies are managed automatically
+      if (refreshData.auth_mode === 'cookie') {
+        console.log('🍪 Enterprise cookies refreshed automatically');
         return true;
       }
       
@@ -234,14 +247,15 @@ export async function getCurrentUser() {
 export function getAuthHeaders() {
   console.log('⚠️ Legacy auth headers requested - consider upgrading to fetchWithAuth');
   
-  // In cookie mode, return empty headers (cookies handle auth)
-  if (ENTERPRISE_CONFIG.cookieMode) {
-    return {};
+  // 🔧 ENTERPRISE FIX: Always provide token headers when available
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    console.log('🔄 Providing auth headers for legacy compatibility');
+    return { Authorization: `Bearer ${token}` };
   }
   
-  // Legacy token mode
-  const token = localStorage.getItem("access_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  console.log('🍪 No token available for legacy headers');
+  return {};
 }
 
 /**
