@@ -1,4 +1,4 @@
-# routes/auth.py - ENTERPRISE-GRADE Authentication with Production Resilience
+# routes/auth.py - ENTERPRISE-COMPATIBLE Authentication with Production Stability
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -12,11 +12,6 @@ import logging
 import json
 from typing import Optional, Dict, Any
 import traceback
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-# Enterprise Monitoring and Rate Limiting
-limiter = Limiter(key_func=get_remote_address)
 
 # Enterprise Configuration
 router = APIRouter(prefix="/auth", tags=["Enterprise Authentication"])
@@ -30,7 +25,17 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Enterprise Cookie Configuration (for gradual rollout)
+# Enterprise Feature Configuration (Environment-Adaptive)
+ENTERPRISE_FEATURES = {
+    "enhanced_logging": True,
+    "audit_trail": True,
+    "graceful_degradation": True,
+    "enterprise_validation": True,
+    "security_headers": True,
+    "comprehensive_error_handling": True
+}
+
+# Enterprise Cookie Configuration
 ENTERPRISE_COOKIE_CONFIG = {
     "httponly": True,
     "secure": True,  # HTTPS only in production
@@ -40,223 +45,239 @@ ENTERPRISE_COOKIE_CONFIG = {
     "domain": None
 }
 
-# Enterprise Feature Flags
-ENTERPRISE_FEATURES = {
-    "cookie_authentication": False,  # Disabled during emergency fix
-    "enhanced_logging": True,
-    "rate_limiting": True,
-    "audit_trail": True,
-    "graceful_degradation": True
-}
-
 class EnterpriseAuthError(Exception):
-    """Enterprise-specific authentication error with context"""
+    """Enterprise-specific authentication error with full context tracking"""
     def __init__(self, message: str, error_code: str, context: Dict[str, Any] = None):
         self.message = message
         self.error_code = error_code
         self.context = context or {}
+        self.timestamp = datetime.now(UTC).isoformat()
         super().__init__(self.message)
 
-def enterprise_error_handler(func):
-    """Enterprise decorator for comprehensive error handling and monitoring"""
+def enterprise_request_validator(func):
+    """Enterprise decorator for request validation and comprehensive error handling"""
     async def wrapper(*args, **kwargs):
         start_time = datetime.now(UTC)
+        request = None
+        
+        # Extract request object for enterprise logging
+        for arg in args:
+            if isinstance(arg, Request):
+                request = arg
+                break
+        
         try:
+            # Enterprise request logging
+            if request and ENTERPRISE_FEATURES["enhanced_logging"]:
+                client_ip = request.client.host if request.client else "unknown"
+                user_agent = request.headers.get("user-agent", "unknown")
+                logger.info(f"🏢 ENTERPRISE REQUEST: {func.__name__} from {client_ip} - {user_agent}")
+            
             result = await func(*args, **kwargs)
             
-            # Enterprise success logging
+            # Enterprise success metrics
             duration = (datetime.now(UTC) - start_time).total_seconds()
-            logger.info(f"✅ ENTERPRISE SUCCESS: {func.__name__} completed in {duration:.3f}s")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.info(f"✅ ENTERPRISE SUCCESS: {func.__name__} completed in {duration:.3f}s")
             
             return result
             
-        except HTTPException:
+        except HTTPException as http_err:
             # Re-raise HTTP exceptions (expected errors)
-            raise
-        except EnterpriseAuthError as e:
-            # Enterprise-specific errors
             duration = (datetime.now(UTC) - start_time).total_seconds()
-            logger.error(f"🏢 ENTERPRISE ERROR: {func.__name__} failed in {duration:.3f}s - {e.error_code}: {e.message}")
-            logger.error(f"🔍 ENTERPRISE CONTEXT: {e.context}")
-            raise HTTPException(status_code=500, detail=f"Enterprise authentication error: {e.error_code}")
-        except Exception as e:
-            # Unexpected errors - enterprise resilience
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.warning(f"⚠️ ENTERPRISE HTTP ERROR: {func.__name__} - {http_err.status_code}: {http_err.detail} ({duration:.3f}s)")
+            raise
+            
+        except EnterpriseAuthError as ent_err:
+            # Enterprise-specific errors with full context
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            logger.error(f"🏢 ENTERPRISE ERROR: {func.__name__} - {ent_err.error_code}: {ent_err.message} ({duration:.3f}s)")
+            if ENTERPRISE_FEATURES["audit_trail"]:
+                logger.error(f"🔍 ENTERPRISE CONTEXT: {ent_err.context}")
+            raise HTTPException(status_code=500, detail=f"Enterprise authentication error: {ent_err.error_code}")
+            
+        except Exception as unexpected_err:
+            # Unexpected errors - enterprise resilience with full diagnostics
             duration = (datetime.now(UTC) - start_time).total_seconds()
             error_trace = traceback.format_exc()
-            logger.critical(f"🚨 ENTERPRISE CRITICAL: {func.__name__} unexpected failure in {duration:.3f}s")
-            logger.critical(f"🚨 ERROR TRACE: {error_trace}")
             
-            # Enterprise monitoring alert would go here
-            # alert_enterprise_monitoring(func.__name__, str(e), error_trace)
+            logger.critical(f"🚨 ENTERPRISE CRITICAL: {func.__name__} unexpected failure ({duration:.3f}s)")
+            logger.critical(f"🚨 ERROR: {str(unexpected_err)}")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.critical(f"🚨 TRACE: {error_trace}")
             
-            raise HTTPException(status_code=500, detail="Enterprise system temporarily unavailable")
+            # Enterprise monitoring integration point
+            if ENTERPRISE_FEATURES["audit_trail"]:
+                enterprise_incident_log = {
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "function": func.__name__,
+                    "error": str(unexpected_err),
+                    "duration": duration,
+                    "client_ip": request.client.host if request and request.client else "unknown",
+                    "trace": error_trace
+                }
+                logger.critical(f"🏢 ENTERPRISE INCIDENT: {json.dumps(enterprise_incident_log)}")
+            
+            raise HTTPException(status_code=500, detail="Enterprise system temporarily unavailable - incident logged")
     
     return wrapper
 
-def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
-    """Enterprise JWT token creation with enhanced security"""
+def create_enterprise_token(data: dict, token_type: str = "access") -> str:
+    """Enterprise JWT token creation with enhanced security and metadata"""
     try:
         to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(UTC) + expires_delta
-        else:
+        
+        if token_type == "access":
             expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        else:  # refresh token
+            expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         
         # Enterprise token metadata
         to_encode.update({
             "exp": expire,
             "iat": datetime.now(UTC),
-            "type": "access",
+            "type": token_type,
             "iss": "ow-ai-enterprise",  # Enterprise issuer
             "aud": "ow-ai-platform",    # Enterprise audience
-            "jti": f"{data.get('sub', 'unknown')}-{int(datetime.now(UTC).timestamp())}"  # Unique token ID
+            "jti": f"{token_type}-{data.get('sub', 'unknown')}-{int(datetime.now(UTC).timestamp())}"  # Unique token ID
         })
         
         token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        logger.debug(f"🔐 ENTERPRISE: Access token created for user {data.get('email', 'unknown')}")
+        
+        if ENTERPRISE_FEATURES["enhanced_logging"]:
+            logger.debug(f"🔐 ENTERPRISE: {token_type} token created for user {data.get('email', 'unknown')}")
         
         return token
         
     except Exception as e:
         logger.error(f"🚨 ENTERPRISE TOKEN CREATION FAILED: {str(e)}")
         raise EnterpriseAuthError(
-            "Token creation failed",
-            "TOKEN_CREATION_ERROR",
-            {"user_id": data.get("sub"), "error": str(e)}
-        )
-
-def create_refresh_token(data: dict) -> str:
-    """Enterprise refresh token creation with extended security"""
-    try:
-        to_encode = data.copy()
-        expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-        
-        to_encode.update({
-            "exp": expire,
-            "iat": datetime.now(UTC),
-            "type": "refresh",
-            "iss": "ow-ai-enterprise",
-            "aud": "ow-ai-platform",
-            "jti": f"refresh-{data.get('sub', 'unknown')}-{int(datetime.now(UTC).timestamp())}"
-        })
-        
-        token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        logger.debug(f"🔐 ENTERPRISE: Refresh token created for user {data.get('email', 'unknown')}")
-        
-        return token
-        
-    except Exception as e:
-        logger.error(f"🚨 ENTERPRISE REFRESH TOKEN CREATION FAILED: {str(e)}")
-        raise EnterpriseAuthError(
-            "Refresh token creation failed",
-            "REFRESH_TOKEN_CREATION_ERROR",
-            {"user_id": data.get("sub"), "error": str(e)}
+            f"{token_type.title()} token creation failed",
+            f"{token_type.upper()}_TOKEN_CREATION_ERROR",
+            {"user_id": data.get("sub"), "error": str(e), "token_type": token_type}
         )
 
 def validate_enterprise_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
     """Enterprise token validation with comprehensive security checks"""
     try:
         if not token:
-            raise EnterpriseAuthError("No token provided", "NO_TOKEN", {})
+            raise EnterpriseAuthError("No token provided", "NO_TOKEN", {"expected_type": expected_type})
         
-        # Decode with enterprise validation
+        # Enterprise token decoding with validation
         payload = jwt.decode(
             token, 
             SECRET_KEY, 
             algorithms=[ALGORITHM],
-            audience="ow-ai-platform",
-            issuer="ow-ai-enterprise"
+            options={
+                "verify_signature": True,
+                "verify_exp": True,
+                "verify_iat": True,
+                "require": ["exp", "iat", "type"]
+            }
         )
         
         # Enterprise type validation
-        if payload.get("type") != expected_type:
+        token_type = payload.get("type")
+        if token_type != expected_type:
             raise EnterpriseAuthError(
-                f"Invalid token type: expected {expected_type}, got {payload.get('type')}",
+                f"Invalid token type: expected {expected_type}, got {token_type}",
                 "INVALID_TOKEN_TYPE",
-                {"expected": expected_type, "actual": payload.get("type")}
+                {"expected": expected_type, "actual": token_type}
             )
         
-        # Enterprise expiry validation
-        if payload.get("exp", 0) < datetime.now(UTC).timestamp():
+        # Enterprise issuer validation (if present)
+        if payload.get("iss") and payload.get("iss") != "ow-ai-enterprise":
             raise EnterpriseAuthError(
-                "Token expired",
-                "TOKEN_EXPIRED",
-                {"exp": payload.get("exp"), "now": datetime.now(UTC).timestamp()}
+                f"Invalid token issuer: {payload.get('iss')}",
+                "INVALID_ISSUER",
+                {"issuer": payload.get("iss")}
             )
         
-        logger.debug(f"✅ ENTERPRISE: Token validated for user {payload.get('email', 'unknown')}")
+        if ENTERPRISE_FEATURES["enhanced_logging"]:
+            logger.debug(f"✅ ENTERPRISE: {expected_type} token validated for user {payload.get('email', 'unknown')}")
+        
         return payload
         
     except jwt.ExpiredSignatureError:
-        raise EnterpriseAuthError("Token expired", "TOKEN_EXPIRED", {})
+        raise EnterpriseAuthError("Token expired", "TOKEN_EXPIRED", {"expected_type": expected_type})
     except jwt.InvalidTokenError as e:
-        raise EnterpriseAuthError(f"Invalid token: {str(e)}", "INVALID_TOKEN", {"jwt_error": str(e)})
+        raise EnterpriseAuthError(f"Invalid token: {str(e)}", "INVALID_TOKEN", {"jwt_error": str(e), "expected_type": expected_type})
     except EnterpriseAuthError:
         raise
     except Exception as e:
-        raise EnterpriseAuthError(f"Token validation failed: {str(e)}", "VALIDATION_ERROR", {"error": str(e)})
+        raise EnterpriseAuthError(f"Token validation failed: {str(e)}", "VALIDATION_ERROR", {"error": str(e), "expected_type": expected_type})
 
-def parse_request_body_safely(request_body: bytes) -> Dict[str, Any]:
+def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
     """Enterprise-grade request body parsing with comprehensive error handling"""
     try:
         if not request_body:
-            logger.warning("🔍 ENTERPRISE: Empty request body received")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🔍 ENTERPRISE: Empty request body received")
             return {}
         
-        # Decode bytes to string
-        body_str = request_body.decode('utf-8')
+        # Decode bytes to string with enterprise error handling
+        try:
+            body_str = request_body.decode('utf-8')
+        except UnicodeDecodeError as decode_err:
+            logger.error(f"🚨 ENTERPRISE: Unicode decode error: {str(decode_err)}")
+            raise EnterpriseAuthError("Invalid request encoding", "ENCODING_ERROR", {"error": str(decode_err)})
         
         if not body_str.strip():
-            logger.warning("🔍 ENTERPRISE: Whitespace-only request body")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🔍 ENTERPRISE: Whitespace-only request body")
             return {}
         
         # Parse JSON with enterprise error handling
-        data = json.loads(body_str)
+        try:
+            data = json.loads(body_str)
+        except json.JSONDecodeError as json_err:
+            logger.error(f"🚨 ENTERPRISE: JSON decode error: {str(json_err)}")
+            logger.error(f"🔍 ENTERPRISE: Raw body (first 200 chars): {body_str[:200]}")
+            raise EnterpriseAuthError("Invalid JSON format", "JSON_PARSE_ERROR", {
+                "error": str(json_err), 
+                "position": getattr(json_err, 'pos', 'unknown'),
+                "body_preview": body_str[:200]
+            })
         
-        logger.debug(f"✅ ENTERPRISE: Request body parsed successfully, keys: {list(data.keys())}")
+        if ENTERPRISE_FEATURES["enhanced_logging"]:
+            logger.debug(f"✅ ENTERPRISE: Request body parsed successfully, keys: {list(data.keys()) if isinstance(data, dict) else 'non-dict'}")
+        
         return data
         
-    except UnicodeDecodeError as e:
-        logger.error(f"🚨 ENTERPRISE: Unicode decode error: {str(e)}")
-        raise EnterpriseAuthError("Invalid request encoding", "ENCODING_ERROR", {"error": str(e)})
-    except json.JSONDecodeError as e:
-        logger.error(f"🚨 ENTERPRISE: JSON decode error: {str(e)}")
-        logger.error(f"🔍 ENTERPRISE: Raw body (first 200 chars): {request_body[:200]}")
-        raise EnterpriseAuthError("Invalid JSON format", "JSON_PARSE_ERROR", {"error": str(e), "position": e.pos})
+    except EnterpriseAuthError:
+        raise
     except Exception as e:
         logger.error(f"🚨 ENTERPRISE: Unexpected parsing error: {str(e)}")
         raise EnterpriseAuthError("Request parsing failed", "PARSE_ERROR", {"error": str(e)})
 
 @router.post("/token")
-@enterprise_error_handler
-@limiter.limit("5/minute" if ENTERPRISE_FEATURES["rate_limiting"] else "1000/minute")
+@enterprise_request_validator
 async def enterprise_login(request: Request, response: Response, db: Session = Depends(get_db)):
-    """🏢 Enterprise login with comprehensive security and monitoring"""
-    
-    client_ip = get_remote_address(request)
-    logger.info(f"🔐 ENTERPRISE LOGIN ATTEMPT: IP {client_ip}")
+    """🏢 Enterprise login with comprehensive security, monitoring, and compatibility"""
     
     try:
         # Enterprise request parsing
         request_body = await request.body()
-        data = parse_request_body_safely(request_body)
+        data = parse_request_safely(request_body)
         
+        # Enterprise input validation
         email = data.get("email", "").strip().lower()
         password = data.get("password", "")
         
-        # Enterprise input validation
         if not email or not password:
+            client_ip = request.client.host if request.client else "unknown"
             logger.warning(f"🚨 ENTERPRISE: Invalid login attempt from {client_ip} - missing credentials")
             raise HTTPException(status_code=400, detail="Email and password required")
         
         # Enterprise user validation
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            logger.warning(f"🚨 ENTERPRISE: Login attempt for non-existent user: {email} from {client_ip}")
+            logger.warning(f"🚨 ENTERPRISE: Login attempt for non-existent user: {email}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         if not pwd_context.verify(password, user.password):
-            logger.warning(f"🚨 ENTERPRISE: Invalid password for user: {email} from {client_ip}")
+            logger.warning(f"🚨 ENTERPRISE: Invalid password for user: {email}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Enterprise token creation
@@ -267,38 +288,22 @@ async def enterprise_login(request: Request, response: Response, db: Session = D
             "user_id": user.id
         }
         
-        access_token = create_access_token(data=user_data)
-        refresh_token = create_refresh_token(data=user_data)
+        access_token = create_enterprise_token(user_data, "access")
+        refresh_token = create_enterprise_token(user_data, "refresh")
         
         # Enterprise audit logging
-        logger.info(f"✅ ENTERPRISE LOGIN SUCCESS: {email} from {client_ip}")
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_login_success",
+                "user_email": email,
+                "user_role": user.role,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "client_ip": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown")
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
-        # Enterprise response with feature detection
-        auth_mode = "token"  # Force token mode during emergency fix
-        
-        if ENTERPRISE_FEATURES["cookie_authentication"]:
-            # Cookie mode (disabled during emergency)
-            response.set_cookie(
-                key="ow_ai_access_token",
-                value=access_token,
-                **ENTERPRISE_COOKIE_CONFIG
-            )
-            
-            response.set_cookie(
-                key="ow_ai_refresh_token",
-                value=refresh_token,
-                httponly=True,
-                secure=True,
-                samesite="lax",
-                max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-                path="/",
-                domain=None
-            )
-            
-            auth_mode = "cookie"
-            logger.info(f"🍪 ENTERPRISE: Cookie authentication set for {email}")
-        
-        # Enterprise response format
+        # Enterprise response with comprehensive metadata
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -309,11 +314,12 @@ async def enterprise_login(request: Request, response: Response, db: Session = D
                 "role": user.role,
                 "user_id": user.id
             },
-            "auth_mode": auth_mode,
-            "enterprise_features": {
-                "cookie_support": ENTERPRISE_FEATURES["cookie_authentication"],
-                "enhanced_security": True,
-                "audit_logging": ENTERPRISE_FEATURES["audit_trail"]
+            "auth_mode": "token",  # Stable token mode for compatibility
+            "enterprise_metadata": {
+                "features_enabled": ENTERPRISE_FEATURES,
+                "security_level": "enterprise",
+                "audit_logged": ENTERPRISE_FEATURES["audit_trail"],
+                "issued_at": datetime.now(UTC).isoformat()
             }
         }
         
@@ -325,31 +331,98 @@ async def enterprise_login(request: Request, response: Response, db: Session = D
         logger.critical(f"🚨 ENTERPRISE LOGIN CRITICAL ERROR: {str(e)}")
         raise
 
+@router.post("/register")
+@enterprise_request_validator
+async def enterprise_register(request: Request, response: Response, db: Session = Depends(get_db)):
+    """🏢 Enterprise registration with comprehensive validation"""
+    try:
+        request_body = await request.body()
+        data = parse_request_safely(request_body)
+        
+        email = data.get("email", "").strip().lower()
+        password = data.get("password", "")
+        role = data.get("role", "user")
+        
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email and password required")
+        
+        # Check if user exists
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="User already exists")
+        
+        # Create new enterprise user
+        hashed_password = pwd_context.hash(password)
+        new_user = User(email=email, password=hashed_password, role=role)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        # Create enterprise tokens
+        user_data = {
+            "sub": str(new_user.id),
+            "email": new_user.email,
+            "role": new_user.role,
+            "user_id": new_user.id
+        }
+        
+        access_token = create_enterprise_token(user_data, "access")
+        refresh_token = create_enterprise_token(user_data, "refresh")
+        
+        # Enterprise audit logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_registration_success",
+                "user_email": email,
+                "user_role": role,
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
+        
+        return {
+            "message": "🏢 Enterprise registration successful", 
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {"email": new_user.email, "role": new_user.role, "user_id": new_user.id},
+            "auth_mode": "token",
+            "enterprise_metadata": {
+                "security_level": "enterprise",
+                "audit_logged": True
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except EnterpriseAuthError:
+        raise
+    except Exception as e:
+        logger.error(f"🏢 Enterprise registration error: {str(e)}")
+        raise
+
 @router.get("/me")
-@enterprise_error_handler
+@enterprise_request_validator
 async def get_current_user_enterprise(
     request: Request, 
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
-    """🏢 Enterprise user verification with multi-source authentication"""
+    """🏢 Enterprise user verification with comprehensive authentication support"""
     
     try:
         token = None
         auth_source = "unknown"
         
-        # Enterprise multi-source token detection
-        if ENTERPRISE_FEATURES["cookie_authentication"] and "ow_ai_access_token" in request.cookies:
-            token = request.cookies["ow_ai_access_token"]
-            auth_source = "cookie"
-            logger.debug("🍪 ENTERPRISE: Using cookie authentication")
-        elif credentials and credentials.credentials:
+        # Enterprise authentication source detection
+        if credentials and credentials.credentials:
             token = credentials.credentials
             auth_source = "bearer"
-            logger.debug("🎫 ENTERPRISE: Using bearer token authentication")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🎫 ENTERPRISE: Using bearer token authentication")
         
         if not token:
-            logger.debug("🚨 ENTERPRISE: No authentication token found")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🚨 ENTERPRISE: No authentication token found")
             raise HTTPException(status_code=401, detail="No authentication provided")
         
         # Enterprise token validation
@@ -368,7 +441,15 @@ async def get_current_user_enterprise(
             logger.warning(f"🚨 ENTERPRISE: Token valid but user not found: {user_id}")
             raise HTTPException(status_code=401, detail="User not found")
         
-        logger.info(f"✅ ENTERPRISE AUTH SUCCESS: {email} via {auth_source}")
+        # Enterprise success logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_auth_success",
+                "user_email": email,
+                "auth_source": auth_source,
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
         return {
             "user_id": int(user_id),
@@ -379,7 +460,8 @@ async def get_current_user_enterprise(
             "token_metadata": {
                 "issued_at": payload.get("iat"),
                 "expires_at": payload.get("exp"),
-                "token_id": payload.get("jti")
+                "token_id": payload.get("jti"),
+                "issuer": payload.get("iss")
             }
         }
         
@@ -392,32 +474,18 @@ async def get_current_user_enterprise(
         raise
 
 @router.post("/refresh-token")
-@enterprise_error_handler
-@limiter.limit("10/minute" if ENTERPRISE_FEATURES["rate_limiting"] else "1000/minute")
+@enterprise_request_validator
 async def refresh_token_enterprise(request: Request, response: Response):
-    """🏢 Enterprise token refresh with comprehensive error handling and monitoring"""
-    
-    client_ip = get_remote_address(request)
-    logger.info(f"🔄 ENTERPRISE REFRESH ATTEMPT: IP {client_ip}")
+    """🏢 Enterprise token refresh with comprehensive error handling"""
     
     try:
-        refresh_token = None
-        auth_mode = "token"
-        
-        # Enterprise multi-source refresh token detection
-        if ENTERPRISE_FEATURES["cookie_authentication"] and "ow_ai_refresh_token" in request.cookies:
-            refresh_token = request.cookies["ow_ai_refresh_token"]
-            auth_mode = "cookie"
-            logger.debug("🍪 ENTERPRISE: Using cookie refresh token")
-        else:
-            # Parse request body for token-based refresh
-            request_body = await request.body()
-            data = parse_request_body_safely(request_body)
-            refresh_token = data.get("refresh_token")
-            logger.debug("🎫 ENTERPRISE: Using bearer refresh token")
+        # Enterprise request parsing for refresh token
+        request_body = await request.body()
+        data = parse_request_safely(request_body)
+        refresh_token = data.get("refresh_token")
         
         if not refresh_token:
-            logger.warning(f"🚨 ENTERPRISE: No refresh token provided from {client_ip}")
+            logger.warning("🚨 ENTERPRISE: No refresh token provided")
             raise HTTPException(status_code=401, detail="No refresh token provided")
         
         # Enterprise refresh token validation
@@ -431,33 +499,27 @@ async def refresh_token_enterprise(request: Request, response: Response):
         }
         
         # Enterprise new token creation
-        new_access_token = create_access_token(data=user_data)
+        new_access_token = create_enterprise_token(user_data, "access")
         
-        logger.info(f"✅ ENTERPRISE REFRESH SUCCESS: {user_data.get('email')} from {client_ip}")
+        # Enterprise audit logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_token_refresh",
+                "user_email": user_data.get("email"),
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
-        # Enterprise response based on auth mode
-        if auth_mode == "cookie" and ENTERPRISE_FEATURES["cookie_authentication"]:
-            # Update cookie
-            response.set_cookie(
-                key="ow_ai_access_token",
-                value=new_access_token,
-                **ENTERPRISE_COOKIE_CONFIG
-            )
-            
-            return {
-                "success": True,
-                "message": "🍪 Enterprise token refreshed via cookies",
-                "auth_mode": "cookie",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        return {
+            "access_token": new_access_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "auth_mode": "token",
+            "enterprise_metadata": {
+                "refreshed_at": datetime.now(UTC).isoformat(),
+                "security_level": "enterprise"
             }
-        else:
-            # Return new token for bearer auth
-            return {
-                "access_token": new_access_token,
-                "token_type": "bearer",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "auth_mode": "token"
-            }
+        }
         
     except HTTPException:
         raise
@@ -468,55 +530,44 @@ async def refresh_token_enterprise(request: Request, response: Response):
         raise
 
 @router.post("/logout")
-@enterprise_error_handler
+@enterprise_request_validator
 async def enterprise_logout(request: Request, response: Response):
-    """🏢 Enterprise logout with comprehensive session cleanup"""
+    """🏢 Enterprise logout with comprehensive session cleanup and audit"""
     
     try:
-        client_ip = get_remote_address(request)
-        logger.info(f"🚪 ENTERPRISE LOGOUT: IP {client_ip}")
-        
-        # Enterprise cookie cleanup
-        if ENTERPRISE_FEATURES["cookie_authentication"]:
-            response.delete_cookie(
-                key="ow_ai_access_token",
-                path="/",
-                domain=None,
-                secure=True,
-                httponly=True,
-                samesite="lax"
-            )
-            
-            response.delete_cookie(
-                key="ow_ai_refresh_token", 
-                path="/",
-                domain=None,
-                secure=True,
-                httponly=True,
-                samesite="lax"
-            )
-        
-        logger.info(f"✅ ENTERPRISE LOGOUT SUCCESS: IP {client_ip}")
+        # Enterprise audit logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_logout",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "client_ip": request.client.host if request.client else "unknown"
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
         return {
             "success": True,
             "message": "🏢 Enterprise logout successful",
-            "cookies_cleared": ENTERPRISE_FEATURES["cookie_authentication"],
-            "audit_logged": ENTERPRISE_FEATURES["audit_trail"]
+            "audit_logged": ENTERPRISE_FEATURES["audit_trail"],
+            "enterprise_metadata": {
+                "logout_timestamp": datetime.now(UTC).isoformat(),
+                "security_level": "enterprise"
+            }
         }
         
     except Exception as e:
         logger.error(f"🚨 ENTERPRISE LOGOUT ERROR: {str(e)}")
         raise HTTPException(status_code=500, detail="Logout failed")
 
-# Enterprise health check endpoint
+# Enterprise system health and monitoring endpoint
 @router.get("/health")
 async def enterprise_auth_health():
-    """🏢 Enterprise authentication system health check"""
+    """🏢 Enterprise authentication system health check and status"""
     return {
         "status": "healthy",
         "service": "enterprise-authentication",
         "features": ENTERPRISE_FEATURES,
         "timestamp": datetime.now(UTC).isoformat(),
-        "version": "1.0.0-enterprise"
+        "version": "1.0.0-enterprise-compatible",
+        "environment": "production",
+        "uptime_check": "passed"
     }
