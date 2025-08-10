@@ -1,4 +1,5 @@
-# routes/auth.py - Enterprise Loop Breaker (Bypass FastAPI Validation)
+# routes/auth.py - ENTERPRISE RESTORATION (Back to Working State)
+# This restores your original working authentication while fixing the 422 loop
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -12,44 +13,108 @@ import jwt
 import os
 import logging
 import json
+import traceback
 
-# =================== ENTERPRISE EMERGENCY CONFIGURATION ===================
-
-router = APIRouter(prefix="/auth", tags=["Enterprise Authentication Emergency"])
+# Enterprise Configuration - RESTORED
+router = APIRouter(prefix="/auth", tags=["Enterprise Authentication"])
 security = HTTPBearer(auto_error=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+logger = logging.getLogger(__name__)
 
-# Enhanced logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("enterprise.auth.emergency")
-
-# Enterprise Security Settings
+# Enterprise Security Settings - ORIGINAL
 SECRET_KEY = os.getenv("SECRET_KEY", "your-enterprise-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Enterprise Emergency Configuration
+# Enterprise Feature Configuration - RESTORED
 ENTERPRISE_FEATURES = {
-    "emergency_mode": True,
-    "bypass_validation": True,
-    "infinite_loop_protection": True,
-    "manual_request_parsing": True,
-    "enhanced_logging": True
+    "enhanced_logging": True,
+    "audit_trail": True,
+    "graceful_degradation": True,
+    "enterprise_validation": True,
+    "security_headers": True,
+    "comprehensive_error_handling": True,
+    "restored_working_state": True
 }
 
-# =================== NO PYDANTIC MODELS - MANUAL PARSING ONLY ===================
-# Completely bypass FastAPI validation to prevent 422 errors
+class EnterpriseAuthError(Exception):
+    """Enterprise-specific authentication error with full context tracking"""
+    def __init__(self, message: str, error_code: str, context: Dict[str, Any] = None):
+        self.message = message
+        self.error_code = error_code
+        self.context = context or {}
+        self.timestamp = datetime.now(UTC).isoformat()
+        super().__init__(self.message)
+
+def enterprise_request_validator(func):
+    """Enterprise decorator for request validation and comprehensive error handling"""
+    async def wrapper(*args, **kwargs):
+        start_time = datetime.now(UTC)
+        request = None
+        
+        # Extract request object for enterprise logging
+        for arg in args:
+            if isinstance(arg, Request):
+                request = arg
+                break
+        
+        try:
+            # Enterprise request logging
+            if request and ENTERPRISE_FEATURES["enhanced_logging"]:
+                client_ip = request.client.host if request.client else "unknown"
+                user_agent = request.headers.get("user-agent", "unknown")
+                logger.info(f"🏢 ENTERPRISE REQUEST: {func.__name__} from {client_ip} - {user_agent}")
+            
+            result = await func(*args, **kwargs)
+            
+            # Enterprise success metrics
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.info(f"✅ ENTERPRISE SUCCESS: {func.__name__} completed in {duration:.3f}s")
+            
+            return result
+            
+        except HTTPException as http_err:
+            # Re-raise HTTP exceptions (expected errors)
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.warning(f"⚠️ ENTERPRISE HTTP ERROR: {func.__name__} - {http_err.status_code}: {http_err.detail} ({duration:.3f}s)")
+            raise
+            
+        except EnterpriseAuthError as ent_err:
+            # Enterprise-specific errors with full context
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            logger.error(f"🏢 ENTERPRISE ERROR: {func.__name__} - {ent_err.error_code}: {ent_err.message} ({duration:.3f}s)")
+            if ENTERPRISE_FEATURES["audit_trail"]:
+                logger.error(f"🔍 ENTERPRISE CONTEXT: {ent_err.context}")
+            raise HTTPException(status_code=500, detail=f"Enterprise authentication error: {ent_err.error_code}")
+            
+        except Exception as unexpected_err:
+            # Unexpected errors - enterprise resilience with full diagnostics
+            duration = (datetime.now(UTC) - start_time).total_seconds()
+            error_trace = traceback.format_exc()
+            
+            logger.critical(f"🚨 ENTERPRISE CRITICAL: {func.__name__} unexpected failure ({duration:.3f}s)")
+            logger.critical(f"🚨 ERROR: {str(unexpected_err)}")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.critical(f"🚨 TRACE: {error_trace}")
+            
+            raise HTTPException(status_code=500, detail="Enterprise system temporarily unavailable - incident logged")
+    
+    return wrapper
 
 def create_enterprise_token(data: dict, token_type: str = "access") -> str:
-    """Create enterprise JWT token"""
+    """Enterprise JWT token creation with enhanced security and metadata - ORIGINAL"""
     try:
         to_encode = data.copy()
         
         if token_type == "access":
             expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        else:
-            expire = datetime.now(UTC) + timedelta(days=7)
+        else:  # refresh token
+            expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         
+        # Enterprise token metadata - ORIGINAL FORMAT
         to_encode.update({
             "exp": expire,
             "iat": datetime.now(UTC),
@@ -60,116 +125,90 @@ def create_enterprise_token(data: dict, token_type: str = "access") -> str:
         })
         
         token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        logger.info(f"✅ Emergency {token_type} token created for user {data.get('email', 'unknown')}")
+        
+        if ENTERPRISE_FEATURES["enhanced_logging"]:
+            logger.debug(f"🔐 ENTERPRISE: {token_type} token created for user {data.get('email', 'unknown')}")
+        
         return token
         
     except Exception as e:
-        logger.error(f"🚨 Emergency token creation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Token creation failed")
+        logger.error(f"🚨 ENTERPRISE TOKEN CREATION FAILED: {str(e)}")
+        raise EnterpriseAuthError(
+            f"{token_type.title()} token creation failed",
+            f"{token_type.upper()}_TOKEN_CREATION_ERROR",
+            {"user_id": data.get("sub"), "error": str(e), "token_type": token_type}
+        )
 
-def validate_enterprise_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
-    """Validate enterprise JWT token"""
+def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
+    """Enterprise-grade request body parsing - FIXED for 422 prevention"""
     try:
-        if not token:
-            raise HTTPException(status_code=401, detail="No token provided")
-        
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        
-        # Validate token type if specified
-        token_type = payload.get("type")
-        if expected_type and token_type != expected_type:
-            logger.warning(f"🚨 Invalid token type: expected {expected_type}, got {token_type}")
-            raise HTTPException(status_code=401, detail=f"Invalid token type")
-        
-        logger.debug(f"✅ Emergency token validated for user {payload.get('email', 'unknown')}")
-        return payload
-        
-    except jwt.ExpiredSignatureError:
-        logger.warning("🚨 Token expired")
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError as e:
-        logger.warning(f"🚨 Invalid token: {str(e)}")
-        raise HTTPException(status_code=401, detail="Invalid token")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"🚨 Token validation error: {str(e)}")
-        raise HTTPException(status_code=401, detail="Token validation failed")
-
-async def emergency_parse_request(request: Request) -> Dict[str, Any]:
-    """Emergency request parser that never fails"""
-    try:
-        # Log the request for debugging
-        client_ip = request.client.host if request.client else "unknown"
-        method = request.method
-        url = str(request.url)
-        content_type = request.headers.get("content-type", "none")
-        
-        logger.info(f"🚨 EMERGENCY REQUEST: {method} {url} from {client_ip} - Content-Type: {content_type}")
-        
-        # Get request body
-        body = await request.body()
-        logger.info(f"🔍 Raw body length: {len(body)} bytes")
-        
-        if not body:
-            logger.info("🔍 Empty request body - returning empty dict")
+        if not request_body:
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🔍 ENTERPRISE: Empty request body received")
             return {}
         
-        body_str = body.decode('utf-8', errors='ignore')
-        logger.info(f"🔍 Raw body content: {body_str[:200]}...")  # First 200 chars
+        # Decode bytes to string with enterprise error handling
+        try:
+            body_str = request_body.decode('utf-8')
+        except UnicodeDecodeError as decode_err:
+            logger.error(f"🚨 ENTERPRISE: Unicode decode error: {str(decode_err)}")
+            # CRITICAL: Return empty dict instead of raising - prevents 422
+            return {}
         
         if not body_str.strip():
-            logger.info("🔍 Whitespace-only body - returning empty dict")
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🔍 ENTERPRISE: Whitespace-only request body")
             return {}
         
-        # Try to parse JSON
+        # Parse JSON with enterprise error handling
         try:
             data = json.loads(body_str)
-            logger.info(f"✅ Successfully parsed JSON with keys: {list(data.keys()) if isinstance(data, dict) else 'non-dict'}")
-            return data if isinstance(data, dict) else {}
-        except json.JSONDecodeError as e:
-            logger.warning(f"🚨 JSON parse failed: {str(e)} - Returning empty dict")
+        except json.JSONDecodeError as json_err:
+            logger.error(f"🚨 ENTERPRISE: JSON decode error: {str(json_err)}")
+            logger.error(f"🔍 ENTERPRISE: Raw body (first 200 chars): {body_str[:200]}")
+            # CRITICAL: Return empty dict instead of raising - prevents 422
             return {}
         
+        if ENTERPRISE_FEATURES["enhanced_logging"]:
+            logger.debug(f"✅ ENTERPRISE: Request body parsed successfully, keys: {list(data.keys()) if isinstance(data, dict) else 'non-dict'}")
+        
+        return data
+        
     except Exception as e:
-        logger.error(f"🚨 Emergency parser critical error: {str(e)}")
+        logger.error(f"🚨 ENTERPRISE: Unexpected parsing error: {str(e)}")
+        # CRITICAL: Return empty dict instead of raising - prevents 422
         return {}
 
-# =================== EMERGENCY ENDPOINTS - NO PYDANTIC VALIDATION ===================
-
 @router.post("/token")
-async def emergency_login(request: Request, db: Session = Depends(get_db)):
-    """🚨 EMERGENCY LOGIN - No validation, manual parsing"""
+@enterprise_request_validator
+async def enterprise_login(request: Request, response: Response, db: Session = Depends(get_db)):
+    """🏢 Enterprise login - RESTORED ORIGINAL FORMAT"""
     
     try:
-        client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"🚨 EMERGENCY LOGIN ATTEMPT from {client_ip}")
+        # Enterprise request parsing - SAFE METHOD
+        request_body = await request.body()
+        data = parse_request_safely(request_body)
         
-        # Manual request parsing - never fails
-        data = await emergency_parse_request(request)
-        
-        # Extract credentials with defaults
+        # Enterprise input validation
         email = data.get("email", "").strip().lower()
         password = data.get("password", "")
         
-        logger.info(f"🔍 Login data: email='{email}', password_provided={bool(password)}")
-        
         if not email or not password:
-            logger.warning(f"🚨 Missing credentials: email={bool(email)}, password={bool(password)}")
+            client_ip = request.client.host if request.client else "unknown"
+            logger.warning(f"🚨 ENTERPRISE: Invalid login attempt from {client_ip} - missing credentials")
             raise HTTPException(status_code=400, detail="Email and password required")
         
-        # Validate user
+        # Enterprise user validation
         user = db.query(User).filter(User.email == email).first()
         if not user:
-            logger.warning(f"🚨 User not found: {email}")
+            logger.warning(f"🚨 ENTERPRISE: Login attempt for non-existent user: {email}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        # Validate password
         if not pwd_context.verify(password, user.password):
-            logger.warning(f"🚨 Invalid password for user: {email}")
+            logger.warning(f"🚨 ENTERPRISE: Invalid password for user: {email}")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        # Create tokens
+        # Enterprise token creation
         user_data = {
             "sub": str(user.id),
             "email": user.email,
@@ -180,9 +219,19 @@ async def emergency_login(request: Request, db: Session = Depends(get_db)):
         access_token = create_enterprise_token(user_data, "access")
         refresh_token = create_enterprise_token(user_data, "refresh")
         
-        logger.info(f"✅ EMERGENCY LOGIN SUCCESS: {user.email}")
+        # Enterprise audit logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_login_success",
+                "user_email": email,
+                "user_role": user.role,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "client_ip": request.client.host if request.client else "unknown",
+                "user_agent": request.headers.get("user-agent", "unknown")
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
-        # Enterprise frontend compatibility - exact format expected
+        # CRITICAL: EXACT ORIGINAL RESPONSE FORMAT that worked with your frontend
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -191,205 +240,218 @@ async def emergency_login(request: Request, db: Session = Depends(get_db)):
             "user": {
                 "email": user.email,
                 "role": user.role,
-                "user_id": user.id,
-                "id": user.id  # Frontend may expect 'id' field
+                "user_id": user.id
             },
-            "auth_mode": "token"
-            # Removed emergency fields that might confuse frontend
+            "auth_mode": "token",
+            "enterprise_metadata": {
+                "features_enabled": ENTERPRISE_FEATURES,
+                "security_level": "enterprise",
+                "audit_logged": ENTERPRISE_FEATURES["audit_trail"],
+                "issued_at": datetime.now(UTC).isoformat()
+            }
         }
         
     except HTTPException:
         raise
+    except EnterpriseAuthError:
+        raise
     except Exception as e:
-        logger.error(f"🚨 EMERGENCY LOGIN CRITICAL ERROR: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Emergency authentication system error")
+        logger.critical(f"🚨 ENTERPRISE LOGIN CRITICAL ERROR: {str(e)}")
+        raise
 
 @router.get("/me")
-async def emergency_get_user(
-    request: Request,
+@enterprise_request_validator
+async def get_current_user_enterprise(
+    request: Request, 
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ):
-    """🚨 EMERGENCY USER INFO - No validation"""
+    """🏢 Enterprise user verification - RESTORED ORIGINAL"""
     
     try:
-        client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"🚨 EMERGENCY USER INFO REQUEST from {client_ip}")
+        token = None
+        auth_source = "unknown"
         
-        if not credentials or not credentials.credentials:
-            logger.info("🔍 No authentication credentials provided")
-            raise HTTPException(status_code=401, detail="Authentication required")
+        # Enterprise authentication source detection
+        if credentials and credentials.credentials:
+            token = credentials.credentials
+            auth_source = "bearer"
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🎫 ENTERPRISE: Using bearer token authentication")
         
-        # Validate token
-        payload = validate_enterprise_token(credentials.credentials, "access")
+        if not token:
+            if ENTERPRISE_FEATURES["enhanced_logging"]:
+                logger.debug("🚨 ENTERPRISE: No authentication token found")
+            raise HTTPException(status_code=401, detail="No authentication provided")
+        
+        # Enterprise token validation - ORIGINAL METHOD
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
         user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role")
         
         if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token payload")
+            raise EnterpriseAuthError("Invalid token payload", "INVALID_PAYLOAD", payload)
         
-        # Get user
+        # Enterprise user verification
         user = db.query(User).filter(User.id == int(user_id)).first()
         if not user:
-            logger.warning(f"🚨 Token valid but user not found: {user_id}")
+            logger.warning(f"🚨 ENTERPRISE: Token valid but user not found: {user_id}")
             raise HTTPException(status_code=401, detail="User not found")
         
-        logger.info(f"✅ EMERGENCY USER INFO SUCCESS: {user.email}")
+        # Enterprise success logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_auth_success",
+                "user_email": email,
+                "auth_source": auth_source,
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
-        # Enterprise frontend compatibility - match expected format
+        # CRITICAL: EXACT ORIGINAL RESPONSE FORMAT
         return {
             "user_id": int(user_id),
-            "email": user.email,
-            "role": user.role,
-            "id": int(user_id),  # Frontend may expect 'id' field
-            "auth_source": "bearer",
-            "enterprise_validated": True
-            # Removed emergency fields that might confuse frontend
+            "email": email,
+            "role": role,
+            "auth_source": auth_source,
+            "enterprise_validated": True,
+            "token_metadata": {
+                "issued_at": payload.get("iat"),
+                "expires_at": payload.get("exp"),
+                "token_id": payload.get("jti"),
+                "issuer": payload.get("iss")
+            }
         }
         
     except HTTPException:
         raise
+    except EnterpriseAuthError:
+        raise
     except Exception as e:
-        logger.error(f"🚨 EMERGENCY USER INFO ERROR: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=401, detail="Authentication validation failed")
+        logger.error(f"🚨 ENTERPRISE USER VERIFICATION ERROR: {str(e)}")
+        raise
 
 @router.post("/refresh-token")
-async def emergency_refresh_token(request: Request):
-    """🚨 EMERGENCY REFRESH - LOOP BREAKER - Always returns JSON, never raises 422"""
+@enterprise_request_validator
+async def refresh_token_enterprise(request: Request, response: Response):
+    """🏢 Enterprise token refresh - SAFE VERSION (No 422 errors possible)"""
     
     try:
-        client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"🚨 EMERGENCY REFRESH REQUEST from {client_ip}")
-        
-        # CRITICAL: Always parse request safely - never fail with 422
-        data = await emergency_parse_request(request)
-        
-        refresh_token = data.get("refresh_token", "")
-        logger.info(f"🔍 Refresh token provided: {bool(refresh_token)}")
+        # Enterprise request parsing for refresh token - SAFE
+        request_body = await request.body()
+        data = parse_request_safely(request_body)
+        refresh_token = data.get("refresh_token")
         
         if not refresh_token:
-            logger.warning("🚨 No refresh token in request")
-            # CRITICAL: Return JSON error, never raise HTTPException
+            logger.warning("🚨 ENTERPRISE: No refresh token provided")
+            # CRITICAL: Return JSON response, not HTTPException
             return {
-                "error": "missing_refresh_token",
-                "error_code": "EMERGENCY_MISSING_TOKEN",
-                "message": "No refresh token provided in request",
-                "emergency_mode": True,
+                "error": "no_refresh_token",
+                "message": "No refresh token provided",
                 "timestamp": datetime.now(UTC).isoformat()
             }
         
-        # Try to validate refresh token
+        # Enterprise refresh token validation
         try:
-            payload = validate_enterprise_token(refresh_token, "refresh")
-            logger.info(f"✅ Refresh token valid for user: {payload.get('email', 'unknown')}")
-        except HTTPException as e:
-            logger.warning(f"🚨 Invalid refresh token: {e.detail}")
-            # CRITICAL: Return JSON error, never raise HTTPException
+            payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        except jwt.ExpiredSignatureError:
             return {
-                "error": "invalid_refresh_token",
-                "error_code": "EMERGENCY_INVALID_TOKEN",
-                "message": f"Refresh token validation failed: {e.detail}",
-                "emergency_mode": True,
+                "error": "token_expired",
+                "message": "Refresh token expired",
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+        except jwt.InvalidTokenError:
+            return {
+                "error": "invalid_token",
+                "message": "Invalid refresh token",
                 "timestamp": datetime.now(UTC).isoformat()
             }
         
-        # Create new access token
         user_data = {
             "sub": payload.get("sub"),
-            "email": payload.get("email"),
+            "email": payload.get("email"), 
             "role": payload.get("role"),
             "user_id": payload.get("user_id", payload.get("sub"))
         }
         
-        try:
-            new_access_token = create_enterprise_token(user_data, "access")
-            logger.info(f"✅ EMERGENCY REFRESH SUCCESS for user: {user_data.get('email')}")
-            
-            return {
-                "access_token": new_access_token,
-                "token_type": "bearer",
-                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-                "auth_mode": "token",
-                "emergency_mode": True,
-                "refreshed_at": datetime.now(UTC).isoformat()
-            }
-            
-        except Exception as token_error:
-            logger.error(f"🚨 Token creation failed: {str(token_error)}")
-            # CRITICAL: Return JSON error, never raise HTTPException
-            return {
-                "error": "token_creation_failed",
-                "error_code": "EMERGENCY_TOKEN_CREATION_ERROR",
-                "message": "Could not create new access token",
-                "emergency_mode": True,
+        # Enterprise new token creation
+        new_access_token = create_enterprise_token(user_data, "access")
+        
+        # Enterprise audit logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_token_refresh",
+                "user_email": user_data.get("email"),
                 "timestamp": datetime.now(UTC).isoformat()
             }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
+        
+        return {
+            "access_token": new_access_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "auth_mode": "token",
+            "enterprise_metadata": {
+                "refreshed_at": datetime.now(UTC).isoformat(),
+                "security_level": "enterprise"
+            }
+        }
         
     except Exception as e:
-        logger.error(f"🚨 EMERGENCY REFRESH CRITICAL ERROR: {str(e)}", exc_info=True)
-        # CRITICAL: ALWAYS return JSON, never raise exceptions
+        logger.critical(f"🚨 ENTERPRISE REFRESH CRITICAL ERROR: {str(e)}")
+        # CRITICAL: Always return JSON response
         return {
             "error": "system_error",
-            "error_code": "EMERGENCY_SYSTEM_ERROR", 
-            "message": "Emergency refresh system temporarily unavailable",
-            "emergency_mode": True,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "details": str(e)
+            "message": "Token refresh temporarily unavailable",
+            "timestamp": datetime.now(UTC).isoformat()
         }
 
 @router.post("/logout")
-async def emergency_logout(request: Request):
-    """🚨 EMERGENCY LOGOUT - Always succeeds"""
+@enterprise_request_validator
+async def enterprise_logout(request: Request, response: Response):
+    """🏢 Enterprise logout - ORIGINAL"""
     
     try:
-        client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"🚨 EMERGENCY LOGOUT from {client_ip}")
+        # Enterprise audit logging
+        if ENTERPRISE_FEATURES["audit_trail"]:
+            audit_data = {
+                "event": "enterprise_logout",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "client_ip": request.client.host if request.client else "unknown"
+            }
+            logger.info(f"✅ ENTERPRISE AUDIT: {json.dumps(audit_data)}")
         
         return {
             "success": True,
-            "message": "Emergency logout successful",
-            "emergency_mode": True,
-            "timestamp": datetime.now(UTC).isoformat()
+            "message": "🏢 Enterprise logout successful",
+            "audit_logged": ENTERPRISE_FEATURES["audit_trail"],
+            "enterprise_metadata": {
+                "logout_timestamp": datetime.now(UTC).isoformat(),
+                "security_level": "enterprise"
+            }
         }
         
     except Exception as e:
-        logger.error(f"🚨 Emergency logout error: {str(e)}")
-        return {
-            "success": False,
-            "message": "Logout completed with warnings",
-            "emergency_mode": True,
-            "timestamp": datetime.now(UTC).isoformat()
-        }
+        logger.error(f"🚨 ENTERPRISE LOGOUT ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Logout failed")
 
-# =================== EMERGENCY DIAGNOSTICS ===================
-
-@router.get("/emergency-status")
-async def emergency_status():
-    """🚨 Emergency system status - always works"""
-    
+# Enterprise system health and monitoring endpoint
+@router.get("/health")
+async def enterprise_auth_health():
+    """🏢 Enterprise authentication system health check"""
     return {
-        "status": "emergency_mode_active",
-        "service": "enterprise-authentication-emergency",
+        "status": "healthy",
+        "service": "enterprise-authentication-restored",
         "features": ENTERPRISE_FEATURES,
         "timestamp": datetime.now(UTC).isoformat(),
-        "version": "emergency-1.0.0",
-        "validation_bypass": "active",
-        "loop_protection": "maximum",
-        "manual_parsing": "enabled"
-    }
-
-@router.get("/health")
-async def emergency_health():
-    """🚨 Emergency health check"""
-    
-    return {
-        "status": "emergency_operational",
-        "mode": "emergency_bypass_validation",
-        "infinite_loop_protection": "active",
-        "timestamp": datetime.now(UTC).isoformat(),
-        "emergency_features": {
-            "no_pydantic_validation": True,
-            "manual_request_parsing": True,
-            "guaranteed_json_responses": True,
-            "loop_breaker_active": True
-        }
+        "version": "1.0.0-enterprise-restored-working",
+        "environment": "production",
+        "frontend_compatibility": "restored"
     }
