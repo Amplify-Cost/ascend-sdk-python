@@ -37,16 +37,13 @@ export async function fetchWithAuth(url, options = {}) {
       ...options
     };
 
-    // 🔧 ENTERPRISE FIX: Hybrid authentication support
-    // Send BOTH cookies AND token for maximum compatibility during transition
-    if (ENTERPRISE_CONFIG.cookieMode) {
-      const token = localStorage.getItem("access_token");
-      if (token) {
-        console.log('🔄 Hybrid mode: Sending both cookies and token for compatibility');
-        enterpriseOptions.headers.Authorization = `Bearer ${token}`;
-      } else {
-        console.log('🍪 Pure cookie mode: No token available, relying on cookies');
-      }
+    // 🔧 MASTER PROMPT FIX: ALWAYS send token when available (no conditions)
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      console.log('🔄 Enterprise auth: Sending Authorization header');
+      enterpriseOptions.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.log('⚠️ No token available - API call may fail without proper authentication');
     }
 
     console.log(`🔍 Request headers:`, enterpriseOptions.headers);
@@ -65,10 +62,11 @@ export async function fetchWithAuth(url, options = {}) {
       if (refreshSuccess) {
         console.log('✅ Enterprise token refresh successful, retrying request');
         
-        // 🔧 ENTERPRISE FIX: Retry with updated token
+        // Retry with updated token
         const retryToken = localStorage.getItem("access_token");
-        if (retryToken && ENTERPRISE_CONFIG.cookieMode) {
+        if (retryToken) {
           enterpriseOptions.headers.Authorization = `Bearer ${retryToken}`;
+          console.log('🔄 Retrying with refreshed token');
         }
         
         // Retry the original request
