@@ -23,6 +23,8 @@ from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
 from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics_routes import router as analytics_router
+from routes.smart_alerts import router as smart_alerts_router
+
 
 
 
@@ -167,6 +169,8 @@ app.include_router(authorization_router)
 app.include_router(authorization_api_router)
 app.include_router(secrets_router)
 app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+
 
 
 

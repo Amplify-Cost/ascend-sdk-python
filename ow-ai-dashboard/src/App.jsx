@@ -22,10 +22,12 @@ import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
 import { fetchWithAuth, logout, getCurrentUser } from "./utils/fetchWithAuth";
 import { useTheme } from "./contexts/ThemeContext";
 import RealTimeAnalyticsDashboard from './components/RealTimeAnalyticsDashboard';
+import SmartAlertManagement from './components/SmartAlertManagement';
+
 
 
 // Consistent API URL handling
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-pduction.up.railway.app";
 
 // Enhanced Loading Screen with Enterprise Branding
 const LoadingScreen = () => {
@@ -556,6 +558,7 @@ const AppContent = () => {
         return contentWithTransition(<SecurityInsights getAuthHeaders={getAuthHeaders} />);
       case "realtime-analytics":
   return contentWithTransition(<RealTimeAnalyticsDashboard getAuthHeaders={getAuthHeaders} user={user} />);
+
   
       case "activity":
         return contentWithTransition(<AgentActivityFeed getAuthHeaders={getAuthHeaders} />);
@@ -613,6 +616,8 @@ const AppContent = () => {
         return user?.role === "admin" ? 
           contentWithTransition(<EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} />) : 
           adminRequiredMessage;
+      case 'alerts':
+  return <SmartAlertManagement getAuthHeaders={getAuthHeaders} user={user} />;    
       case "profile":
         return contentWithTransition(<Profile user={user} onUpdateProfile={handleProfileUpdate} />);
       default:
