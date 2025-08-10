@@ -38,7 +38,13 @@ def get_current_user(
         
         # Decode JWT token
         try:
-            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            # ✅ SURGICAL FIX: Disable audience validation to match enterprise auth
+            payload = jwt.decode(
+                token, 
+                SECRET_KEY, 
+                algorithms=[ALGORITHM],
+                options={"verify_aud": False}  # ✅ ADDED: Disable audience validation
+            )
         except JWTError as e:
             logger.error(f"JWT decode error ({auth_method}): {str(e)}")
             raise HTTPException(
