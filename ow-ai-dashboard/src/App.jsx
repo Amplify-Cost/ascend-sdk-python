@@ -486,33 +486,24 @@ const AppContent = () => {
     }
   };
 
-  // 🍪 ENTERPRISE FIX: Smart auth headers function with proper component scope
+  // 🔧 MASTER PROMPT FIX: ALWAYS send token when available (no conditions)
   const getAuthHeaders = () => {
     console.log("🔍 Getting auth headers for API call");
     console.log("🔍 Current auth mode:", authMode);
     
-    if (authMode === "cookie") {
-      // Cookie mode: Return minimal headers, cookies handle authentication automatically
-      console.log("🍪 Using cookie authentication - no headers needed");
-      return {
-        "Content-Type": "application/json",
-        // Don't add Authorization header - cookies handle this
-      };
-    }
-    
-    // Legacy token mode: Return Authorization header
+    // ENTERPRISE FIX: ALWAYS send token when available (regardless of auth mode)
     const token = localStorage.getItem("access_token");
-    console.log("🎫 Using token authentication, token present:", !!token);
+    console.log("🔍 Access token present:", !!token);
     
     if (token) {
+      console.log("🔄 Enterprise auth: Sending Authorization header");
       return {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`
       };
     }
     
-    // Fallback: No authentication available
-    console.warn("⚠️ No authentication available");
+    console.log("⚠️ No token available for auth headers");
     return {
       "Content-Type": "application/json"
     };
