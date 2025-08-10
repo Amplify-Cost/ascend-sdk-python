@@ -146,44 +146,32 @@ def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
         return {}
 
 # 🔧 ENTERPRISE FIX: Enhanced debugging for cookie detection
+
 def get_authentication_source(request: Request, credentials: HTTPAuthorizationCredentials) -> tuple[str, str, str]:
-    """Get auth source - ENTERPRISE FIX: Enhanced header and cookie debugging"""
+    """Get auth source - MINIMAL ENTERPRISE FIX"""
     
-    # Debug: Log ALL cookies present in the request
-    logger.info(f"🔍 ENTERPRISE DEBUG: All cookies in request: {list(request.cookies.keys())}")
-    for cookie_name, cookie_value in request.cookies.items():
-        logger.info(f"🔍 ENTERPRISE DEBUG: Cookie '{cookie_name}' = {cookie_value[:50]}..." if len(cookie_value) > 50 else f"🔍 ENTERPRISE DEBUG: Cookie '{cookie_name}' = {cookie_value}")
-    
-    # Debug: Log ALL headers present in the request
-    logger.info(f"🔍 ENTERPRISE DEBUG: All headers in request:")
-    for header_name, header_value in request.headers.items():
-        if header_name.lower() == "authorization":
-            logger.info(f"🔍 ENTERPRISE DEBUG: Header '{header_name}' = {header_value[:50]}..." if len(header_value) > 50 else f"🔍 ENTERPRISE DEBUG: Header '{header_name}' = {header_value}")
-        else:
-            logger.info(f"🔍 ENTERPRISE DEBUG: Header '{header_name}' = {header_value}")
-    
-    # 🔧 ENTERPRISE FIX: Check Authorization header FIRST (most reliable)
+    # 🔧 ENTERPRISE FIX: Check Authorization header first (primary method)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
-        logger.info(f"🎫 ENTERPRISE: Found Authorization header, token length = {len(token)}")
+        logger.info(f"🎫 ENTERPRISE: Authorization header found, length = {len(token)}")
         return token, "bearer", "enterprise"
     
-    # Check for access token cookie (secondary)
+    # Check cookies (secondary method)
     access_cookie = request.cookies.get("access_token")
     if not access_cookie:
-        access_cookie = request.cookies.get("ow_access_token")  # Fallback name
+        access_cookie = request.cookies.get("ow_access_token")
     
     if access_cookie:
-        logger.info(f"🍪 ENTERPRISE: Found access cookie, length = {len(access_cookie)}")
+        logger.info(f"🍪 ENTERPRISE: Cookie found, length = {len(access_cookie)}")
         return access_cookie, "cookie", "enterprise"
     
-    # 🔧 ENTERPRISE FIX: Also check HTTPBearer credentials (FastAPI automatic parsing)
+    # FastAPI HTTPBearer fallback
     if credentials and credentials.credentials:
-        logger.info(f"🎫 ENTERPRISE: Found FastAPI credentials, length = {len(credentials.credentials)}")
+        logger.info(f"🎫 ENTERPRISE: FastAPI credentials found, length = {len(credentials.credentials)}")
         return credentials.credentials, "bearer", "fastapi"
     
-    logger.warning("🚨 ENTERPRISE: No authentication found - no cookies or bearer token")
+    logger.warning("🚨 ENTERPRISE: No authentication found")
     return None, "none", "none"
 
 def set_enterprise_cookies(response: Response, access_token: str, refresh_token: str):
