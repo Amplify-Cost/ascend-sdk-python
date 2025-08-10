@@ -1,16 +1,21 @@
+# routes/analytics.py - Enterprise Authentication Added
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
-from models import AgentAction
+from models import AgentAction, User  # Added User model
 from datetime import datetime, timedelta
 from collections import defaultdict, Counter
+from dependencies import get_current_user_enterprise  # ✅ ADDED: Import enterprise auth
 
 router = APIRouter()
 
 @router.get("/trends")
-def get_trend_data(db: Session = Depends(get_db)):
-    """Temporary working analytics endpoint"""
+def get_trend_data(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_enterprise)  # ✅ ADDED: Enterprise auth
+):
+    """Analytics endpoint with enterprise authentication"""
     try:
         return {
             "high_risk_actions_by_day": [
@@ -45,7 +50,11 @@ def get_trend_data(db: Session = Depends(get_db)):
         }
 
 @router.get("/debug")
-def debug_enriched_actions(db: Session = Depends(get_db)):
+def debug_enriched_actions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_enterprise)  # ✅ ADDED: Enterprise auth
+):
+    """Debug endpoint with enterprise authentication"""
     actions = (
         db.query(AgentAction)
         .order_by(AgentAction.timestamp.desc())
