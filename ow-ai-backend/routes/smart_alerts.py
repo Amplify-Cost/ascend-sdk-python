@@ -1,4 +1,4 @@
-# routes/smart_alerts.py - Master Prompt Aligned Smart Alert Management (Fixed)
+# routes/smart_alerts.py - Master Prompt Aligned Smart Alert Management
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc
@@ -10,7 +10,7 @@ import json
 import asyncio
 import logging
 from typing import Dict, Any, List
-import random
+import psutil
 import os
 
 router = APIRouter()
@@ -180,17 +180,6 @@ class AlertEngine:
             if ws in alert_subscribers:
                 alert_subscribers.remove(ws)
 
-def get_system_metrics():
-    """Get system metrics without psutil dependency"""
-    return {
-        "system": {
-            "cpu_percent": random.uniform(10, 90),  # Mock CPU usage
-            "memory_percent": random.uniform(20, 80),  # Mock memory usage
-            "disk_percent": random.uniform(30, 70)  # Mock disk usage
-        },
-        "timestamp": datetime.now(UTC).isoformat()
-    }
-
 @router.get("/alerts/active")
 async def get_active_alerts(
     current_user: dict = Depends(get_current_user_enterprise),
@@ -319,11 +308,11 @@ async def get_alert_history(
         raise HTTPException(status_code=500, detail="Failed to fetch alert history")
 
 @router.websocket("/alerts/stream")
-async def alert_stream(websocket: WebSocket):
+async def alert_stream(websocket: WebSocket, current_user: dict = Depends(get_current_user_enterprise)):
     """WebSocket endpoint for real-time alert streaming"""
     await websocket.accept()
     alert_subscribers.append(websocket)
-    logger.info("🔌 Alert stream connected")
+    logger.info(f"🔌 Alert stream connected: {current_user.get('email')}")
     
     try:
         # Send current active alerts on connection
@@ -340,7 +329,7 @@ async def alert_stream(websocket: WebSocket):
             await asyncio.sleep(1)
             
     except WebSocketDisconnect:
-        logger.info("🔌 Alert stream disconnected")
+        logger.info(f"🔌 Alert stream disconnected: {current_user.get('email')}")
         if websocket in alert_subscribers:
             alert_subscribers.remove(websocket)
     except Exception as e:
@@ -355,10 +344,18 @@ async def start_alert_monitoring():
     
     while True:
         try:
-            # Get mock system metrics (replace with real metrics from your analytics)
-            metrics_data = get_system_metrics()
+            # This would integrate with your analytics routes to get real-time metrics
+            # For now, simulate with system metrics
+            metrics_data = {
+                "system": {
+                    "cpu_percent": psutil.cpu_percent(),
+                    "memory_percent": psutil.virtual_memory().percent,
+                    "disk_percent": psutil.disk_usage('/').percent
+                },
+                "timestamp": datetime.now(UTC).isoformat()
+            }
             
-            # Evaluate rules against metrics (you'd pass the db session here in production)
+            # Evaluate rules against metrics (you'd pass the db session here)
             # await AlertEngine.evaluate_rules(metrics_data, db)
             
             await asyncio.sleep(30)  # Check every 30 seconds
