@@ -302,11 +302,22 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         logger.info("🔍 DIAGNOSTIC: Testing Format 4 (With Metadata):")
         log_response_diagnostics(format_4, "FORMAT_4")
         
-        # Return FORMAT 3 (most likely to work)
-        response_data = format_3
+        # CRITICAL: Return EXACT format that frontend expects to prevent TypeError
+        response_data = {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            "user": {
+                "email": user.email,
+                "role": user.role,
+                "user_id": user.id
+            },
+            "auth_mode": "token"  # Frontend expects "token" not "cookie"
+        }
         
-        logger.info(f"✅ DIAGNOSTIC: Sending Format 3 to frontend")
-        logger.info(f"🍪 DIAGNOSTIC: Cookies also set for enterprise security")
+        logger.info("✅ DIAGNOSTIC: Login response prepared - EXACT frontend format")
+        log_response_diagnostics(response_data, "LOGIN_RESPONSE")
         
         return response_data
         
