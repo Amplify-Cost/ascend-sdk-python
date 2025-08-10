@@ -146,31 +146,49 @@ def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
         return {}
 
 def get_authentication_source(request: Request, credentials: HTTPAuthorizationCredentials) -> tuple[str, str, str]:
-    """Get auth source"""
-    access_cookie = request.cookies.get("ow_access_token")
+    """Get auth source - ENTERPRISE FIX: Correct cookie names"""
+    
+    # 🔧 ENTERPRISE FIX: Check BOTH possible cookie names for compatibility
+    access_cookie = request.cookies.get("access_token")  # Frontend sets this name
+    if not access_cookie:
+        access_cookie = request.cookies.get("ow_access_token")  # Fallback name
+    
     if access_cookie:
+        logger.info(f"🍪 ENTERPRISE: Found access cookie, length = {len(access_cookie)}")
         return access_cookie, "cookie", "enterprise"
     
     if credentials and credentials.credentials:
+        logger.info(f"🎫 ENTERPRISE: Found bearer token, length = {len(credentials.credentials)}")
         return credentials.credentials, "bearer", "legacy"
     
+    logger.warning("🚨 ENTERPRISE: No authentication found - no cookies or bearer token")
     return None, "none", "none"
 
 def set_enterprise_cookies(response: Response, access_token: str, refresh_token: str):
-    """Set enterprise cookies"""
+    """Set enterprise cookies - ENTERPRISE FIX: Correct cookie names"""
+    
+    # 🔧 ENTERPRISE FIX: Set cookies with the name the frontend expects
     response.set_cookie(
-        key="ow_access_token",
+        key="access_token",  # Frontend expects this name
         value=access_token,
-        **ENTERPRISE_COOKIE_CONFIG
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/"
     )
     
     response.set_cookie(
-        key="ow_refresh_token",
+        key="refresh_token",  # Frontend expects this name
         value=refresh_token,
-        **ENTERPRISE_REFRESH_COOKIE_CONFIG
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        path="/auth"
     )
     
-    logger.info("🍪 Enterprise cookies set")
+    logger.info("🍪 Enterprise cookies set with correct names")
 
 def log_response_diagnostics(response_data: dict, endpoint: str):
     """Log detailed response diagnostics"""
@@ -227,7 +245,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         access_token = create_enterprise_token(user_data, "access")
         refresh_token = create_enterprise_token(user_data, "refresh")
         
-        # Set cookies
+        # Set cookies with correct names
         set_enterprise_cookies(response, access_token, refresh_token)
         
         # TRY MULTIPLE RESPONSE FORMATS - Let's test which one works
@@ -417,14 +435,16 @@ async def get_current_user_diagnostic(
 
 @router.post("/refresh-token")
 async def refresh_token_diagnostic(request: Request, response: Response):
-    """🔍 Enterprise Token Refresh with Diagnostics"""
+    """🔍 Enterprise Token Refresh with Diagnostics - ENTERPRISE FIX: Correct cookie names"""
     
     try:
         client_ip = request.client.host if request.client else "unknown"
         logger.info(f"🔍 DIAGNOSTIC REFRESH from {client_ip}")
         
-        # Check for refresh token
-        refresh_token = request.cookies.get("ow_refresh_token")
+        # 🔧 ENTERPRISE FIX: Check for refresh token with correct name
+        refresh_token = request.cookies.get("refresh_token")  # Frontend cookie name
+        if not refresh_token:
+            refresh_token = request.cookies.get("ow_refresh_token")  # Fallback name
         auth_source = "cookie"
         
         if not refresh_token:
@@ -488,6 +508,52 @@ async def refresh_token_diagnostic(request: Request, response: Response):
             "timestamp": datetime.now(UTC).isoformat()
         }
 
+@router.post("/logout")
+async def enterprise_logout(request: Request, response: Response):
+    """🚪 Enterprise logout with secure cookie clearing"""
+    
+    try:
+        client_ip = request.client.host if request.client else "unknown"
+        logger.info(f"🚪 ENTERPRISE LOGOUT from {client_ip}")
+        
+        # Clear cookies by setting them to empty with immediate expiration
+        response.set_cookie(
+            key="access_token",
+            value="",
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=0,
+            path="/"
+        )
+        
+        response.set_cookie(
+            key="refresh_token",
+            value="",
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=0,
+            path="/auth"
+        )
+        
+        logger.info("✅ ENTERPRISE: Cookies cleared successfully")
+        
+        return {
+            "message": "Logged out successfully",
+            "enterprise_security": "Cookies cleared",
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"🚨 Logout error: {str(e)}")
+        # Return success even if there's an error - don't block logout
+        return {
+            "message": "Logout completed",
+            "note": "Session cleared locally",
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+
 @router.get("/diagnostic")
 async def response_format_diagnostic():
     """🔍 Response format diagnostic endpoint"""
@@ -502,6 +568,7 @@ async def response_format_diagnostic():
             "Format 4: With Metadata (adds enterprise_metadata)"
         ],
         "diagnostic_active": True,
+        "cookie_fix_applied": True,
         "timestamp": datetime.now(UTC).isoformat()
     }
 
@@ -514,6 +581,7 @@ async def enterprise_auth_health():
         "service": "enterprise-authentication-diagnostic",
         "diagnostic_logging": "active",
         "cookie_support": "enabled",
+        "cookie_names_fixed": True,
         "response_format_testing": "active",
         "timestamp": datetime.now(UTC).isoformat()
     }
