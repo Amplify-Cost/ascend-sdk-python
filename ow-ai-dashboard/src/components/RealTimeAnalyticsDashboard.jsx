@@ -37,7 +37,8 @@ const RealTimeAnalyticsDashboard = () => {
     return response.json();
   };
 
-  // Initialize WebSocket connection for real-time updates
+  // 🔧 TEMPORARY: WebSocket function commented out to fix 403 errors
+  /*
   const initializeWebSocket = () => {
     const userEmail = localStorage.getItem('user_email') || 'admin@example.com';
     const wsUrl = `${(import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
@@ -93,6 +94,7 @@ const RealTimeAnalyticsDashboard = () => {
       setIsConnected(false);
     }
   };
+  */
 
   // Fetch initial data
   const fetchAnalyticsData = async () => {
@@ -139,16 +141,18 @@ const RealTimeAnalyticsDashboard = () => {
   // Initialize component
   useEffect(() => {
     fetchAnalyticsData();
-    initializeWebSocket();
+    // 🔧 TEMPORARY: WebSocket commented out to fix 403 errors
+    // initializeWebSocket();
 
     // Refresh data every 30 seconds
     const interval = setInterval(fetchAnalyticsData, 30000);
 
     return () => {
       clearInterval(interval);
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      // 🔧 TEMPORARY: WebSocket cleanup commented out
+      // if (wsRef.current) {
+      //   wsRef.current.close();
+      // }
     };
   }, []);
 
