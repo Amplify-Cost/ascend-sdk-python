@@ -475,33 +475,36 @@ const handleLoginSuccess = async (loginResponse) => {
   };
 
   // 🍪 ENHANCED: Smart auth headers function (supports both modes)
-  const getAuthHeaders = () => {
-    if (authMode === "cookie") {
-      // Cookie mode: No headers needed, cookies handle authentication
-      return {};
-    }
-    // Legacy token mode: Return Authorization header
-    const token = localStorage.getItem("access_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
+const getAuthHeaders = () => {
+  console.log("🔍 Getting auth headers for API call");
+  console.log("🔍 Current auth mode:", authMode);
+  
+  if (authMode === "cookie") {
+    // Cookie mode: Return minimal headers, cookies handle authentication automatically
+    console.log("🍪 Using cookie authentication - no headers needed");
+    return {
+      "Content-Type": "application/json",
+      // Don't add Authorization header - cookies handle this
+    };
+  }
+  
+  // Legacy token mode: Return Authorization header
+  const token = localStorage.getItem("access_token");
+  console.log("🎫 Using token authentication, token present:", !!token);
+  
+  if (token) {
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    };
+  }
+  
+  // Fallback: No authentication available
+  console.warn("⚠️ No authentication available");
+  return {
+    "Content-Type": "application/json"
   };
-
-  // PRESERVED: Enhanced tab navigation with accessibility
-  const handleTabChange = (newTab) => {
-    if (newTab === activeTab) return;
-    
-    setPageTransition(true);
-    announce(`Navigating to ${newTab.replace(/([A-Z])/g, ' $1').toLowerCase()}`, 'polite');
-    
-    setTimeout(() => {
-      setActiveTab(newTab);
-      setPageTransition(false);
-      
-      const mainContent = document.getElementById('main-content');
-      if (mainContent) {
-        mainContent.focus();
-      }
-    }, 150);
-  };
+};
 
   // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {
