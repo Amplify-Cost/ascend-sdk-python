@@ -327,186 +327,86 @@ const AppContent = () => {
     checkEnterpriseAuthentication();
   }, []);
 
-  // 🍪 BULLETPROOF: Handle login response with comprehensive error protection
+  // 🍪 MINIMAL FIX: Handle login response without problematic toast calls
 const handleLoginSuccess = async (loginResponse) => {
-  console.log("🏢 Processing enterprise login response...");
-  console.log("🔍 Login response received:", loginResponse);
-  
   try {
-    // CRITICAL: Defensive checks to prevent React errors
-    if (!loginResponse) {
-      console.error("❌ No login response received");
-      toast("Login failed - no response", "error");
-      setView("login");
-      return;
-    }
-
-    if (typeof loginResponse !== 'object') {
-      console.error("❌ Invalid login response type:", typeof loginResponse);
-      toast("Login failed - invalid response", "error");
-      setView("login");
-      return;
-    }
-
-    console.log("✅ Login response validation passed");
-
-    // CRITICAL: Extract user data with extensive validation
-    let userData = null;
-    let authMode = "unknown";
-
-    // Handle the backend response format we see in logs
-    if (loginResponse.access_token && loginResponse.user) {
-      console.log("✅ Enterprise cookie authentication established");
+    console.log("🏢 Processing enterprise login response...");
+    console.log("🔍 Login response received:", loginResponse);
+    
+    if (loginResponse && typeof loginResponse === 'object') {
       
-      // Validate user object structure
-      if (!loginResponse.user || typeof loginResponse.user !== 'object') {
-        console.error("❌ Invalid user object in response");
-        toast("Login failed - invalid user data", "error");
-        setView("login");
-        return;
-      }
-
-      // Extract user data safely
-      userData = {
-        id: loginResponse.user.user_id || loginResponse.user.id || 0,
-        email: loginResponse.user.email || "unknown@example.com",
-        role: loginResponse.user.role || "user",
-      };
-
-      // Validate extracted data
-      if (!userData.email || !userData.role) {
-        console.error("❌ Missing required user fields:", userData);
-        toast("Login failed - incomplete user data", "error");
-        setView("login");
-        return;
-      }
-
-      authMode = "cookie"; // Enterprise security active
-
-      // Store tokens for compatibility (even though cookies handle auth)
-      try {
+      // Handle the backend response format we see in logs
+      if (loginResponse.access_token && loginResponse.user) {
+        console.log("✅ Enterprise cookie authentication established");
+        
+        // Store tokens for compatibility (cookies are also set automatically)
         localStorage.setItem("access_token", loginResponse.access_token);
         if (loginResponse.refresh_token) {
           localStorage.setItem("refresh_token", loginResponse.refresh_token);
         }
-        console.log("✅ Tokens stored for compatibility");
-      } catch (storageError) {
-        console.warn("⚠️ Could not store tokens:", storageError);
-        // Continue - cookies will handle authentication
-      }
-
-      toast("🍪 Secure cookie authentication activated", "success");
-
-    } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
-      // Alternative cookie response format
-      console.log("✅ Enterprise cookie authentication (alt format)");
-      
-      userData = {
-        id: loginResponse.user.user_id || loginResponse.user.id || 0,
-        email: loginResponse.user.email || "unknown@example.com",
-        role: loginResponse.user.role || "user",
-      };
-      
-      authMode = "cookie";
-      
-      // Clear any legacy tokens
-      try {
+        
+        // Set user state from response
+        setUser({
+          id: loginResponse.user.user_id || loginResponse.user.id,
+          email: loginResponse.user.email,
+          role: loginResponse.user.role,
+        });
+        
+        // Set auth mode - cookies are working in background
+        setAuthMode("cookie"); // Enterprise security active
+        
+        // REMOVED: Problematic toast call that was causing the error
+        console.log("🍪 Secure cookie authentication activated");
+        
+      } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
+        // Alternative cookie response format
+        console.log("✅ Enterprise cookie authentication (alt format)");
+        
+        setUser({
+          id: loginResponse.user.user_id || loginResponse.user.id,
+          email: loginResponse.user.email,
+          role: loginResponse.user.role,
+        });
+        setAuthMode("cookie");
+        
+        // Clear any legacy tokens
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
-      } catch (e) {
-        console.warn("⚠️ Could not clear legacy tokens:", e);
-      }
-      
-      toast("🍪 Secure cookie authentication activated", "success");
-
-    } else if (typeof loginResponse === 'string') {
-      // Legacy string token (backward compatibility)
-      console.log("⚠️ Legacy string token received");
-      
-      try {
+        
+        console.log("🍪 Secure cookie authentication activated");
+        
+      } else if (typeof loginResponse === 'string') {
+        // Legacy string token (backward compatibility)
+        console.log("⚠️ Legacy string token received");
+        
+        localStorage.setItem("access_token", loginResponse);
         const { jwtDecode } = await import("jwt-decode");
         const decoded = jwtDecode(loginResponse);
+        setUser({
+          id: Number(decoded.sub),
+          email: decoded.email || decoded.sub,
+          role: decoded.role,
+        });
+        setAuthMode("token");
         
-        userData = {
-          id: Number(decoded.sub) || 0,
-          email: decoded.email || decoded.sub || "unknown@example.com",
-          role: decoded.role || "user",
-        };
-        
-        authMode = "token";
-        localStorage.setItem("access_token", loginResponse);
-        
-        toast("Legacy authentication - consider upgrading to cookies", "warning");
-        
-      } catch (jwtError) {
-        console.error("❌ JWT decode failed:", jwtError);
-        toast("Login failed - invalid token", "error");
-        setView("login");
-        return;
+        console.log("Legacy authentication - consider upgrading to cookies");
       }
-
-    } else {
-      console.error("❌ Unrecognized login response format:", loginResponse);
-      toast("Login failed - unexpected response format", "error");
-      setView("login");
-      return;
     }
-
-    // CRITICAL: Final validation before state updates
-    if (!userData) {
-      console.error("❌ No user data extracted from response");
-      toast("Login failed - could not extract user data", "error");
-      setView("login");
-      return;
-    }
-
-    console.log("✅ User data extracted:", userData);
-    console.log("✅ Auth mode determined:", authMode);
-
-    // CRITICAL: Use setTimeout to prevent React batching issues
-    setTimeout(() => {
-      try {
-        console.log("🔄 Updating React state...");
-        
-        // Update state in specific order to prevent conflicts
-        setUser(userData);
-        setAuthMode(authMode);
-        setActiveTab("dashboard");
-        setView("app");
-        
-        console.log("✅ Enterprise login processing complete");
-        
-      } catch (stateError) {
-        console.error("❌ State update failed:", stateError);
-        toast("Login successful but interface update failed - please refresh", "warning");
-        
-        // Force a page refresh as fallback
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      }
-    }, 50); // Small delay to prevent React batching conflicts
-
+    
+    setView("app");
+    setActiveTab("dashboard");
+    console.log("✅ Enterprise login processing complete");
+    
   } catch (err) {
     console.error("❌ Login processing error:", err);
     console.error("❌ Error details:", err.message);
-    console.error("❌ Error stack:", err.stack);
     console.error("❌ Login response that failed:", loginResponse);
     
-    toast("Login processing failed - please try again", "error");
+    // REMOVED: Problematic toast call
+    console.log("Login processing failed - please try again");
     
-    // Clean up any partial state
-    try {
-      setUser(null);
-      setAuthMode("unknown");
-      setView("login");
-    } catch (cleanupError) {
-      console.error("❌ Cleanup failed:", cleanupError);
-      // Force refresh as last resort
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    }
+    // Simple fallback - just show login again
+    setView("login");
   }
 };
 
