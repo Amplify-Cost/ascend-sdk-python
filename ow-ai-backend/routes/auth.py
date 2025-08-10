@@ -145,11 +145,17 @@ def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
     except Exception:
         return {}
 
+# 🔧 ENTERPRISE FIX: Enhanced debugging for cookie detection
 def get_authentication_source(request: Request, credentials: HTTPAuthorizationCredentials) -> tuple[str, str, str]:
-    """Get auth source - ENTERPRISE FIX: Correct cookie names"""
+    """Get auth source - ENTERPRISE FIX: Enhanced cookie debugging"""
     
-    # 🔧 ENTERPRISE FIX: Check BOTH possible cookie names for compatibility
-    access_cookie = request.cookies.get("access_token")  # Frontend sets this name
+    # Debug: Log ALL cookies present in the request
+    logger.info(f"🔍 ENTERPRISE DEBUG: All cookies in request: {list(request.cookies.keys())}")
+    for cookie_name, cookie_value in request.cookies.items():
+        logger.info(f"🔍 ENTERPRISE DEBUG: Cookie '{cookie_name}' = {cookie_value[:50]}..." if len(cookie_value) > 50 else f"🔍 ENTERPRISE DEBUG: Cookie '{cookie_name}' = {cookie_value}")
+    
+    # Check for access token cookie
+    access_cookie = request.cookies.get("access_token")
     if not access_cookie:
         access_cookie = request.cookies.get("ow_access_token")  # Fallback name
     
@@ -157,35 +163,45 @@ def get_authentication_source(request: Request, credentials: HTTPAuthorizationCr
         logger.info(f"🍪 ENTERPRISE: Found access cookie, length = {len(access_cookie)}")
         return access_cookie, "cookie", "enterprise"
     
+    # Check for Bearer token in headers
     if credentials and credentials.credentials:
         logger.info(f"🎫 ENTERPRISE: Found bearer token, length = {len(credentials.credentials)}")
         return credentials.credentials, "bearer", "legacy"
+    
+    # Debug: Also check Authorization header manually
+    auth_header = request.headers.get("Authorization")
+    if auth_header:
+        logger.info(f"🔍 ENTERPRISE DEBUG: Authorization header found: {auth_header[:50]}...")
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            logger.info(f"🎫 ENTERPRISE: Manual bearer token extraction, length = {len(token)}")
+            return token, "bearer", "legacy"
     
     logger.warning("🚨 ENTERPRISE: No authentication found - no cookies or bearer token")
     return None, "none", "none"
 
 def set_enterprise_cookies(response: Response, access_token: str, refresh_token: str):
-    """Set enterprise cookies - ENTERPRISE FIX: Correct cookie names"""
+    """Set enterprise cookies - ENTERPRISE FIX: Optimized cookie configuration"""
     
-    # 🔧 ENTERPRISE FIX: Set cookies with the name the frontend expects
+    # 🔧 ENTERPRISE FIX: Simplified cookie configuration for maximum compatibility
     response.set_cookie(
-        key="access_token",  # Frontend expects this name
+        key="access_token",
         value=access_token,
         httponly=True,
-        secure=True,
+        secure=False,  # CHANGED: Allow HTTP during development/testing
         samesite="lax",
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        path="/"
+        path="/"  # Ensure cookie is available for all paths
     )
     
     response.set_cookie(
-        key="refresh_token",  # Frontend expects this name
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
+        secure=False,  # CHANGED: Allow HTTP during development/testing
         samesite="lax",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        path="/auth"
+        path="/"  # CHANGED: Make available for all paths, not just /auth
     )
     
     logger.info("🍪 Enterprise cookies set with correct names")
@@ -516,12 +532,12 @@ async def enterprise_logout(request: Request, response: Response):
         client_ip = request.client.host if request.client else "unknown"
         logger.info(f"🚪 ENTERPRISE LOGOUT from {client_ip}")
         
-        # Clear cookies by setting them to empty with immediate expiration
+        # Clear cookies with matching configuration
         response.set_cookie(
             key="access_token",
             value="",
             httponly=True,
-            secure=True,
+            secure=False,  # Match the setting used when creating cookies
             samesite="lax",
             max_age=0,
             path="/"
@@ -531,10 +547,10 @@ async def enterprise_logout(request: Request, response: Response):
             key="refresh_token",
             value="",
             httponly=True,
-            secure=True,
+            secure=False,  # Match the setting used when creating cookies
             samesite="lax",
             max_age=0,
-            path="/auth"
+            path="/"
         )
         
         logger.info("✅ ENTERPRISE: Cookies cleared successfully")
