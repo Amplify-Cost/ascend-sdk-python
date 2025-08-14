@@ -4,6 +4,7 @@ from database import get_db
 from models import Alert, AgentAction
 from schemas import AlertOut
 from dependencies import get_current_user, require_csrf  
+from datetime import datetime, UTC
 import logging
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,8 @@ async def update_alert_status(
     alert_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user), _=Depends(require_csrf)
+    user: dict = Depends(get_current_user), 
+    _=Depends(require_csrf)
 ):
     """Update alert status (admin only)"""
     if user["role"] != "admin":
@@ -102,7 +104,8 @@ async def update_alert_status(
 @router.post("/alerts/create-test-data")
 async def create_test_alerts(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user), _=Depends(require_csrf)
+    user: dict = Depends(get_current_user), 
+    _=Depends(require_csrf)
 ):
     """Create test alert data (admin only)"""
     if user["role"] != "admin":
@@ -114,7 +117,6 @@ async def create_test_alerts(
         
         if not agent_actions:
             # Create test agent actions first
-            from datetime import datetime, UTC
             test_actions = [
                 AgentAction(
                     agent_id="agent-076",
@@ -151,16 +153,18 @@ async def create_test_alerts(
             db.commit()
             agent_actions = test_actions
         
-        # Now create alerts linked to these actions
+        # Now create alerts linked to these actions - ✅ FIX: Proper alert creation
         test_alerts = []
+        current_time = datetime.now(UTC)
+        
         for i, action in enumerate(agent_actions[:2]):  # Create 2 test alerts
             alert = Alert(
-    agent_action_id=action.id,
-    alert_type="High Risk Agent Action",
-    severity="high",
-    message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
-    timestamp=timestamp
-)
+                agent_action_id=action.id,
+                alert_type="High Risk Agent Action",
+                severity="high",
+                message=f"Enterprise Alert: Agent {action.agent_id} performed high-risk action: {action.action_type}",  # ✅ FIX: Use action.agent_id
+                timestamp=current_time  # ✅ FIX: Use proper timestamp
+            )
             db.add(alert)
             test_alerts.append(alert)
         

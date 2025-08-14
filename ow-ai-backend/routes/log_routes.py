@@ -22,7 +22,7 @@ def get_trends(db: Session = Depends(get_db), _: dict = Depends(verify_token)):
         .group_by("date")
         .all()
     )
-
+    
     top_agents = (
         db.query(AgentAction.agent_id, func.count().label("count"))
         .group_by(AgentAction.agent_id)
@@ -30,7 +30,7 @@ def get_trends(db: Session = Depends(get_db), _: dict = Depends(verify_token)):
         .limit(5)
         .all()
     )
-
+    
     top_tools = (
         db.query(AgentAction.tool, func.count().label("count"))
         .group_by(AgentAction.tool)
@@ -38,7 +38,7 @@ def get_trends(db: Session = Depends(get_db), _: dict = Depends(verify_token)):
         .limit(5)
         .all()
     )
-
+    
     return {
         "high_risk_daily": [{"date": d, "count": c} for d, c in high_risk_daily],
         "top_agents": [{"agent_id": a, "count": c} for a, c in top_agents],

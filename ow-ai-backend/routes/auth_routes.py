@@ -14,7 +14,7 @@ from models import User
 from schemas import UserCreate, LoginInput, TokenResponse
 from token_utils import create_access_token, create_refresh_token, decode_token
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
-from dependencies import get_current_user  # do not import require_csrf here; this file is auth-only
+from dependencies import get_current_user, require_csrf  # ✅ FIX: Import require_csrf
 
 # Cookie/CSRF constants centralized in security.cookies
 from security.cookies import (
@@ -263,7 +263,8 @@ async def login(
 async def logout(
     request: Request,
     response: Response,
-    current_user: dict = Depends(get_current_user),  _=Depends(require_csrf)
+    current_user: dict = Depends(get_current_user),
+    _=Depends(require_csrf)  # ✅ FIX: Now properly imported
 ):
     """Logout: clear session/refresh and CSRF cookies."""
     try:
