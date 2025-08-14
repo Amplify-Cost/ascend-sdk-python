@@ -8,6 +8,7 @@ from models import User
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any
+from dependencies import get_current_user, require_csrf
 import jwt
 import os
 import logging
