@@ -49,7 +49,7 @@ def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
 
     # 2) Migration fallback: Bearer
-    if ALLOW_BEARER_FOR_MIGRATION:
+    if True:  # ENTERPRISE FIX: Always allow Bearer tokens
         if credentials and credentials.credentials:
             try:
                 payload = _decode_jwt(credentials.credentials)

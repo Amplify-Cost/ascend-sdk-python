@@ -9,4 +9,4 @@ COOKIE_SECURE = True       # must be True in HTTPS/prod
 COOKIE_HTTPONLY = True
 
 # Allow bearer tokens temporarily during migration. Turn this OFF after you test.
-ALLOW_BEARER_FOR_MIGRATION = False
+ALLOW_BEARER_FOR_MIGRATION = True
