@@ -63,7 +63,7 @@ def get_trend_data(
 @router.get("/debug")
 def debug_enriched_actions(
     db: Session = Depends(get_db),
-    current_user: dict = Depends (get_current_user)  # 🎯 FIX: User -> dict
+    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
 ):
     """Original debug endpoint - PRESERVED for enterprise compatibility"""
     try:
@@ -95,7 +95,7 @@ def debug_enriched_actions(
 @router.get("/realtime/metrics")
 def get_realtime_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends (get_current_user)  # 🎯 FIX: User -> dict
+    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
 ):
     """Real-time enterprise metrics with role-based data access"""
     try:
@@ -171,7 +171,7 @@ def get_realtime_metrics(
 @router.get("/predictive/trends")
 def get_predictive_trends(
     db: Session = Depends(get_db),
-    current_user: dict = Depends (get_current_user)  # 🎯 FIX: User -> dict
+    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
 ):
     """AI-powered predictive analytics for enterprise planning"""
     try:
@@ -341,7 +341,7 @@ def get_executive_dashboard(
 @router.get("/performance/system")
 def get_system_performance(
     db: Session = Depends(get_db),
-    current_user: dict = Depends (get_current_user) # 🎯 FIX: User -> dict
+    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
 ):
     """Real-time system performance monitoring"""
     try:
