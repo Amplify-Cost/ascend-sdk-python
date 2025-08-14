@@ -34,19 +34,14 @@ export async function fetchWithAuth(url, options = {}) {
     if (csrf) init.headers["X-CSRF-Token"] = csrf;
   }
 
-  // ENTERPRISE FIX: Hybrid auth - try both cookies and tokens
-  // Check if Authorization header already provided (from getAuthHeaders)
-  if (!init.headers.Authorization) {
-    // If no Authorization header, try to add token for backward compatibility
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      init.headers.Authorization = `Bearer ${token}`;
-      console.log("🔄 Using token auth as fallback");
-    } else {
-      console.log("🍪 Using cookie auth");
-    }
+  // ENTERPRISE FIX: Proper hybrid auth - ALWAYS send token if available
+  // Cookies are sent automatically via credentials: "include"
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    init.headers.Authorization = `Bearer ${token}`;
+    console.log("🔄 Enterprise hybrid auth: Sending token + cookies");
   } else {
-    console.log("🎫 Using provided Authorization header");
+    console.log("🍪 Enterprise cookie-only auth");
   }
 
   let res = await fetch(absoluteUrl, init);
