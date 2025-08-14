@@ -194,9 +194,8 @@ const Dashboard = ({ getAuthHeaders }) => {
     const fetchTrends = async () => {
       try {
         console.log("🔍 Fetching dashboard data from:", `${API_BASE_URL}/analytics/trends`);
-        const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
-          headers: getAuthHeaders(),
-        });
+        const res = await fetchWithAuth('/analytics/trends');
+
         if (!res.ok) throw new Error("Failed to fetch analytics data");
         const data = await res.json();
         
