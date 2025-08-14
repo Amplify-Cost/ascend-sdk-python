@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Alert, AgentAction
 from schemas import AlertOut
-from dependencies import get_current_user  # ✅ FIXED: Changed from verify_token
+from dependencies import get_current_user, require_csrf  
 import logging
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ async def update_alert_status(
     alert_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user), _=Depends(require_csrf)
 ):
     """Update alert status (admin only)"""
     if user["role"] != "admin":
@@ -102,7 +102,7 @@ async def update_alert_status(
 @router.post("/alerts/create-test-data")
 async def create_test_alerts(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(get_current_user), _=Depends(require_csrf)
 ):
     """Create test alert data (admin only)"""
     if user["role"] != "admin":
@@ -155,12 +155,12 @@ async def create_test_alerts(
         test_alerts = []
         for i, action in enumerate(agent_actions[:2]):  # Create 2 test alerts
             alert = Alert(
-                agent_action_id=action.id,
-                alert_type="security_alert",
-                severity="high" if action.risk_level == "high" else "medium",
-                message=f"Security alert: {action.description}",
-                timestamp=datetime.now(UTC)
-            )
+    agent_action_id=action.id,
+    alert_type="High Risk Agent Action",
+    severity="high",
+    message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
+    timestamp=timestamp
+)
             db.add(alert)
             test_alerts.append(alert)
         

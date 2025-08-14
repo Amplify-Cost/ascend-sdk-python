@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc
 from database import get_db
 from models import SmartRule, AgentAction, User, AuditLog
-from dependencies import get_current_user_enterprise, require_admin
+from dependencies import get_current_user, require_admin, require_csrf
 from datetime import datetime, UTC, timedelta
 import json
 import asyncio
@@ -182,9 +182,10 @@ class AlertEngine:
 
 @router.get("/alerts/active")
 async def get_active_alerts(
-    current_user: dict = Depends(get_current_user_enterprise),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+
     """Get all currently active alerts"""
     try:
         logger.info(f"🚨 Active alerts requested by: {current_user.get('email')}")
@@ -216,9 +217,10 @@ async def get_active_alerts(
 @router.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(
     alert_id: str,
-    current_user: dict = Depends(get_current_user_enterprise),
+    current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
+
     """Acknowledge an alert"""
     try:
         if alert_id not in active_alerts:
@@ -241,9 +243,10 @@ async def acknowledge_alert(
 @router.post("/alerts/{alert_id}/resolve")
 async def resolve_alert(
     alert_id: str,
-    current_user: dict = Depends(get_current_user_enterprise),
+    current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
+
     """Resolve an alert"""
     try:
         if alert_id not in active_alerts:
@@ -266,12 +269,12 @@ async def resolve_alert(
         logger.error(f"Error resolving alert: {e}")
         raise HTTPException(status_code=500, detail="Failed to resolve alert")
 
-@router.get("/alerts/history")
 async def get_alert_history(
     days: int = 30,
-    current_user: dict = Depends(get_current_user_enterprise),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+
     """Get alert history for the specified number of days"""
     try:
         logger.info(f"📊 Alert history requested by: {current_user.get('email')} for {days} days")

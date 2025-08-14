@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, require_csrf
 from schemas import AgentActionOut, AgentActionCreate
 from datetime import datetime, UTC, timezone
 from llm_utils import generate_summary, generate_smart_rule
@@ -17,7 +17,7 @@ router = APIRouter(tags=["Agent Actions"])
 async def create_agent_action(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),  _=Depends(require_csrf)
 ):
     """Submit a new agent action for security review - Enterprise-grade with graceful fallback"""
     try:
@@ -391,7 +391,7 @@ def get_agent_activity(
 def approve_agent_action(
     action_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
 ):
     """Approve an agent action (admin only) - Enterprise audit trail preserved"""
     try:
@@ -439,7 +439,7 @@ def approve_agent_action(
 def reject_agent_action(
     action_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
 ):
     """Reject an agent action (admin only) - Enterprise audit trail preserved"""
     try:
@@ -487,7 +487,7 @@ def reject_agent_action(
 def mark_false_positive(
     action_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
 ):
     """Mark an agent action as false positive (admin only) - Enterprise audit trail preserved"""
     try:

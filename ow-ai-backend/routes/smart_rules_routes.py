@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from models import SmartRule
 from schemas import SmartRuleOut
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, require_csrf
 from llm_utils import generate_smart_rule
 from datetime import datetime, timedelta, timezone
 import logging
@@ -17,6 +17,9 @@ from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/smart-rules", tags=["Enterprise Smart Rules"])
+
+# In-memory storage for A/B tests (enterprise demo memory)
+enterprise_ab_tests_storage: Dict[str, Dict[str, Any]] = {}
 
 # 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - FIXED
 @router.get("", response_model=list[SmartRuleOut])
@@ -156,7 +159,7 @@ async def get_ab_tests_enterprise_memory(current_user: dict = Depends(get_curren
         # Calculate live metrics for each test
         for test in ab_tests:
             created_time = datetime.fromisoformat(test['created_at'].replace('Z', '+00:00'))
-            elapsed_hours = (datetime.now(UTC) - created_time).total_seconds() / 3600
+            elapsed_hours = (datetime.now(timezone.utc) - created_time).total_seconds() / 3600
             duration_hours = test.get('duration_hours', 168)
             progress = min(elapsed_hours / duration_hours * 100, 100)
             
@@ -189,54 +192,58 @@ async def get_ab_tests_enterprise_memory(current_user: dict = Depends(get_curren
 @router.post("/ab-test")
 async def create_ab_test_enterprise_memory(
     rule_id: int,
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    _=Depends(require_csrf)
 ):
     """Create A/B test in enterprise memory storage"""
     try:
         # Generate enterprise test ID
         test_id = f"enterprise-test-{rule_id}-{int(datetime.now().timestamp())}"
         
-        # Get rule details from database
-        rule_query = "SELECT * FROM smart_rules WHERE id = %s"
-        cursor.execute(rule_query, (rule_id,))
-        rule = cursor.fetchone()
-        
-        if not rule:
+        # Get rule details from database (description used for test labels)
+        result = db.execute(
+            text("SELECT id, description FROM smart_rules WHERE id = :rid"),
+            {"rid": rule_id}
+        ).fetchone()
+        if not result:
             raise HTTPException(status_code=404, detail="Rule not found")
+        rule_description = (result[1] or "") if len(result) > 1 else ""
         
         # Create enterprise A/B test object
         ab_test = {
-            'id': len(enterprise_ab_tests_storage) + 1,
-            'test_id': test_id,
-            'rule_id': rule_id,
-            'test_name': f"Enterprise Rule {rule_id} Optimization",
-            'description': f"Performance optimization test for {rule[2][:50]}...",
-            'variant_a': f"Current: {rule[3][:100]}...",
-            'variant_b': f"Optimized: Enhanced {rule[3][:80]}... with ML improvements",
-            'variant_a_performance': 1000,
-            'variant_b_performance': 1150,
-            'confidence_level': 85,
-            'status': 'running',
-            'created_by': current_user.get('username', 'enterprise_user'),
-            'created_at': datetime.now(UTC).isoformat(),
-            'duration_hours': 168,  # 7 days
-            'traffic_split': 50,
-            'progress': 0.0,
-            'winner': None,
-            'results': None
+            "id": len(enterprise_ab_tests_storage) + 1,
+            "test_id": test_id,
+            "rule_id": rule_id,
+            "test_name": f"Enterprise Rule {rule_id} Optimization",
+            "description": f"Performance optimization test for {rule_description[:50]}...",
+            "variant_a": f"Current: {rule_description[:100]}...",
+            "variant_b": f"Optimized: Enhanced {rule_description[:80]}... with ML improvements",
+            "variant_a_performance": 1000,
+            "variant_b_performance": 1150,
+            "confidence_level": 85,
+            "status": "running",
+            "created_by": current_user.get("email", "enterprise_user"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "duration_hours": 168,  # 7 days
+            "traffic_split": 50,
+            "progress": 0.0,
+            "winner": None,
+            "results": None
         }
         
         # Store in enterprise memory
         enterprise_ab_tests_storage[test_id] = ab_test
         
-        print(f"✅ Enterprise A/B test created: {test_id}")
+        logger.info(f"✅ Enterprise A/B test created: {test_id}")
         return {"message": "Enterprise A/B test created successfully", "test_id": test_id}
         
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ Enterprise A/B test creation error: {e}")
+        logger.error(f"❌ Enterprise A/B test creation error: {e}")
         raise HTTPException(status_code=500, detail="Failed to create enterprise A/B test")
-
-
+    
 # 3. ADD THIS DIAGNOSTIC ENDPOINT to check your table structure:
 @router.get("/debug-ab-tests-table")
 async def debug_ab_tests_table_structure(
@@ -308,7 +315,7 @@ async def get_ab_test_results_enterprise(
             test_result = db.execute(text("""
                 SELECT test_id, rule_id, test_name
                 FROM ab_tests WHERE test_id = :test_id
-            """), {'test_id': test_id[-1]}).fetchone()  # Use last char for single-char lookup
+            """), {'test_id': test_id}).fetchone()
             
             if test_result:
                 rule_id = test_result[1]
@@ -394,7 +401,8 @@ async def get_ab_test_results_enterprise(
 @router.post("/setup-ab-testing-table")
 async def setup_ab_testing_table_smart_rules(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """🔧 ENTERPRISE: Setup A/B testing database table"""
     try:
@@ -459,7 +467,7 @@ async def get_rule_suggestions(current_user: dict = Depends(get_current_user)):
                 "id": 2,
                 "suggested_rule": "Alert on rapid file access patterns exceeding 100 files/minute",
                 "confidence": 92,
-                "reasoning": "Deep learning analysis identifies this pattern in 87% of confirmed data exfiltration attempts", 
+                "reasoning": "Deep learning analysis identifies this pattern in 87% of confirmed data exfiltration attempts",
                 "potential_impact": "Early detection of data theft attempts with 3.2x faster response time",
                 "data_points": 2156,
                 "category": "data_exfiltration",
@@ -495,19 +503,21 @@ async def get_rule_suggestions(current_user: dict = Depends(get_current_user)):
                 "business_impact": "medium"
             }
         ]
-        
-        logger.info(f"💡 Generated {len(suggestions)} enterprise AI rule suggestions")
+
+        logger.info("💡 Generated %d enterprise AI rule suggestions", len(suggestions))
         return suggestions
-        
+
     except Exception as e:
-        logger.error(f"Failed to generate enterprise rule suggestions: {str(e)}")
+        logger.error("Failed to generate enterprise rule suggestions: %s", str(e))
         raise HTTPException(status_code=500, detail="Failed to generate suggestions")
+
 
 # ✨ ENTERPRISE: Natural language rule generation with OpenAI - FIXED
 @router.post("/generate-from-nl")
 async def generate_rule_from_natural_language(
     request: Request,
     current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
     """✨ ENTERPRISE: Advanced natural language to rule conversion using AI - RAW SQL VERSION"""
@@ -515,12 +525,12 @@ async def generate_rule_from_natural_language(
         data = await request.json()
         natural_language = data.get("natural_language", "") or data.get("description", "")
         context = data.get("context", "enterprise_security")
-        
+
         if not natural_language.strip():
             raise HTTPException(status_code=400, detail="Natural language description required")
-        
-        logger.info(f"🧠 Generating rule from: '{natural_language[:50]}...'")
-        
+
+        logger.info("🧠 Generating rule from: '%s...'", natural_language[:50])
+
         # Use OpenAI for enterprise-grade rule generation
         try:
             prompt = f"""
@@ -542,23 +552,22 @@ async def generate_rule_from_natural_language(
 
             Make it enterprise-grade, specific, actionable, and compliance-aware.
             """
-            
+
             response = openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3
             )
-            
-            # Parse AI response
+
             ai_response = response.choices[0].message.content.strip()
-            
+
             # Extract JSON from response
             try:
                 if ai_response.startswith('```json'):
                     ai_response = ai_response.split('```json')[1].split('```')[0].strip()
                 elif ai_response.startswith('```'):
                     ai_response = ai_response.split('```')[1].strip()
-                
+
                 rule_data = json.loads(ai_response)
             except json.JSONDecodeError:
                 # Enterprise fallback rule generation
@@ -572,75 +581,71 @@ async def generate_rule_from_natural_language(
                     "business_impact": "Low to medium operational impact",
                     "false_positive_likelihood": "5-10%"
                 }
-            
+
         except Exception as e:
-            logger.warning(f"OpenAI rule generation failed: {e}, using enterprise fallback")
-            # Enhanced enterprise fallback - IMPROVED LOGIC
+            logger.warning("OpenAI rule generation failed: %s, using enterprise fallback", str(e))
             lower_text = natural_language.lower()
-            
-            # Determine risk level based on keywords  
+
             if any(word in lower_text for word in ['critical', 'urgent', 'block', 'stop']):
                 risk_level = "high"
                 action = "block_and_alert"
             elif any(word in lower_text for word in ['monitor', 'watch', 'alert']):
-                risk_level = "medium" 
+                risk_level = "medium"
                 action = "monitor_and_alert"
             else:
                 risk_level = "medium"
                 action = "alert_admin"
-            
+
             rule_data = {
                 "condition": f"smart_analysis('{natural_language[:50]}') AND threat_detected",
                 "action": action,
-                "risk_level": risk_level, 
+                "risk_level": risk_level,
                 "justification": f"Enterprise-grade intelligent rule created from: {natural_language}",
                 "recommendation": f"Review and monitor: {natural_language}",
                 "compliance_impact": "Enterprise security framework compliance",
                 "business_impact": "Minimal operational disruption",
                 "false_positive_likelihood": "3-7%"
             }
-        
+
         # Create the rule using RAW SQL - INSERT ONLY INTO EXISTING COLUMNS
         try:
             result = db.execute(text("""
                 INSERT INTO smart_rules (
-                    agent_id, action_type, description, condition, action, 
+                    agent_id, action_type, description, condition, action,
                     risk_level, recommendation, justification, created_at
                 ) VALUES (
                     :agent_id, :action_type, :description, :condition, :action,
                     :risk_level, :recommendation, :justification, :created_at
                 ) RETURNING id
             """), {
-                'agent_id': "enterprise-ai-generated",
-                'action_type': "natural_language_enterprise_rule",
-                'description': natural_language,
-                'condition': rule_data["condition"],
-                'action': rule_data["action"],
-                'risk_level': rule_data["risk_level"],
-                'recommendation': rule_data.get("recommendation", "Enterprise security review required"),
-                'justification': rule_data["justification"],
-                'created_at': datetime.utcnow()
+                "agent_id": "enterprise-ai-generated",
+                "action_type": "natural_language_enterprise_rule",
+                "description": natural_language,
+                "condition": rule_data["condition"],
+                "action": rule_data["action"],
+                "risk_level": rule_data["risk_level"],
+                "recommendation": rule_data.get("recommendation", "Enterprise security review required"),
+                "justification": rule_data["justification"],
+                "created_at": datetime.utcnow()
             })
-            
-            # Get the new rule ID
+
             new_rule_id = result.fetchone()[0]
             db.commit()
-            
-            logger.info(f"✅ Rule created successfully with RAW SQL - ID: {new_rule_id}")
-            
+            logger.info("✅ Rule created successfully with RAW SQL – ID: %s", new_rule_id)
+
         except Exception as insert_error:
-            logger.error(f"RAW SQL insert failed: {insert_error}")
+            logger.error("RAW SQL insert failed: %s", str(insert_error))
             db.rollback()
             raise HTTPException(status_code=500, detail="Failed to create rule in database")
-        
+
         # Return enhanced enterprise rule data - FIXED FORMAT
-        result = {
+        result_payload = {
             "id": new_rule_id,
             "condition": rule_data["condition"],
             "action": rule_data["action"],
             "justification": rule_data["justification"],
             "risk_level": rule_data["risk_level"],
-            "performance_score": 85,  # Default for new enterprise rules
+            "performance_score": 85,
             "triggers_last_24h": 0,
             "false_positives": 0,
             "created_at": datetime.utcnow().isoformat(),
@@ -658,24 +663,27 @@ async def generate_rule_from_natural_language(
                 "ai_confidence": 85
             }
         }
-        
-        logger.info(f"✨ Enterprise natural language rule generated: '{natural_language}' by {current_user['email']}")
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to generate enterprise rule from natural language: {str(e)}")
-        raise HTTPException(
-            status_code=500, 
-            detail="Failed to generate enterprise rule from natural language"
+
+        logger.info(
+            "✨ Enterprise natural language rule generated: '%s' by %s",
+            natural_language,
+            current_user.get("email")
         )
+        return result_payload
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error("Failed to generate enterprise rule from natural language: %s", str(e))
+        raise HTTPException(status_code=500, detail="Failed to generate enterprise rule from natural language")
+
 
 # 🎯 ENTERPRISE: Advanced rule optimization
 @router.post("/optimize/{rule_id}")
 async def optimize_rule_performance(
     rule_id: int,
     current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
     """🎯 ENTERPRISE: Use advanced ML to optimize rule performance"""
@@ -725,7 +733,8 @@ async def optimize_rule_performance(
 def delete_smart_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """🗑️ ENTERPRISE: Delete smart rule with comprehensive audit logging"""
     try:
@@ -767,7 +776,8 @@ def delete_smart_rule(
 async def generate_smart_rule_endpoint(
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """Generate a new smart rule using AI"""
     try:
@@ -807,7 +817,8 @@ async def generate_smart_rule_endpoint(
 @router.post("/seed")
 def seed_smart_rules(
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """Seed demo smart rules"""
     try:

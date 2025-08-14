@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, or_, desc
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, require_csrf
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import json
@@ -128,7 +128,8 @@ async def create_user(
     user_data: UserCreateRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """Create new enterprise user"""
     try:
@@ -199,7 +200,8 @@ async def update_user(
     user_data: UserUpdateRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """Update enterprise user"""
     try:
@@ -256,7 +258,8 @@ async def delete_user(
     user_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+      _=Depends(require_csrf)
 ):
     """Deactivate user (soft delete)"""
     try:
@@ -350,7 +353,8 @@ async def create_role(
     role_data: RoleCreateRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """Create new enterprise role"""
     try:
@@ -815,7 +819,8 @@ def calculate_security_score(stats_result) -> float:
 async def generate_enterprise_report(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """🏢 Generate enterprise report using existing analytics system"""
     try:
@@ -997,7 +1002,8 @@ async def download_enterprise_report(
     report_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    _=Depends(require_csrf)
 ):
     """🏢 Download report with audit tracking"""
     try:

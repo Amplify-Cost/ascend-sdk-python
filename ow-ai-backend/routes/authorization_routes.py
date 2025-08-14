@@ -10,7 +10,7 @@ import json
 import uuid
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, require_csrf
 from schemas import AgentActionOut, AgentActionCreate
 from schemas import AutomationPlaybookOut, AutomationExecutionCreate, AuthorizationRequest
 from schemas import WorkflowCreateRequest, WorkflowExecutionRequest

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
 from database import get_db
-from dependencies import verify_token
+from dependencies import verify_token, get_current_user, require_csrf
 from models import Rule, RuleFeedback, AgentAction, LogAuditTrail
 from llm_utils import generate_smart_rule
 import json
@@ -16,7 +16,7 @@ def get_rules(db: Session = Depends(get_db), _: dict = Depends(verify_token)):
     return db.query(Rule).order_by(Rule.created_at.desc()).all()
 
 @router.post("/rules")
-async def add_rule(request: Request, db: Session = Depends(get_db), user: dict = Depends(verify_token)):
+async def add_rule(request: Request, db: Session = Depends(get_db), user: dict = Depends(verify_token), _=Depends(require_csrf)):
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Only admin can add rules")
     
@@ -70,6 +70,7 @@ def delete_rule(
         logger.error(f"Failed to delete rule: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete rule")
+
 
 @router.get("/feedback/{rule_id}")
 def get_rule_feedback(
@@ -184,7 +185,8 @@ async def update_rule_feedback(
     rule_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(verify_token)
+    user: dict = Depends(verify_token),
+    _=Depends(require_csrf)
 ):
     """Update feedback for a rule (mark as correct or false positive)"""
     try:
@@ -230,7 +232,7 @@ async def update_rule_feedback(
         raise HTTPException(status_code=500, detail="Failed to update feedback")
 
 @router.post("/rules/seed")
-def seed_rules(db: Session = Depends(get_db)):
+def seed_rules(db: Session = Depends(get_db), _=Depends(require_csrf)):
     demo_rules = [
         Rule(
             description="Block suspicious outbound requests",
@@ -257,7 +259,7 @@ def seed_rules(db: Session = Depends(get_db)):
 async def generate_smart_rule_endpoint(
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(verify_token)
+    user: dict = Depends(verify_token), _=Depends(require_csrf)
 ):
     """Generate smart rule endpoint for backward compatibility"""
     if user["role"] != "admin":

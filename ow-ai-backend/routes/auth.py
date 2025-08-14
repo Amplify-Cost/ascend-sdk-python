@@ -219,7 +219,7 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
 # =================== ENTERPRISE ENDPOINTS ===================
 
 @router.post("/token")
-async def enterprise_login_diagnostic(request: Request, response: Response, db: Session = Depends(get_db)):
+async def enterprise_login_diagnostic(request: Request, response: Response, db: Session = Depends(get_db,)):
     """🔍 Enterprise Login with Response Diagnostics"""
     
     try:
@@ -241,7 +241,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        if not pwd_context.verify(password, user.password):
+        if not pwd_context.verify(password, getattr(user, "hashed_password", user.password)):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create tokens
@@ -518,8 +518,15 @@ async def refresh_token_diagnostic(request: Request, response: Response):
             "timestamp": datetime.now(UTC).isoformat()
         }
 
+
 @router.post("/logout")
-async def enterprise_logout(request: Request, response: Response):
+async def enterprise_logout(
+    request: Request,
+    response: Response,
+    current_user: dict = Depends(get_current_user),
+    _=Depends(require_csrf)
+):
+
     """🚪 Enterprise logout with secure cookie clearing"""
     
     try:

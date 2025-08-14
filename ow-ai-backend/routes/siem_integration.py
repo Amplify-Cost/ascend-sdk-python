@@ -81,7 +81,7 @@ async def get_siem_status(current_user: dict = Depends(get_current_user)):
 @router.post("/configure")
 async def configure_siem(
     config_request: SIEMConfigRequest,
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin), _=Depends(require_csrf)
 ):
     """Configure SIEM integration"""
     try:
@@ -136,7 +136,7 @@ async def configure_siem(
         raise HTTPException(status_code=500, detail=f"Failed to configure SIEM: {str(e)}")
 
 @router.post("/test-connection")
-async def test_siem_connection(current_user: dict = Depends(require_admin)):
+async def test_siem_connection(current_user: dict = Depends(require_admin), _=Depends(require_csrf)):
     """Test active SIEM connection"""
     try:
         logger.info(f"🔄 SIEM connection test requested by: {current_user.get('email', 'unknown')}")
@@ -177,7 +177,7 @@ async def test_siem_connection(current_user: dict = Depends(require_admin)):
 @router.post("/send-event")
 async def send_event_to_siem(
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user), _=Depends(require_csrf)
 ):
     """Send custom event to SIEM"""
     try:
@@ -229,7 +229,7 @@ async def forward_authorization_to_siem(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin), _=Depends(require_csrf)
 ):
     """Forward authorization decision to SIEM"""
     try:
@@ -293,7 +293,7 @@ async def forward_authorization_to_siem(
 @router.post("/threat-intelligence")
 async def get_threat_intelligence_from_siem(
     intel_request: ThreatIntelRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user), _=Depends(require_csrf)
 ):
     """Get threat intelligence from SIEM"""
     try:
@@ -439,7 +439,7 @@ async def get_siem_integration_metrics(current_user: dict = Depends(get_current_
 async def bulk_forward_events(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin), _=Depends(require_csrf)
 ):
     """Bulk forward recent events to SIEM"""
     try:
