@@ -311,7 +311,7 @@ async def get_alert_history(
         raise HTTPException(status_code=500, detail="Failed to fetch alert history")
 
 @router.websocket("/alerts/stream")
-async def alert_stream(websocket: WebSocket, current_user: dict = Depends(get_current_user_enterprise)):
+async def alert_stream(websocket: WebSocket, current_user: dict = Depends(get_current_user)):
     """WebSocket endpoint for real-time alert streaming"""
     await websocket.accept()
     alert_subscribers.append(websocket)
