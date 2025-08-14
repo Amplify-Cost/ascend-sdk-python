@@ -1,4 +1,4 @@
-// utils/fetchWithAuth.js — Cookie-only + CSRF (Enterprise Phase 1)
+// utils/fetchWithAuth.js — Hybrid Cookie + Token (Enterprise Phase 1.5)
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
 // Read a simple cookie value (used for CSRF; session cookie is HttpOnly and not readable)
@@ -8,8 +8,9 @@ function getCookie(name) {
 }
 
 /**
- * Enterprise fetch helper:
- * - Always sends cookies (session + refresh)
+ * Enterprise hybrid fetch helper:
+ * - Prefers cookies (session + refresh) for security
+ * - Falls back to tokens for backward compatibility
  * - Adds X-CSRF-Token for write methods using the owai_csrf cookie
  * - On 403 (expired CSRF), refreshes CSRF once and retries
  */
@@ -33,9 +34,19 @@ export async function fetchWithAuth(url, options = {}) {
     if (csrf) init.headers["X-CSRF-Token"] = csrf;
   }
 
-  // IMPORTANT: Do NOT send Authorization from localStorage (cookie-only for enterprise)
-  if (init.headers && "Authorization" in init.headers) {
-    delete init.headers.Authorization;
+  // ENTERPRISE FIX: Hybrid auth - try both cookies and tokens
+  // Check if Authorization header already provided (from getAuthHeaders)
+  if (!init.headers.Authorization) {
+    // If no Authorization header, try to add token for backward compatibility
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      init.headers.Authorization = `Bearer ${token}`;
+      console.log("🔄 Using token auth as fallback");
+    } else {
+      console.log("🍪 Using cookie auth");
+    }
+  } else {
+    console.log("🎫 Using provided Authorization header");
   }
 
   let res = await fetch(absoluteUrl, init);
