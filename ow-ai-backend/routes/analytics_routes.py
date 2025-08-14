@@ -21,7 +21,7 @@ router = APIRouter()
 @router.get("/trends")
 def get_trend_data(
     db: Session = Depends(get_db),
-    current_user: dict = Depend (get_current_user)  # 🎯 FIX: User -> dict
+    current_user: dict = Depends(get_current_user)  
 ):
     """Original analytics endpoint - PRESERVED for enterprise compatibility"""
     try:
