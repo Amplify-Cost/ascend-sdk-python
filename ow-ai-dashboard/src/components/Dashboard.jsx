@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
 } from "recharts";
 import { useTheme } from "../contexts/ThemeContext";
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 // Modern metric card component
 const MetricCard = ({ title, value, change, changeType, icon, color, trend }) => {
@@ -193,7 +194,7 @@ const Dashboard = ({ getAuthHeaders }) => {
     console.log("📊 Loading Dashboard");
     const fetchTrends = async () => {
       try {
-        console.log("🔍 Fetching dashboard data from:", `${API_BASE_URL}/analytics/trends`);
+        console.log("🔍 Fetching dashboard data from: /analytics/trends");
         const res = await fetchWithAuth('/analytics/trends');
 
         if (!res.ok) throw new Error("Failed to fetch analytics data");
