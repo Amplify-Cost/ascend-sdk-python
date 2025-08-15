@@ -12,7 +12,7 @@ import logging
 import json
 
 from database import get_db
-from auth.auth_middleware import get_current_user
+from dependencies import get_current_user
 from models_data_rights import DataSubjectRequest, DataLineage, ConsentRecord, DataErasureLog
 from services.data_rights_service import DataRightsService
 from services.immutable_audit_service import ImmutableAuditService
