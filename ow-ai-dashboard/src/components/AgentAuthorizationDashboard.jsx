@@ -19,6 +19,10 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   approvers: []
 });
 
+// 🔌 NEW: MCP Integration State
+const [mcpActions, setMcpActions] = useState([]);
+const [showMcpFilters, setShowMcpFilters] = useState(false);
+
 console.log("🧪 Testing newWorkflow:", newWorkflow);
   
 // Existing workflow management state
@@ -129,10 +133,10 @@ useEffect(() => {
 }, [dashboardData, pendingActions, user, compatibilityApplied]);
 
   const fetchPendingActions = async () => {
-  console.log("🚀 Starting fetchPendingActions...");
+  console.log("🚀 Starting enhanced fetchPendingActions with MCP support...");
   
   try {
-    // IMMEDIATE: Load demo data for instant display
+    // IMMEDIATE: Load enhanced demo data for instant display
     const demoActions = [
       {
         id: 35,
@@ -149,49 +153,115 @@ useEffect(() => {
         contextual_risk_factors: ["Production environment"],
         time_remaining: "2:30:00",
         requested_at: new Date().toISOString()
+      },
+      // 🔌 NEW: MCP Demo Actions
+      {
+        id: 501,
+        action_type: "mcp_server_action",
+        mcp_data: {
+          server: "claude-desktop",
+          namespace: "filesystem",
+          verb: "read_file",
+          resource: "/home/user/sensitive_data.csv",
+          params: { encoding: "utf8", max_size: "10MB" }
+        },
+        ai_risk_score: 75,
+        description: "MCP: Read sensitive file via Claude Desktop",
+        workflow_stage: "level_2",
+        current_approval_level: 1,
+        required_approval_level: 2,
+        is_emergency: false,
+        authorization_status: "pending_approval",
+        execution_status: "pending_approval",
+        contextual_risk_factors: ["Sensitive data access", "External MCP server"],
+        time_remaining: "1:45:00",
+        requested_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+        user_email: "developer@company.com"
+      },
+      {
+        id: 502,
+        action_type: "mcp_server_action",
+        mcp_data: {
+          server: "github-mcp",
+          namespace: "repository",
+          verb: "create_pr",
+          resource: "company/production-repo",
+          params: { 
+            title: "Security patch deployment", 
+            branch: "security-fix-2024",
+            reviewers: ["security-team"] 
+          }
+        },
+        ai_risk_score: 45,
+        description: "MCP: Create production pull request via GitHub MCP",
+        workflow_stage: "level_1",
+        current_approval_level: 1,
+        required_approval_level: 1,
+        is_emergency: false,
+        authorization_status: "pending_approval",
+        execution_status: "pending_approval",
+        contextual_risk_factors: ["Production repository", "Code deployment"],
+        time_remaining: "3:15:00",
+        requested_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+        user_email: "devops@company.com"
       }
     ];
     
-    // Set demo data immediately
+    // Set enhanced demo data immediately
     setPendingActions(demoActions);
     setLoading(false);
-    console.log("✅ Demo actions loaded immediately");
+    console.log("✅ Enhanced demo actions (agents + MCP) loaded immediately");
     
     // Try real API in background
-    console.log("🔍 Attempting real API call...");
+    console.log("🔍 Attempting enhanced API call...");
     const startTime = Date.now();
     
-    const response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
-      headers: { 
-        ...getAuthHeaders(), 
-        "Content-Type": "application/json",
-        "X-API-Version": "v1.0"
-      }
-    });
+    // Try unified endpoint first, fallback to existing
+    let response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/governance/unified-actions`, {
+        headers: { 
+          ...getAuthHeaders(), 
+          "Content-Type": "application/json",
+          "X-API-Version": "v1.0"
+        }
+      });
+    } catch (err) {
+      console.log("📊 Unified endpoint not available, trying existing agent endpoint");
+      response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
+        headers: { 
+          ...getAuthHeaders(), 
+          "Content-Type": "application/json",
+          "X-API-Version": "v1.0"
+        }
+      });
+    }
     
     const apiTime = Date.now() - startTime;
-    console.log(`⏱️ API call took ${apiTime}ms`);
+    console.log(`⏱️ Enhanced API call took ${apiTime}ms`);
     
     if (response.ok) {
       const realData = await response.json();
-      console.log("✅ Real API data:", realData);
+      console.log("✅ Real enhanced API data:", realData);
       
-      // If real data exists, replace demo data
-      if (Array.isArray(realData) && realData.length > 0) {
-        setPendingActions(realData);
-        console.log("🔄 Replaced demo data with real data");
+      // Handle both unified and legacy response formats
+      const actions = realData.actions || realData || [];
+      
+      if (Array.isArray(actions) && actions.length > 0) {
+        setPendingActions(actions);
+        console.log("🔄 Replaced demo data with real enhanced data");
       } else {
-        console.log("📊 Keeping demo data (no real data available)");
+        console.log("📊 Keeping enhanced demo data (no real data available)");
       }
     } else {
-      console.warn("❌ API call failed, keeping demo data");
+      console.warn("❌ Enhanced API call failed, keeping demo data");
     }
     
     setError(null);
   } catch (err) {
-    console.error("❌ Error in fetchPendingActions:", err);
+    console.error("❌ Error in enhanced fetchPendingActions:", err);
     
-    // Keep demo data even on error
+    // Keep enhanced demo data even on error
     const fallbackActions = [
       {
         id: 36,
@@ -212,7 +282,7 @@ useEffect(() => {
     ];
     
     setPendingActions(fallbackActions);
-    setError("Using demo data due to API error");
+    setError("Using enhanced demo data due to API error");
   } finally {
     setLoading(false);
   }
@@ -1076,66 +1146,81 @@ const createWorkflow = async (workflowData) => {
 
   // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/authorization/authorize/${actionId}`, {
-        method: "POST",
-        headers: { 
-  ...getAuthHeaders(), 
-  "Content-Type": "application/json",
-  "X-API-Version": "v1.0"  // For backward compatibility
-},
-        body: JSON.stringify({
-          decision: decision,
-          notes: notes,
-          conditions: conditions,
-          approval_duration: conditions?.duration || null,
-          execute_immediately: true  // 🚀 NEW: Enable real-time execution
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log("✅ Approval result:", result);
-                
-        // Remove action from pending list immediately for real-time UI update
-        setPendingActions(prev => {
-          const updated = prev.filter(action => action.id !== actionId);
-          console.log(`📊 Pending actions updated: ${prev.length} → ${updated.length}`);
-          return updated;
-        });
-        
-        setSelectedAction(null);
-                
-        // Immediately update dashboard and metrics with new counts
-        setTimeout(() => {
-          fetchDashboardData();
-          fetchApprovalMetrics();
-          fetchExecutionHistory(); // 🚀 NEW: Refresh execution history
-        }, 100); // Small delay to ensure state update
-                
-        // 🚀 NEW: Enhanced success message with execution details
-        let successMessage = `✅ Action ${decision} successfully!`;
-        
-        if (result.execution_performed) {
-          if (result.execution_success) {
-            successMessage = `🚀 Action ${decision} and EXECUTED successfully! ${result.execution_message}`;
-          } else {
-            successMessage = `⚠️ Action ${decision} but execution failed: ${result.execution_message}`;
-          }
-        }
-        
-        setMessage(successMessage);
-        setTimeout(() => setMessage(null), 5000); // Longer display for execution messages
-        
-      } else {
-        const error = await response.json();
-        setError(`❌ Failed to ${decision} action: ${error.detail}`);
-      }
-    } catch (err) {
-      console.error(`Error ${decision} action:`, err);
-      setError(`❌ Failed to ${decision} action. Please try again.`);
+  try {
+    const action = pendingActions.find(a => a.id === actionId);
+    
+    // 🔌 ENHANCED: Route to appropriate endpoint based on action type
+    let endpoint;
+    if (action?.action_type === 'mcp_server_action') {
+      endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
+    } else {
+      // PRESERVE: Use existing agent approval endpoint
+      endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
-  };
+    
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { 
+        ...getAuthHeaders(), 
+        "Content-Type": "application/json",
+        "X-API-Version": "v1.0"
+      },
+      body: JSON.stringify({
+        action_id: actionId,
+        decision: decision,
+        notes: notes,
+        conditions: conditions,
+        approval_duration: conditions?.duration || null,
+        execute_immediately: true,
+        // 🔌 NEW: Add MCP-specific data if needed
+        mcp_server_id: action?.mcp_data?.server,
+        mcp_namespace: action?.mcp_data?.namespace
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      console.log("✅ Enhanced approval result:", result);
+              
+      // PRESERVE: Your existing UI update logic
+      setPendingActions(prev => {
+        const updated = prev.filter(action => action.id !== actionId);
+        console.log(`📊 Enhanced pending actions updated: ${prev.length} → ${updated.length}`);
+        return updated;
+      });
+      
+      setSelectedAction(null);
+              
+      // PRESERVE: Your existing dashboard refresh logic
+      setTimeout(() => {
+        fetchDashboardData();
+        fetchApprovalMetrics();
+        fetchExecutionHistory();
+      }, 100);
+              
+      // 🔌 ENHANCED: Success message with MCP/Agent differentiation
+      let successMessage = `✅ ${action?.action_type === 'mcp_server_action' ? 'MCP Server' : 'Agent'} action ${decision} successfully!`;
+      
+      if (result.execution_performed) {
+        if (result.execution_success) {
+          successMessage = `🚀 ${action?.action_type === 'mcp_server_action' ? 'MCP Server' : 'Agent'} action ${decision} and EXECUTED successfully! ${result.execution_message}`;
+        } else {
+          successMessage = `⚠️ ${action?.action_type === 'mcp_server_action' ? 'MCP Server' : 'Agent'} action ${decision} but execution failed: ${result.execution_message}`;
+        }
+      }
+      
+      setMessage(successMessage);
+      setTimeout(() => setMessage(null), 5000);
+      
+    } else {
+      const error = await response.json();
+      setError(`❌ Failed to ${decision} action: ${error.detail}`);
+    }
+  } catch (err) {
+    console.error(`Error ${decision} action:`, err);
+    setError(`❌ Failed to ${decision} action. Please try again.`);
+  }
+};
 
   const handleEmergencyOverride = async (actionId) => {
     if (!emergencyJustification.trim()) {
@@ -1206,6 +1291,20 @@ const createWorkflow = async (workflowData) => {
     if (riskScore >= 40) return "bg-yellow-100 text-yellow-800 border-yellow-200";
     return "bg-green-100 text-green-800 border-green-200";
   };
+
+  const getActionTypeIcon = (actionType) => {
+  // 🔌 NEW: MCP server action icons
+  if (actionType === "mcp_server_action") return "🔌";
+  
+  // PRESERVE: Your existing agent action icons
+  if (actionType === "security_scan") return "🔍";
+  if (actionType === "data_access") return "📊";
+  if (actionType === "system_config") return "⚙️";
+  if (actionType === "error_fallback") return "⚠️";
+  
+  // Default for any action type
+  return "🤖";
+};
 
   const getWorkflowStageLabel = (stage) => {
     const stages = {
@@ -1520,7 +1619,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "automation", "execution"].map((tab) => (
+          {["pending", "metrics", "workflows", "automation", "execution", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1535,6 +1634,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               {tab === "workflows" && "⚙️ Workflow Management"}
               {tab === "automation" && "🤖 Automation Center"}
               {tab === "execution" && "🚀 Execution Center"}
+              {tab === "mcp" && "🔌 MCP Servers"}
             </button>
           ))}
         </nav>
@@ -1581,8 +1681,12 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
                           <h3 className="text-lg font-semibold text-gray-900">
-                            Agent {action.agent_id}
-                          </h3>
+  {action.action_type === 'mcp_server_action' ? (
+    <>🔌 MCP Server: {action.mcp_data?.server || 'Unknown'}</>
+  ) : (
+    <>🤖 Agent {action.agent_id}</>
+  )}
+</h3>
                           <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
                             RISK {action.ai_risk_score}/100
                           </span>
@@ -1599,7 +1703,21 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
-                          <div><strong>Action:</strong> {action.action_type}</div>
+                         {action.action_type === 'mcp_server_action' ? (
+  <>
+    <div><strong>Namespace:</strong> {action.mcp_data?.namespace}</div>
+    <div><strong>Action:</strong> {action.mcp_data?.verb}</div>
+    <div><strong>Resource:</strong> {action.mcp_data?.resource}</div>
+    <div><strong>User:</strong> {action.user_email || 'Unknown'}</div>
+  </>
+) : (
+  <>
+    <div><strong>Action:</strong> {action.action_type}</div>
+    <div><strong>Target:</strong> {action.target_system || 'Unknown'}</div>
+    <div><strong>Agent:</strong> {action.agent_id}</div>
+    <div><strong>User:</strong> {action.user_email || 'Unknown'}</div>
+  </>
+)}
                           <div><strong>Target:</strong> {action.target_system || 'Unknown'}</div>
                           <div><strong>Approval Level:</strong> {action.current_approval_level}/{action.required_approval_level}</div>
                           <div><strong>Time Remaining:</strong> 
@@ -2693,6 +2811,146 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           <span className="text-xs text-orange-600">12 minutes ago</span>
         </div>
       </div>
+    </div>
+  </div>
+)}
+
+{/* 🔌 NEW: MCP Servers Tab */}
+{activeTab === "mcp" && (
+  <div className="space-y-6">
+    {/* MCP Server Overview */}
+    <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
+      <h3 className="text-xl font-semibold mb-4">🔌 MCP Server Governance</h3>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <span className="text-purple-100">Total MCP Actions:</span>
+          <span className="ml-2 text-2xl font-bold">{pendingActions.filter(a => a.action_type === 'mcp_server_action').length}</span>
+        </div>
+        <div>
+          <span className="text-purple-100">High Risk:</span>
+          <span className="ml-2 text-2xl font-bold">{pendingActions.filter(a => a.action_type === 'mcp_server_action' && a.ai_risk_score >= 70).length}</span>
+        </div>
+        <div>
+          <span className="text-purple-100">Active Servers:</span>
+          <span className="ml-2 text-2xl font-bold">
+            {new Set(pendingActions.filter(a => a.action_type === 'mcp_server_action').map(a => a.mcp_data?.server)).size}
+          </span>
+        </div>
+        <div>
+          <span className="text-purple-100">Namespaces:</span>
+          <span className="ml-2 text-2xl font-bold">
+            {new Set(pendingActions.filter(a => a.action_type === 'mcp_server_action').map(a => a.mcp_data?.namespace)).size}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {/* MCP Actions List */}
+    <div className="bg-white rounded-lg shadow-sm border p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">🔌 MCP Server Actions</h3>
+      {pendingActions.filter(a => a.action_type === 'mcp_server_action').length === 0 ? (
+        <div className="text-center py-8">
+          <div className="text-4xl mb-4">🔌</div>
+          <h4 className="text-lg font-medium text-gray-900 mb-2">No MCP Server Actions</h4>
+          <p className="text-gray-500">MCP server actions will appear here when submitted for approval.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {pendingActions.filter(a => a.action_type === 'mcp_server_action').map((action) => (
+            <div key={action.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow">
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        🔌 MCP Server: {action.mcp_data?.server || 'Unknown'}
+                      </h3>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
+                        RISK {action.ai_risk_score}/100
+                      </span>
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                        {getWorkflowStageLabel(action.workflow_stage)}
+                      </span>
+                      {action.is_emergency && (
+                        <span className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold animate-pulse">
+                          🚨 EMERGENCY
+                        </span>
+                      )}
+                      {getExecutionStatusBadge(action)}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 mb-3">
+                      <div><strong>Namespace:</strong> {action.mcp_data?.namespace}</div>
+                      <div><strong>Action:</strong> {action.mcp_data?.verb}</div>
+                      <div><strong>Resource:</strong> {action.mcp_data?.resource}</div>
+                      <div><strong>User:</strong> {action.user_email || 'Unknown'}</div>
+                      <div><strong>Approval Level:</strong> {action.current_approval_level}/{action.required_approval_level}</div>
+                      <div><strong>Time Remaining:</strong> 
+                        <span className={action.time_remaining && action.time_remaining.includes('OVERDUE') ? 'text-red-600 font-bold' : ''}>
+                          {formatTimeRemaining(action.time_remaining)}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-gray-700 mb-3">{action.description}</p>
+                    
+                    {action.contextual_risk_factors && action.contextual_risk_factors.length > 0 && (
+                      <div className="mb-3">
+                        <strong className="text-sm text-gray-600">Risk Factors:</strong>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {action.contextual_risk_factors.map((factor, index) => (
+                            <span key={index} className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">
+                              {factor}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MCP-specific parameter display */}
+                    {action.mcp_data?.params && (
+                      <div className="mb-3 p-3 bg-blue-50 rounded">
+                        <strong className="text-sm text-blue-800">MCP Parameters:</strong>
+                        <div className="mt-1 text-xs text-blue-700">
+                          {Object.entries(action.mcp_data.params).map(([key, value]) => (
+                            <div key={key}><strong>{key}:</strong> {String(value)}</div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 ml-4 min-w-0">
+                    <button
+                      onClick={() => setSelectedAction(action)}
+                      className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm transition-colors"
+                    >
+                      📋 Review Details
+                    </button>
+                    
+                    {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
+                      <>
+                        <button
+                          onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                        >
+                          ✅ Approve
+                        </button>
+                        <button
+                          onClick={() => handleApproval(action.id, 'denied', 'Quick denial')}
+                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+                        >
+                          ❌ Deny
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   </div>
 )}

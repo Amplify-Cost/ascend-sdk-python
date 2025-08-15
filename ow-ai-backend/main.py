@@ -26,6 +26,8 @@ from routes.analytics_routes import router as analytics_router
 from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
+from routes.unified_governance_routes import router as unified_governance_router
+
 
 
 
@@ -172,6 +174,8 @@ app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
+app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+
 
 
 # Security and API-key setup (unchanged)
