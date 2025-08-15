@@ -24,7 +24,7 @@ from routes.authorization_routes import authorization_api_router
 from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics_routes import router as analytics_router
 from routes.smart_alerts import router as smart_alerts_router
-
+from routes.data_rights_routes import router as data_rights_router
 
 
 
@@ -170,7 +170,7 @@ app.include_router(authorization_api_router)
 app.include_router(secrets_router)
 app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
-
+app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 
 
 
