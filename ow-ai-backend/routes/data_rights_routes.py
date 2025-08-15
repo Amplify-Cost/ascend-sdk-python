@@ -14,7 +14,7 @@ import json
 from database import get_db
 from dependencies import get_current_user
 from models_data_rights import DataSubjectRequest, DataLineage, ConsentRecord, DataErasureLog
-from services.data_rights_service import DataRightsService
+from services.data_rights_service import DataSubjectRightsService as DataRightsService
 from services.immutable_audit_service import ImmutableAuditService
 
 router = APIRouter()
