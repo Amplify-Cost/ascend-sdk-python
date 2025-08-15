@@ -63,25 +63,23 @@ class ImmutableAuditLog(Base):
         Index('idx_audit_sequence', 'sequence_number'),
     )
     
-    def calculate_content_hash(self) -> str:
-        """Calculate SHA-256 hash of audit log content"""
-        content = {
-            'timestamp': self.timestamp.isoformat(),
-            'event_type': self.event_type,
-            'actor_id': self.actor_id,
-            'resource_type': self.resource_type,
-            'resource_id': self.resource_id,
-            'action': self.action,
-            'event_data': self.event_data,
-            'risk_level': self.risk_level
-        }
-        content_str = json.dumps(content, sort_keys=True)
-        return hashlib.sha256(content_str.encode()).hexdigest()
-    
-    def calculate_chain_hash(self, previous_hash: str = None) -> str:
-        """Calculate chain hash linking this entry to previous"""
-        chain_data = f"{self.content_hash}:{previous_hash or ''}"
-        return hashlib.sha256(chain_data.encode()).hexdigest()
+def calculate_content_hash(self) -> str:
+    """Calculate SHA-256 hash of audit log content"""
+    from datetime import datetime, UTC
+    # Handle case where timestamp is not set yet
+    timestamp = self.timestamp if self.timestamp else datetime.now(UTC)
+    content = {
+        'timestamp': timestamp.isoformat(),
+        'event_type': self.event_type,
+        'actor_id': self.actor_id,
+        'resource_type': self.resource_type,
+        'resource_id': self.resource_id,
+        'action': self.action,
+        'event_data': self.event_data,
+        'risk_level': self.risk_level
+    }
+    content_str = json.dumps(content, sort_keys=True)
+    return hashlib.sha256(content_str.encode()).hexdigest()
 
 class EvidencePack(Base):
     """
