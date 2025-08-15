@@ -1,16 +1,44 @@
-# Environment variables - CRITICAL FOR SECURITY
+# ENTERPRISE SECURITY - CRITICAL SECRET PROTECTION
+# Any file that could contain secrets must be ignored
+
+# Environment files - NEVER COMMIT THESE
 .env
+.env.*
+!.env.template
+!.env.example
 *.env
-.env.local
-.env.production
-.env.staging
-.env.development
+env.local
+env.production
+env.staging
+env.development
 
-# Specific paths
-ow-ai-backend/.env
-ow-ai-dashboard/.env
+# Specific secret file patterns
+secrets.json
+secrets.yml
+secrets.yaml
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
 
-# Python (for backend)
+# Enterprise configuration files that may contain secrets
+config/secrets/
+vault/
+certificates/
+keys/
+
+# Development databases that may contain sensitive data
+*.db
+*.sqlite
+*.sqlite3
+owai.db
+ow-ai.db
+database.db
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -43,7 +71,7 @@ env.bak/
 venv.bak/
 .venv/
 
-# Node.js (for frontend)
+# Node.js
 node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -54,12 +82,6 @@ yarn.lock
 # Build outputs
 /build
 /dist
-
-# Database files
-*.db
-*.sqlite3
-owai.db
-ow-ai.db
 
 # IDE and editor files
 .vscode/
@@ -77,9 +99,10 @@ ow-ai.db
 ehthumbs.db
 Thumbs.db
 
-# Logs
+# Logs that may contain sensitive information
 *.log
 logs/
+log/
 
 # Cache directories
 .cache/
@@ -90,3 +113,25 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+temp/
+tmp/
+
+# Enterprise backup files
+*.backup
+*.bak
+backup/
+
+# Docker files that might contain secrets
+docker-compose.override.yml
+docker-compose.local.yml
+
+# Cloud configuration files
+.gcloud/
+.aws/
+.azure/
+
+# Kubernetes secret files
+*-secret.yaml
+*-secret.yml
+secrets.yaml
+secrets.yml
