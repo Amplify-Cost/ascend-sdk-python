@@ -1,0 +1,12 @@
+{
+  "event_type": "USER_ACTION",
+  "actor_id": "test-user-001",
+  "resource_type": "AGENT",
+  "resource_id": "gpt-4",
+  "action": "EXECUTE",
+  "event_data": {
+    "query": "Testing Phase 2.1 audit system"
+  },
+  "risk_level": "MEDIUM",
+  "compliance_tags": ["SOX"]
+}
