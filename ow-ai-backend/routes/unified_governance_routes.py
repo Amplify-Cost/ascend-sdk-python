@@ -1,11 +1,11 @@
 # routes/unified_governance_routes.py
 # 🏢 ENTERPRISE: Unified AI Governance Routes - Agents + MCP Servers
-# Uses YOUR existing enterprise models and maintains ALL functionality
+# Uses YOUR EXACT existing dependencies and maintains ALL functionality
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc
-from dependencies import get_db, get_current_user, verify_admin_access, verify_manager_access
+from dependencies import get_db, get_current_user, require_admin_role, require_manager_role
 from models import User, Action, AuditLog, WorkflowConfig, ExecutionHistory
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -361,6 +361,58 @@ async def governance_health_check(
             "timestamp": datetime.utcnow().isoformat()
         }
 
+# 🏢 ENTERPRISE: Admin-only unified reporting (uses your existing require_admin_role)
+@router.get("/admin/unified-report")
+async def get_unified_admin_report(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin_role)
+):
+    """
+    🏢 ENTERPRISE: Admin-only unified governance report
+    Uses your existing admin role requirements
+    """
+    try:
+        logger.info(f"🏢 Admin {current_user.email} accessing unified governance report")
+        
+        # Get comprehensive stats using your existing tables
+        total_actions = db.query(Action).count()
+        pending_actions = db.query(Action).filter(Action.authorization_status == "pending_approval").count()
+        approved_actions = db.query(Action).filter(Action.authorization_status == "approved").count()
+        denied_actions = db.query(Action).filter(Action.authorization_status == "denied").count()
+        
+        # Get audit trail summary
+        audit_count = db.query(AuditLog).count()
+        recent_audits = db.query(AuditLog).order_by(desc(AuditLog.created_at)).limit(10).all()
+        
+        admin_report = {
+            "report_type": "unified_governance_admin",
+            "generated_at": datetime.utcnow().isoformat(),
+            "generated_by": current_user.email,
+            "summary": {
+                "total_actions": total_actions,
+                "pending_actions": pending_actions,
+                "approved_actions": approved_actions,
+                "denied_actions": denied_actions,
+                "audit_entries": audit_count
+            },
+            "recent_audits": [
+                {
+                    "id": audit.id,
+                    "action_type": audit.action_type,
+                    "resource_type": audit.resource_type,
+                    "user_id": audit.user_id,
+                    "created_at": audit.created_at.isoformat() if audit.created_at else None
+                }
+                for audit in recent_audits
+            ]
+        }
+        
+        return {"success": True, "report": admin_report}
+        
+    except Exception as e:
+        logger.error(f"❌ Error generating admin report: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate admin report")
+
 # 🔧 Helper Functions
 def calculate_time_remaining(created_at: datetime) -> str:
     """Calculate time remaining for action approval"""
@@ -409,3 +461,4 @@ def extract_mcp_data_from_action(action: Action) -> Dict[str, Any]:
             mcp_data["verb"] = "create"
     
     return mcp_data
+
