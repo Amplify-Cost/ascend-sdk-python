@@ -3127,11 +3127,3 @@ async def setup_enterprise_user_tables(
             "details": "Check your database connection and permissions"
         }     
     
-
-# Enterprise Audit Routes (Phase 2.1)
-try:
-    from routes import audit_routes
-    app.include_router(audit_routes.router, prefix="/api", tags=["audit"])
-    print("✅ Enterprise audit routes loaded")
-except ImportError as e:
-    print(f"⚠️  Audit routes not available: {e}")
