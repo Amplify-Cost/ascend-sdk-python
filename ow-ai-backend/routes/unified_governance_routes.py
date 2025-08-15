@@ -1,12 +1,12 @@
 # routes/unified_governance_routes.py
-# 🏢 ENTERPRISE: Unified AI Governance Routes - EXACT Dependencies Match
-# Uses ONLY functions that exist in your dependencies.py file
+# 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
+# Uses ONLY models that exist in your models.py file
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
-from models import User, AgentAction, AuditLog, WorkflowConfig
+from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
