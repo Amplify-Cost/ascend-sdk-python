@@ -29,3 +29,7 @@ hvac==2.0.0
 redis>=4.5.0
 schedule==1.2.0
 psutil==5.9.8
+
+python-jose[cryptography]==3.3.0
+authlib==1.2.1
+requests-oauthlib==1.3.1

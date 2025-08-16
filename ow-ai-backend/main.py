@@ -30,6 +30,9 @@ from routes.unified_governance_routes import router as unified_governance_router
 from enterprise_config import config
 from jwt_manager import jwt_manager
 from health import router as health_router
+from rbac_manager import enterprise_rbac, require_permission, require_minimum_level, Permission
+from sso_manager import enterprise_sso
+from routes.sso_routes import router as sso_router
 
 
 
@@ -179,6 +182,7 @@ app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-ri
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
 app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
 app.include_router(health_router, tags=["Health"])
+app.include_router(sso_router, tags=["Enterprise SSO"])
 
 
 
