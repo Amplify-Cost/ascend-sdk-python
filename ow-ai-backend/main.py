@@ -145,8 +145,17 @@ for router_name in ROUTER_NAMES:
         if router_name == "auth":
             from routes.auth import router as auth_router
             ROUTE_MODULES[router_name] = auth_router
-        elif router_name == "smart_rules":  # ← ADD THIS
-            from routes.smart_rules_routes import router as smart_rules_router  # ← ADD THIS
+        elif router_name == "smart_rules":
+            try:
+                from routes.smart_rules_routes import router as smart_rules_router
+                ROUTE_MODULES[router_name] = smart_rules_router
+                print(f"✅ Smart rules router loaded successfully: {smart_rules_router}")
+            except ImportError as import_error:
+                print(f"❌ Smart rules router import failed: {import_error}")
+                ROUTE_MODULES[router_name] = None
+            except Exception as general_error:
+                print(f"❌ Smart rules router error: {general_error}")
+                ROUTE_MODULES[router_name] = None
             ROUTE_MODULES[router_name] = smart_rules_router  # ← ADD THIS
         elif router_name == "analytics":
 
