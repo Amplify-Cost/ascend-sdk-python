@@ -27,7 +27,22 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
-from health import router as health_router
+# Enterprise health module with graceful fallback
+try:
+    from health import router as health_router
+    HEALTH_MODULE_AVAILABLE = True
+    print("✅ Enterprise health module loaded")
+except ImportError as e:
+    print(f"⚠️  Health module not available: {e}")
+    # Create minimal health router as fallback
+    from fastapi import APIRouter
+    health_router = APIRouter()
+    
+    @health_router.get("/health")
+    async def basic_health():
+        return {"status": "ok", "enterprise_mode": False}
+    
+    HEALTH_MODULE_AVAILABLE = False
 from routes.sso_routes import router as sso_router
 try:
     from enterprise_config import config
