@@ -18,6 +18,18 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
 from routes.smart_rules_routes import router as smart_rules_router
+for route_name, router in ROUTE_MODULES.items():
+    if router:
+        try:
+            if route_name == "auth":
+                app.include_router(router)
+            elif route_name == "smart_rules":  # Add this
+                app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+            elif route_name == "analytics":
+                app.include_router(router, prefix="/analytics", tags=["Analytics"])
+            # ... other routes
+        except Exception as e:
+            print(f"⚠️  Failed to include {route_name} routes: {e}")
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
@@ -138,14 +150,18 @@ except ImportError as e:
 
 # Core application routers with graceful fallback
 ROUTE_MODULES = {}
-ROUTER_NAMES = ["auth", "analytics", "smart_alerts", "data_rights", "unified_governance"]
+ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance"]
 
 for router_name in ROUTER_NAMES:
     try:
         if router_name == "auth":
             from routes.auth import router as auth_router
             ROUTE_MODULES[router_name] = auth_router
+        elif router_name == "smart_rules":  # ← ADD THIS
+            from routes.smart_rules_routes import router as smart_rules_router  # ← ADD THIS
+            ROUTE_MODULES[router_name] = smart_rules_router  # ← ADD THIS
         elif router_name == "analytics":
+
             from routes.analytics import router as analytics_router
             ROUTE_MODULES[router_name] = analytics_router
         elif router_name == "smart_alerts":
@@ -313,17 +329,73 @@ workflow_config = {
 audit_trail_storage = []
 
 # <--- Added: include auth router
-app.include_router(auth_router)
-app.include_router(smart_rules_router)
-app.include_router(enterprise_user_router)
-app.include_router(authorization_router)  
-app.include_router(authorization_api_router)
-app.include_router(secrets_router)
-app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
-app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
-app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
+#app.include_router(auth_router)
+#app.include_router(smart_rules_router)
+#app.include_router(enterprise_user_router)
+#app.include_router(authorization_router)  
+#app.include_router(authorization_api_router)
+#app.include_router(secrets_router)
+#app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+#app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+#app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
-app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+# app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+
+# Include routers with enterprise fallback handling
+print("🔗 Loading application routes...")
+
+# Enterprise health monitoring (always included)
+app.include_router(health_router, tags=["Health"])
+print("✅ Health routes included")
+
+# Enterprise SSO routes (if available)
+if SSO_ROUTES_AVAILABLE and sso_router:
+    app.include_router(sso_router, tags=["Enterprise SSO"])
+    print("✅ Enterprise SSO routes included")
+
+# Core application routes with graceful fallback
+for route_name, router in ROUTE_MODULES.items():
+    if router:
+        try:
+            if route_name == "auth":
+                app.include_router(router)
+            elif route_name == "smart_rules":
+                app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+            elif route_name == "analytics":
+                app.include_router(router, prefix="/analytics", tags=["Analytics"])
+            elif route_name == "smart_alerts":
+                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
+            elif route_name == "data_rights":
+                app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
+            elif route_name == "unified_governance":
+                app.include_router(router, prefix="/api/governance", tags=["Unified Governance"])
+            else:
+                app.include_router(router)
+            print(f"✅ {route_name} routes included")
+        except Exception as e:
+            print(f"⚠️  Failed to include {route_name} routes: {e}")
+
+# Manual router inclusions for routes not in ROUTE_MODULES
+try:
+    app.include_router(enterprise_user_router, tags=["Enterprise Users"])
+    print("✅ Enterprise user routes included")
+except Exception as e:
+    print(f"⚠️  Enterprise user routes failed: {e}")
+
+try:
+    app.include_router(authorization_router, tags=["Authorization"])
+    app.include_router(authorization_api_router, tags=["Authorization API"])
+    print("✅ Authorization routes included")
+except Exception as e:
+    print(f"⚠️  Authorization routes failed: {e}")
+
+try:
+    app.include_router(secrets_router, tags=["Secrets"])
+    print("✅ Secrets routes included")
+except Exception as e:
+    print(f"⚠️  Secrets routes failed: {e}")
+
+print("🚀 Application startup complete")
 
 
 
