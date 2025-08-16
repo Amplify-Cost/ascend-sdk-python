@@ -159,7 +159,7 @@ for router_name in ROUTER_NAMES:
         
         elif router_name == "analytics":
 
-            from routes.analytics import router as analytics_router
+            from routes.analytics_routes import router as analytics_router
             ROUTE_MODULES[router_name] = analytics_router
         elif router_name == "smart_alerts":
             from routes.smart_alerts import router as smart_alerts_router
