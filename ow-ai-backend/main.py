@@ -18,18 +18,6 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
 from routes.smart_rules_routes import router as smart_rules_router
-for route_name, router in ROUTE_MODULES.items():
-    if router:
-        try:
-            if route_name == "auth":
-                app.include_router(router)
-            elif route_name == "smart_rules":  # Add this
-                app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
-            elif route_name == "analytics":
-                app.include_router(router, prefix="/analytics", tags=["Analytics"])
-            # ... other routes
-        except Exception as e:
-            print(f"⚠️  Failed to include {route_name} routes: {e}")
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
