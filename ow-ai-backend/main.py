@@ -27,12 +27,25 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
-from enterprise_config import config
-from jwt_manager import jwt_manager
 from health import router as health_router
-from rbac_manager import enterprise_rbac, require_permission, require_minimum_level, Permission
-from sso_manager import enterprise_sso
 from routes.sso_routes import router as sso_router
+try:
+    from enterprise_config import config
+    from jwt_manager import jwt_manager
+    from rbac_manager import enterprise_rbac, require_permission, require_minimum_level, Permission
+    from sso_manager import enterprise_sso
+    ENTERPRISE_FEATURES_ENABLED = True
+    print("✅ Enterprise features loaded successfully")
+except ImportError as e:
+    print(f"⚠️  Enterprise features not available: {e}")
+    ENTERPRISE_FEATURES_ENABLED = False
+    # Create fallback config
+    class FallbackConfig:
+        environment = "production"
+        def get_secret(self, name): return os.getenv(name.upper().replace('-', '_'))
+    config = FallbackConfig()
+
+
 
 
 

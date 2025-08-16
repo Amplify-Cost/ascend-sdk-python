@@ -9,17 +9,32 @@ class EnterpriseConfig:
     
     def __init__(self):
         self.environment = os.getenv('ENVIRONMENT', 'development')
+        self.use_vault = False
+        self.secrets_client = None
         
+        # Only initialize AWS in production if credentials are available
         if self.environment == 'production':
-            # Production: AWS Secrets Manager
-            self.secrets_client = boto3.client(
-                'secretsmanager',
-                region_name=os.getenv('AWS_REGION', 'us-east-1'),
-                aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
-            )
-            self.use_vault = True
-            print("✅ Enterprise Config: Using AWS Secrets Manager")
+            try:
+                # Check if AWS credentials are available
+                aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+                aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+                
+                if aws_access_key and aws_secret_key:
+                    self.secrets_client = boto3.client(
+                        'secretsmanager',
+                        region_name=os.getenv('AWS_REGION', 'us-east-1'),
+                        aws_access_key_id=aws_access_key,
+                        aws_secret_access_key=aws_secret_key
+                    )
+                    self.use_vault = True
+                    print("✅ Enterprise Config: Using AWS Secrets Manager")
+                else:
+                    print("⚠️  Enterprise Config: AWS credentials not found, using fallback mode")
+                    self.use_vault = False
+                    
+            except Exception as e:
+                print(f"⚠️  Enterprise Config: AWS initialization failed ({str(e)}), using fallback mode")
+                self.use_vault = False
         else:
             # Development: Local .env files only
             from dotenv import load_dotenv
@@ -37,7 +52,7 @@ class EnterpriseConfig:
         Returns:
             Secret value or None if not found
         """
-        if self.use_vault:
+        if self.use_vault and self.secrets_client:
             try:
                 # AWS Secrets Manager format: ow-ai/production/secret-name
                 full_secret_name = f"ow-ai/production/{secret_name}"
@@ -60,20 +75,32 @@ class EnterpriseConfig:
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code == 'ResourceNotFoundException':
-                    print(f"❌ Secret not found: {secret_name}")
-                elif error_code == 'InvalidRequestException':
-                    print(f"❌ Invalid request for secret: {secret_name}")
-                elif error_code == 'InvalidParameterException':
-                    print(f"❌ Invalid parameter for secret: {secret_name}")
+                    print(f"⚠️  Secret not found: {secret_name}")
                 else:
-                    print(f"❌ Error retrieving secret {secret_name}: {e}")
+                    print(f"⚠️  Error retrieving secret {secret_name}: {e}")
                 return None
             except Exception as e:
-                print(f"❌ Unexpected error retrieving secret {secret_name}: {e}")
+                print(f"⚠️  Unexpected error retrieving secret {secret_name}: {e}")
                 return None
         else:
-            # Development: use .env files
-            return os.getenv(secret_name.upper().replace('-', '_'))
+            # Fallback: use environment variables or .env files
+            env_name = secret_name.upper().replace('-', '_')
+            fallback_value = os.getenv(env_name)
+            
+            if fallback_value:
+                return fallback_value
+            
+            # Enterprise fallback for Railway deployment
+            if secret_name == 'jwt-private-key':
+                return os.getenv('JWT_PRIVATE_KEY')
+            elif secret_name == 'jwt-public-key':
+                return os.getenv('JWT_PUBLIC_KEY')
+            elif secret_name == 'database':
+                return os.getenv('DATABASE_REDACTED-CREDENTIAL')
+            elif secret_name == 'webhook-signing':
+                return os.getenv('WEBHOOK_SECRET')
+                
+            return None
     
     def get_database_url(self) -> str:
         """Get complete database URL"""
@@ -84,12 +111,23 @@ class EnterpriseConfig:
             database = os.getenv('DATABASE_NAME', 'owai')
             return f"postgresql://{username}:REDACTED-CREDENTIAL@{host}/{database}"
         else:
-            return os.getenv('DATABASE_URL', 'postgresql://localhost/owai_dev')
+            # Fallback to Railway DATABASE_URL or construct from parts
+            database_url = os.getenv('DATABASE_URL')
+            if database_url:
+                return database_url
+            
+            # Construct from individual parts
+            password = self.get_secret('database') or os.getenv('DATABASE_REDACTED-CREDENTIAL', 'fallback_password')
+            host = os.getenv('DATABASE_HOST', 'localhost')
+            username = os.getenv('DATABASE_USERNAME', 'postgres')
+            database = os.getenv('DATABASE_NAME', 'owai')
+            return f"postgresql://{username}:REDACTED-CREDENTIAL@{host}/{database}"
     
     def test_connection(self) -> bool:
         """Test if we can connect to AWS Secrets Manager"""
-        if not self.use_vault:
-            return True  # No test needed for development
+        if not self.use_vault or not self.secrets_client:
+            print("⚠️  AWS Secrets Manager not configured - using fallback mode")
+            return True  # Return True for fallback mode
             
         try:
             # Try to list secrets to test connection
@@ -97,12 +135,12 @@ class EnterpriseConfig:
             print("✅ AWS Secrets Manager connection successful")
             return True
         except Exception as e:
-            print(f"❌ AWS Secrets Manager connection failed: {e}")
+            print(f"⚠️  AWS Secrets Manager connection failed: {e}")
             return False
 
 # Create global instance
 config = EnterpriseConfig()
 
 # Test connection on import (only in production)
-if config.environment == 'production':
+if config.environment == 'production' and config.use_vault:
     config.test_connection()
