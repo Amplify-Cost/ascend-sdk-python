@@ -27,6 +27,9 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
+from enterprise_config import config
+from jwt_manager import jwt_manager
+from health import router as health_router
 
 
 
@@ -175,6 +178,7 @@ app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
 app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+app.include_router(health_router, tags=["Health"])
 
 
 

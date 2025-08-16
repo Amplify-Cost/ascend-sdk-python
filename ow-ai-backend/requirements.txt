@@ -1,10 +1,11 @@
-# Core FastAPI dependencies  
+# Core FastAPI dependencies
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 sqlalchemy==2.0.23
 pydantic[email]==2.5.0
 python-dotenv==1.0.0
 psycopg2-binary==2.9.9
+python-multipart
 
 # AI/LLM integration - Version compatibility fixed
 openai==1.3.7
@@ -13,14 +14,18 @@ httpx==0.25.2
 # API utilities and security
 slowapi==0.1.9
 passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
+
+# Enterprise JWT (replacing python-jose)
+PyJWT[crypto]==2.8.0
+cryptography==41.0.7
 
 # Enterprise Secrets Management
-cryptography==41.0.7
-hvac==2.0.0
 boto3==1.34.0
 azure-keyvault-secrets==4.7.0
 azure-identity==1.15.0
-schedule==1.2.0
+hvac==2.0.0
 
+# Enterprise Features
+redis>=4.5.0
+schedule==1.2.0
 psutil==5.9.8
