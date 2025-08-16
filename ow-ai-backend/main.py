@@ -156,7 +156,7 @@ for router_name in ROUTER_NAMES:
             except Exception as general_error:
                 print(f"❌ Smart rules router error: {general_error}")
                 ROUTE_MODULES[router_name] = None
-            ROUTE_MODULES[router_name] = smart_rules_router  # ← ADD THIS
+        
         elif router_name == "analytics":
 
             from routes.analytics import router as analytics_router
