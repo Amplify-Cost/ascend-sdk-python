@@ -31,57 +31,66 @@ function clearCSRFToken() {
   csrfToken = null;
 }
 
-// Cookie-first authentication - only send Bearer token as fallback
 export async function fetchWithAuth(url, options = {}) {
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
   const absoluteUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
   
-  console.log("🍪 Enterprise cookie auth request:", { url: absoluteUrl });
-  
-  const defaultHeaders = {
-    'Content-Type': 'application/json',
+  // Prepare headers
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {})
   };
   
-  // Only add Bearer token for specific endpoints that require it
-  const requiresBearer = [
-    '/auth/token',
-    '/auth/refresh'
-  ].some(path => url.includes(path));
-  
-  const token = localStorage.getItem("access_token");
-  
-  if (requiresBearer && token) {
-    console.log("🔑 Adding Bearer token for auth endpoint");
-    defaultHeaders['Authorization'] = `Bearer ${token}`;
-  } else {
-    console.log("🍪 Using cookie-only authentication");
-  }
-  
-  const config = {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
-    credentials: 'include', // Always include cookies
-  };
-  
-  try {
-    const response = await fetch(absoluteUrl, config);
-    
-    // Handle authentication errors
-    if (response.status === 401) {
-      console.log("❌ Authentication failed - redirecting to login");
-      window.location.href = '/';
-      return;
+  // Add CSRF token for state-changing requests
+  if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method?.toUpperCase())) {
+    const csrf = await getCSRFToken();
+    if (csrf) {
+      headers['X-CSRF-Token'] = csrf;
     }
-    
-    return response;
-  } catch (error) {
-    console.error("❌ Fetch error:", error);
-    throw error;
   }
+  
+  // Always include credentials for cookie authentication
+  const fetchOptions = {
+    ...options,
+    headers,
+    credentials: 'include'  // Critical: Include cookies in all requests
+  };
+  
+  console.log('🍪 Enterprise cookie auth request:', {
+    url: absoluteUrl,
+    method: options.method || 'GET',
+    hasCSRF: !!headers['X-CSRF-Token']
+  });
+  
+  let response = await fetch(absoluteUrl, fetchOptions);
+  
+  // Handle auth errors
+  if (response.status === 401) {
+    console.warn('🍪 Authentication failed - redirecting to login');
+    clearCSRFToken();
+    window.location.href = '/login';
+    return response;
+  }
+  
+  // Handle CSRF errors
+  if (response.status === 403) {
+    console.warn('🛡️ CSRF validation failed - refreshing token');
+    clearCSRFToken();
+    
+    // Retry with fresh CSRF token
+    const freshCSRF = await getCSRFToken();
+    if (freshCSRF && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method?.toUpperCase())) {
+      headers['X-CSRF-Token'] = freshCSRF;
+      fetchOptions.headers = headers;
+      response = await fetch(absoluteUrl, fetchOptions);
+    }
+  }
+  
+  return response;
 }
 
+// Helper functions for compatibility
+export function isAuthenticated() {
   // With cookies, we can't check client-side
   // The server will validate on each request
   return true; // Assume authenticated, let server decide
