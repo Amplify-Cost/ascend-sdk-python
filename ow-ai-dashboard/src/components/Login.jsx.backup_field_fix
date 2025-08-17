@@ -18,15 +18,14 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgot }) => {
       const response = await fetchWithAuth("/auth/token", {
         method: "POST",
         body: JSON.stringify({
-          email: email,
+          username: email,
           password: password,
         }),
       });
 
       if (response.ok) {
         console.log("✅ Login successful - cookies should be set");
-        const responseData = await response.json();
-        onLoginSuccess(responseData);
+        onLoginSuccess();
       } else {
         const errorData = await response.json();
         setError(errorData.detail || "Login failed");

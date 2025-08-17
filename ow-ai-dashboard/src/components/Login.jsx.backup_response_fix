@@ -25,8 +25,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgot }) => {
 
       if (response.ok) {
         console.log("✅ Login successful - cookies should be set");
-        const responseData = await response.json();
-        onLoginSuccess(responseData);
+        onLoginSuccess();
       } else {
         const errorData = await response.json();
         setError(errorData.detail || "Login failed");
