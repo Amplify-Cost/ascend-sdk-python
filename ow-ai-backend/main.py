@@ -249,27 +249,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
-<<<<<<< HEAD
-app.include_router(jwks_router, tags=["authentication"])
-
-
-
-@app.on_event("startup")
-async def startup_jwt_manager():
-    """Initialize JWT manager on startup"""
-    try:
-        init_jwt_manager(
-            secret_name="ow-ai/jwt-keys",
-            aws_region="us-east-1", 
-            issuer="http://localhost:8000",
-            audience="ow-ai-api"
-        )
-        print("✅ RS256 JWT Manager initialized successfully")
-    except Exception as e:
-        print(f"⚠️ JWT Manager initialization failed: {e}")
-=======
->>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
-
 
 # CORS Configuration (unchanged)
 app.add_middleware(
@@ -285,55 +264,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-<<<<<<< HEAD
-# Enterprise Security: Reject Bearer tokens globally
-@app.middleware("http")
-async def reject_bearer_tokens_middleware(request, call_next):
-#     await reject_bearer_tokens(request)
-    response = await call_next(request)
-    return response
-
-=======
->>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
-# ✅ ADD THIS HERE - Enterprise Demo Storage Systems
-demo_actions_storage = {
-    9001: {
-        "id": 9001,
-        "agent_id": "security-scanner-01",
-        "action_type": "vulnerability_scan",
-        "description": "Production infrastructure vulnerability assessment",
-        "risk_level": "high",
-        "ai_risk_score": 85,
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    },
-    9002: {
-        "id": 9002,
-        "agent_id": "compliance-agent",
-        "action_type": "compliance_check",
-        "description": "SOX compliance audit of financial systems",
-        "risk_level": "medium",
-        "ai_risk_score": 65,
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    },
-    9003: {
-        "id": 9003,
-        "agent_id": "threat-detector",
-        "action_type": "anomaly_detection",
-        "description": "Advanced threat correlation analysis on network traffic",
-        "risk_level": "high",
-        "ai_risk_score": 90,
-        "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    }
-}
 
 # Enterprise workflow configuration storage
 workflow_config = {
