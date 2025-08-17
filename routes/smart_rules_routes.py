@@ -19,13 +19,13 @@ import uuid
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/smart-rules", tags=["Enterprise Smart Rules"])
+router = APIRouter(tags=["Enterprise Smart Rules"])
 
 # In-memory storage for A/B tests (enterprise demo memory)
 enterprise_ab_tests_storage: Dict[str, Dict[str, Any]] = {}
 
 # 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - FIXED
-@router.get("", response_model=list[SmartRuleOut])
+@router.get("", response_model=list[SmartRuleOut]) 
 def list_smart_rules(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
