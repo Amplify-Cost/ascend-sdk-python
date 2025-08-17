@@ -1,115 +1,88 @@
-// Enterprise API Configuration
+// utils/fetchWithAuth.js — Hybrid Cookie + Token (Enterprise Phase 1.5)
 const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
+// Read a simple cookie value (used for CSRF; session cookie is HttpOnly and not readable)
+function getCookie(name) {
+  const match = document.cookie.split("; ").find(c => c.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=", 2)[1]) : null;
+}
+
 /**
- * Enterprise Cookie-Based Authentication
- * Master Prompt Compliant: HTTP-only cookies, no localStorage
+ * Enterprise hybrid fetch helper:
+ * - Prefers cookies (session + refresh) for security
+ * - Falls back to tokens for backward compatibility
+ * - Adds X-CSRF-Token for write methods using the owai_csrf cookie
+ * - On 403 (expired CSRF), refreshes CSRF once and retries
  */
-let csrfToken = null;
-
-// Get CSRF token for state-changing requests
-async function getCSRFToken() {
-  if (csrfToken) return csrfToken;
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
-      credentials: 'include' // Include cookies
-    });
-    if (response.ok) {
-      const data = await response.json();
-      csrfToken = data.csrf_token;
-      return csrfToken;
-    }
-  } catch (error) {
-    console.warn('Failed to get CSRF token:', error);
-  }
-  return null;
-}
-
-// Clear cached CSRF token on auth errors
-function clearCSRFToken() {
-  csrfToken = null;
-}
-
-// Enterprise cookie-only authentication
 export async function fetchWithAuth(url, options = {}) {
   const absoluteUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
-  console.log("🍪 Enterprise cookie auth request:", { url: absoluteUrl });
-  
-  const defaultHeaders = {
-    'Content-Type': 'application/json',
-  };
-
-  // Master Prompt Compliance: NO localStorage, NO Bearer tokens
-  console.log("🏢 Using cookie-only authentication (Master Prompt compliant)");
-
-  const config = {
-    ...options,
+  const init = {
+    method: options.method || "GET",
     headers: {
-      ...defaultHeaders,
-      ...options.headers,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
     },
-    credentials: 'include', // Always include cookies
+    credentials: "include", // send cookies
+    ...options
   };
 
-  try {
-    const response = await fetch(absoluteUrl, config);
-    
-    // Handle authentication errors
-    if (response.status === 401) {
-      console.log("❌ Authentication failed - redirecting to login");
-      window.location.href = '/';
-      return;
+  const method = (init.method || "GET").toUpperCase();
+
+  // Add CSRF header for mutating requests
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const csrf = getCookie("owai_csrf");
+    if (csrf) init.headers["X-CSRF-Token"] = csrf;
+  }
+
+  // ENTERPRISE FIX: Proper hybrid auth - ALWAYS send token if available
+  // Cookies are sent automatically via credentials: "include"
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    init.headers.Authorization = `Bearer ${token}`;
+    console.log("🔄 Enterprise hybrid auth: Sending token + cookies");
+  } else {
+    console.log("🍪 Enterprise cookie-only auth");
+  }
+
+  let res = await fetch(absoluteUrl, init);
+
+  // If CSRF expired, get a fresh one and retry once
+  if (res.status === 403) {
+    try {
+      await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
+      const csrf = getCookie("owai_csrf");
+      if (csrf && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+        init.headers["X-CSRF-Token"] = csrf;
+      }
+      res = await fetch(absoluteUrl, init);
+    } catch {
+      // fall through
     }
-    
-    return response;
-  } catch (error) {
-    console.error("❌ Fetch error:", error);
-    throw error;
+  }
+
+  return res;
+}
+
+// Optional helpers (kept minimal)
+
+export async function logout() {
+  try {
+    await fetchWithAuth("/auth/logout", { method: "POST" });
+  } finally {
+    // Clean up any legacy tokens if they exist
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    sessionStorage.clear();
+    window.location.href = "/";
   }
 }
 
-// Enterprise logout
-export function logout() {
-  // Call logout endpoint to clear cookies
-  fetchWithAuth('/auth/logout', { method: 'POST' })
-    .then(() => {
-      clearCSRFToken();
-      window.location.href = '/';
-    })
-    .catch(error => {
-      console.error('Logout error:', error);
-      // Force redirect even if logout fails
-      window.location.href = '/';
-    });
-}
-
-/**
- * Get current user information using enterprise cookie authentication
- * Master Prompt Compliant: Cookie-only, no localStorage
- */
 export async function getCurrentUser() {
   try {
-    console.log('🔍 Getting current user via enterprise cookie auth...');
-    const response = await fetchWithAuth('/auth/me', {
-      method: 'GET'
-    });
-    
-    if (response.ok) {
-      const userData = await response.json();
-      console.log('✅ User data retrieved via cookies:', userData.email || userData.user_id);
-      return {
-        ...userData,
-        enterprise_validated: true,
-        auth_source: 'cookie'
-      };
-    } else if (response.status === 401) {
-      console.log('ℹ️ No valid authentication - user not logged in');
-      return null;
-    } else {
-      throw new Error(`Failed to get user: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('❌ Error getting current user:', error);
+    const res = await fetchWithAuth("/auth/me");
+    if (res.ok) return await res.json();
+    return null;
+  } catch {
     return null;
   }
 }

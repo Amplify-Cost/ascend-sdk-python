@@ -1,5 +1,237 @@
 #!/bin/bash
 
+echo "🏢 ENTERPRISE CODEBASE ANALYSIS TOOL"
+echo "===================================="
+echo ""
+echo "🎯 PURPOSE: Complete codebase analysis for Master Prompt compliance"
+echo "🔍 GOAL: Understand actual code structure for enterprise-level fixes"
+echo ""
+
+# Create analysis output directory
+mkdir -p enterprise_analysis_$(date +%Y%m%d_%H%M%S)
+ANALYSIS_DIR="enterprise_analysis_$(date +%Y%m%d_%H%M%S)"
+
+echo "📁 Analysis directory: $ANALYSIS_DIR"
+echo ""
+
+# Step 1: Project Structure Analysis
+echo "📋 STEP 1: PROJECT STRUCTURE ANALYSIS"
+echo "====================================="
+
+echo "🔍 Complete project structure:" | tee "$ANALYSIS_DIR/project_structure.txt"
+tree -a -I 'node_modules|__pycache__|.git|*.pyc|venv' . | tee -a "$ANALYSIS_DIR/project_structure.txt"
+
+echo ""
+echo "📁 Key directories and file counts:" | tee -a "$ANALYSIS_DIR/project_structure.txt"
+find . -type d -name "node_modules" -prune -o -type d -name "__pycache__" -prune -o -type d -name ".git" -prune -o -type d -print | head -20 | tee -a "$ANALYSIS_DIR/project_structure.txt"
+
+# Step 2: Backend Code Analysis
+echo ""
+echo "📋 STEP 2: BACKEND CODE ANALYSIS"
+echo "===============================" | tee "$ANALYSIS_DIR/backend_analysis.txt"
+
+# Find backend directory
+BACKEND_DIR=""
+if [ -d "ow-ai-backend" ]; then
+    BACKEND_DIR="ow-ai-backend"
+elif [ -f "main.py" ]; then
+    BACKEND_DIR="."
+fi
+
+echo "🔍 Backend directory: $BACKEND_DIR" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+
+if [ -n "$BACKEND_DIR" ]; then
+    echo ""
+    echo "📄 MAIN.PY ANALYSIS:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    echo "===================" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    if [ -f "$BACKEND_DIR/main.py" ]; then
+        echo "📏 File size: $(wc -l < "$BACKEND_DIR/main.py") lines" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        echo ""
+        echo "🔍 Imports and setup:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        head -30 "$BACKEND_DIR/main.py" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        echo ""
+        echo "🔍 CORS Configuration:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        grep -A 10 -B 2 "CORS\|add_middleware" "$BACKEND_DIR/main.py" || echo "No CORS configuration found" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        echo ""
+        echo "🔍 Router includes:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        grep -n "include_router\|router" "$BACKEND_DIR/main.py" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 DEPENDENCIES.PY ANALYSIS:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    echo "============================" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    if [ -f "$BACKEND_DIR/dependencies.py" ]; then
+        echo "📏 File size: $(wc -l < "$BACKEND_DIR/dependencies.py") lines" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        echo ""
+        echo "🔍 Complete dependencies.py content:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        cat "$BACKEND_DIR/dependencies.py" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 AUTH ROUTES ANALYSIS:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    echo "========================" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    if [ -f "$BACKEND_DIR/routes/auth.py" ]; then
+        echo "📏 File size: $(wc -l < "$BACKEND_DIR/routes/auth.py") lines" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        echo ""
+        echo "🔍 Auth endpoints:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        grep -n "@router\|async def\|def " "$BACKEND_DIR/routes/auth.py" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        echo ""
+        echo "🔍 Complete auth.py content:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        cat "$BACKEND_DIR/routes/auth.py" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    else
+        echo "❌ auth.py not found" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 DATABASE.PY ANALYSIS:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    echo "========================" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    if [ -f "$BACKEND_DIR/database.py" ]; then
+        echo "🔍 Database functions:" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+        grep -n "def \|async def " "$BACKEND_DIR/database.py" | tee -a "$ANALYSIS_DIR/backend_analysis.txt"
+    fi
+fi
+
+# Step 3: Frontend Code Analysis
+echo ""
+echo "📋 STEP 3: FRONTEND CODE ANALYSIS"
+echo "===============================" | tee "$ANALYSIS_DIR/frontend_analysis.txt"
+
+FRONTEND_DIR="ow-ai-dashboard"
+
+if [ -d "$FRONTEND_DIR" ]; then
+    echo "🔍 Frontend directory: $FRONTEND_DIR" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    
+    echo ""
+    echo "📄 APP.JSX ANALYSIS:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    echo "===================" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    if [ -f "$FRONTEND_DIR/src/App.jsx" ]; then
+        echo "📏 File size: $(wc -l < "$FRONTEND_DIR/src/App.jsx") lines" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        echo ""
+        echo "🔍 Complete App.jsx content:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        cat "$FRONTEND_DIR/src/App.jsx" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 FETCHWITHAUTH.JS ANALYSIS:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    echo "============================" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    if [ -f "$FRONTEND_DIR/src/utils/fetchWithAuth.js" ]; then
+        echo "📏 File size: $(wc -l < "$FRONTEND_DIR/src/utils/fetchWithAuth.js") lines" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        echo ""
+        echo "🔍 Complete fetchWithAuth.js content:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        cat "$FRONTEND_DIR/src/utils/fetchWithAuth.js" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 LOGIN COMPONENT ANALYSIS:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    echo "============================" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    if [ -f "$FRONTEND_DIR/src/components/Login.jsx" ]; then
+        echo "📏 File size: $(wc -l < "$FRONTEND_DIR/src/components/Login.jsx") lines" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        echo ""
+        echo "🔍 Complete Login.jsx content:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        cat "$FRONTEND_DIR/src/components/Login.jsx" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 DASHBOARD COMPONENT ANALYSIS:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    echo "================================" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    if [ -f "$FRONTEND_DIR/src/components/Dashboard.jsx" ]; then
+        echo "📏 File size: $(wc -l < "$FRONTEND_DIR/src/components/Dashboard.jsx") lines" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        echo ""
+        echo "🔍 Dashboard.jsx first 50 lines:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        head -50 "$FRONTEND_DIR/src/components/Dashboard.jsx" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        echo ""
+        echo "🔍 Dashboard.jsx imports and exports:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        grep -n "import\|export\|useTheme\|ThemeProvider" "$FRONTEND_DIR/src/components/Dashboard.jsx" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    fi
+
+    echo ""
+    echo "📄 PACKAGE.JSON ANALYSIS:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    echo "=========================" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    if [ -f "$FRONTEND_DIR/package.json" ]; then
+        echo "🔍 Frontend dependencies:" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+        cat "$FRONTEND_DIR/package.json" | tee -a "$ANALYSIS_DIR/frontend_analysis.txt"
+    fi
+fi
+
+# Step 4: Master Prompt Compliance Analysis
+echo ""
+echo "📋 STEP 4: MASTER PROMPT COMPLIANCE ANALYSIS"
+echo "===========================================" | tee "$ANALYSIS_DIR/master_prompt_analysis.txt"
+
+echo "🔍 Checking for Master Prompt violations..." | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+
+echo ""
+echo "🚨 localStorage Usage Check:" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+if find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | grep -v node_modules | grep -v backup | xargs grep -l "localStorage" 2>/dev/null; then
+    echo "❌ localStorage found in:" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+    find . -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" | grep -v node_modules | grep -v backup | xargs grep -n "localStorage" 2>/dev/null | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+else
+    echo "✅ No localStorage usage found" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+fi
+
+echo ""
+echo "🚨 Bearer Token Usage Check:" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+if find . -name "*.js" -o -name "*.jsx" -o -name "*.py" | grep -v node_modules | grep -v backup | xargs grep -l "Bearer.*token\|Authorization.*Bearer" 2>/dev/null; then
+    echo "⚠️ Bearer token usage found in:" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+    find . -name "*.js" -o -name "*.jsx" -o -name "*.py" | grep -v node_modules | grep -v backup | xargs grep -n "Bearer.*token\|Authorization.*Bearer" 2>/dev/null | head -10 | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+else
+    echo "✅ No Bearer token usage found in active code" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+fi
+
+echo ""
+echo "✅ Cookie Authentication Check:" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+if find . -name "*.py" -o -name "*.js" -o -name "*.jsx" | grep -v node_modules | grep -v backup | xargs grep -l "cookie.*auth\|Cookie.*auth\|credentials.*include" 2>/dev/null; then
+    echo "✅ Cookie authentication found in:" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+    find . -name "*.py" -o -name "*.js" -o -name "*.jsx" | grep -v node_modules | grep -v backup | xargs grep -n "cookie.*auth\|Cookie.*auth\|credentials.*include" 2>/dev/null | head -5 | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+else
+    echo "⚠️ Limited cookie authentication found" | tee -a "$ANALYSIS_DIR/master_prompt_analysis.txt"
+fi
+
+# Step 5: Current Issue Analysis
+echo ""
+echo "📋 STEP 5: CURRENT ISSUE ANALYSIS"
+echo "===============================" | tee "$ANALYSIS_DIR/current_issues.txt"
+
+echo "🚨 IDENTIFIED ISSUES FROM LOGS:" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "1. Infinite /auth/me calls (401 Unauthorized)" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "2. Frontend authentication loop" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "3. Screen flashing/reloading" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "4. No authentication found by backend" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+
+echo ""
+echo "🔍 AUTHENTICATION FLOW ANALYSIS:" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "- Frontend: Calls /auth/me on load" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "- Backend: Returns 401 (no auth found)" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "- Frontend: Retries authentication check" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+echo "- Result: Infinite loop" | tee -a "$ANALYSIS_DIR/current_issues.txt"
+
+# Step 6: Summary and Recommendations
+echo ""
+echo "📋 STEP 6: ANALYSIS SUMMARY"
+echo "=========================="
+
+echo ""
+echo "✅ ENTERPRISE CODEBASE ANALYSIS COMPLETE!"
+echo "========================================"
+echo ""
+echo "📁 All analysis files saved to: $ANALYSIS_DIR/"
+echo ""
+echo "📋 KEY FILES ANALYZED:"
+echo "   ✅ Project structure mapping"
+echo "   ✅ Backend code (main.py, dependencies.py, auth.py)"
+echo "   ✅ Frontend code (App.jsx, fetchWithAuth.js, components)"
+echo "   ✅ Master Prompt compliance check"
+echo "   ✅ Current issue identification"
+echo ""
+echo "🎯 NEXT STEPS:"
+echo "   1. Review analysis files for complete understanding"
+echo "   2. Create targeted enterprise fix based on actual code"
+echo "   3. Ensure Master Prompt compliance"
+echo "   4. Stop authentication loop permanently"
+echo ""
+echo "🏢 ENTERPRISE ANALYSIS READY FOR MASTER PROMPT COMPLIANT FIXES!"
+echo "=============================================================="#!/bin/bash
+
 echo "🏢 ENTERPRISE CODEBASE ANALYSIS SCRIPT"
 echo "======================================"
 echo ""
