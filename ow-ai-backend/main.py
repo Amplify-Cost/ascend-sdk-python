@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from dependencies import require_admin
 
 # Enterprise Cookie Authentication
-from cookie_auth import get_current_user, reject_bearer_tokens
+from cookie_auth import reject_bearer_tokens
 from csrf_manager import csrf_manager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
