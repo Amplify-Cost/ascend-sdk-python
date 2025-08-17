@@ -7,23 +7,23 @@ import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 // Modern metric card component
 const MetricCard = ({ title, value, change, changeType, icon, color, trend }) => {
-  const { isDarkMode } = null;
+  const { false } = null;
   
   return (
     <div className={`p-6 rounded-xl border transition-all duration-300 hover:scale-105 hover:shadow-lg ${
-      isDarkMode 
+      false 
         ? 'bg-slate-700 border-slate-600 hover:border-slate-500' 
         : 'bg-white border-gray-300 hover:border-gray-400 shadow-sm'
     }`}>
       <div className="flex items-center justify-between">
         <div>
           <p className={`text-sm font-medium transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-300' : 'text-gray-700'
+            false ? "dark-styles" : 'text-gray-700'
           }`}>
             {title}
           </p>
           <p className={`text-2xl font-bold mt-2 transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
+            false ? "dark-styles" : 'text-gray-900'
           }`}>
             {value}
           </p>
@@ -66,23 +66,23 @@ const MetricCard = ({ title, value, change, changeType, icon, color, trend }) =>
 
 // Activity feed component
 const ActivityFeed = ({ activities }) => {
-  const { isDarkMode } = null;
+  const { false } = null;
   
   return (
     <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-      isDarkMode 
+      false 
         ? 'bg-slate-700 border-slate-600' 
         : 'bg-white border-gray-300 shadow-sm'
     }`}>
       <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
-        isDarkMode ? 'text-white' : 'text-gray-900'
+        false ? "dark-styles" : 'text-gray-900'
       }`}>
         🔍 Recent Activities
       </h3>
       <div className="space-y-4 max-h-80 overflow-y-auto">
         {activities.map((activity, index) => (
           <div key={index} className={`flex items-start space-x-3 p-3 rounded-lg transition-colors duration-300 ${
-            isDarkMode ? 'bg-slate-600/50' : 'bg-gray-100 border border-gray-200'
+            false ? "dark-styles" : 'bg-gray-100 border border-gray-200'
           }`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
               activity.type === 'alert' 
@@ -95,12 +95,12 @@ const ActivityFeed = ({ activities }) => {
             </div>
             <div className="flex-1">
               <p className={`text-sm font-medium transition-colors duration-300 ${
-                isDarkMode ? 'text-white' : 'text-gray-900'
+                false ? "dark-styles" : 'text-gray-900'
               }`}>
                 {activity.title}
               </p>
               <p className={`text-xs mt-1 transition-colors duration-300 ${
-                isDarkMode ? 'text-slate-300' : 'text-gray-600'
+                false ? "dark-styles" : 'text-gray-600'
               }`}>
                 {activity.time} • {activity.agent}
               </p>
@@ -114,7 +114,7 @@ const ActivityFeed = ({ activities }) => {
 
 // Quick action buttons
 const QuickActions = () => {
-  const { isDarkMode } = null;
+  const { false } = null;
   
   const actions = [
     { label: 'Submit Action', icon: '📤', color: 'bg-blue-500 hover:bg-blue-600' },
@@ -125,12 +125,12 @@ const QuickActions = () => {
   
   return (
     <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-      isDarkMode 
+      false 
         ? 'bg-slate-700 border-slate-600' 
         : 'bg-white border-gray-300 shadow-sm'
     }`}>
       <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
-        isDarkMode ? 'text-white' : 'text-gray-900'
+        false ? "dark-styles" : 'text-gray-900'
       }`}>
         ⚡ Quick Actions
       </h3>
@@ -150,7 +150,7 @@ const QuickActions = () => {
 };
 
 const Dashboard = ({ getAuthHeaders }) => {
-  const { isDarkMode } = null;
+  const { false } = null;
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -221,20 +221,20 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (loading) {
     return (
       <div className={`p-6 transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
+        false ? "dark-styles" : 'bg-gray-100'
       }`}>
         <div className="animate-pulse space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {[1,2,3,4].map(i => (
               <div key={i} className={`h-32 rounded-xl ${
-                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                false ? "dark-styles" : 'bg-gray-200'
               }`}></div>
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[1,2].map(i => (
               <div key={i} className={`h-80 rounded-xl ${
-                isDarkMode ? 'bg-slate-700' : 'bg-gray-200'
+                false ? "dark-styles" : 'bg-gray-200'
               }`}></div>
             ))}
           </div>
@@ -246,10 +246,10 @@ const Dashboard = ({ getAuthHeaders }) => {
   if (error) {
     return (
       <div className={`p-6 text-center transition-colors duration-300 ${
-        isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
+        false ? "dark-styles" : 'bg-gray-100'
       }`}>
         <div className={`max-w-md mx-auto p-6 rounded-xl border transition-colors duration-300 ${
-          isDarkMode 
+          false 
             ? 'bg-red-900/30 border-red-400 text-red-300' 
             : 'bg-red-50 border-red-200 text-red-700'
         }`}>
@@ -267,40 +267,40 @@ const Dashboard = ({ getAuthHeaders }) => {
     );
   }
 
-  const COLORS = isDarkMode 
+  const COLORS = false 
     ? ["#60a5fa", "#f87171", "#34d399", "#fbbf24", "#a78bfa"]
     : ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"];
 
   const chartColors = {
-    grid: isDarkMode ? '#475569' : '#f3f4f6',
-    axis: isDarkMode ? '#cbd5e1' : '#6b7280',
+    grid: false ? "dark-styles" : '#f3f4f6',
+    axis: false ? "dark-styles" : '#6b7280',
     tooltip: {
-      bg: isDarkMode ? '#334155' : '#ffffff',
-      border: isDarkMode ? '#475569' : '#e5e7eb',
-      text: isDarkMode ? '#ffffff' : '#111827'
+      bg: false ? "dark-styles" : '#ffffff',
+      border: false ? "dark-styles" : '#e5e7eb',
+      text: false ? "dark-styles" : '#111827'
     }
   };
 
   return (
     <div className={`p-6 space-y-6 transition-colors duration-300 ${
-      isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
+      false ? "dark-styles" : 'bg-gray-100'
     }`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className={`text-3xl font-bold transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
+            false ? "dark-styles" : 'text-gray-900'
           }`}>
             🛡️ Security Command Center
           </h1>
           <p className={`text-lg mt-2 transition-colors duration-300 ${
-            isDarkMode ? 'text-slate-300' : 'text-gray-700'
+            false ? "dark-styles" : 'text-gray-700'
           }`}>
             Real-time enterprise security monitoring and AI agent oversight
           </p>
         </div>
         <div className={`px-4 py-2 rounded-lg transition-colors duration-300 ${
-          isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-200 text-green-900 font-medium'
+          false ? "dark-styles" : 'bg-green-200 text-green-900 font-medium'
         }`}>
           <span className="animate-pulse">●</span> All Systems Operational
         </div>
@@ -352,18 +352,18 @@ const Dashboard = ({ getAuthHeaders }) => {
           {/* High-Risk Actions Trend */}
           {trends?.high_risk_actions_by_day && trends.high_risk_actions_by_day.length > 0 && (
             <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-              isDarkMode 
+              false 
                 ? 'bg-slate-700 border-slate-600' 
                 : 'bg-white border-gray-300 shadow-sm'
             }`}>
               <div className="flex items-center justify-between mb-6">
                 <h3 className={`text-xl font-semibold transition-colors duration-300 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
+                  false ? "dark-styles" : 'text-gray-900'
                 }`}>
                   📈 Security Trends (Last 7 Days)
                 </h3>
                 <div className={`px-3 py-1 rounded-full text-sm ${
-                  isDarkMode ? 'bg-slate-600 text-slate-200' : 'bg-gray-200 text-gray-800 font-medium'
+                  false ? "dark-styles" : 'bg-gray-200 text-gray-800 font-medium'
                 }`}>
                   Live Data
                 </div>
@@ -405,12 +405,12 @@ const Dashboard = ({ getAuthHeaders }) => {
           {trends?.top_agents && trends.top_agents.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-                isDarkMode 
+                false 
                   ? 'bg-slate-700 border-slate-600' 
                   : 'bg-white border-gray-300 shadow-sm'
               }`}>
                 <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
+                  false ? "dark-styles" : 'text-gray-900'
                 }`}>
                   🤖 Top Active Agents
                 </h3>
@@ -424,7 +424,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                       cy="50%" 
                       outerRadius={80} 
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelStyle={{ fill: isDarkMode ? '#f1f5f9' : '#1e293b', fontSize: '11px' }}
+                      labelStyle={{ fill: false ? "dark-styles" : '#1e293b', fontSize: '11px' }}
                     >
                       {trends.top_agents.map((_, index) => (
                         <Cell key={`agent-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -444,12 +444,12 @@ const Dashboard = ({ getAuthHeaders }) => {
 
               {trends?.top_tools && trends.top_tools.length > 0 && (
                 <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-                  isDarkMode 
+                  false 
                     ? 'bg-slate-700 border-slate-600' 
                     : 'bg-white border-gray-300 shadow-sm'
                 }`}>
                   <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
-                    isDarkMode ? 'text-white' : 'text-gray-900'
+                    false ? "dark-styles" : 'text-gray-900'
                   }`}>
                     🛠️ Tool Usage
                   </h3>
@@ -482,12 +482,12 @@ const Dashboard = ({ getAuthHeaders }) => {
           
           {/* System Health */}
           <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-            isDarkMode 
+            false 
               ? 'bg-slate-700 border-slate-600' 
               : 'bg-white border-gray-300 shadow-sm'
           }`}>
             <h3 className={`text-lg font-semibold mb-4 transition-colors duration-300 ${
-              isDarkMode ? 'text-white' : 'text-gray-900'
+              false ? "dark-styles" : 'text-gray-900'
             }`}>
               🌡️ System Health
             </h3>
@@ -501,18 +501,18 @@ const Dashboard = ({ getAuthHeaders }) => {
                 <div key={index} className="space-y-2">
                   <div className="flex justify-between">
                     <span className={`text-sm font-medium ${
-                      isDarkMode ? 'text-slate-200' : 'text-gray-800'
+                      false ? "dark-styles" : 'text-gray-800'
                     }`}>
                       {metric.name}
                     </span>
                     <span className={`text-sm font-bold ${
-                      isDarkMode ? 'text-white' : 'text-gray-900'
+                      false ? "dark-styles" : 'text-gray-900'
                     }`}>
                       {metric.value}%
                     </span>
                   </div>
                   <div className={`w-full bg-gray-200 rounded-full h-2 ${
-                    isDarkMode ? 'bg-slate-600' : 'bg-gray-300'
+                    false ? "dark-styles" : 'bg-gray-300'
                   }`}>
                     <div 
                       className={`h-2 rounded-full transition-all duration-500 ${metric.color}`}
@@ -529,12 +529,12 @@ const Dashboard = ({ getAuthHeaders }) => {
       {/* Latest Security Actions */}
       {trends?.enriched_actions && trends.enriched_actions.length > 0 && (
         <div className={`p-6 rounded-xl border transition-colors duration-300 ${
-          isDarkMode 
+          false 
             ? 'bg-slate-700 border-slate-600' 
             : 'bg-white border-gray-300 shadow-sm'
         }`}>
           <h3 className={`text-xl font-semibold mb-6 transition-colors duration-300 ${
-            isDarkMode ? 'text-white' : 'text-gray-900'
+            false ? "dark-styles" : 'text-gray-900'
           }`}>
             🔍 Latest Security Actions
           </h3>
@@ -546,7 +546,7 @@ const Dashboard = ({ getAuthHeaders }) => {
                   : action.risk_level === 'medium' 
                   ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20'
                   : 'border-green-500 bg-green-50 dark:bg-green-900/20'
-              } ${isDarkMode ? 'bg-slate-600' : 'bg-gray-100 border border-gray-200'}`}>
+              } ${false ? "dark-styles" : 'bg-gray-100 border border-gray-200'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
                     action.risk_level === 'high' 
@@ -558,18 +558,18 @@ const Dashboard = ({ getAuthHeaders }) => {
                     {action.risk_level?.toUpperCase()}
                   </span>
                   <span className={`text-xs ${
-                    isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                    false ? "dark-styles" : 'text-gray-700'
                   }`}>
                     {action.mitre_tactic || 'N/A'}
                   </span>
                 </div>
                 <p className={`text-sm font-medium mb-1 ${
-                  isDarkMode ? 'text-white' : 'text-gray-900'
+                  false ? "dark-styles" : 'text-gray-900'
                 }`}>
                   {action.agent_id}
                 </p>
                 <p className={`text-xs ${
-                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                  false ? "dark-styles" : 'text-gray-700'
                 }`}>
                   {action.recommendation || 'Monitoring for suspicious activity'}
                 </p>
