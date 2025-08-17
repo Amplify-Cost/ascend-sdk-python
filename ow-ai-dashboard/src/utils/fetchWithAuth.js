@@ -1,3 +1,5 @@
+// Enterprise API Configuration
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 /**
  * Enterprise Cookie-Based Authentication
  * Secure HTTP-only cookies + CSRF protection
