@@ -271,11 +271,8 @@ app.add_middleware(
 )
 
 # Enterprise Security: Reject Bearer tokens globally
-# @app.middleware("http")
-# async def reject_bearer_tokens_middleware(request, call_next):
-    # await reject_bearer_tokens(request)
-    response = await call_next(request)
-    return response
+# Enterprise Security: Bearer token rejection middleware (currently disabled)
+# This allows hybrid authentication: cookies for auth, Bearer tokens for API calls
 
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems
 demo_actions_storage = {
