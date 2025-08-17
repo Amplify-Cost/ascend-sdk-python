@@ -181,3 +181,4 @@ export default {
   logout: logoutUser,
   getUser: getCurrentUser
 };
+/* Build trigger: Sun Aug 17 09:17:19 EDT 2025 - Enhanced cookie auth deployment */
