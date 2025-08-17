@@ -186,19 +186,19 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   };
 
   const createAbTest = async (ruleId) => {
-    setCreatingTest(true);
-    try {
-      console.log(`🧪 ENTERPRISE: Creating A/B test for rule ${ruleId}`);
-      
-      const response = await fetch(`${API_BASE_URL}/smart-rules/ab-test`, {
-        method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          rule_id: ruleId,
-          test_duration_hours: 24,
-          traffic_split: 50
-        })
-      });
+  setCreatingTest(true);
+  try {
+    console.log(`🧪 ENTERPRISE: Creating A/B test for rule ${ruleId}`);
+    
+    // ENTERPRISE FIX: Send rule_id as query parameter
+    const response = await fetch(`${API_BASE_URL}/smart-rules/ab-test?rule_id=${ruleId}`, {
+      method: "POST",
+      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ 
+        test_duration_hours: 24,
+        traffic_split: 50
+      })
+    });
 
       if (response.ok) {
         const newTest = await response.json();
