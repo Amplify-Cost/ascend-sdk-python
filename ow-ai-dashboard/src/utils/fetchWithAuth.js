@@ -92,9 +92,9 @@ export const logoutUser = async () => {
 };
 
 /**
- * Enhanced fetch with aggressive cookie authentication
+ * ENHANCED: Aggressive fetch with forced cookie authentication
  * Master Prompt Compliant: Uses cookies only, no localStorage
- * ENHANCED: Forces credentials on ALL requests
+ * THIS IS THE KEY FIX - Forces credentials on ALL requests
  */
 export const fetchWithAuth = async (url, options = {}) => {
   try {
@@ -181,4 +181,5 @@ export default {
   logout: logoutUser,
   getUser: getCurrentUser
 };
-/* Build trigger: Sun Aug 17 09:17:19 EDT 2025 - Enhanced cookie auth deployment */
+
+/* Build trigger: $(date) - Enhanced cookie auth deployment - FIXED LOCATION */
