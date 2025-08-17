@@ -273,7 +273,7 @@ const AppContent = () => {
     console.log("🚨 AUTH CHECK DISABLED - No infinite loops");
     setLoading(false);
     setView("login"); // Force login screen
-  }, []);  }, []);
+   }, []);
 
   // 🍪 ENTERPRISE FIX: Handle login response without problematic toast calls
   const handleLoginSuccess = async (loginResponse) => {
