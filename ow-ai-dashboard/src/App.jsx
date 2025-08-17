@@ -287,10 +287,7 @@ const AppContent = () => {
         if (loginResponse.access_token && loginResponse.user) {
           console.log("✅ Enterprise cookie authentication established");
           
-          // Store tokens for compatibility (cookies are also set automatically)
-          localStorage.setItem("access_token", loginResponse.access_token);
           if (loginResponse.refresh_token) {
-            localStorage.setItem("refresh_token", loginResponse.refresh_token);
           }
           
           // Set user state from response
@@ -318,8 +315,6 @@ const AppContent = () => {
           setAuthMode("cookie");
           
           // Clear any legacy tokens
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
           
           console.log("🍪 Secure cookie authentication activated");
           
@@ -327,7 +322,6 @@ const AppContent = () => {
           // Legacy string token (backward compatibility)
           console.log("⚠️ Legacy string token received");
           
-          localStorage.setItem("access_token", loginResponse);
           const { jwtDecode } = await import("jwt-decode");
           const decoded = jwtDecode(loginResponse);
           setUser({
@@ -384,8 +378,6 @@ const AppContent = () => {
       setAuthMode("unknown");
       
       // Clear any remaining localStorage
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
       
       console.log("✅ Enterprise logout complete");
     }
@@ -428,7 +420,6 @@ const AppContent = () => {
     console.log("🔍 Current auth mode:", authMode);
     
     // ENTERPRISE FIX: ALWAYS send token when available (regardless of auth mode)
-    const token = localStorage.getItem("access_token");
     console.log("🔍 Access token present:", !!token);
     
     if (token) {

@@ -84,7 +84,8 @@ async def reject_bearer_tokens(request: Request):
     """
     auth_header = request.headers.get("authorization", "")
     
-    # Only reject Bearer tokens on auth-related endpoints
+    # Reject ALL Bearer tokens - Master Prompt compliance
+    # Reject all Bearer tokens for Master Prompt compliance
     auth_only_paths = [
         "/auth/token",
         "/auth/refresh-token",

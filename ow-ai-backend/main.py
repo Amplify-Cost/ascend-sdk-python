@@ -13,7 +13,6 @@ from cookie_auth import reject_bearer_tokens
 from csrf_manager import csrf_manager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -270,9 +269,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Enterprise Security: Reject Bearer tokens globally
-# Enterprise Security: Bearer token rejection middleware (currently disabled)
-# This allows hybrid authentication: cookies for auth, Bearer tokens for API calls
+# Enterprise Security: Reject Cookie tokens globally
+# Enterprise Security: Cookie token rejection middleware (currently disabled)
+# This allows hybrid authentication: cookies for auth, Cookie tokens for API calls
 
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems
 demo_actions_storage = {
@@ -426,7 +425,6 @@ print("🚀 Application startup complete")
 
 
 # Security and API-key setup (unchanged)
-security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Unchanged commented-out includes
