@@ -142,16 +142,13 @@ export const fetchWithAuth = async (url, options = {}) => {
 
 // 🔄 Backward compatibility exports for existing imports
 export const logout = logoutUser;
-export const getCurrentUser = getCurrentUser; // Already exported above
-export const loginUser = loginUser; // Already exported above
 
+// Alternative export names for compatibility
 // Alternative export names for compatibility
 export { 
     loginUser as login,
-    getCurrentUser as getUser,
-    logoutUser as logout
+    getCurrentUser as getUser
 };
-
 // Default export for comprehensive compatibility
 export default {
     loginUser,
