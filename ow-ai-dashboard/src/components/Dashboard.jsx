@@ -7,7 +7,6 @@ import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 // Modern metric card component
 const MetricCard = ({ title, value, change, changeType, icon, color, trend }) => {
-  const isDarkMode = false;
   
   return (
     <div className={`p-6 rounded-xl border transition-all duration-300 hover:scale-105 hover:shadow-lg ${
@@ -66,7 +65,6 @@ const MetricCard = ({ title, value, change, changeType, icon, color, trend }) =>
 
 // Activity feed component
 const ActivityFeed = ({ activities }) => {
-  const isDarkMode = false;
   
   return (
     <div className={`p-6 rounded-xl border transition-colors duration-300 ${
@@ -149,10 +147,6 @@ const QuickActions = () => {
 };
 
 const Dashboard = ({ getAuthHeaders }) => {
-  const isDarkMode = false;
-  const theme = null;
-  const toggleTheme = () => {};
-  // 🛡️ Master Prompt Compliance: Theme safety wrapper
   const isDarkMode = false;
   const theme = null;
   const toggleTheme = () => {};
