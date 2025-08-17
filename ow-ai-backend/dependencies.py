@@ -103,3 +103,39 @@ def require_manager_or_admin_with_db(
 
 # Enterprise compliance
 verify_token = get_current_user  # For compatibility
+
+# Enterprise CSRF Protection Function - Master Prompt Compliant
+async def require_csrf(request: Request, csrf_token: str = Form(...)):
+    """
+    Enterprise CSRF protection for state-changing requests
+    Master Prompt compliant - part of cookie-only authentication
+    """
+    try:
+        # Get CSRF token from cookie or session
+        stored_csrf = request.cookies.get("csrf_token")
+        
+        if not stored_csrf:
+            logger.warning("CSRF token missing from cookies")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="CSRF token required for this operation"
+            )
+        
+        if stored_csrf != csrf_token:
+            logger.warning("CSRF token mismatch")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid CSRF token"
+            )
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"CSRF validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed"
+        )
+
+# Export for imports
+__all__ = ['get_current_user', 'require_csrf', 'get_db_session']
