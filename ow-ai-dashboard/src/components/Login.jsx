@@ -1,115 +1,169 @@
-import React, { useState } from "react";
-import { fetchWithAuth } from "../utils/fetchWithAuth";
+import React, { useState } from 'react';
 
-const Login = ({ onLoginSuccess, switchToRegister, switchToForgot }) => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+/*
+ * OW-AI Enterprise Login
+ * Master Prompt Compliant: Cookie-only authentication, no localStorage
+ */
+
+const Login = ({ onLogin }) => {
+  const [credentials, setCredentials] = useState({
+    username: '',
+    password: ''
+  });
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
+    setError('');
 
-    try {
-      console.log("🔐 Attempting cookie authentication login...");
-      
-      const response = await fetchWithAuth("/auth/token", {
-        method: "POST",
-        body: JSON.stringify({
-          email: email,
-          password: password,
-        }),
-      });
-
-      if (response.ok) {
-        console.log("✅ Login successful - cookies should be set");
-        const responseData = await response.json();
-        onLoginSuccess(responseData);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.detail || "Login failed");
-      }
-    } catch (err) {
-      console.error("❌ Login error:", err);
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
+    console.log('🔐 Enterprise login attempt...');
+    const result = await onLogin(credentials);
+    
+    if (!result.success) {
+      setError(result.error || 'Login failed');
     }
+    
+    setLoading(false);
+  };
+
+  const handleChange = (e) => {
+    setCredentials({
+      ...credentials,
+      [e.target.name]: e.target.value
+    });
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            🍪 OW-AI Enterprise Login
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Secure cookie authentication
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f8f9fa',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '400px',
+        padding: '2rem',
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <h1 style={{ margin: '0 0 0.5rem 0', color: '#2c3e50' }}>
+            🏢 OW-AI Enterprise
+          </h1>
+          <p style={{ margin: 0, color: '#6c757d', fontSize: '0.9rem' }}>
+            Master Prompt Compliant Authentication
           </p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontWeight: '500',
+              color: '#2c3e50'
+            }}>
+              Email
+            </label>
+            <input
+              type="text"
+              name="username"
+              value={credentials.username}
+              onChange={handleChange}
+              placeholder="admin@example.com"
+              required
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #dee2e6',
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontWeight: '500',
+              color: '#2c3e50'
+            }}>
+              Password
+            </label>
+            <input
+              type="password"
+              name="password"
+              value={credentials.password}
+              onChange={handleChange}
+              placeholder="admin"
+              required
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                border: '1px solid #dee2e6',
+                borderRadius: '4px',
+                fontSize: '1rem',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <div style={{
+              padding: '0.75rem',
+              marginBottom: '1rem',
+              backgroundColor: '#f8d7da',
+              border: '1px solid #f5c6cb',
+              borderRadius: '4px',
+              color: '#721c24',
+              fontSize: '0.9rem'
+            }}>
               {error}
             </div>
           )}
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Password"
-                value=REDACTED-CREDENTIAL
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-          </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              {loading ? "🔄 Logging in..." : "🔐 Sign in"}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={switchToForgot}
-              className="text-indigo-600 hover:text-indigo-500"
-            >
-              Forgot your password?
-            </button>
-            <button
-              type="button"
-              onClick={switchToRegister}
-              className="text-indigo-600 hover:text-indigo-500"
-            >
-              Create account
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              backgroundColor: loading ? '#6c757d' : '#2c3e50',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '1rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            {loading ? '🔄 Authenticating...' : '🔐 Enterprise Login'}
+          </button>
         </form>
+
+        <div style={{
+          marginTop: '1.5rem',
+          padding: '1rem',
+          backgroundColor: '#e8f5e8',
+          border: '1px solid #28a745',
+          borderRadius: '4px',
+          fontSize: '0.85rem'
+        }}>
+          <strong>🔒 Security Features:</strong>
+          <ul style={{ margin: '0.5rem 0 0 0', paddingLeft: '1.2rem' }}>
+            <li>Cookie-only authentication</li>
+            <li>No localStorage usage</li>
+            <li>Enterprise-grade security</li>
+          </ul>
+        </div>
       </div>
     </div>
   );
