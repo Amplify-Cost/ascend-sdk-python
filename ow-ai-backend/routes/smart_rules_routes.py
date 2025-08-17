@@ -25,7 +25,7 @@ router = APIRouter(tags=["Enterprise Smart Rules"])
 enterprise_ab_tests_storage: Dict[str, Dict[str, Any]] = {}
 
 # 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - FIXED
-@router.get("/", response_model=list[SmartRuleOut])  
+@router.get("", response_model=list[SmartRuleOut]) 
 def list_smart_rules(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
