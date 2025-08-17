@@ -3,7 +3,7 @@ Enterprise Cookie-Only Authentication Dependencies
 Master Prompt Compliant: NO Bearer tokens, NO localStorage
 """
 
-from fastapi import Request, HTTPException, status, Depends, Cookie
+from fastapi import Request, HTTPException, status, Depends, Cookie, Form
 from sqlalchemy.orm import Session
 from database import get_db_session
 from jwt_manager import get_jwt_manager
