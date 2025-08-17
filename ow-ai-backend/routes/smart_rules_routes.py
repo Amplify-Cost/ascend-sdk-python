@@ -7,7 +7,7 @@ from schemas import SmartRuleOut
 from database import get_db
 from dependencies import get_current_user, require_admin, require_csrf
 from llm_utils import generate_smart_rule
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC 
 import logging
 import openai
 import json
@@ -220,7 +220,7 @@ async def create_ab_test(
             "variant_b": f"optimized_{rule.condition}",  # ← FIXED: Create variant B from condition
             "traffic_split": 50,
             "created_by": current_user.get('user_id'),
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "status": "draft",
             "enterprise_tenant": current_user.get('tenant_id')
         }
