@@ -1,0 +1,369 @@
+75fe1ba checkpoint: before RS256 migration
+7754023 🏢 Enterprise Fix: Complete A/B test creation with proper variable definition
+a22fcbb 🏢 Enterprise Demo: A/B testing with visible results and business value
+9c6658c 🏢 Enterprise Fix: Add missing UTC import for A/B test creation
+bf9eace 🏢 Enterprise Fix: A/B test creation uses correct model attributes
+6991ad1 🏢 Enterprise: SmartRule model aligned with migrated database
+f92c039 🏢 Enterprise: SmartRule model aligned with migrated database
+5286eb1 🏢 Enterprise Fix: Align SmartRule model with database schema
+441177b 🏢 Enterprise Fix: A/B test parameter format (query param)
+9fb59d6 🏢 Enterprise Fix: Correct API URL typo in App.jsx fallback
+9e0cfed 🏢 Enterprise Fix: Correct API URL typo (production)
+10b9ee7 🏢 CRITICAL: Fix double router definition causing 404 errors
+633834b 🏢 CRITICAL: Fix smart_rules router empty path issue
+0b857b9 Enterprise Fix: Router inclusion system
+4d046b2 🏢 Enterprise Fix: Correct analytics router import path
+83f1026 🏢 Enterprise Fix: Remove smart_rules router overwrite bug
+703fa8a 🏢 Enterprise Schema Fix: Resolved A/B Testing Database Issues
+d090d3f  fix ab section2
+40d41de  fix ab section1
+c35f379  fix ab section1
+add75f7  fix ab section
+9b8fd75  Enterprise JWT fix as app is crashing1
+9d03c2c  Enterprise JWT fix as app is crashing
+c43444d Initial commit: Enterprise JWT fix2
+42af8bd Initial commit: Enterprise JWT fix
+a2deb8e Initial commit: Enterprise JWT + AWS Secrets Manager implementation1
+cf96061 Initial commit: Enterprise JWT + AWS Secrets Manager implementation
+74bda54 Initial commit: Enterprise JWT + AWS Secrets Manager implementation
+212c9f2 Initial commit: Enterprise JWT + AWS Secrets Manager implementation
+8fcc735 🏢 ENTERPRISE FIX: Unified governance routes - Correct model imports, zero import errors
+62835b0 🏢 ENTERPRISE FIX: Unified governance routes - Exact dependencies match, zero import errors
+c566b22 🏢 ENTERPRISE FIX: Corrected unified governance routes - Uses exact existing dependencies
+a2cb948 🏢 ENTERPRISE: Unified governance using existing models - Zero breaking changes, maximum compatibility
+2fe3906 🏢 ENTERPRISE: Enhanced dependencies with database support - All existing functionality preserved
+0ee30cb 🔌 ADD: MCP server governance - All enterprise features preserved
+52f9903 🚀 CLEAN: Enterprise MCP Governance Routes - All syntax fixed, full functionality preserved
+b5ce000 TEMP: Disable MCP routes to fix syntax error - restore system
+c55d7a6 ENABLE: Uncomment MCP governance routes - Complete AI governance activation
+63667cf 🚀 PHASE 2.3 COMPLETE: MCP Server Governance - Enterprise AI Governance Achieved
+777b3eb FIX: Remove broken MCP imports to restore app functionality
+3cb0160 PHASE 2.3: Implement MCP Server Governance & Monitoring - Enterprise AI governance complete
+0392b40 FIX: Simplify data rights health check with proper text() usage
+f65cf4b FIX: Correct service class name import in data rights routes
+e417854 FIX: Correct auth import in data rights routes to use existing dependencies
+32d91b8 PHASE 2.2 COMPLETE: GDPR/CCPA Data Subject Rights APIs with audit integration
+3041cbe PHASE 2.1 COMPLETE: Fixed audit creation with proper method indentation and all Phase 2.1 features
+a19a394 FIX: Handle None timestamp in audit log creation
+3a1f8d0 PHASE 2.1 IMPLEMENTATION
+543eaa0 SECURITY: Implement enterprise secure configuration - NO REPO SECRETS
+dbd70f2 1 mighration update dashboad loading error
+3352dea 1 mighration update dashboad loading error
+e464307  mighration update dashboad loading error
+ad496ed 5cookie mighration update fix dashboad loading error
+ff989fd 4cookie mighration update fix dashboad loading error
+8ded0d7 4cookie mighration update fix dashboad loading error
+8a525a3 3cookie mighration update fix dashboad loading error
+c521bad 3cookie mighration update (get_current_user) parm
+d344d4b 3cookie mighration update (get_current_user) parm
+888d758 3cookie mighration update (get_current_user) parm
+360fe2c 2cookie mighration
+ce657f6 2cookie mighration
+f99af2f cookie mighration
+a86d756 1Smart Alert Management
+3759385 1Smart Alert Management
+f9ebad7 Smart Alert Management
+8bf7c64 2update to fix real time analytics dashboard
+9d69e6d 1update to fix real time analytics dashboard
+50c02ba update to fix real time analytics dashboard
+be014c4 3frontend analytics upgrade
+d199995 2frontend analytics upgrade
+37d9a95 1frontend analytics upgrade
+4b68045 frontend analytics upgrade
+372da39 frontend analytics upgrade
+ff76c8f frontend analytics upgrade
+929715d analytics upgrade
+2f7b951 3 Cookie Authentication
+730ac6d 2 Cookie Authentication
+fee868e 1 Cookie Authentication
+38a21e8  Cookie Authentication
+1e777bc  Cookie Authentication
+1f33b03  Cookie Authentication
+6ba4d47 6logic for  Cookie Authentication
+319d71a 5logic for  Cookie Authentication
+d83fe39 4logic for  Cookie Authentication
+852ed38 3logic for  Cookie Authentication
+f5dd43c 2logic for  Cookie Authentication
+32d3457 1logic for  Cookie Authentication
+4d25607 1logic for  Cookie Authentication
+7fb8c3c logic for  Cookie Authentication
+4db83ec 8fix loop by fixing backend logic for  Cookie Authentication
+df41066 7fix loop by fixing backend logic for  Cookie Authentication
+f7af6ee 6fix loop by fixing backend logic for  Cookie Authentication
+74d7334 6fix loop by fixing backend logic for  Cookie Authentication
+81ccfd0 5fix loop by fixing backend logic for  Cookie Authentication
+ac7a653 4fix loop by fixing backend logic for  Cookie Authentication
+d44b9ac 3fix loop by fixing backend logic for  Cookie Authentication
+86fad02 2fix loop by fixing backend logic for  Cookie Authentication
+803fee6 2fix loop by fixing backend logic for  Cookie Authentication
+80b1f8d 1fix loop by fixing backend logic for  Cookie Authentication
+2dff684 fix loop by fixing backend logic for  Cookie Authentication
+5b77c66 fontend Cookie Authentication
+d7398e3 Backend Cookie Authentication
+3652905 3fix  enterprise secrets manager
+f30b459 3fix  enterprise secrets manager
+2c4f9b0 2fix  enterprise secrets manager
+14168ea 2fix  enterprise secrets manager
+be38c12 2fix  enterprise secrets manager
+86df705 1fix  enterprise secrets manager
+a3f90a7 fix  enterprise secrets manager
+eb9b183 4setup enterprise secrets manager
+ca0cd83 4setup enterprise secrets manager
+274e78a 3setup enterprise secrets manager
+0786535 2setup enterprise secrets manager
+8c6d5d9 setup enterprise secrets manager
+21ce952 setup enterprise secrets manager
+96bea14 alert management system
+bdf69a9 reports section backend connection
+1af5449 reports section backend connection
+df45720 3fixing reports section
+1eddc99 3fixing reports section
+daf79c2 3fixing reports section
+fd07b36 2fixing reports section
+e6c15ef fixing reports section
+63183d9 Add missing workflow API endpoints to authorization_routes.py
+5f260e0 Add missing workflow API endpoints to authorization_routes.py
+c532d64 2workflow backend connect
+c3a6662 2workflow backend connect
+34a17d7 2workflow bug fix
+6108c21 1workflow bug fix
+ef524bb 1workflow bug fix
+3f8ef26 workflow bug fix
+e4fb1eb workflow bug fix
+7342671 workflow bug fix
+9b48935 workflow bug fix
+a905b45 workflow bug fix
+2b43b73 feat: 5Add complete real-time execution to authorization system
+2181f2f feat: 5Add complete real-time execution to authorization system
+b494785 feat: 5Add complete real-time execution to authorization system
+b01fe0b feat: 5Add complete real-time execution to authorization system
+a615028 feat: 5Add complete real-time execution to authorization system
+302c75f feat: 4Add complete real-time execution to authorization system
+6fb7601 feat: 4Add complete real-time execution to authorization system
+d56025b feat: 4Add complete real-time execution to authorization system
+f5d0b99 feat: 4Add complete real-time execution to authorization system
+50569d6 feat: 3Add complete real-time execution to authorization system
+d212958 feat: 3Add complete real-time execution to authorization system
+008bc7b feat: 2Add complete real-time execution to authorization system
+371c3b5 feat: Add complete real-time execution to authorization system
+0bb013b fix: Complete automation endpoints with safe data handling
+55e1cdd fix: Add missing authorization router import
+37978d9 fix: Add complete automation endpoints for workflow orchestration
+644afc3 Advanced Workflow Automation enhancements:
+8c0046f feat: Add enterprise-grade accessibility enhancements
+eeba2ef feat: Add enterprise-grade accessibility enhancements
+49d7234 Navigation & UX Improvements
+1e678cc 2  dashboard ui fix
+acafbfd   dashboard ui fix
+d45b2f3   dark mode uilighting fix
+7e5f8c9  add dark mode ui
+d22380a  3table schema smart rule a/b fix
+0b0a7ce  2table schema smart rule a/b fix
+da15acd  table schema smart rule a/b fix
+cfa721e 4smart rule a/b fix
+925d8c1 4smart rule a/b fix
+3431ebf 3smart rule a/b fix
+44c2779 3smart rule a/b fix
+38ed375 2smart rule a/b fix
+9ed4f60 smart rule a/b fix
+94cee02 Fix non  working endpoints
+7c27cb2 Fix POST /agent-actions endpoint - use raw SQL like other working endpoints
+1e89baa Add Enterprise Settings with Agent Submission Tool
+f71e41b agent action
+fdbffbd 4IAM creation
+f344cc5 4IAM creation
+89602b4 3IAM creation
+85ab7e5 2IAM creation
+f2afebb IAM creation
+38941de  smart rule creation failiure
+d066cfa 500 error in smart rule.py
+68ee137 2sidebar issue
+e795a79 2sidebar issue
+8d4bdd1 sidebar issue
+c4e1dd5 2update smart rule gen to use ai
+6173465 2update smart rule gen to use ai
+25b9c80 2update smart rule gen to use ai
+01b7fb2 update smart rule gen to use ai
+b6c3dcd update smart rule gen to use ai
+99c8120  2roi fix alert managment system
+152dd2a  roi fix alert managment system
+395e975  blank screen fix alert managment system
+5ff7343  alert managment system
+e6ea9df  alert managment system
+81e429f backend alert managment system
+c01a889 placeholder alert managment system
+b099d1b 3workflow management interactive fix
+ab0d7e6 2workflow management interactive fix
+b24d73e 2workflow management interactive fix
+f80af78 1workflow management interactive fix
+15c5b63 workflow management interactive fix
+5dbe1c1 1authorization tab log action
+5f8840f 1authorization tab approve button fix
+7b53ac7 3authorization tab approve button fix
+467d9bc 3authorization tab fix
+cbb45ec 4authorization tab fix
+54227ad 3authorization tab fix
+0c5c90b 2authorization tab fix
+df98b94 authorization tab fix
+ec1bb4b 4rule creation fix
+5c2bbff 3rule creation fix
+f30da48 2rule creation fix
+4c1bcdd rule creation fix
+c21cc83 generate summary error
+dacbb56 1dashboard issue
+1b5ca2f dashboard issue
+32f97f4 4submit action bug
+1f97858 3submit action bug
+0df4b9e 2submit action bug
+5b57f59 2submit action bug
+42e0ea1 submit action bug
+3e07b58 1ddbugging login
+25b0e8e 1ddbugging login
+acab57f 1ddbugging login
+f3871e0 1ddbugging login
+193e851 ddbugging login
+522a906 4fix agent action
+531e248 3fix agent action
+5c4f667 2fix agent action
+fff1518 2fixing agent action
+af62406 fixing agent action
+f3aa2ee fixing agent action button in main.py8
+19f2207 fixing agent action button in main.py7
+d3f8a72 fixing agent action button in main.py6
+db0423c fixing agent action approve button in main.py6
+9c22bb6 fixing agent action approve button in main.py5
+8968f8a fixing agent action approve button in agent action,jsx
+942cd52 fixing agent action approve button in main.py4
+296c088 fixing agent action approve button in main.py3
+188a215 fixing agent action approve button in main.py2
+a46151c fixing agent action approve button in main.py
+2cefd48 Make authorization endpoints bulletproof with guaranteed data structures
+1ce535a Add missing authorization endpoints to fix React component blank screen
+dbe606f Comment out authorization_router to prevent conflicts with override route
+adfb4f4 Add rules override route to fix database schema issues
+0a3d7a1 Disable agent_router to use override routes - fix schema validation issues
+f24a65d Fix duplicate routes and schema validation issues - functional agent endpoints
+e003f20 Complete main.py with schema-compliant enterprise agent routes override
+e9260bf Override failing agent routes with working enterprise versions in main.py
+a733b44 Bulletproof agent routes with enterprise fallback data and error handling
+5909e46 Fix route conflicts - remove duplicate agent-actions endpoint from main.py
+3297dd6 Fix agent routes with enterprise features preserved + graceful fallback
+8f02b7d Add working agent-actions endpoint
+dbd5449 Add  analytics endpoint fix
+1897b36 Add bulletproof analytics endpoint with sample data
+e65e82f Add working analytics trends endpoint for dashboard
+7202690 Add AgentAction table fix to preserve enterprise features
+6e37cc9 Remove rules.name column that doesn't exist in database
+ea4e236 main.py fix database column fix endpoint
+59573a6 Fix User model to match auth routes - use password not hashed_password
+5a7d9b9 Temporarily remove username field to fix login
+c4a1a7b Add definitive username column fix endpoint
+aa7b86e Complete models.py - all missing models and fields added
+7340e7d Fix models to match route expectations - add missing fields
+92313f2 Add missing LogAuditTrail model
+8832cb8 Fix SQLAlchemy reserved word error - metadata to extra_data
+8f42df1 Add enterprise authorization models
+fb13546 Fix authorization routes - clean working version
+a034e06  SIEM import to fix requests dependency crash2
+8b1228a Remove SIEM import to fix requests dependency crash
+f53c7cf Add simple enterprise SIEM integration - crash-proof version
+158f594 Remove SIEM routes temporarily to fix crash
+192c5d9 Add2 enterprise SIEM integration system
+7e9b91a Add enterprise SIEM integration system
+5005f21 Fix models.py syntax error - enterprise authorization system
+cefc18c fix agent action error
+31f8d53 Add user schema fix endpoint for authorization system
+ad553c6 Fix authorization routes - remove auth dependencies
+21e4e99 Deploy 2 advanced authorization dashboard with multi-level approvals
+7b8f561 Deploy advanced authorization dashboard with multi-level approvals
+991eb27 Implement advanced authorization engine with emergency procedures
+2080ffb Add database schema fix to remove tenant_id columns
+5084298 Fix all icon import errors with SafeIcon component and clean Dashboard
+797d0ff Force rebuild with corrected AgentAuthorizationDashboard and cache buster
+efe38fb Fix HomeIcon error by correcting icon imports in Sidebar3
+006f8c0 Fix HomeIcon error by correcting icon imports in Sidebar2
+42fac76 Fix HomeIcon error by correcting icon imports in Sidebar
+71a0f6c Fix SQLAlchemy imports for enterprise authorization system
+0bf4674 Fix database imports and add error boundaries
+c8fff5c Fix database creation function imports
+08b9b74 Add complete agent authorization system with real-time tracking
+1ebcf21 Fix alerts dependencies and add authorization routes
+cdbf3fd Add complete authorization system
+cf3d0c6 Add complete agent authorization system
+e9152e7 update view audit log in rules tab
+5718a7c smart rule error fix
+ca6fe8f verifying nist and mitre mapping2
+3d96289 verifying nist and mitre mapping
+7bed171 ai generated respponse in alert summary
+80a5583 Fix alert summary2
+a1e96bf Fix alert summary
+658ee08 Fix Added backward compatibility route for cached frontend
+ccf6473 Fix smaart rule gen3
+f447a52 Fix smaart rule gen2
+a354072 Fix smaart rule gen
+9fbadc7 Fix auth_routes imports - use get_current_user instead of verify_token
+55da950 Fix JWT import - use jose.jwt instead of jwt
+f4d1238 Fix circular imports and clean up authentication
+ffa4974 Fix missing enrichment.py and clean main.py
+3746288 Import verify_token in auth_routes
+e596423 Fix JWT & add verify_token dependency in auth_utils
+95dd4da Use python-jose for JWT handling in auth_utils
+45b6b87 Added 3 remaining fixes
+c3feb7f Added 2 remaining fixes
+f113563 Add .gitignore and remove .env from tracking
+b2f926c Added security fixes without secrets
+f1dfdfb Added fixes to reolve token storage inconsistencies, fixed routes conflics, improve error messeges add proper logging
+f6e4ade Add debug logging to AlertPanel to diagnose empty alerts
+834660f Fix Security Insights tab to show charts instead of empty Analytics
+0819f5e Fix SecurityInsights to show available data
+9a84dd8 Add debug logging to fix Alerts componentand sidbar
+a73a851 Add debug logging to Alerts component
+1ea1c19 Add debug logging to Alerts component
+1e86c9d Fix main.py API key mismatch and show partial data
+634c631 Fix dashboard API key mismatch and show partial data
+4ccd8c9 Fix dashboard debugging and remove 404 rules/history call
+f193255 Fix API URLs and rebuild with production URLs
+da6ee85 updated main.py to fix dashboard load error
+f39b111 updated models.py with func to fix error
+18f8c75 Fix main py core issue
+f62bf79 Fix 4 all remaining localhost URLs
+c5382d6 Fix 3 all remaining localhost URLs
+c0ad7d9 Fix 2 all remaining localhost URLs
+3dbf9e0 Fix all remaining localhost URLs
+f2d902f Fix 4 API URLs for production deployment
+a8ae379 Fix 3 API URLs for production deployment
+c80931a Fix API URLs for production deployment in agent activity feed file
+c2d2bf8 Fix API URLs for production
+80ba4ad Fix: Use Railway DATABASE_URL for DB connection
+d1ad243 Removed hardcoded DB connection string from .env
+caab117 🚀New  Fix CORS config to allow frontend origin securely
+9457702 🚀 Fix CORS config to allow frontend origin securely
+fdb491d Trigger frontend redeploy
+8dfc884 Fix CORS temporarily to allow frontend communication
+b9e56b8 Add CORS_ALLOWED_ORIGINS to fix CORS issue
+279dfd4 Fix CORS: Apply middleware before routers
+b769ed3 Temporarily allow all origins for CORS testing
+0e9b400 Fix CORS to allow frontend domain
+2cb0d51 Update CORS settings in main.py for Railway frontend support
+b53298a Fix API_BASE_URL fetch and update login/register logic
+4aab570  backend push
+b8e6672  backend push
+5cb550c  backend push
+878a0c4 Initial backend push
+6a06972 Update API endpoints to use environment variable and switch from localhost to production URL
+7cf3505 fix: use correct VITE_API_URL for backend connection
+5237104 Update database to Postgres and sync rule changes
+16c8471 Add email-validator dependency via pydantic[email]
+62f38a4 Add python-jose to requirements for JWT auth
+17ac651 Ensure requirements.txt is tracked by Git
+a931039 Add more required dependencies for Railway
+b293d4b Add required dependencies for Railway
+6a2c9eb Add passlib for password hashing
+6173541 Add slowapi to requirements
+dded6db Add OpenAI package to requirements
+49d341a Add backend requirements.txt for Railway build
+095cff2 Remove invalid railway.json for Nixpacks
+f53bec4 Fix railway config with valid Python builder
+a9097a8 Add railway config to use Python builder
+97e276f Add project README
+a80dae6 Initial commit of OW-AI app

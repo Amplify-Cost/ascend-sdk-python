@@ -14,7 +14,6 @@ import uuid
 from datetime import datetime, timedelta, UTC
 
 from database import get_db
-from dependencies import get_current_user, require_admin  
 from enterprise_config import config
 from jwt_manager import jwt_manager
 from sso_manager import enterprise_sso

@@ -1,0 +1,9 @@
+[
+  {
+    "secret_name": "SECRET_KEY",
+    "old_secret_hash": "50199e89f9c8",
+    "new_secret_hash": "6057f4613cde",
+    "rotated_at": "2025-08-15T01:35:38.316013+00:00",
+    "rotation_reason": "EMERGENCY_REPOSITORY_EXPOSURE"
+  }
+]

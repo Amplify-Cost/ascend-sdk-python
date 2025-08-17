@@ -1,0 +1,239 @@
+# File: ow-ai-backend/models_mcp_governance.py
+# MCP Server Governance Data Models
+# ============================================================================
+
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Boolean, Float, Index, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime, UTC
+import uuid
+import json
+import hashlib
+
+from database import Base
+
+class MCPServerAction(Base):
+    """
+    MCP Server Action Model - Extends existing agent governance patterns
+    Tracks all MCP server interactions with same governance as agent actions
+    """
+    __tablename__ = "mcp_server_actions"
+    
+    # Primary identification
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    
+    # MCP Server Identity
+    mcp_server_id = Column(String(100), nullable=False, index=True)  # e.g., "claude-desktop", "vscode-mcp"
+    mcp_server_name = Column(String(200), nullable=False)  # Human readable name
+    mcp_server_version = Column(String(50))  # Version info
+    
+    # MCP Protocol Details
+    namespace = Column(String(100), nullable=False, index=True)  # e.g., "filesystem", "database", "tools"
+    verb = Column(String(100), nullable=False, index=True)  # e.g., "read_file", "write_file", "execute"
+    resource = Column(String(500), nullable=False)  # Target resource path/identifier
+    
+    # Request Details
+    request_id = Column(String(100), nullable=False, unique=True)  # MCP request ID
+    session_id = Column(String(100), nullable=False, index=True)  # MCP session
+    client_id = Column(String(100), nullable=False, index=True)  # Requesting client
+    
+    # Action Parameters
+    parameters = Column(JSON, nullable=False, default=dict)  # MCP action parameters
+    payload_size = Column(Integer, default=0)  # Size of request payload
+    
+    # Risk Assessment (Same as Agent Actions)
+    risk_score = Column(Integer, nullable=False, default=0)  # 0-100 risk score
+    risk_level = Column(String(20), nullable=False, default='LOW')  # LOW, MEDIUM, HIGH, CRITICAL
+    risk_factors = Column(JSON, default=list)  # List of risk factors identified
+    
+    # Governance Status
+    status = Column(String(50), nullable=False, default='PENDING')  # PENDING, APPROVED, DENIED, EXECUTED, FAILED
+    requires_approval = Column(Boolean, nullable=False, default=True)
+    approval_level = Column(Integer, default=1)  # 1-5 approval levels
+    
+    # User Context
+    user_id = Column(String(100), nullable=False, index=True)  # User requesting action
+    user_email = Column(String(255), nullable=False)
+    user_role = Column(String(100))  # User's role/department
+    
+    # Policy & Rules
+    policy_result = Column(String(50), default='EVALUATE')  # ALLOW, DENY, EVALUATE
+    rule_id = Column(String(100), index=True)  # Applied rule ID
+    policy_reason = Column(Text)  # Policy decision reason
+    
+    # Approval Workflow
+    approver_id = Column(String(100), index=True)  # Who approved/denied
+    approver_email = Column(String(255))
+    approved_at = Column(DateTime)
+    approval_reason = Column(Text)
+    
+    # Execution Details
+    executed_at = Column(DateTime)
+    execution_duration_ms = Column(Integer)  # Execution time
+    execution_result = Column(String(50))  # SUCCESS, FAILED, TIMEOUT
+    execution_output = Column(Text)  # Execution output/result
+    error_message = Column(Text)  # Error details if failed
+    
+    # Security & Compliance
+    environment = Column(String(50), default='production')  # production, staging, dev
+    data_classification = Column(String(50), default='internal')  # public, internal, confidential, restricted
+    compliance_tags = Column(JSON, default=list)  # SOX, HIPAA, PCI, GDPR tags
+    
+    # Audit Trail Integration
+    audit_trail_id = Column(UUID(as_uuid=True), index=True)  # Links to immutable audit
+    evidence_pack_id = Column(UUID(as_uuid=True))  # Evidence pack for investigations
+    
+    # Network & Context
+    source_ip = Column(String(45))  # IPv4/IPv6 address
+    user_agent = Column(String(500))  # Client user agent
+    geo_location = Column(String(100))  # Geographic location
+    
+    # Performance Metrics
+    response_time_ms = Column(Integer)  # Gateway response time
+    bytes_transferred = Column(Integer)  # Data transfer size
+    
+    # Database indexes for performance
+    __table_args__ = (
+        Index('idx_mcp_server_namespace', 'mcp_server_id', 'namespace'),
+        Index('idx_mcp_risk_level', 'risk_level', 'status'),
+        Index('idx_mcp_user_time', 'user_id', 'created_at'),
+        Index('idx_mcp_approval', 'status', 'requires_approval'),
+        Index('idx_mcp_compliance', 'compliance_tags'),
+        Index('idx_mcp_session', 'session_id', 'created_at'),
+    )
+
+class MCPServer(Base):
+    """
+    MCP Server Registry - Tracks all registered MCP servers
+    """
+    __tablename__ = "mcp_servers"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    
+    # Server Identity
+    server_id = Column(String(100), nullable=False, unique=True)  # Unique server identifier
+    server_name = Column(String(200), nullable=False)
+    server_description = Column(Text)
+    server_version = Column(String(50))
+    
+    # Connection Details
+    endpoint_url = Column(String(500))  # Server endpoint
+    connection_type = Column(String(50), default='websocket')  # websocket, http, stdio
+    is_active = Column(Boolean, default=True)
+    last_seen = Column(DateTime)
+    
+    # Capabilities
+    supported_namespaces = Column(JSON, default=list)  # List of supported namespaces
+    capabilities = Column(JSON, default=dict)  # Server capabilities
+    
+    # Security Configuration
+    requires_auth = Column(Boolean, default=True)
+    auth_method = Column(String(50), default='jwt')  # jwt, apikey, mtls
+    trust_level = Column(String(20), default='restricted')  # trusted, restricted, sandbox
+    
+    # Governance Settings
+    default_risk_level = Column(String(20), default='MEDIUM')
+    requires_approval_by_default = Column(Boolean, default=True)
+    max_approval_level = Column(Integer, default=3)
+    
+    # Monitoring
+    total_actions = Column(Integer, default=0)
+    failed_actions = Column(Integer, default=0)
+    avg_response_time_ms = Column(Float, default=0.0)
+    
+    # Relationships
+    actions = relationship("MCPServerAction", backref="mcp_server")
+
+class MCPSession(Base):
+    """
+    MCP Session Tracking - Tracks active MCP client sessions
+    """
+    __tablename__ = "mcp_sessions"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    
+    # Session Identity
+    session_id = Column(String(100), nullable=False, unique=True, index=True)
+    client_id = Column(String(100), nullable=False, index=True)
+    server_id = Column(String(100), ForeignKey('mcp_servers.server_id'), nullable=False)
+    
+    # User Context
+    user_id = Column(String(100), nullable=False, index=True)
+    user_email = Column(String(255), nullable=False)
+    authenticated_at = Column(DateTime)
+    
+    # Session Status
+    status = Column(String(50), default='ACTIVE')  # ACTIVE, TERMINATED, EXPIRED
+    is_active = Column(Boolean, default=True)
+    last_activity = Column(DateTime, default=lambda: datetime.now(UTC))
+    expires_at = Column(DateTime)
+    
+    # Connection Details
+    connection_type = Column(String(50))
+    source_ip = Column(String(45))
+    user_agent = Column(String(500))
+    
+    # Activity Metrics
+    total_actions = Column(Integer, default=0)
+    successful_actions = Column(Integer, default=0)
+    failed_actions = Column(Integer, default=0)
+    bytes_transferred = Column(Integer, default=0)
+    
+    # Security
+    auth_token_hash = Column(String(64))  # Hashed auth token
+    permissions = Column(JSON, default=list)  # Session permissions
+    
+    # Relationships
+    server = relationship("MCPServer", backref="sessions")
+
+class MCPPolicy(Base):
+    """
+    MCP Governance Policies - Rules for MCP server actions
+    Integrates with existing smart rules engine
+    """
+    __tablename__ = "mcp_policies"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
+    
+    # Policy Identity
+    policy_name = Column(String(200), nullable=False)
+    policy_description = Column(Text)
+    policy_version = Column(String(20), default='1.0')
+    
+    # Scope
+    server_patterns = Column(JSON, default=list)  # Server ID patterns
+    namespace_patterns = Column(JSON, default=list)  # Namespace patterns
+    verb_patterns = Column(JSON, default=list)  # Verb patterns
+    resource_patterns = Column(JSON, default=list)  # Resource patterns
+    
+    # Conditions
+    conditions = Column(JSON, default=dict)  # Policy conditions (JSON/CEL format)
+    risk_threshold = Column(Integer, default=50)  # Risk score threshold
+    
+    # Actions
+    action = Column(String(50), default='EVALUATE')  # ALLOW, DENY, EVALUATE
+    required_approval_level = Column(Integer, default=1)
+    auto_approve_conditions = Column(JSON, default=dict)
+    
+    # Governance
+    is_active = Column(Boolean, default=True)
+    priority = Column(Integer, default=100)  # Higher priority = evaluated first
+    created_by = Column(String(100), nullable=False)
+    
+    # Compliance
+    compliance_framework = Column(String(50))  # SOX, HIPAA, PCI, GDPR
+    regulatory_reference = Column(String(200))  # Legal reference
+    
+    # Performance
+    execution_count = Column(Integer, default=0)
+    last_triggered = Column(DateTime)
+

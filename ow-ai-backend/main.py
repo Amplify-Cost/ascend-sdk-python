@@ -7,8 +7,13 @@ import logging
 from datetime import datetime, UTC, timedelta
 from typing import List, Dict, Any, Optional
 from dependencies import require_admin
+<<<<<<< HEAD
 
 # Enterprise Cookie Authentication
+from cookie_auth import get_current_user, reject_bearer_tokens
+from csrf_manager import csrf_manager
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -29,10 +34,11 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
+<<<<<<< HEAD
 #from jwt_manager import init_jwt_manager
-# from jwks_routes import router as jwks_router  # Commented out - module not available in enterprise setup
+from jwks_routes import router as jwks_router
 # Enterprise health module with graceful fallback
-# from local_jwt_manager import get_jwt_manager  # Commented out - module not available in enterprise setup
+from local_jwt_manager import get_jwt_manager
 try:
     from health import router as health_router
     HEALTH_MODULE_AVAILABLE = True
@@ -164,16 +170,16 @@ for router_name in ROUTER_NAMES:
             ROUTE_MODULES[router_name] = smart_rules_router  # ← ADD THIS
         elif router_name == "analytics":
 
-            from routes.analytics_routes import router as analytics_router
+            from routes.analytics import router as analytics_router
             ROUTE_MODULES[router_name] = analytics_router
         elif router_name == "smart_alerts":
             from routes.smart_alerts import router as smart_alerts_router
             ROUTE_MODULES[router_name] = smart_alerts_router
         elif router_name == "data_rights":
-            from routes.data_rights_routes import router as data_rights_router
+            from routes.data_rights import router as data_rights_router
             ROUTE_MODULES[router_name] = data_rights_router
         elif router_name == "unified_governance":
-            from routes.unified_governance_routes import router as unified_governance_router
+            from routes.unified_governance import router as unified_governance_router
             ROUTE_MODULES[router_name] = unified_governance_router
         print(f"✅ {router_name} router loaded")
     except ImportError as e:
@@ -194,6 +200,14 @@ print(f"🎯 Enterprise System Status: {len([r for r in ROUTE_MODULES.values() i
 print(f"🔐 Enterprise Features: {'ENABLED' if ENTERPRISE_FEATURES_ENABLED else 'FALLBACK MODE'}")
 
 
+=======
+from enterprise_config import config
+from jwt_manager import jwt_manager
+from health import router as health_router
+from rbac_manager import enterprise_rbac, require_permission, require_minimum_level, Permission
+from sso_manager import enterprise_sso
+from routes.sso_routes import router as sso_router
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 
 
 
@@ -235,7 +249,8 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
-# app.include_router(jwks_router, tags=["authentication"])  # Commented out - jwks_router not available
+<<<<<<< HEAD
+app.include_router(jwks_router, tags=["authentication"])
 
 
 
@@ -252,6 +267,8 @@ async def startup_jwt_manager():
         print("✅ RS256 JWT Manager initialized successfully")
     except Exception as e:
         print(f"⚠️ JWT Manager initialization failed: {e}")
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 
 
 # CORS Configuration (unchanged)
@@ -268,13 +285,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+<<<<<<< HEAD
 # Enterprise Security: Reject Bearer tokens globally
 @app.middleware("http")
-async def cookie_auth_middleware(request, call_next):
-    # Cookie-only authentication middleware
+async def reject_bearer_tokens_middleware(request, call_next):
+#     await reject_bearer_tokens(request)
     response = await call_next(request)
     return response
 
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems
 demo_actions_storage = {
     9001: {
@@ -355,6 +375,7 @@ workflow_config = {
 audit_trail_storage = []
 
 # <--- Added: include auth router
+<<<<<<< HEAD
 #app.include_router(auth_router)
 #app.include_router(smart_rules_router)
 #app.include_router(enterprise_user_router)
@@ -423,6 +444,21 @@ except Exception as e:
 
 print("🚀 Application startup complete")
 
+=======
+app.include_router(auth_router)
+app.include_router(smart_rules_router)
+app.include_router(enterprise_user_router)
+app.include_router(authorization_router)  
+app.include_router(authorization_api_router)
+app.include_router(secrets_router)
+app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
+#app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
+app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+app.include_router(health_router, tags=["Health"])
+app.include_router(sso_router, tags=["Enterprise SSO"])
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 
 
 
@@ -1020,7 +1056,11 @@ if __name__ == "__main__":
 
 @app.get("/agent-actions", response_model=None)
 def get_agent_actions_live(
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user),
+=======
     current_user: dict = Depends(get_current_user),
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
     db: Session = Depends(get_db)
 ) -> List[Dict[str, Any]]:
     """Agent actions with live database integration - FIXED"""
@@ -1869,7 +1909,11 @@ async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
     current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 ):
     """🏢 ENTERPRISE: Get pending actions with persistent demo data"""
     try:
@@ -1952,7 +1996,11 @@ async def get_pending_actions_persistent(
 @app.get("/agent-control/approval-dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
     current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 ):
     """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs - Fixed structure"""
     try:
@@ -2160,7 +2208,11 @@ async def authorize_action_with_audit(
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
     current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 ):
     """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
     try:
@@ -2355,7 +2407,11 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
 @app.get("/enterprise/audit-trail")
 async def get_audit_trail(
     limit: int = 50,
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
     current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 ):
     """🏢 ENTERPRISE: Get complete audit trail of all decisions"""
     try:
@@ -2407,7 +2463,11 @@ async def get_audit_trail(
 @app.get("/enterprise/approved-actions")
 async def get_approved_actions(
     limit: int = 20,
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
     current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 ):
     """🏢 ENTERPRISE: Get all approved actions for executive dashboard"""
     try:
@@ -2538,7 +2598,11 @@ metrics_storage = {
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics_live(
     db: Session = Depends(get_db),
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
     current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 ):
     """🏢 ENTERPRISE: Live approval performance metrics that update with each action"""
     try:
@@ -3387,6 +3451,7 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
+<<<<<<< HEAD
 
 # =============================================================================
 # MASTER PROMPT COOKIE PHASES 2.1-2.3 IMPLEMENTATION
@@ -3683,3 +3748,5 @@ app.add_middleware(
 
 print("🌐 CORS configured for cookie authentication support")
 
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)

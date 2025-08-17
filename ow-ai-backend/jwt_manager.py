@@ -1,3 +1,79 @@
+<<<<<<< HEAD
+import json
+import boto3
+from typing import Dict, Any, Optional
+from datetime import datetime, timedelta, timezone
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+import jwt
+from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+import logging
+
+logger = logging.getLogger(__name__)
+
+class JWTManager:
+    def __init__(self, 
+                 aws_secrets_manager_secret_name: str = "ow-ai/jwt-keys",
+                 aws_region: str = "us-east-1",
+                 issuer: str = "http://localhost:8000",
+                 audience: str = "ow-ai-api"):
+        
+        self.aws_region = aws_region
+        self.secret_name = aws_secrets_manager_secret_name
+        self.issuer = issuer
+        self.audience = audience
+        self._private_key = None
+        self._public_key = None
+        self._kid = None
+        
+        # Initialize AWS Secrets Manager client
+        self.secrets_client = boto3.client('secretsmanager', region_name=aws_region)
+        
+        # Load keys on initialization
+        self._load_keys()
+    
+    def _load_keys(self):
+        """Load RSA keys from AWS Secrets Manager"""
+        try:
+            # Get the secret value
+            response = self.secrets_client.get_secret_value(SecretId=self.secret_name)
+            secret_data = json.loads(response['SecretString'])
+            
+            # Extract private key
+            private_key_pem = secret_data['private_key']
+            self._private_key = serialization.load_pem_private_key(
+                private_key_pem.encode('utf-8'),
+                password=None
+            )
+            
+            # Generate public key from private key
+            self._public_key = self._private_key.public_key()
+            
+            # Use a stable key ID
+            self._kid = secret_data.get('kid', 'ow-ai-key-1')
+            
+            logger.info("Successfully loaded RSA keys from AWS Secrets Manager")
+            
+        except Exception as e:
+            logger.error(f"Failed to load keys from AWS Secrets Manager: {e}")
+            raise
+    
+    def issue_token(self, 
+                   user_id: str, 
+                   user_email: str,
+                   roles: list = None,
+                   expires_in_minutes: int = 60) -> str:
+        """Issue a new RS256 JWT token"""
+        
+        if not self._private_key:
+            raise ValueError("Private key not loaded")
+        
+        # Calculate expiration
+        now = datetime.now(timezone.utc)
+        exp = now + timedelta(minutes=expires_in_minutes)
+        
+        # Build payload
+=======
 import jwt
 import time
 import json
@@ -10,72 +86,18 @@ class EnterpriseJWTManager:
     """Enterprise-grade JWT manager with RS256 signing and AWS Secrets Manager"""
     
     def __init__(self):
-        # Get signing keys from AWS Secrets Manager or fallback
+        # Get signing keys from AWS Secrets Manager
         self.private_key = config.get_secret('jwt-private-key')
         self.public_key = config.get_secret('jwt-public-key')
         
-        # Enterprise fallback for Railway deployment
         if not self.private_key or not self.public_key:
-            print("⚠️  JWT keys not found in AWS, using fallback RSA key generation")
-            self._generate_fallback_keys()
-        
-        if not self.private_key or not self.public_key:
-            print("❌ JWT keys could not be loaded or generated - using demo keys")
-            self._use_demo_keys()
+            raise Exception("❌ JWT keys not found in AWS Secrets Manager")
         
         # Enterprise JWT claims
         self.issuer = "https://api.ow-ai.com"
         self.audience = ["ow-ai-platform", "ow-ai-api", "ow-ai-dashboard"]
         
-        print("✅ Enterprise JWT Manager initialized with RS256 keys")
-    
-    def _generate_fallback_keys(self):
-        """Generate RSA keys as fallback when AWS is not available"""
-        try:
-            from cryptography.hazmat.primitives.asymmetric import rsa
-            from cryptography.hazmat.primitives import serialization
-            
-            # Generate RSA key pair
-            private_key = rsa.generate_private_key(
-                public_exponent=65537,
-                key_size=2048
-            )
-            
-            # Serialize private key
-            self.private_key = private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ).decode('utf-8')
-            
-            # Serialize public key
-            public_key = private_key.public_key()
-            self.public_key = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            ).decode('utf-8')
-            
-            print("✅ Generated fallback RSA keys for JWT")
-            
-        except ImportError:
-            print("⚠️  Cryptography library not available for key generation")
-        except Exception as e:
-            print(f"⚠️  Failed to generate fallback keys: {e}")
-    
-    def _use_demo_keys(self):
-        """Use demo keys as last resort (NOT FOR PRODUCTION)"""
-        self.private_key = """-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKB
-wXfKy2ljy1sbfmmjY1Sw9XVpQDjp7p2s2QN6g+N0c7G1jQ2qBJ1XFBRQpVqC5K
-[Demo key - replace in production]
------END PRIVATE KEY-----"""
-        
-        self.public_key = """-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
-[Demo key - replace in production]
------END PUBLIC KEY-----"""
-        
-        print("⚠️  Using demo JWT keys - REPLACE IN PRODUCTION")
+        print("✅ Enterprise JWT Manager initialized with RS256 keys from AWS")
     
     def create_access_token(self, 
                           user_id: str, 
@@ -165,8 +187,8 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
                     "require_jti": True,           # Must have JWT ID
                     "verify_signature": True,      # Verify signature
                     "verify_exp": True,            # Check expiration
-                    "verify_nbf": False,           # Don't check not-before (enterprise workaround)
-                    "verify_iat": False,           # Don't verify issued-at timing (enterprise workaround)
+                    "verify_nbf": False,            # Check not-before
+                    "verify_iat": False,            # Check issued-at
                     "verify_aud": True,            # Check audience
                     "verify_iss": True,            # Check issuer
                 }
@@ -241,10 +263,154 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
         """Create refresh token (longer lived for token renewal)"""
         now = datetime.utcnow()
         
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
         payload = {
             "iss": self.issuer,
             "aud": self.audience,
             "sub": user_id,
+<<<<<<< HEAD
+            "email": user_email,
+            "roles": roles or [],
+            "iat": now,
+            "exp": exp,
+            "jti": f"{user_id}-{int(now.timestamp())}"  # Unique token ID
+        }
+        
+        # Prepare headers with kid
+        headers = {
+            "alg": "RS256",
+            "typ": "JWT",
+            "kid": self._kid
+        }
+        
+        # Sign with private key
+        try:
+            # Convert private key to PEM format for PyJWT
+            private_key_pem = self._private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+            
+            token = jwt.encode(
+                payload=payload,
+                key=private_key_pem,
+                algorithm="RS256",
+                headers=headers
+            )
+            
+            logger.info(f"Issued token for user {user_id}")
+            return token
+            
+        except Exception as e:
+            logger.error(f"Failed to sign token: {e}")
+            raise
+    
+    def verify_token(self, token: str) -> Dict[str, Any]:
+        """Verify and decode an RS256 JWT token"""
+        
+        if not self._public_key:
+            raise ValueError("Public key not loaded")
+        
+        try:
+            # Convert public key to PEM format for PyJWT
+            public_key_pem = self._public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            
+            # Decode and verify
+            payload = jwt.decode(
+                token,
+                key=public_key_pem,
+                algorithms=["RS256"],
+                issuer=self.issuer,
+                audience=self.audience,
+                options={
+                    "verify_signature": True,
+                    "verify_exp": True,
+                    "verify_iss": True,
+                    "verify_aud": True,
+                    "require": ["exp", "iss", "aud", "sub"]
+                }
+            )
+            
+            logger.info(f"Successfully verified token for user {payload.get('sub')}")
+            return payload
+            
+        except ExpiredSignatureError:
+            logger.warning("Token has expired")
+            raise
+        except InvalidTokenError as e:
+            logger.warning(f"Invalid token: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Token verification failed: {e}")
+            raise
+    
+    def get_jwks(self) -> Dict[str, Any]:
+        """Generate JWKS (JSON Web Key Set) for public key verification"""
+        
+        if not self._public_key:
+            raise ValueError("Public key not loaded")
+        
+        try:
+            # Get public key numbers
+            public_numbers = self._public_key.public_numbers()
+            
+            # Convert to base64url encoding (RFC 7517)
+            def int_to_base64url(value):
+                """Convert integer to base64url string"""
+                import base64
+                # Convert to bytes, removing leading zeros
+                byte_length = (value.bit_length() + 7) // 8
+                bytes_value = value.to_bytes(byte_length, 'big')
+                return base64.urlsafe_b64encode(bytes_value).decode('ascii').rstrip('=')
+            
+            # Build JWK
+            jwk = {
+                "kty": "RSA",
+                "use": "sig",
+                "alg": "RS256",
+                "kid": self._kid,
+                "n": int_to_base64url(public_numbers.n),  # Modulus
+                "e": int_to_base64url(public_numbers.e)   # Exponent
+            }
+            
+            # Return JWKS format
+            jwks = {
+                "keys": [jwk]
+            }
+            
+            return jwks
+            
+        except Exception as e:
+            logger.error(f"Failed to generate JWKS: {e}")
+            raise
+
+# Global instance (initialize this in your app startup)
+jwt_manager = None
+
+def get_jwt_manager() -> JWTManager:
+    """Get the global JWT manager instance"""
+    global jwt_manager
+    if jwt_manager is None:
+        raise ValueError("JWT Manager not initialized. Call init_jwt_manager() first.")
+    return jwt_manager
+
+def init_jwt_manager(secret_name: str = "ow-ai/jwt-keys", 
+                    aws_region: str = "us-east-1", 
+                    issuer: str = "http://localhost:8000", 
+                    audience: str = "ow-ai-api"):
+    """Initialize the global JWT manager"""
+    global jwt_manager
+    jwt_manager = JWTManager(
+        aws_secrets_manager_secret_name=secret_name,
+        aws_region=aws_region,
+        issuer=issuer,
+        audience=audience
+    )
+=======
             "iat": int(now.timestamp()) - 10,    # Fixed clock skew issue
             "exp": int((now + timedelta(days=30)).timestamp()),  # 30 days
             "jti": f"refresh_{session_id}",
@@ -281,3 +447,4 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
 
 # Create global instance
 jwt_manager = EnterpriseJWTManager()
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)

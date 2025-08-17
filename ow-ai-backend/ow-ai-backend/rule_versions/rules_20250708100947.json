@@ -1,0 +1,13 @@
+[
+  {
+    "id": "agent-022-data_exfiltration",
+    "agent_id": "agent-022",
+    "action_type": "data_exfiltration",
+    "description": "test",
+    "condition": "agent_id == 'agent-022' and action_type == 'data_exfiltration'",
+    "action": "alert",
+    "risk_level": "medium",
+    "recommendation": "Review this behavior pattern for anomalies.",
+    "justification": "Review this behavior pattern for anomalies."
+  }
+]
