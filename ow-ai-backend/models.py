@@ -157,27 +157,27 @@ class SmartRule(Base):
     justification = Column(Text)
     
     # Smart rule metadata
-    #confidence_score = Column(Float, default=0.0)
-    #generated_by_ai = Column(Boolean, default=True)
-    #training_data_size = Column(Integer, default=0)
+    confidence_score = Column(Float, default=0.0)
+    generated_by_ai = Column(Boolean, default=True)
+    training_data_size = Column(Integer, default=0)
     
     # Status and lifecycle
-    #status = Column(String, default="pending")  # pending, active, inactive, archived
-    #enabled = Column(Boolean, default=True)
+    status = Column(String, default="pending")  # pending, active, inactive, archived
+    enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    #created_by = Column(Integer, ForeignKey("users.id"))
+    created_by = Column(Integer, ForeignKey("users.id"))
     
     # Performance metrics
-    #trigger_count = Column(Integer, default=0)
-    #accuracy_score = Column(Float, nullable=True)
-    #false_positive_rate = Column(Float, nullable=True)
-    #last_triggered = Column(DateTime, nullable=True)
+    trigger_count = Column(Integer, default=0)
+    accuracy_score = Column(Float, nullable=True)
+    false_positive_rate = Column(Float, nullable=True)
+    last_triggered = Column(DateTime, nullable=True)
     
     # Enterprise features
-    #compliance_framework = Column(String, nullable=True)
-    #nist_controls = Column(JSON, nullable=True)
-    #mitre_tactics = Column(JSON, nullable=True)
+    compliance_framework = Column(String, nullable=True)
+    nist_controls = Column(JSON, nullable=True)
+    mitre_tactics = Column(JSON, nullable=True)
     
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
