@@ -1,6 +1,7 @@
 /**
  * Enterprise API utilities with cookie-based authentication
  * Master Prompt Compliant: Cookie-only auth, no localStorage
+ * ENHANCED: Aggressive cookie transmission for all endpoints
  */
 
 // 🏢 Enterprise API base URL - points to working backend
@@ -91,8 +92,9 @@ export const logoutUser = async () => {
 };
 
 /**
- * Enhanced fetch with automatic cookie authentication
+ * Enhanced fetch with aggressive cookie authentication
  * Master Prompt Compliant: Uses cookies only, no localStorage
+ * ENHANCED: Forces credentials on ALL requests
  */
 export const fetchWithAuth = async (url, options = {}) => {
   try {
@@ -103,14 +105,19 @@ export const fetchWithAuth = async (url, options = {}) => {
     console.log(`🏢 Using cookie-only authentication (Master Prompt compliant)`);
     console.log(`🔍 Request details:`, { url: absoluteUrl, method: options.method || 'GET' });
 
-    const response = await fetch(absoluteUrl, {
+    // ENHANCED: Always force credentials and proper headers
+    const enhancedOptions = {
       ...options,
-      credentials: 'include', // 🍪 Always include cookies
+      credentials: 'include', // 🍪 FORCE cookies on every request
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest', // Enterprise request marker
         ...options.headers,
       },
-    });
+    };
+
+    const response = await fetch(absoluteUrl, enhancedOptions);
 
     console.log(`🏢 Enterprise request to ${url}:`, response.status);
 
@@ -119,6 +126,41 @@ export const fetchWithAuth = async (url, options = {}) => {
     console.error(`❌ Request error for ${url}:`, error);
     throw error;
   }
+};
+
+/**
+ * ENHANCED: Direct API helper that FORCES cookie authentication
+ * Use this for all API calls that were previously failing
+ */
+export const apiCall = async (endpoint, options = {}) => {
+  const url = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return fetchWithAuth(url, options);
+};
+
+/**
+ * ENHANCED: GET request helper with forced cookies
+ */
+export const apiGet = async (endpoint) => {
+  const response = await apiCall(endpoint, { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+/**
+ * ENHANCED: POST request helper with forced cookies
+ */
+export const apiPost = async (endpoint, data = null) => {
+  const options = {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : null
+  };
+  const response = await apiCall(endpoint, options);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  return response.json();
 };
 
 // 🔄 Clean exports without duplicates (Master Prompt compliant)
@@ -132,6 +174,9 @@ export default {
   getCurrentUser, 
   logoutUser,
   fetchWithAuth,
+  apiCall,
+  apiGet,
+  apiPost,
   login: loginUser,
   logout: logoutUser,
   getUser: getCurrentUser
