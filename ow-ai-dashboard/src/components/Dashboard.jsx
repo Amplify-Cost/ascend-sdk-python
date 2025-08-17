@@ -150,6 +150,10 @@ const QuickActions = () => {
 };
 
 const Dashboard = ({ getAuthHeaders }) => {
+  // 🛡️ Master Prompt Compliance: Theme safety wrapper
+  const isDarkMode = false;
+  const theme = null;
+  const toggleTheme = () => {};
   const { false } = null;
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
