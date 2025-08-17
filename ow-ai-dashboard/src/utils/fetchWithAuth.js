@@ -65,10 +65,6 @@ export async function fetchWithAuth(url, options = {}) {
     throw error;
   }
 }
-  // With cookies, we can't check client-side
-  // The server will validate on each request
-  return true; // Assume authenticated, let server decide
-}
 export function logout() {
   // Call logout endpoint to clear cookies
   fetchWithAuth('/auth/logout', { method: 'POST' })
