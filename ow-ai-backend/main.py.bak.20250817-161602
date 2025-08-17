@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, UTC, timedelta
 from typing import List, Dict, Any, Optional
 from dependencies import require_admin
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -27,6 +28,7 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
+<<<<<<< HEAD
 #from jwt_manager import init_jwt_manager
 from jwks_routes import router as jwks_router
 # Enterprise health module with graceful fallback
@@ -192,6 +194,7 @@ print(f"🎯 Enterprise System Status: {len([r for r in ROUTE_MODULES.values() i
 print(f"🔐 Enterprise Features: {'ENABLED' if ENTERPRISE_FEATURES_ENABLED else 'FALLBACK MODE'}")
 
 
+=======
 from enterprise_config import config
 from jwt_manager import jwt_manager
 from health import router as health_router
@@ -3263,6 +3266,7 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
+<<<<<<< HEAD
 
 # =============================================================================
 # MASTER PROMPT COOKIE PHASES 2.1-2.3 IMPLEMENTATION
@@ -3559,3 +3563,5 @@ app.add_middleware(
 
 print("🌐 CORS configured for cookie authentication support")
 
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)

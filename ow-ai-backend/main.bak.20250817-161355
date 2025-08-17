@@ -7,6 +7,13 @@ import logging
 from datetime import datetime, UTC, timedelta
 from typing import List, Dict, Any, Optional
 from dependencies import require_admin
+<<<<<<< HEAD
+
+# Enterprise Cookie Authentication
+from cookie_auth import get_current_user, reject_bearer_tokens
+from csrf_manager import csrf_manager
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -27,6 +34,7 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
+<<<<<<< HEAD
 #from jwt_manager import init_jwt_manager
 from jwks_routes import router as jwks_router
 # Enterprise health module with graceful fallback
@@ -192,12 +200,15 @@ print(f"🎯 Enterprise System Status: {len([r for r in ROUTE_MODULES.values() i
 print(f"🔐 Enterprise Features: {'ENABLED' if ENTERPRISE_FEATURES_ENABLED else 'FALLBACK MODE'}")
 
 
+=======
 from enterprise_config import config
 from jwt_manager import jwt_manager
 from health import router as health_router
 from rbac_manager import enterprise_rbac, require_permission, require_minimum_level, Permission
 from sso_manager import enterprise_sso
 from routes.sso_routes import router as sso_router
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+
 
 
 
@@ -294,6 +305,76 @@ workflow_config = {
 audit_trail_storage = []
 
 # <--- Added: include auth router
+<<<<<<< HEAD
+#app.include_router(auth_router)
+#app.include_router(smart_rules_router)
+#app.include_router(enterprise_user_router)
+#app.include_router(authorization_router)  
+#app.include_router(authorization_api_router)
+#app.include_router(secrets_router)
+#app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+#app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+#app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
+#app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
+# app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+
+# Include routers with enterprise fallback handling
+print("🔗 Loading application routes...")
+
+# Enterprise health monitoring (always included)
+app.include_router(health_router, tags=["Health"])
+print("✅ Health routes included")
+
+# Enterprise SSO routes (if available)
+if SSO_ROUTES_AVAILABLE and sso_router:
+    app.include_router(sso_router, tags=["Enterprise SSO"])
+    print("✅ Enterprise SSO routes included")
+
+# Core application routes with graceful fallback
+for route_name, router in ROUTE_MODULES.items():
+    if router:
+        try:
+            if route_name == "auth":
+                app.include_router(router)
+            elif route_name == "smart_rules":
+                app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+            elif route_name == "analytics":
+                app.include_router(router, prefix="/analytics", tags=["Analytics"])
+            elif route_name == "smart_alerts":
+                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
+            elif route_name == "data_rights":
+                app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
+            elif route_name == "unified_governance":
+                app.include_router(router, prefix="/api/governance", tags=["Unified Governance"])
+            else:
+                app.include_router(router)
+            print(f"✅ {route_name} routes included")
+        except Exception as e:
+            print(f"⚠️  Failed to include {route_name} routes: {e}")
+
+# Manual router inclusions for routes not in ROUTE_MODULES
+try:
+    app.include_router(enterprise_user_router, tags=["Enterprise Users"])
+    print("✅ Enterprise user routes included")
+except Exception as e:
+    print(f"⚠️  Enterprise user routes failed: {e}")
+
+try:
+    app.include_router(authorization_router, tags=["Authorization"])
+    app.include_router(authorization_api_router, tags=["Authorization API"])
+    print("✅ Authorization routes included")
+except Exception as e:
+    print(f"⚠️  Authorization routes failed: {e}")
+
+try:
+    app.include_router(secrets_router, tags=["Secrets"])
+    print("✅ Secrets routes included")
+except Exception as e:
+    print(f"⚠️  Secrets routes failed: {e}")
+
+print("🚀 Application startup complete")
+
+=======
 app.include_router(auth_router)
 app.include_router(smart_rules_router)
 app.include_router(enterprise_user_router)
@@ -307,6 +388,8 @@ app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-ri
 app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
 app.include_router(health_router, tags=["Health"])
 app.include_router(sso_router, tags=["Enterprise SSO"])
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+
 
 
 # Security and API-key setup (unchanged)
@@ -903,7 +986,12 @@ if __name__ == "__main__":
 
 @app.get("/agent-actions", response_model=None)
 def get_agent_actions_live(
-    current_user: dict = Depends(get_current_user),    db: Session = Depends(get_db)
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user),
+=======
+    current_user: dict = Depends(get_current_user),
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+    db: Session = Depends(get_db)
 ) -> List[Dict[str, Any]]:
     """Agent actions with live database integration - FIXED"""
     try:
@@ -1751,7 +1839,12 @@ async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
+    current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+):
     """🏢 ENTERPRISE: Get pending actions with persistent demo data"""
     try:
         # Get real database actions first
@@ -1833,7 +1926,12 @@ async def get_pending_actions_persistent(
 @app.get("/agent-control/approval-dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
+    current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+):
     """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs - Fixed structure"""
     try:
         # Use raw SQL to avoid column issues
@@ -2040,7 +2138,12 @@ async def authorize_action_with_audit(
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
+    current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+):
     """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
     try:
         # Use raw SQL to get metrics from existing columns only
@@ -2234,7 +2337,12 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
 @app.get("/enterprise/audit-trail")
 async def get_audit_trail(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user)):
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
+    current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+):
     """🏢 ENTERPRISE: Get complete audit trail of all decisions"""
     try:
         # Get recent audit trail entries
@@ -2285,7 +2393,12 @@ async def get_audit_trail(
 @app.get("/enterprise/approved-actions")
 async def get_approved_actions(
     limit: int = 20,
-    current_user: dict = Depends(get_current_user)):
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
+    current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+):
     """🏢 ENTERPRISE: Get all approved actions for executive dashboard"""
     try:
         # Get approved demo actions
@@ -2415,7 +2528,12 @@ metrics_storage = {
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics_live(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+<<<<<<< HEAD
+#     current_user: dict = Depends(get_current_user)
+=======
+    current_user: dict = Depends(get_current_user)
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
+):
     """🏢 ENTERPRISE: Live approval performance metrics that update with each action"""
     try:
         # Count approved/denied demo actions
@@ -3263,6 +3381,7 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
+<<<<<<< HEAD
 
 # =============================================================================
 # MASTER PROMPT COOKIE PHASES 2.1-2.3 IMPLEMENTATION
@@ -3559,3 +3678,5 @@ app.add_middleware(
 
 print("🌐 CORS configured for cookie authentication support")
 
+=======
+>>>>>>> 894b585 (Initial commit: Enterprise JWT + AWS Secrets Manager implementation)
