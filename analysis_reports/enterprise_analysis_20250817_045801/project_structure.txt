@@ -1,0 +1,316 @@
+.
+├── Archive.zip
+├── COMPLETE_VERSION_BACKUPS
+│   ├── ALL_VERSIONS_20250817_024300
+│   │   ├── COMPLETE_BACKUP_MANIFEST.md
+│   │   ├── complete_backup_log.txt
+│   │   ├── current_working
+│   │   ├── documentation
+│   │   ├── existing_backups
+│   │   ├── git_history.txt
+│   │   └── git_versions
+│   ├── COMPLETE_VERSIONS_20250817_024300.tar.gz
+│   ├── LATEST_COMPLETE_BACKUP -> ALL_VERSIONS_20250817_024300
+│   └── QUICK_ACCESS_ALL_VERSIONS.txt
+├── COOKIE
+├── EMERGENCY_CHECKLIST.md
+├── EMERGENCY_RAILWAY_COMMANDS.sh
+├── README.md
+├── __pycache__.zip
+├── accurate_enterprise_audit.sh
+├── add_getCurrentUser_function.sh
+├── alembic
+│   └── versions
+│       └── 20250814_224426_add_immutable_audit_tables.py
+├── alembic.zip
+├── analysis_reports
+│   └── enterprise_analysis_20250817_045801
+│       └── project_structure.txt
+├── auth_dependencies.py
+├── backup_hs256_to_rs256_20250816_234920
+│   ├── backup_manifest.json
+│   ├── jwt_manager.py
+│   └── main_original.py
+├── backup_integration_fix_20250817_020851
+│   └── Users
+│       └── mac_001
+├── backup_step2_cookie_auth_20250817_005533
+│   ├── auth_routes_original.py
+│   ├── ow-ai-backend
+│   │   ├── auth_dependencies.py
+│   │   ├── main.py
+│   │   └── routes
+│   ├── ow-ai-dashboard
+│   │   └── src
+│   └── step2_backup_manifest.json
+├── complete_auth_fix.sh
+├── complete_versioned_backup.sh
+├── cookie_diagnostic.sh
+├── cookies.txt
+├── cors_bearer_fix.sh
+├── create_test_user_fix.sh
+├── csrf_cookies.txt
+├── debug_jwt.py
+├── deploy_phase2_1_fixed.sh
+├── diagnose_backend_crash.sh
+├── emergency_loop_stopper.sh
+├── enterprise_audit_script.sh
+├── enterprise_codebase_analyzer.sh
+├── enterprise_config.py
+├── enterprise_cookie_integration_fix.sh
+├── enterprise_surgical_fix.sh
+├── final_authentication_fix.sh
+├── fix_app_jsx_loop.sh
+├── fix_auth_loop.sh
+├── fix_fetchauth_syntax.sh
+├── fix_fetchauth_syntax_exact.sh
+├── fix_frontend_api_config.sh
+├── fix_login_field.sh
+├── fix_syntax_error.sh
+├── implement_phase2_1_fixed.py
+├── integration_fix.log
+├── integrations
+│   ├── __init__.py
+│   └── siem_connector.py
+├── jwks_routes.py
+├── jwt_manager.py
+├── nuclear_loop_stop.sh
+├── ow-ai-backend
+│   ├── admin_cookies.txt
+│   ├── alembic
+│   │   ├── README
+│   │   ├── env.py
+│   │   ├── script.py.mako
+│   │   └── versions
+│   ├── alembic.ini
+│   ├── analyze_schema.py
+│   ├── auth_dependencies.py
+│   ├── auth_utils.py
+│   ├── check_agent_actions.py
+│   ├── config.py
+│   ├── config.py.backup
+│   ├── config_backup.py
+│   ├── cookie_auth.py
+│   ├── cookie_auth.py.backup_bearer_fix
+│   ├── cookie_auth.py.bak
+│   ├── cookie_auth_patch.py
+│   ├── cookies.txt
+│   ├── create_test_user.py
+│   ├── create_workflow_tables.py
+│   ├── csrf_manager.py
+│   ├── database.py
+│   ├── dependencies.py
+│   ├── dependencies.py.backup
+│   ├── dependencies_backup_20250817_012745.py
+│   ├── dependencies_simple.py
+│   ├── diagnose_routers.py
+│   ├── enrichment.py
+│   ├── enterprise_auth_config.py
+│   ├── enterprise_config.py
+│   ├── enterprise_env_detector.py
+│   ├── enterprise_secrets
+│   │   ├── __init__.py
+│   │   ├── rotation_service.py
+│   │   └── secrets_manager.py
+│   ├── enterprise_secrets_emergency_rotation.py
+│   ├── fix_enterprise_schema.py
+│   ├── health.py
+│   ├── init_db.py
+│   ├── jwks_routes.py
+│   ├── jwt_manager.py
+│   ├── limiter.py
+│   ├── llm_utils.py
+│   ├── local_jwt_manager.py
+│   ├── main.py
+│   ├── main.py.backup.20250814_224426
+│   ├── main.py.backup_cors_fix
+│   ├── main.py.backup_enterprise_fix_20250817_044519
+│   ├── main.py.bak
+│   ├── main_backup.py
+│   ├── main_backup_20250817_012745.py
+│   ├── main_simple.py
+│   ├── migrate_authorization.py
+│   ├── migrate_railway.py
+│   ├── models.py
+│   ├── models_audit.py
+│   ├── models_data_rights.py
+│   ├── models_mcp_governance.py
+│   ├── ow-ai.db
+│   ├── owai.db
+│   ├── pytest.ini
+│   ├── rbac_manager.py
+│   ├── requirements.txt
+│   ├── reset_db.py
+│   ├── reset_users_table.py
+│   ├── risk_engine.py
+│   ├── routes
+│   │   ├── __init__.py
+│   │   ├── admin_routes.py
+│   │   ├── agent_routes.py
+│   │   ├── alert_routes.py
+│   │   ├── alert_summary.py
+│   │   ├── analytics_routes.py
+│   │   ├── audit_routes.py
+│   │   ├── auth.py
+│   │   ├── auth_routes.py
+│   │   ├── authorization_routes.py
+│   │   ├── data_rights_routes.py
+│   │   ├── enrichment.py
+│   │   ├── enterprise_secrets_routes.py
+│   │   ├── enterprise_user_management_routes.py
+│   │   ├── log_routes.py
+│   │   ├── main_routes.py
+│   │   ├── mcp_governance_routes.py
+│   │   ├── rule_routes.py
+│   │   ├── siem_integration.py
+│   │   ├── siem_simple.py
+│   │   ├── smart_alerts.py
+│   │   ├── smart_rules_routes.py
+│   │   ├── sso_routes.py
+│   │   ├── support_routes.py
+│   │   └── unified_governance_routes.py
+│   ├── rule_versions
+│   │   ├── rules_20250610225004.json
+│   │   ├── rules_20250610225024.json
+│   │   ├── rules_20250611151002.json
+│   │   ├── rules_20250611153047.json
+│   │   ├── rules_20250611153106.json
+│   │   ├── rules_20250611155429.json
+│   │   ├── rules_20250611160624.json
+│   │   ├── rules_20250612153815.json
+│   │   ├── rules_20250618130525.json
+│   │   ├── rules_20250620125226.json
+│   │   ├── rules_20250707135516.json
+│   │   ├── rules_20250707140423.json
+│   │   ├── rules_20250707140428.json
+│   │   ├── rules_20250707141419.json
+│   │   ├── rules_20250707141442.json
+│   │   ├── rules_20250707141510.json
+│   │   ├── rules_20250707142623.json
+│   │   ├── rules_20250707150304.json
+│   │   ├── rules_20250707150306.json
+│   │   ├── rules_20250707150423.json
+│   │   ├── rules_20250707150426.json
+│   │   ├── rules_20250707150456.json
+│   │   ├── rules_20250707150516.json
+│   │   ├── rules_20250707150605.json
+│   │   ├── rules_20250707150606.json
+│   │   ├── rules_20250707151808.json
+│   │   ├── rules_20250707151820.json
+│   │   ├── rules_20250707151912.json
+│   │   ├── rules_20250707151917.json
+│   │   ├── rules_20250707152130.json
+│   │   ├── rules_20250707152132.json
+│   │   ├── rules_20250707152134.json
+│   │   ├── rules_20250707152136.json
+│   │   ├── rules_20250707153233.json
+│   │   ├── rules_20250707153549.json
+│   │   ├── rules_20250707154328.json
+│   │   ├── rules_20250707160545.json
+│   │   ├── rules_20250707160546.json
+│   │   ├── rules_20250707232415.json
+│   │   ├── rules_20250708100944.json
+│   │   ├── rules_20250708100947.json
+│   │   └── rules_20250708100958.json
+│   ├── rules.json
+│   ├── rules_backup_20250425-143743.json
+│   ├── rules_backup_20250425-152715.json
+│   ├── rules_backup_20250425-152717.json
+│   ├── rules_backup_20250516-181600.json
+│   ├── rules_backup_20250516-182520.json
+│   ├── schemas.py
+│   ├── scripts
+│   │   └── setup_enterprise_secrets.py
+│   ├── security
+│   │   └── cookies.py
+│   ├── security_mappings.py
+│   ├── seed_alerts.py
+│   ├── seed_data.py
+│   ├── seed_logs.py
+│   ├── services
+│   │   ├── __init__.py
+│   │   ├── data_rights_service.py
+│   │   ├── immutable_audit_service.py
+│   │   └── mcp_governance_service.py
+│   ├── setup_cookie_test.sh
+│   ├── simple_auth_routes.py
+│   ├── simple_auth_routes.py.backup_csrf_fix
+│   ├── simple_auth_routes.py.bak
+│   ├── sso_manager.py
+│   ├── start_cookie_test.sh
+│   ├── test
+│   │   ├── __init__.py
+│   │   ├── conftest.py
+│   │   ├── test_agent_actions.py
+│   │   └── test_auth.py
+│   ├── test_agent_action_low_risk.py
+│   ├── test_audit.json
+│   ├── test_authorization.py
+│   ├── test_bug_fixes.py
+│   ├── test_bug_fixes_targeted.py
+│   ├── test_cookie_auth.sh
+│   ├── test_cookies.txt
+│   ├── test_enterprise_rbac.py
+│   ├── test_use_cases
+│   │   ├── get_agent_actions.py
+│   │   └── send_agent_actions.py
+│   └── token_utils.py
+├── ow-ai-backend.zip
+├── ow-ai-dashboard
+│   ├── README.md
+│   ├── dist
+│   │   ├── assets
+│   │   ├── index.html
+│   │   └── vite.svg
+│   ├── eslint.config.js
+│   ├── index.html
+│   ├── package-lock.json
+│   ├── package.json
+│   ├── postcss.config.cjs
+│   ├── public
+│   │   └── vite.svg
+│   ├── src
+│   │   ├── App.css
+│   │   ├── App.jsx
+│   │   ├── App.jsx.backup_infinite_loop_fix
+│   │   ├── App.jsx.bak
+│   │   ├── assets
+│   │   ├── components
+│   │   ├── context
+│   │   ├── contexts
+│   │   ├── frameworkMapping.js
+│   │   ├── index.css
+│   │   ├── main.jsx
+│   │   └── utils
+│   ├── tailwind.config.cjs
+│   ├── tailwindcss
+│   └── vite.config.js
+├── ow-ai-dashboard.zip
+├── ow-ai-sdk
+│   ├── agent_logger.py
+│   ├── agent_logs.db
+│   ├── database.py
+│   ├── main.py
+│   ├── main_broken_backup.py
+│   ├── models.py
+│   ├── static
+│   ├── test_sdk.py
+│   └── token_utils.py
+├── ow-ai-sdk.zip
+├── production_deploy.sh
+├── rollback_rs256_migration.py
+├── rollback_step2_cookie_auth.py
+├── rotation_audit_log.json
+├── rs256_migration.py
+├── rs256_migration_report_20250816_234920.json
+├── start_enterprise_system.sh
+├── step2_cookie_auth_report_20250817_005533.json
+├── step2_migration.py
+├── test_config.py
+├── test_jwt.py
+├── test_rs256_migration.py
+├── token_utils.py
+├── validate_enterprise_integration.sh
+└── verify_api_fix.sh
+
+45 directories, 269 files
