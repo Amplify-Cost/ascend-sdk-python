@@ -6,7 +6,7 @@ import { getCurrentUser } from './utils/fetchWithAuth';
 import './index.css';
 
 /**
- * Enterprise OW-AI Application
+ * Enterprise OW-AI Application - No Authentication Loops
  * Master Prompt Compliant: Cookie-only authentication, no localStorage
  */
 function App() {
@@ -14,17 +14,18 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Enterprise cookie-only authentication check
+  // Enterprise cookie-only authentication check (NO LOOPS)
   useEffect(() => {
     let mounted = true;
     
     const checkAuth = async () => {
-      console.log('🏢 Enterprise cookie auth check...');
-      
+      // Prevent infinite loops
       if (authChecked) {
-        console.log('🚨 AUTH CHECK DISABLED - No infinite loops');
+        console.log('🚨 AUTH CHECK ALREADY COMPLETED - Preventing loop');
         return;
       }
+      
+      console.log('🏢 Enterprise cookie auth check (one-time)...');
       
       try {
         const userData = await getCurrentUser();
@@ -33,7 +34,7 @@ function App() {
             console.log('✅ Enterprise authentication valid:', userData.email || userData.user_id);
             setUser(userData);
           } else {
-            console.log('ℹ️ No valid enterprise authentication');
+            console.log('ℹ️ No valid enterprise authentication - showing login');
             setUser(null);
           }
           setLoading(false);
@@ -49,12 +50,15 @@ function App() {
       }
     };
 
-    checkAuth();
+    // Only check auth once
+    if (!authChecked) {
+      checkAuth();
+    }
     
     return () => {
       mounted = false;
     };
-  }, []); // Empty dependency array - only run once
+  }, [authChecked]); // Depend on authChecked to prevent loops
 
   // Handle successful login
   const handleLoginSuccess = (userData) => {
