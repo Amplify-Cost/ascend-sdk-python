@@ -41,7 +41,7 @@ class EnterpriseConfig:
         
         # Load and validate all configuration
         self._load_configuration()
-        #self._validate_configuration()  # Disabled for local testing
+        self._validate_configuration()
 
     def _get_secret_secure(self, key: str, default: Optional[str] = None, required: bool = True) -> Optional[str]:
         """

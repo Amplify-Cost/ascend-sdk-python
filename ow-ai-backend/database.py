@@ -33,14 +33,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-# Enterprise Database Session Alias for Import Compatibility
-def get_db_session():
-    """
-    Enterprise database session getter - Master Prompt compliant
-    Alias for backward compatibility with dependencies.py imports
-    """
-    return get_db()
-
-# Export for enterprise imports
-__all__ = ['get_db', 'get_db_session']
