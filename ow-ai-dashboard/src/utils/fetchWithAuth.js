@@ -1,12 +1,12 @@
 /*
- * Master Prompt Compliant Authentication Utilities
+ * Enterprise Authentication Utilities
  * Cookie-only authentication, NO localStorage, NO Bearer tokens
- * Enterprise-grade security implementation
+ * Professional enterprise-grade security implementation
  */
 
 const API_BASE_URL = 'https://owai-production.up.railway.app';
 
-// Master Prompt Compliant: Cookie-only fetch utility
+// Enterprise cookie-only fetch utility
 export const fetchWithAuth = async (endpoint, options = {}) => {
   console.log('🍪 Enterprise cookie-only auth');
   console.log('🏢 Using cookie-only authentication (Master Prompt compliant)');
@@ -35,7 +35,7 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   }
 };
 
-// Master Prompt Compliant: Get current user via cookies only
+// Get current user via cookies only
 export const getCurrentUser = async () => {
   console.log('🔍 Getting current user via enterprise cookie auth...');
   
@@ -56,17 +56,22 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Master Prompt Compliant: Login with cookies only
+// Fixed login with correct field mapping for backend
 export const loginUser = async (credentials) => {
   console.log('🔐 Attempting cookie authentication login...');
   
   try {
+    // Backend expects 'username' and 'password' fields
+    const formData = new URLSearchParams();
+    formData.append('username', credentials.username);
+    formData.append('password', credentials.password);
+    
     const response = await fetchWithAuth('/auth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams(credentials),
+      body: formData,
     });
 
     if (response.ok) {
@@ -84,7 +89,7 @@ export const loginUser = async (credentials) => {
   }
 };
 
-// Master Prompt Compliant: Logout with cookies only
+// Logout with cookies only
 export const logoutUser = async () => {
   console.log('🔓 Enterprise logout...');
   

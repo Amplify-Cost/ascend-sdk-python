@@ -6,8 +6,8 @@ import { getCurrentUser, loginUser, logoutUser } from './utils/fetchWithAuth';
 
 /*
  * OW-AI Enterprise Dashboard
- * Master Prompt Compliant: Cookie-only authentication, no localStorage
- * Enterprise-grade professional application
+ * Cookie-only authentication, no localStorage
+ * Professional enterprise-grade application
  */
 
 function App() {
@@ -15,7 +15,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
 
-  // Master Prompt Compliant: Enterprise cookie-only authentication check (NO LOOPS)
+  // Enterprise cookie-only authentication check (NO LOOPS)
   useEffect(() => {
     const checkAuth = async () => {
       if (authChecked) {
@@ -43,9 +43,9 @@ function App() {
     };
 
     checkAuth();
-  }, []); // Empty dependency array - runs once only (Master Prompt compliant)
+  }, []); // Empty dependency array - runs once only
 
-  // Master Prompt Compliant: Cookie-only login handler
+  // Cookie-only login handler
   const handleLogin = async (credentials) => {
     console.log('🔐 Enterprise authentication attempt...');
     
@@ -66,7 +66,7 @@ function App() {
     }
   };
 
-  // Master Prompt Compliant: Cookie-only logout handler
+  // Cookie-only logout handler
   const handleLogout = async () => {
     try {
       const result = await logoutUser();
@@ -83,7 +83,7 @@ function App() {
     }
   };
 
-  // Loading screen with enterprise branding
+  // Professional loading screen with business colors
   if (loading) {
     return (
       <div style={{ 
@@ -91,7 +91,7 @@ function App() {
         justifyContent: 'center', 
         alignItems: 'center', 
         height: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)',
         color: 'white',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
@@ -99,15 +99,6 @@ function App() {
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏢</div>
           <div style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>OW-AI Enterprise Platform</div>
           <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Loading secure environment...</div>
-          <div style={{ 
-            marginTop: '1rem', 
-            padding: '0.5rem 1rem', 
-            background: 'rgba(255,255,255,0.2)', 
-            borderRadius: '20px',
-            fontSize: '0.8rem'
-          }}>
-            🔒 Master Prompt Compliant
-          </div>
         </div>
       </div>
     );

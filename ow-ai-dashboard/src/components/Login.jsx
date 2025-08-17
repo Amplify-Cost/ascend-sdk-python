@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 
 /*
  * OW-AI Enterprise Login Portal
- * Master Prompt Compliant: Cookie-only authentication, no localStorage
- * Enterprise Grade: Professional Fortune 500 appearance
+ * Professional business-grade design
+ * Cookie-only authentication (Master Prompt compliant)
  */
 
 const Login = ({ onLogin }) => {
@@ -49,22 +49,22 @@ const Login = ({ onLogin }) => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
       padding: '1rem'
     }}>
-      {/* Enterprise Background Pattern */}
+      {/* Professional Background Pattern */}
       <div style={{
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        opacity: 0.3
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        opacity: 0.4
       }} />
       
       <div style={{
@@ -83,7 +83,7 @@ const Login = ({ onLogin }) => {
           <div style={{
             width: '80px',
             height: '80px',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
             borderRadius: '20px',
             display: 'flex',
             alignItems: 'center',
@@ -91,13 +91,13 @@ const Login = ({ onLogin }) => {
             margin: '0 auto 1.5rem',
             fontSize: '2rem',
             color: 'white',
-            boxShadow: '0 8px 16px rgba(102, 126, 234, 0.3)'
+            boxShadow: '0 8px 16px rgba(30, 58, 138, 0.3)'
           }}>
             🏢
           </div>
           <h1 style={{ 
             margin: '0 0 0.5rem 0', 
-            color: '#1a202c',
+            color: '#1e293b',
             fontSize: '1.75rem',
             fontWeight: '700',
             letterSpacing: '-0.025em'
@@ -112,21 +112,6 @@ const Login = ({ onLogin }) => {
           }}>
             Secure Enterprise Authentication Portal
           </p>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            marginTop: '0.75rem',
-            padding: '0.5rem 1rem',
-            background: 'rgba(34, 197, 94, 0.1)',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            color: '#059669',
-            fontWeight: '600'
-          }}>
-            <span style={{ fontSize: '0.7rem' }}>🔒</span>
-            Master Prompt Compliant
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ marginBottom: '1.5rem' }}>
@@ -160,8 +145,8 @@ const Login = ({ onLogin }) => {
                 outline: 'none'
               }}
               onFocus={(e) => {
-                e.target.style.borderColor = '#667eea';
-                e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+                e.target.style.borderColor = '#2563eb';
+                e.target.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = '#e5e7eb';
@@ -200,8 +185,8 @@ const Login = ({ onLogin }) => {
                 outline: 'none'
               }}
               onFocus={(e) => {
-                e.target.style.borderColor = '#667eea';
-                e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+                e.target.style.borderColor = '#2563eb';
+                e.target.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = '#e5e7eb';
@@ -234,7 +219,7 @@ const Login = ({ onLogin }) => {
               padding: '0.875rem 1rem',
               background: loading 
                 ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' 
-                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                : 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -244,19 +229,19 @@ const Login = ({ onLogin }) => {
               transition: 'all 0.2s ease',
               boxShadow: loading 
                 ? 'none' 
-                : '0 4px 12px rgba(102, 126, 234, 0.3)',
+                : '0 4px 12px rgba(30, 58, 138, 0.3)',
               letterSpacing: '0.025em'
             }}
             onMouseEnter={(e) => {
               if (!loading) {
                 e.target.style.transform = 'translateY(-1px)';
-                e.target.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
+                e.target.style.boxShadow = '0 6px 16px rgba(30, 58, 138, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
               if (!loading) {
                 e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                e.target.style.boxShadow = '0 4px 12px rgba(30, 58, 138, 0.3)';
               }
             }}
           >
@@ -273,7 +258,7 @@ const Login = ({ onLogin }) => {
           </button>
         </form>
 
-        {/* Enterprise Security Features */}
+        {/* Enterprise Security Features - No Master Prompt reference */}
         <div style={{
           padding: '1.25rem',
           background: 'rgba(34, 197, 94, 0.05)',
@@ -292,10 +277,10 @@ const Login = ({ onLogin }) => {
             🛡️ Enterprise Security Features
           </div>
           <div style={{ color: '#047857', lineHeight: '1.5' }}>
-            <div style={{ marginBottom: '0.25rem' }}>✓ Cookie-only authentication (no localStorage)</div>
-            <div style={{ marginBottom: '0.25rem' }}>✓ Master Prompt security compliance</div>
+            <div style={{ marginBottom: '0.25rem' }}>✓ Advanced cookie-based authentication</div>
             <div style={{ marginBottom: '0.25rem' }}>✓ Enterprise-grade encryption</div>
-            <div>✓ SOC 2 Type II certified</div>
+            <div style={{ marginBottom: '0.25rem' }}>✓ SOC 2 Type II certified infrastructure</div>
+            <div>✓ Multi-layer security protocols</div>
           </div>
         </div>
       </div>
