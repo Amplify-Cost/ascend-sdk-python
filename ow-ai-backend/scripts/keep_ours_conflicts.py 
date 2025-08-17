@@ -1,0 +1,39 @@
+import pathlib, re, shutil, sys, time
+
+target = pathlib.Path("ow-ai-backend/main.py")
+if not target.exists():
+    print("ERROR: cannot find ow-ai-backend/main.py", file=sys.stderr)
+    sys.exit(1)
+
+backup = target.with_suffix(f".bak.{time.strftime('%Y%m%d-%H%M%S')}")
+shutil.copy(target, backup)
+print(f"• Backup saved -> {backup}")
+
+s = target.read_text()
+
+# Replace each conflict hunk by keeping "ours/HEAD"
+# Pattern matches blocks like:
+#   <<<<<<< HEAD
+#   ...ours...
+#   =======
+#   ...theirs...
+#   >>>>>>> <commit or branch>
+pat = re.compile(r"<<<<<<<[ \t].*?\n=======\n.*?\n>>>>>>>[^\n]*\n?", re.DOTALL)
+
+def keep_ours(m):
+    block = m.group(0)
+    try:
+        ours, rest = block.split("\n=======\n", 1)
+        ours = ours.split("\n", 1)[1]  # drop the first line (<<<<<<< ...)
+        # drop the last line starting with >>>>>>>
+        # rest = "<theirs...>\n>>>>>>> ..."
+        # we ignore theirs entirely
+        return ours
+    except Exception:
+        # If anything goes weird, just keep original block (safer than corrupting)
+        return block
+
+out = pat.sub(keep_ours, s)
+target.write_text(out)
+print("• Conflicts cleaned by keeping OURS/HEAD")
+PY
