@@ -1,7 +1,7 @@
 /*
- * Enterprise Authentication Utilities - Debug Version
+ * Enterprise Authentication Utilities - Enhanced Debug Version
  * Cookie-only authentication, NO localStorage, NO Bearer tokens
- * Enhanced debugging for authentication troubleshooting
+ * Includes fallback endpoint for form parsing issues
  */
 
 const API_BASE_URL = 'https://owai-production.up.railway.app';
@@ -61,7 +61,7 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Enhanced login with multiple format attempts and debugging
+// Enhanced login with backend form parsing fix and fallback
 export const loginUser = async (credentials) => {
   console.log('🔐 Attempting cookie authentication login...');
   console.log('📝 Credentials being sent:', { 
@@ -72,7 +72,7 @@ export const loginUser = async (credentials) => {
   });
   
   try {
-    // Method 1: URLSearchParams (most common for FastAPI OAuth2)
+    // Method 1: URLSearchParams (FastAPI Form() dependency)
     const formData = new URLSearchParams();
     formData.append('username', credentials.username || '');
     formData.append('password', credentials.password || '');
@@ -106,26 +106,44 @@ export const loginUser = async (credentials) => {
       console.log('❌ Login failed:', errorData);
       console.log('🔍 Raw error response:', errorText);
       
-      // Try Method 2: FormData if URLSearchParams failed
-      if (response.status === 400) {
+      // Method 2: Try fallback endpoint with request.form() parsing
+      console.log('🔄 Trying fallback endpoint...');
+      
+      const response2 = await fetchWithAuth('/auth/token-fallback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData,
+      });
+      
+      if (response2.ok) {
+        const userData = await response2.json();
+        console.log('✅ Fallback login successful - cookies should be set');
+        return { success: true, user: userData };
+      } else {
+        const errorText2 = await response2.text();
+        console.log('❌ Fallback also failed:', errorText2);
+        
+        // Method 3: Try FormData as last resort
         console.log('🔄 Trying FormData approach...');
         
         const formDataObj = new FormData();
         formDataObj.append('username', credentials.username || '');
         formDataObj.append('password', credentials.password || '');
         
-        const response2 = await fetchWithAuth('/auth/token', {
+        const response3 = await fetchWithAuth('/auth/token', {
           method: 'POST',
           body: formDataObj, // FormData sets its own Content-Type
         });
         
-        if (response2.ok) {
-          const userData = await response2.json();
-          console.log('✅ Login successful with FormData - cookies should be set');
+        if (response3.ok) {
+          const userData = await response3.json();
+          console.log('✅ FormData login successful - cookies should be set');
           return { success: true, user: userData };
         } else {
-          const errorText2 = await response2.text();
-          console.log('❌ FormData also failed:', errorText2);
+          const errorText3 = await response3.text();
+          console.log('❌ All methods failed:', errorText3);
         }
       }
       
