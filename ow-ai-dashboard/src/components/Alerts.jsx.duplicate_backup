@@ -105,6 +105,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
       const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
         credentials: "include",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",

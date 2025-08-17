@@ -38,6 +38,7 @@ const Rules = ({ getAuthHeaders, user }) => {
       const res = await fetch(`${API_BASE_URL}/rules`, {
         method: "POST",
         credentials: "include",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(await getAuthHeaders()),

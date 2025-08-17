@@ -20,9 +20,11 @@ export const loginUser = async (email, password) => {
     const response = await fetch(`${API_BASE_URL}/auth/token`, {
       method: 'POST',
       credentials: "include",
+    credentials: "include",
         headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // 🍪 Enterprise cookie-only auth
       body: JSON.stringify({
         username: email,
         password: password
@@ -57,6 +59,8 @@ export const getCurrentUser = async () => {
     const response = await fetch(`${API_BASE_URL}/auth/cookie-me`, {
       method: 'GET',
       credentials: 'include', // 🍪 Enterprise cookie-only auth
+      credentials: "include",
+    credentials: "include",
         headers: {
         'Content-Type': 'application/json',
       }

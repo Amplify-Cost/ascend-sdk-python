@@ -34,6 +34,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
           'X-Enterprise-Client': 'OW-AI-Platform',
           'X-Request-ID': `analytics-${Date.now()}`
         },
+        credentials: 'include'
       });
 
       console.log('🔄 Response status:', response.status, response.statusText);

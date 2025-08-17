@@ -22,12 +22,14 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       const response = await fetch(`${API_BASE_URL}/auth/token`, {
         method: "POST",
         credentials: "include",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "X-Enterprise-Client": "OW-AI-Platform",
           "X-Auth-Mode": "cookie", // 🍪 Request cookie authentication
           "X-Platform-Version": "1.0.0"
         },
+        credentials: "include", // 🍪 Enable cookie handling
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
 

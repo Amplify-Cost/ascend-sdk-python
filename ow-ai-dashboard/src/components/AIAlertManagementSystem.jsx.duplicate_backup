@@ -357,6 +357,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/correlate`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ alert_ids: selectedAlerts })
       });
@@ -392,6 +394,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/executive-brief`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ 
           time_period: "24h",

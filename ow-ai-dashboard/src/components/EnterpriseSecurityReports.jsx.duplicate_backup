@@ -55,6 +55,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
 
       // Get scheduled reports using your system
       const scheduledResponse = await fetch(`${BASE_URL}/api/enterprise-users/reports/scheduled`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       
