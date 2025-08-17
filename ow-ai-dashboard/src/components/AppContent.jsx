@@ -1,238 +1,135 @@
 import React, { useEffect, useState } from "react";
 import { useAlert } from "../context/AlertContext";
-import { getCurrentUser, logout } from "../utils/fetchWithAuth";
-
 import ToastAlert from "./ToastAlert";
 import BannerAlert from "./BannerAlert";
 import Login from "./Login";
 import Register from "./Register";
 import ForgotPassword from "./ForgotPassword";
-import ResetPassword from "./ResetPassword";
-import Analytics from "./Analytics";
-import AgentActionsPanel from "./AgentActionsPanel";
-import RuleEditor from "./RuleEditor";
-import RulesPanel from "./RulesPanel";
-import AgentActionSubmitPanel from "./AgentActionSubmitPanel";
-import AgentActivityFeed from "./AgentActivityFeed";
-import SecurityPanel from "./SecurityPanel";
-import Profile from "./Profile";
-import Alerts from "./Alerts";
+import Dashboard from "./Dashboard";
+import { getCurrentUser, logout } from "../utils/fetchWithAuth";
 
 const AppContent = () => {
-  const [view, setView] = useState("login");
-  const [activeTab, setActiveTab] = useState("dashboard");
   const [user, setUser] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const { toastAlert, bannerAlert, dismissBanner } = useAlert();
+  const [token, setToken] = useState(null);
+  const [view, setView] = useState("loading"); // loading, login, register, forgot, app
+  const [authChecked, setAuthChecked] = useState(false); // Prevent multiple auth checks
+  const { showAlert } = useAlert();
 
-  // 🍪 FIXED: Use cookie authentication instead of JWT tokens
+  // EMERGENCY: Single auth check with loop prevention
   useEffect(() => {
-    const checkAuthentication = async () => {
+    if (authChecked) return; // Prevent multiple checks
+    
+    let isMounted = true;
+    
+    const checkAuthOnce = async () => {
       try {
-        console.log("🔍 Checking cookie authentication...");
-        setLoading(true);
-
-        // Use the cookie-based getCurrentUser function
-        const currentUser = await getCurrentUser();
+        console.log("🔍 Checking authentication (ONE TIME ONLY)...");
         
-        if (currentUser) {
-          console.log("✅ Cookie authentication successful:", currentUser.email);
-          
+        const user = await getCurrentUser();
+        
+        if (isMounted && user) {
+          console.log("✅ User authenticated:", user);
           setUser({
-            id: currentUser.user_id || currentUser.id,
-            email: currentUser.email,
-            role: currentUser.role,
+            id: user.user_id || user.id,
+            email: user.email,
+            role: user.role,
           });
+          setToken("cookie-auth");
           setView("app");
-          
-          // Clean up any legacy tokens when using cookies
-          localStorage.removeItem("access_token");
-          localStorage.removeItem("refresh_token");
-          console.log("🧹 Legacy tokens cleaned up");
-          
-        } else {
-          console.log("ℹ️ No cookie authentication found");
+        } else if (isMounted) {
+          console.log("❌ No authentication - showing login");
           setView("login");
         }
       } catch (error) {
-        console.error("❌ Authentication check failed:", error);
-        setView("login");
+        console.log("🚫 Auth check failed - showing login:", error.message);
+        if (isMounted) {
+          setView("login");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setAuthChecked(true); // Mark as checked to prevent loops
+        }
       }
     };
 
-    checkAuthentication();
-  }, []);
+    // Only check auth once
+    checkAuthOnce();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - run once only
 
-  // 🍪 FIXED: Use cookie logout instead of localStorage
+  const handleLoginSuccess = (userData, authToken) => {
+    console.log("🎉 Login successful:", userData);
+    setUser(userData);
+    setToken(authToken || "cookie-auth");
+    setView("app");
+    showAlert("Login successful!", "success");
+  };
+
   const handleLogout = async () => {
     try {
-      console.log("🚪 Cookie logout initiated...");
-      
-      // Use the cookie-based logout function
       await logout();
-      
+      setToken(null);
       setUser(null);
       setView("login");
-      
-      console.log("✅ Cookie logout complete");
+      setAuthChecked(false); // Allow auth check on next login
+      showAlert("Logged out successfully!", "success");
     } catch (error) {
-      console.error("❌ Logout error:", error);
+      console.error("Logout error:", error);
       // Force logout even if API fails
+      setToken(null);
       setUser(null);
       setView("login");
+      setAuthChecked(false);
     }
   };
 
-  // 🍪 FIXED: No need for token headers with cookie auth
-  const getAuthHeaders = () => {
-    // With cookie authentication, credentials are automatically included
-    // But we'll keep this for backward compatibility with existing components
-    return {
-      "Content-Type": "application/json"
-    };
-  };
+  const switchToRegister = () => setView("register");
+  const switchToLogin = () => setView("login");
+  const switchToForgot = () => setView("forgot");
 
-  // Show loading screen
-  if (loading) {
+  // Show loading only briefly
+  if (view === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">🍪 Checking authentication...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Checking authentication...</p>
         </div>
       </div>
     );
-  }
-
-  if (view === "login") {
-    return (
-      <Login
-        onLoginSuccess={() => {
-          // After successful login, re-check authentication
-          setLoading(true);
-          setTimeout(async () => {
-            const currentUser = await getCurrentUser();
-            if (currentUser) {
-              setUser({
-                id: currentUser.user_id || currentUser.id,
-                email: currentUser.email,
-                role: currentUser.role,
-              });
-              setView("app");
-            }
-            setLoading(false);
-          }, 1000);
-        }}
-        switchToRegister={() => setView("register")}
-        switchToForgot={() => setView("forgot")}
-      />
-    );
-  }
-
-  if (view === "register") {
-    return <Register onRegisterSuccess={() => setView("login")} switchToLogin={() => setView("login")} />;
-  }
-
-  if (view === "forgot") {
-    return (
-      <ForgotPassword
-        switchToLogin={() => setView("login")}
-        switchToReset={(resetToken) => {
-          setView("reset");
-        }}
-      />
-    );
-  }
-
-  if (view === "reset") {
-    return <ResetPassword switchToLogin={() => setView("login")} />;
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-100">
-      {toastAlert && <ToastAlert message={toastAlert.message} />}
-      {bannerAlert && <BannerAlert message={bannerAlert.message} onClose={dismissBanner} />}
-
-      {/* Sidebar */}
-      <div
-        className={`fixed z-30 inset-y-0 left-0 w-64 bg-gray-900 text-white transform ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}
-      >
-        <div className="p-4 flex items-center justify-between lg:block">
-          <h1 className="text-xl font-bold mb-4">🍪 OW-AI Enterprise</h1>
-          <button className="lg:hidden text-gray-400" onClick={() => setSidebarOpen(false)}>
-            ✕
-          </button>
-        </div>
-        <nav className="space-y-1">
-          {[
-            { key: "dashboard", label: "Dashboard" },
-            { key: "analytics", label: "Analytics" },
-            { key: "alerts", label: "Alerts" },
-            { key: "actions", label: "Agent Actions" },
-            { key: "activity", label: "Activity Feed" },
-            { key: "rules", label: "Rules" },
-            { key: "editor", label: "Rule Editor" },
-            { key: "submit", label: "Submit Action" },
-            { key: "security", label: "Security Insights" },
-            { key: "profile", label: "Profile" },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`w-full text-left px-4 py-2 rounded-md ${
-                activeTab === tab.key ? "bg-gray-700" : "hover:bg-gray-800"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-          <button
-            onClick={handleLogout}
-            className="mt-4 w-full text-left px-4 py-2 text-red-300 hover:bg-red-800 rounded-md"
-          >
-            🚪 Logout
-          </button>
-        </nav>
-        
-        {/* Cookie Auth Status */}
-        <div className="p-4 mt-auto border-t border-gray-700">
-          <div className="text-xs text-green-300">
-            🔒 Secure Cookie Auth
-          </div>
-          <div className="text-xs text-gray-400">
-            {user?.email}
-          </div>
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile top bar */}
-        <div className="lg:hidden p-2 bg-gray-800 text-white flex justify-between items-center shadow">
-          <button onClick={() => setSidebarOpen(true)} className="text-white text-xl">☰</button>
-          <span className="font-semibold">🍪 OW-AI Enterprise</span>
-        </div>
-
-        {/* Scrollable content area */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          {activeTab === "dashboard" && <Analytics getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "analytics" && <Analytics getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "alerts" && <Alerts getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "actions" && <AgentActionsPanel getAuthHeaders={getAuthHeaders} user={user} />}
-          {activeTab === "activity" && <AgentActivityFeed getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "rules" && <RulesPanel getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "editor" && <RuleEditor getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "submit" && <AgentActionSubmitPanel getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "security" && <SecurityPanel getAuthHeaders={getAuthHeaders} />}
-          {activeTab === "profile" && <Profile user={user} />}
-        </main>
-      </div>
-    </div>
+    <>
+      <ToastAlert />
+      <BannerAlert />
+      
+      {view === "login" && (
+        <Login
+          onLoginSuccess={handleLoginSuccess}
+          switchToRegister={switchToRegister}
+          switchToForgot={switchToForgot}
+        />
+      )}
+      
+      {view === "register" && (
+        <Register
+          onRegisterSuccess={handleLoginSuccess}
+          switchToLogin={switchToLogin}
+        />
+      )}
+      
+      {view === "forgot" && (
+        <ForgotPassword switchToLogin={switchToLogin} />
+      )}
+      
+      {view === "app" && user && (
+        <Dashboard user={user} onLogout={handleLogout} />
+      )}
+    </>
   );
 };
 
