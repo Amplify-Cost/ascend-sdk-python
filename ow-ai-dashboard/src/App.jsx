@@ -267,81 +267,13 @@ const AppContent = () => {
     }, 150);
   };
 
-  // 🍪 ENHANCED: Enterprise Cookie Authentication Check
+  // 🚨 TEMPORARILY DISABLED: Enterprise Cookie Authentication Check
+  // This was causing infinite /auth/me requests - disabled for stability
   useEffect(() => {
-    const checkEnterpriseAuthentication = async () => {
-      try {
-        console.log("🔍 Checking enterprise authentication status...");
-        setLoading(true);
-
-        // 🍪 PRIMARY: Try cookie authentication first (enterprise preferred)
-        const currentUser = await getCurrentUser();
-        
-        if (currentUser && currentUser.enterprise_validated) {
-          console.log("✅ Enterprise cookie authentication confirmed:", currentUser.email);
-          
-          setUser({
-            id: currentUser.user_id || currentUser.id,
-            email: currentUser.email,
-            role: currentUser.role,
-          });
-          setView("app");
-          setAuthMode(currentUser.auth_source || "cookie");
-          
-          // 🧹 Clean up any legacy tokens when using cookies
-          if (currentUser.auth_source === "cookie") {
-            localStorage.removeItem("access_token");
-            localStorage.removeItem("refresh_token");
-            console.log("🧹 Legacy tokens cleaned up - using secure cookies");
-          }
-          
-        } else {
-          // 🎫 FALLBACK: Check for legacy token authentication
-          console.log("🔍 No cookie authentication, checking legacy tokens...");
-          const storedToken = localStorage.getItem("access_token");
-          
-          if (storedToken) {
-            console.log("⚠️ Legacy token found, attempting validation...");
-            try {
-              // Import jwt-decode dynamically to avoid bundle issues
-              const { jwtDecode } = await import("jwt-decode");
-              const decoded = jwtDecode(storedToken);
-              const currentTime = Date.now() / 1000;
-              
-              if (decoded.exp && decoded.exp < currentTime) {
-                console.warn("❌ Legacy token expired, clearing...");
-                handleLogout(false);
-              } else {
-                // Use legacy token temporarily
-                setUser({
-                  id: Number(decoded.sub),
-                  email: decoded.email || decoded.sub,
-                  role: decoded.role,
-                });
-                setView("app");
-                setAuthMode("token");
-                console.log("⚠️ Using legacy token authentication");
-                toast("Using legacy authentication - consider logging out and back in for enhanced security", "warning");
-              }
-            } catch (err) {
-              console.error("❌ Invalid legacy token:", err);
-              handleLogout(false);
-            }
-          } else {
-            console.log("ℹ️ No authentication found, showing login");
-            setView("login");
-          }
-        }
-      } catch (error) {
-        console.error("❌ Enterprise authentication check failed:", error);
-        setView("login");
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    checkEnterpriseAuthentication();
-  }, []);
+    console.log("🚨 AUTH CHECK DISABLED - No infinite loops");
+    setLoading(false);
+    setView("login"); // Force login screen
+  }, []);  }, []);
 
   // 🍪 ENTERPRISE FIX: Handle login response without problematic toast calls
   const handleLoginSuccess = async (loginResponse) => {
