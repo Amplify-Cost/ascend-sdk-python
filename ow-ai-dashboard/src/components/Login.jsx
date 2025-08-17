@@ -18,7 +18,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgot }) => {
       const response = await fetchWithAuth("/auth/token", {
         method: "POST",
         body: JSON.stringify({
-          username: email,
+          email: email,
           password: password,
         }),
       });
