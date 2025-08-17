@@ -350,49 +350,61 @@ if SSO_ROUTES_AVAILABLE and sso_router:
     app.include_router(sso_router, tags=["Enterprise SSO"])
     print("✅ Enterprise SSO routes included")
 
-# Core application routes with graceful fallback
+# Enterprise router inclusion with comprehensive error handling
 for route_name, router in ROUTE_MODULES.items():
     if router:
         try:
+            print(f"🔧 ENTERPRISE: Including {route_name} router")
+            
             if route_name == "auth":
                 app.include_router(router)
+                print(f"✅ ENTERPRISE: {route_name} router included successfully")
             elif route_name == "smart_rules":
                 app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-rules")
             elif route_name == "analytics":
                 app.include_router(router, prefix="/analytics", tags=["Analytics"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /analytics")
             elif route_name == "smart_alerts":
-                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
+                app.include_router(router, prefix="/smart-alerts", tags=["Smart Alerts"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-alerts")
             elif route_name == "data_rights":
                 app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/data-rights")
             elif route_name == "unified_governance":
                 app.include_router(router, prefix="/api/governance", tags=["Unified Governance"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/governance")
             else:
-                app.include_router(router)
-            print(f"✅ {route_name} routes included")
+                app.include_router(router, prefix=f"/{route_name}", tags=[route_name.title()])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /{route_name}")
+                
         except Exception as e:
-            print(f"⚠️  Failed to include {route_name} routes: {e}")
+            print(f"❌ ENTERPRISE ERROR: Failed to include {route_name} router: {e}")
+            logging.error(f"Router inclusion failed for {route_name}: {e}")
+    else:
+        print(f"⚠️ ENTERPRISE WARNING: {route_name} router is None - skipping inclusion")
 
 # Manual router inclusions for routes not in ROUTE_MODULES
 try:
     app.include_router(enterprise_user_router, tags=["Enterprise Users"])
-    print("✅ Enterprise user routes included")
+    print("✅ ENTERPRISE: Enterprise user routes included")
 except Exception as e:
-    print(f"⚠️  Enterprise user routes failed: {e}")
+    print(f"❌ ENTERPRISE ERROR: Enterprise user routes failed: {e}")
 
 try:
     app.include_router(authorization_router, tags=["Authorization"])
     app.include_router(authorization_api_router, tags=["Authorization API"])
-    print("✅ Authorization routes included")
+    print("✅ ENTERPRISE: Authorization routes included")
 except Exception as e:
-    print(f"⚠️  Authorization routes failed: {e}")
+    print(f"❌ ENTERPRISE ERROR: Authorization routes failed: {e}")
 
 try:
     app.include_router(secrets_router, tags=["Secrets"])
-    print("✅ Secrets routes included")
+    print("✅ ENTERPRISE: Secrets routes included")
 except Exception as e:
-    print(f"⚠️  Secrets routes failed: {e}")
+    print(f"❌ ENTERPRISE ERROR: Secrets routes failed: {e}")
 
-print("🚀 Application startup complete")
+print("🚀 ENTERPRISE: Application startup complete")
 
 
 
@@ -1791,6 +1803,27 @@ async def health_check():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
+    
+
+# ENTERPRISE FAILSAFE: Validate critical routers are included
+def validate_enterprise_routers():
+    """Enterprise-grade router validation"""
+    critical_routers = ["/smart-rules", "/analytics", "/auth"]
+    included_paths = [str(route.path) for route in app.routes if hasattr(route, 'path')]
+    
+    print(f"🔍 ENTERPRISE VALIDATION: Checking {len(critical_routers)} critical routers")
+    
+    for critical_path in critical_routers:
+        found = any(critical_path in path for path in included_paths)
+        if found:
+            print(f"✅ ENTERPRISE: {critical_path} router properly included")
+        else:
+            print(f"❌ ENTERPRISE CRITICAL: {critical_path} router MISSING")
+            
+    print(f"📊 ENTERPRISE SUMMARY: {len(included_paths)} total routes registered")
+
+# Run enterprise validation
+validate_enterprise_routers()    
 
 if __name__ == "__main__":
     import uvicorn
