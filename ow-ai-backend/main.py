@@ -271,9 +271,9 @@ app.add_middleware(
 )
 
 # Enterprise Security: Reject Bearer tokens globally
-@app.middleware("http")
-async def reject_bearer_tokens_middleware(request, call_next):
-    await reject_bearer_tokens(request)
+# @app.middleware("http")
+# async def reject_bearer_tokens_middleware(request, call_next):
+    # await reject_bearer_tokens(request)
     response = await call_next(request)
     return response
 

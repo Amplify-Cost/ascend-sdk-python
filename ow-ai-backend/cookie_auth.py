@@ -80,28 +80,25 @@ async def get_current_user_from_cookie(request: Request) -> dict:
 async def reject_bearer_tokens(request: Request):
     """
     Reject Bearer tokens for enterprise cookie-only authentication
-    But be more selective about which paths to protect
+    But allow them for analytics and API endpoints after login
     """
     auth_header = request.headers.get("authorization", "")
     
-    # Only reject Bearer tokens on specific sensitive paths
-    protected_paths = [
-        "/auth/",
-        "/admin/",
-        "/enterprise/"
+    # Only reject Bearer tokens on auth-related endpoints
+    auth_only_paths = [
+        "/auth/token",
+        "/auth/refresh-token",
+        "/auth/logout"
     ]
     
-    # Check if this is a protected path
-    is_protected = any(request.url.path.startswith(path) for path in protected_paths)
+    # Check if this is an auth-only path where we want cookie-only
+    is_auth_only = any(request.url.path.startswith(path) for path in auth_only_paths)
     
-    if auth_header.startswith("Bearer ") and is_protected:
-        logger.warning(f"Rejected Bearer token attempt from {request.client.host}")
+    # Only reject Bearer tokens on auth endpoints, allow on analytics/API
+    if auth_header.startswith("Bearer ") and is_auth_only:
+        logger.warning(f"Rejected Bearer token attempt on auth endpoint from {request.client.host}")
         raise HTTPException(
             status_code=401,
-            detail="Bearer tokens not allowed. Use cookie authentication.",
-            headers={"WWW-Authenticate": "Cookie"}
+            detail="Bearer tokens not allowed on auth endpoints. Use cookie authentication.",
+            headers={"WWW-Authenticate": "Cookie"},
         )
-    
-    # For other paths, allow Bearer tokens but prefer cookies
-    return True
-
