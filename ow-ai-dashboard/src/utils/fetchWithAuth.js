@@ -139,3 +139,27 @@ export const fetchWithAuth = async (url, options = {}) => {
 
 // 🍪 Master Prompt Compliance: No localStorage usage
 // Cookie-only authentication maintained throughout
+
+// 🔄 Backward compatibility exports for existing imports
+export const logout = logoutUser;
+export const getCurrentUser = getCurrentUser; // Already exported above
+export const loginUser = loginUser; // Already exported above
+
+// Alternative export names for compatibility
+export { 
+    loginUser as login,
+    getCurrentUser as getUser,
+    logoutUser as logout
+};
+
+// Default export for comprehensive compatibility
+export default {
+    loginUser,
+    logoutUser,
+    getCurrentUser,
+    fetchWithAuth,
+    // Backward compatibility
+    login: loginUser,
+    logout: logoutUser,
+    getUser: getCurrentUser
+};
