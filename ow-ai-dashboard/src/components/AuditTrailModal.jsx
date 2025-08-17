@@ -7,6 +7,7 @@ const AuditTrailModal = ({ token, actionId, onClose }) => {
   const fetchAuditLogs = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/audit-trail`, {
+        credentials: "include",
         headers: {
           Authorization: `Bearer ${token}`,
         },

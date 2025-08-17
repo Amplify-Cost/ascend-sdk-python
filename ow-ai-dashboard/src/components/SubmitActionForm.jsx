@@ -41,6 +41,8 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/agent-action`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders(), // Make sure this returns { Authorization: Bearer <token> }

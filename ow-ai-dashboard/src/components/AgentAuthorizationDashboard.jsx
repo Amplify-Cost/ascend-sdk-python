@@ -220,6 +220,7 @@ useEffect(() => {
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/governance/unified-actions`, {
+        credentials: "include",
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -229,6 +230,7 @@ useEffect(() => {
     } catch (err) {
       console.log("📊 Unified endpoint not available, trying existing agent endpoint");
       response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
+        credentials: "include",
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -292,6 +294,7 @@ useEffect(() => {
   const fetchDashboardData = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -346,6 +349,7 @@ useEffect(() => {
   const fetchApprovalMetrics = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -409,6 +413,7 @@ useEffect(() => {
   const fetchWorkflows = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -435,6 +440,7 @@ useEffect(() => {
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
+        credentials: "include",
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -539,6 +545,7 @@ const fetchWorkflowOrchestrations = async () => {
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/orchestration/active-workflows`, {
+        credentials: "include",
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -637,7 +644,8 @@ const fetchWorkflowOrchestrations = async () => {
   const fetchExecutionHistory = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/authorization/execution-history`, {
-      headers: { 
+      credentials: "include",
+        headers: { 
         ...getAuthHeaders(), 
         "Content-Type": "application/json",
         "X-API-Version": "v1.0"
@@ -657,6 +665,7 @@ const fetchWorkflowOrchestrations = async () => {
   const fetchExecutionStatus = async (actionId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -708,7 +717,9 @@ const fetchWorkflowOrchestrations = async () => {
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/playbook/${playbookId}/toggle`, {
           method: "POST",
-          headers: { 
+        credentials: "include",
+          credentials: "include",
+        headers: { 
             ...getAuthHeaders(), 
             "Content-Type": "application/json",
             "X-API-Version": "v1.0"
@@ -802,7 +813,9 @@ const fetchWorkflowOrchestrations = async () => {
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/execute-playbook`, {
           method: "POST",
-          headers: { 
+        credentials: "include",
+          credentials: "include",
+        headers: { 
             ...getAuthHeaders(), 
             "Content-Type": "application/json",
             "X-API-Version": "v1.0"
@@ -914,7 +927,9 @@ const fetchWorkflowOrchestrations = async () => {
       try {
         await fetch(`${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}`, {
           method: "POST",
-          headers: { 
+        credentials: "include",
+          credentials: "include",
+        headers: { 
             ...getAuthHeaders(), 
             "Content-Type": "application/json",
             "X-API-Version": "v1.0"
@@ -1005,6 +1020,8 @@ const createWorkflow = async (workflowData) => {
     try {
       await fetch(`${API_BASE_URL}/api/authorization/workflows/create`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -1047,6 +1064,8 @@ const createWorkflow = async (workflowData) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/execute/${actionId}`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -1118,6 +1137,8 @@ const createWorkflow = async (workflowData) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -1160,7 +1181,9 @@ const createWorkflow = async (workflowData) => {
     
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { 
+        credentials: "include",
+      credentials: "include",
+        headers: { 
         ...getAuthHeaders(), 
         "Content-Type": "application/json",
         "X-API-Version": "v1.0"
@@ -1231,6 +1254,8 @@ const createWorkflow = async (workflowData) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/emergency-override/${actionId}`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",

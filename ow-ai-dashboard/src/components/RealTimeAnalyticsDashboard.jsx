@@ -28,6 +28,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}${endpoint}`, {
         method: 'GET',
+        credentials: "include",
         headers: {
           ...headers,
           'X-Enterprise-Client': 'OW-AI-Platform',

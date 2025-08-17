@@ -30,6 +30,8 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           email, 

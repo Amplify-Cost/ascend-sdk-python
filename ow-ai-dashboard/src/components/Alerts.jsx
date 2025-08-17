@@ -27,7 +27,8 @@ const Alerts = ({ getAuthHeaders, user }) => {
       try {
         console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
-          headers: getAuthHeaders(),
+          credentials: "include",
+        headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch alerts");
         const data = await res.json();
@@ -71,6 +72,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
@@ -102,6 +104,8 @@ const Alerts = ({ getAuthHeaders, user }) => {
       );
       const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",

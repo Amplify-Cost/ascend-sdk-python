@@ -472,6 +472,7 @@ const AppContent = () => {
       
       const response = await fetchWithAuth(`${API_BASE_URL}/auth/update-profile`, {
         method: "POST",
+        credentials: "include",
         body: JSON.stringify(updateData)
       });
       

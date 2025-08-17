@@ -25,7 +25,8 @@ const SecurityInsights = ({ getAuthHeaders }) => {
       try {
         console.log("🔍 Fetching insights from:", `${API_BASE_URL}/analytics/trends`);
         const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
-          headers: getAuthHeaders(),
+          credentials: "include",
+        headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch insights data");
         const data = await res.json();

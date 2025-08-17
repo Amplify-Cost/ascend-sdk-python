@@ -106,6 +106,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     try {
       setLoading(true);
       const response = await fetch('/alerts/active', {
+        credentials: "include",
         headers: getAuthHeaders()
       });
 
@@ -129,6 +130,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     try {
       setLoading(true);
       const response = await fetch('/alerts/history?days=30', {
+        credentials: "include",
         headers: getAuthHeaders()
       });
 
@@ -151,6 +153,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     try {
       const response = await fetch(`/alerts/${alertId}/acknowledge`, {
         method: 'POST',
+        credentials: "include",
         headers: getAuthHeaders()
       });
 
@@ -175,6 +178,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     try {
       const response = await fetch(`/alerts/${alertId}/resolve`, {
         method: 'POST',
+        credentials: "include",
         headers: getAuthHeaders()
       });
 

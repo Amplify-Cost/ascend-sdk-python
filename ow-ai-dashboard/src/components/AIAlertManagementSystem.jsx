@@ -257,6 +257,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     console.log("🔄 Fetching performance metrics...");
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/performance-metrics`, {
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       
@@ -283,6 +284,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchAlerts = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts`, {
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -308,6 +310,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchAIInsights = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/ai-insights`, {
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -327,6 +330,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchThreatIntelligence = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/threat-intelligence`, {
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -353,6 +357,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/correlate`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ alert_ids: selectedAlerts })
       });
@@ -388,6 +394,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/executive-brief`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ 
           time_period: "24h",

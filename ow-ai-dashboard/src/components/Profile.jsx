@@ -38,6 +38,7 @@ const Profile = ({ user, onUpdateProfile }) => {
       // ✅ Using fetchWithAuth for automatic token handling
       const response = await fetchWithAuth(`${API_BASE_URL}/auth/update-profile`, {
         method: "POST",
+        credentials: "include",
         body: JSON.stringify(updateData)
       });
 

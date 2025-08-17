@@ -19,7 +19,9 @@ export const loginUser = async (email, password) => {
     // Send as JSON for backend compatibility
     const response = await fetch(`${API_BASE_URL}/auth/token`, {
       method: 'POST',
-      headers: {
+      credentials: "include",
+    credentials: "include",
+        headers: {
         'Content-Type': 'application/json',
       },
       credentials: 'include', // 🍪 Enterprise cookie-only auth
@@ -57,7 +59,9 @@ export const getCurrentUser = async () => {
     const response = await fetch(`${API_BASE_URL}/auth/cookie-me`, {
       method: 'GET',
       credentials: 'include', // 🍪 Enterprise cookie-only auth
-      headers: {
+      credentials: "include",
+    credentials: "include",
+        headers: {
         'Content-Type': 'application/json',
       }
     });

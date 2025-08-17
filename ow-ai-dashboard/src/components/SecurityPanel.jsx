@@ -10,7 +10,8 @@ const SecurityPanel = ({ getAuthHeaders }) => {
     const fetchSecurityFindings = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/security-findings`, {
-          headers: getAuthHeaders(),
+          credentials: "include",
+        headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch security findings");
         const data = await res.json();

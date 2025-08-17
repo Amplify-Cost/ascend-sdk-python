@@ -19,6 +19,7 @@ const Rules = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
       const res = await fetch(`${API_BASE_URL}/rules`, {
+        credentials: "include",
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
@@ -36,6 +37,8 @@ const Rules = ({ getAuthHeaders, user }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/rules`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(await getAuthHeaders()),
@@ -74,6 +77,7 @@ const Rules = ({ getAuthHeaders, user }) => {
   const fetchAuditLog = async (ruleId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/feedback/${ruleId}`, {
+        credentials: "include",
         headers: await getAuthHeaders(),
       });
       const log = await res.json();

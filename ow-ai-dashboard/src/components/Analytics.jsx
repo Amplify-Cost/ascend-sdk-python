@@ -21,7 +21,8 @@ const Analytics = ({ getAuthHeaders }) => {
     const fetchLogs = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/logs`, {
-          headers: getAuthHeaders(),
+          credentials: "include",
+        headers: getAuthHeaders(),
         });
         const data = await res.json();
         if (Array.isArray(data)) {

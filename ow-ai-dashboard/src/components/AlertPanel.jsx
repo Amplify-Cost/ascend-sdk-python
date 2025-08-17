@@ -23,7 +23,8 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
       try {
         console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
-          headers: getAuthHeaders(),
+          credentials: "include",
+        headers: getAuthHeaders(),
         });
         
         console.log("🚨 Alerts response status:", res.status);
@@ -79,6 +80,8 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
       );
       const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
@@ -100,6 +103,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
         method: "PATCH",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",

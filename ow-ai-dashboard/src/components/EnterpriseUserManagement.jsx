@@ -75,6 +75,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading users...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -96,6 +97,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading roles...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -116,6 +118,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading audit logs...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/audit-logs?limit=50`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -136,6 +139,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading analytics...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/analytics`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -161,6 +165,8 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       console.log("🔄 Creating user:", newUser);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json"
@@ -201,6 +207,8 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       console.log("🔄 Updating user:", editingUser);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users/${editingUser.id}`, {
         method: "PUT",
+        credentials: "include",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json"
@@ -242,6 +250,8 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       console.log("🔄 Deactivating user:", userId);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users/${userId}`, {
         method: "DELETE",
+        credentials: "include",
+        credentials: "include",
         headers: getAuthHeaders()
       });
 
@@ -266,6 +276,8 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       console.log("🔄 Creating role:", newRole);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json"

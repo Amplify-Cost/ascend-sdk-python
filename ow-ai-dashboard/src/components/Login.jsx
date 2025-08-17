@@ -21,6 +21,8 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       // Enterprise cookie authentication request
       const response = await fetch(`${API_BASE_URL}/auth/token`, {
         method: "POST",
+        credentials: "include",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "X-Enterprise-Client": "OW-AI-Platform",
