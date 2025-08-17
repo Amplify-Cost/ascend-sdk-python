@@ -1,6 +1,6 @@
 /**
  * 🏢 Enterprise Authentication Utilities - Master Prompt Compliant
- * Cookie-only authentication, no localStorage usage
+ * Cookie-only authentication with proper API request handling
  */
 
 const API_BASE_URL = '';
@@ -12,7 +12,6 @@ export const loginUser = async (email, password) => {
     console.log('🏢 Enterprise login attempt for:', email);
     
     try {
-        // 🎯 Master Prompt: Try JSON format first
         const response = await fetch(`${API_BASE_URL}/auth/token`, {
             method: 'POST',
             headers: {
@@ -32,9 +31,7 @@ export const loginUser = async (email, password) => {
         });
 
         if (!response.ok) {
-            // If JSON fails, try URLSearchParams format
-            console.log('🔄 JSON format failed, trying URLSearchParams...');
-            
+            // Fallback to URLSearchParams if JSON fails
             const formResponse = await fetch(`${API_BASE_URL}/auth/token`, {
                 method: 'POST',
                 headers: {
@@ -43,7 +40,7 @@ export const loginUser = async (email, password) => {
                 },
                 credentials: 'include',
                 body: new URLSearchParams({
-                    username: email,  // Note: backend might expect 'username' field
+                    username: email,
                     password: password
                 })
             });
@@ -54,12 +51,12 @@ export const loginUser = async (email, password) => {
             }
 
             const result = await formResponse.json();
-            console.log('✅ Enterprise login successful with URLSearchParams');
+            console.log('✅ Enterprise login successful');
             return result;
         }
 
         const result = await response.json();
-        console.log('✅ Enterprise login successful with JSON');
+        console.log('✅ Enterprise login successful');
         return result;
 
     } catch (error) {
@@ -120,35 +117,55 @@ export const logoutUser = async () => {
 };
 
 /**
- * 🍪 Fetch with authentication (uses cookies)
+ * 🍪 Fetch with authentication (uses cookies) - FIXED FOR API CALLS
  */
 export const fetchWithAuth = async (url, options = {}) => {
+    console.log('🔍 Making authenticated API request to:', url);
+    
     const defaultOptions = {
-        credentials: 'include', // 🍪 Always include cookies
+        credentials: 'include', // 🍪 CRITICAL: Always include cookies
         headers: {
             'Accept': 'application/json',
+            'Content-Type': 'application/json',
             ...options.headers
         }
     };
 
-    return fetch(url.startsWith('http') ? url : `${API_BASE_URL}${url}`, {
-        ...defaultOptions,
-        ...options
+    const finalUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    
+    console.log('🔍 API request details:', {
+        url: finalUrl,
+        method: options.method || 'GET',
+        credentials: defaultOptions.credentials
     });
+
+    try {
+        const response = await fetch(finalUrl, {
+            ...defaultOptions,
+            ...options
+        });
+        
+        console.log('📊 API response:', {
+            status: response.status,
+            url: finalUrl
+        });
+        
+        return response;
+    } catch (error) {
+        console.error('❌ API request failed:', error);
+        throw error;
+    }
 };
 
-// 🍪 Master Prompt Compliance: No localStorage usage
-// Cookie-only authentication maintained throughout
-
-// 🔄 Backward compatibility exports for existing imports
+// 🔄 Backward compatibility exports
 export const logout = logoutUser;
 
-// Alternative export names for compatibility
 // Alternative export names for compatibility
 export { 
     loginUser as login,
     getCurrentUser as getUser
 };
+
 // Default export for comprehensive compatibility
 export default {
     loginUser,
@@ -160,3 +177,6 @@ export default {
     logout: logoutUser,
     getUser: getCurrentUser
 };
+
+// 🍪 Master Prompt Compliance: No localStorage usage
+// Cookie-only authentication maintained throughout
