@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 /*
  * OW-AI Enterprise Login Portal
- * Professional business-grade design
+ * Professional enterprise-grade design with authentication fix
  * Cookie-only authentication (Master Prompt compliant)
  */
 
@@ -26,6 +26,8 @@ const Login = ({ onLogin }) => {
 
     try {
       console.log('🔐 Enterprise authentication attempt...');
+      console.log('📝 Sending credentials:', { username: credentials.username, password: '***' });
+      
       const result = await onLogin(credentials);
       
       if (!result || !result.success) {
@@ -49,7 +51,7 @@ const Login = ({ onLogin }) => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)',
+      background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 50%, #475569 75%, #64748b 100%)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -63,8 +65,8 @@ const Login = ({ onLogin }) => {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        opacity: 0.4
+        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.02'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+        opacity: 0.5
       }} />
       
       <div style={{
@@ -75,7 +77,7 @@ const Login = ({ onLogin }) => {
         backdropFilter: 'blur(20px)',
         borderRadius: '16px',
         padding: '3rem 2.5rem',
-        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.1), 0 16px 32px rgba(0, 0, 0, 0.08)',
+        boxShadow: '0 25px 50px rgba(0, 0, 0, 0.15), 0 20px 40px rgba(0, 0, 0, 0.1)',
         border: '1px solid rgba(255, 255, 255, 0.2)'
       }}>
         {/* Enterprise Header */}
@@ -83,7 +85,7 @@ const Login = ({ onLogin }) => {
           <div style={{
             width: '80px',
             height: '80px',
-            background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+            background: 'linear-gradient(135deg, #0f172a 0%, #334155 50%, #64748b 100%)',
             borderRadius: '20px',
             display: 'flex',
             alignItems: 'center',
@@ -91,13 +93,13 @@ const Login = ({ onLogin }) => {
             margin: '0 auto 1.5rem',
             fontSize: '2rem',
             color: 'white',
-            boxShadow: '0 8px 16px rgba(30, 58, 138, 0.3)'
+            boxShadow: '0 8px 16px rgba(15, 23, 42, 0.3)'
           }}>
             🏢
           </div>
           <h1 style={{ 
             margin: '0 0 0.5rem 0', 
-            color: '#1e293b',
+            color: '#0f172a',
             fontSize: '1.75rem',
             fontWeight: '700',
             letterSpacing: '-0.025em'
@@ -145,8 +147,8 @@ const Login = ({ onLogin }) => {
                 outline: 'none'
               }}
               onFocus={(e) => {
-                e.target.style.borderColor = '#2563eb';
-                e.target.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
+                e.target.style.borderColor = '#64748b';
+                e.target.style.boxShadow = '0 0 0 3px rgba(100, 116, 139, 0.1)';
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = '#e5e7eb';
@@ -185,8 +187,8 @@ const Login = ({ onLogin }) => {
                 outline: 'none'
               }}
               onFocus={(e) => {
-                e.target.style.borderColor = '#2563eb';
-                e.target.style.boxShadow = '0 0 0 3px rgba(37, 99, 235, 0.1)';
+                e.target.style.borderColor = '#64748b';
+                e.target.style.boxShadow = '0 0 0 3px rgba(100, 116, 139, 0.1)';
               }}
               onBlur={(e) => {
                 e.target.style.borderColor = '#e5e7eb';
@@ -219,7 +221,7 @@ const Login = ({ onLogin }) => {
               padding: '0.875rem 1rem',
               background: loading 
                 ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)' 
-                : 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                : 'linear-gradient(135deg, #0f172a 0%, #334155 50%, #64748b 100%)',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -229,19 +231,19 @@ const Login = ({ onLogin }) => {
               transition: 'all 0.2s ease',
               boxShadow: loading 
                 ? 'none' 
-                : '0 4px 12px rgba(30, 58, 138, 0.3)',
+                : '0 4px 12px rgba(15, 23, 42, 0.3)',
               letterSpacing: '0.025em'
             }}
             onMouseEnter={(e) => {
               if (!loading) {
                 e.target.style.transform = 'translateY(-1px)';
-                e.target.style.boxShadow = '0 6px 16px rgba(30, 58, 138, 0.4)';
+                e.target.style.boxShadow = '0 6px 16px rgba(15, 23, 42, 0.4)';
               }
             }}
             onMouseLeave={(e) => {
               if (!loading) {
                 e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 4px 12px rgba(30, 58, 138, 0.3)';
+                e.target.style.boxShadow = '0 4px 12px rgba(15, 23, 42, 0.3)';
               }
             }}
           >
@@ -258,7 +260,7 @@ const Login = ({ onLogin }) => {
           </button>
         </form>
 
-        {/* Enterprise Security Features - No Master Prompt reference */}
+        {/* Enterprise Security Features */}
         <div style={{
           padding: '1.25rem',
           background: 'rgba(34, 197, 94, 0.05)',

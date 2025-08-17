@@ -1,7 +1,7 @@
 /*
- * Enterprise Authentication Utilities
+ * Enterprise Authentication Utilities - Debug Version
  * Cookie-only authentication, NO localStorage, NO Bearer tokens
- * Professional enterprise-grade security implementation
+ * Enhanced debugging for authentication troubleshooting
  */
 
 const API_BASE_URL = 'https://owai-production.up.railway.app';
@@ -17,14 +17,19 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
     ...options,
     credentials: 'include', // CRITICAL: Include cookies for authentication
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': options.headers?.['Content-Type'] || 'application/json',
       ...options.headers,
     },
   };
 
-  // Master Prompt Compliance: NO localStorage, NO Bearer tokens
-  // Only use HTTP-only cookies for authentication
-  
+  // Debug logging
+  console.log('🔍 Request details:', {
+    url,
+    method: config.method || 'GET',
+    headers: config.headers,
+    hasBody: !!config.body
+  });
+
   try {
     const response = await fetch(url, config);
     console.log(`🏢 Enterprise request to ${endpoint}:`, response.status);
@@ -56,15 +61,23 @@ export const getCurrentUser = async () => {
   }
 };
 
-// Fixed login with correct field mapping for backend
+// Enhanced login with multiple format attempts and debugging
 export const loginUser = async (credentials) => {
   console.log('🔐 Attempting cookie authentication login...');
+  console.log('📝 Credentials being sent:', { 
+    username: credentials.username, 
+    password: credentials.password ? '[PROVIDED]' : '[MISSING]',
+    usernameLength: credentials.username?.length || 0,
+    passwordLength: credentials.password?.length || 0
+  });
   
   try {
-    // Backend expects 'username' and 'password' fields
+    // Method 1: URLSearchParams (most common for FastAPI OAuth2)
     const formData = new URLSearchParams();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
+    formData.append('username', credentials.username || '');
+    formData.append('password', credentials.password || '');
+    
+    console.log('🔍 Sending as URLSearchParams:', formData.toString());
     
     const response = await fetchWithAuth('/auth/token', {
       method: 'POST',
@@ -74,14 +87,49 @@ export const loginUser = async (credentials) => {
       body: formData,
     });
 
+    console.log('🔍 Response status:', response.status);
+    console.log('🔍 Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (response.ok) {
       const userData = await response.json();
       console.log('✅ Login successful - cookies should be set');
       return { success: true, user: userData };
     } else {
-      const error = await response.json();
-      console.log('❌ Login failed:', error);
-      return { success: false, error: error.detail || 'Login failed' };
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { detail: errorText };
+      }
+      
+      console.log('❌ Login failed:', errorData);
+      console.log('🔍 Raw error response:', errorText);
+      
+      // Try Method 2: FormData if URLSearchParams failed
+      if (response.status === 400) {
+        console.log('🔄 Trying FormData approach...');
+        
+        const formDataObj = new FormData();
+        formDataObj.append('username', credentials.username || '');
+        formDataObj.append('password', credentials.password || '');
+        
+        const response2 = await fetchWithAuth('/auth/token', {
+          method: 'POST',
+          body: formDataObj, // FormData sets its own Content-Type
+        });
+        
+        if (response2.ok) {
+          const userData = await response2.json();
+          console.log('✅ Login successful with FormData - cookies should be set');
+          return { success: true, user: userData };
+        } else {
+          const errorText2 = await response2.text();
+          console.log('❌ FormData also failed:', errorText2);
+        }
+      }
+      
+      return { success: false, error: errorData.detail || 'Login failed' };
     }
   } catch (error) {
     console.error('❌ Login error:', error);

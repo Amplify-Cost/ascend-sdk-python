@@ -83,7 +83,7 @@ function App() {
     }
   };
 
-  // Professional loading screen with business colors
+  // Professional loading screen with slate gray colors
   if (loading) {
     return (
       <div style={{ 
@@ -91,7 +91,7 @@ function App() {
         justifyContent: 'center', 
         alignItems: 'center', 
         height: '100vh',
-        background: 'linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 25%, #334155 50%, #475569 75%, #64748b 100%)',
         color: 'white',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
       }}>
