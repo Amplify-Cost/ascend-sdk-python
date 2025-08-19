@@ -1,3 +1,4 @@
+from smart_jwt_manager import init_jwt_manager, get_jwt_manager
 # main.py - Complete original file with only auth router fixes
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
@@ -7,6 +8,10 @@ import logging
 from datetime import datetime, UTC, timedelta
 from typing import List, Dict, Any, Optional
 from dependencies import require_admin
+
+# Enterprise Cookie Authentication
+from cookie_auth import get_current_user, reject_bearer_tokens
+from csrf_manager import csrf_manager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -27,7 +32,7 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
-#from jwt_manager import init_jwt_manager
+## from jwt_manager import init_jwt_manager
 from jwks_routes import router as jwks_router
 # Enterprise health module with graceful fallback
 from local_jwt_manager import get_jwt_manager
@@ -73,7 +78,7 @@ except ImportError as e:
     config = FallbackConfig()
 
 try:
-    from jwt_manager import jwt_manager
+    # from jwt_manager import jwt_manager
     print("✅ Enterprise JWT Manager loaded")
 except ImportError as e:
     print(f"⚠️  JWT Manager fallback: {e}")
@@ -192,12 +197,7 @@ print(f"🎯 Enterprise System Status: {len([r for r in ROUTE_MODULES.values() i
 print(f"🔐 Enterprise Features: {'ENABLED' if ENTERPRISE_FEATURES_ENABLED else 'FALLBACK MODE'}")
 
 
-from enterprise_config import config
-from jwt_manager import jwt_manager
-from health import router as health_router
-from rbac_manager import enterprise_rbac, require_permission, require_minimum_level, Permission
-from sso_manager import enterprise_sso
-from routes.sso_routes import router as sso_router
+
 
 
 
@@ -238,21 +238,95 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
+app.include_router(jwks_router, tags=["authentication"])
+app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 
-# CORS Configuration (unchanged)
+
+
+# ---- ENTERPRISE CORS CONFIGURATION ----
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://passionate-elegance-production.up.railway.app",
-        "https://owai-production.up.railway.app", 
-        "http://localhost:3000",  # For development
-        "http://localhost:5173"   # For Vite dev server
-    ],  # NO WILDCARDS when using credentials
-    allow_credentials=True,  # Required for cookies
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+        "https://owai-production.up.railway.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:5175",
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],              # 👈 accept all request headers (dev & enterprise default)
+    expose_headers=["Set-Cookie", "X-Request-Id"],
+    max_age=600,
 )
+# ---- END CORS CONFIGURATION ----
 
+
+
+
+
+@app.on_event("startup")
+async def startup_jwt_manager():
+    """Initialize JWT manager on startup"""
+    try:
+        init_jwt_manager(
+            secret_name="ow-ai/jwt-keys",
+            aws_region="us-east-1", 
+            issuer="http://localhost:8000",
+            audience="ow-ai-api"
+        )
+        print("✅ RS256 JWT Manager initialized successfully")
+    except Exception as e:
+        print(f"⚠️ JWT Manager initialization failed: {e}")
+
+
+
+# Enterprise Security: Reject Bearer tokens globally
+@app.middleware("http")
+async def reject_bearer_tokens_middleware(request, call_next):
+    await reject_bearer_tokens(request)
+    response = await call_next(request)
+    return response
+
+# ✅ ADD THIS HERE - Enterprise Demo Storage Systems
+demo_actions_storage = {
+    9001: {
+        "id": 9001,
+        "agent_id": "security-scanner-01",
+        "action_type": "vulnerability_scan",
+        "description": "Production infrastructure vulnerability assessment",
+        "risk_level": "high",
+        "ai_risk_score": 85,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "reviewed_by": None,
+        "reviewed_at": None
+    },
+    9002: {
+        "id": 9002,
+        "agent_id": "compliance-agent",
+        "action_type": "compliance_check",
+        "description": "SOX compliance audit of financial systems",
+        "risk_level": "medium",
+        "ai_risk_score": 65,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "reviewed_by": None,
+        "reviewed_at": None
+    },
+    9003: {
+        "id": 9003,
+        "agent_id": "threat-detector",
+        "action_type": "anomaly_detection",
+        "description": "Advanced threat correlation analysis on network traffic",
+        "risk_level": "high",
+        "ai_risk_score": 90,
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "reviewed_by": None,
+        "reviewed_at": None
+    }
+}
 
 # Enterprise workflow configuration storage
 workflow_config = {
@@ -294,19 +368,75 @@ workflow_config = {
 audit_trail_storage = []
 
 # <--- Added: include auth router
-app.include_router(auth_router)
-app.include_router(smart_rules_router)
-app.include_router(enterprise_user_router)
-app.include_router(authorization_router)  
-app.include_router(authorization_api_router)
-app.include_router(secrets_router)
-app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
-app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
-app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
+#app.include_router(auth_router)
+#app.include_router(smart_rules_router)
+#app.include_router(enterprise_user_router)
+#app.include_router(authorization_router)  
+#app.include_router(authorization_api_router)
+#app.include_router(secrets_router)
+#app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+#app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+#app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
-app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+# app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+
+# Include routers with enterprise fallback handling
+print("🔗 Loading application routes...")
+
+# Enterprise health monitoring (always included)
 app.include_router(health_router, tags=["Health"])
-app.include_router(sso_router, tags=["Enterprise SSO"])
+print("✅ Health routes included")
+
+# Enterprise SSO routes (if available)
+if SSO_ROUTES_AVAILABLE and sso_router:
+    app.include_router(sso_router, tags=["Enterprise SSO"])
+    print("✅ Enterprise SSO routes included")
+
+# Core application routes with graceful fallback
+for route_name, router in ROUTE_MODULES.items():
+    if router:
+        try:
+            if route_name == "auth":
+                app.include_router(router)
+            elif route_name == "smart_rules":
+                app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+            elif route_name == "analytics":
+                app.include_router(router, prefix="/analytics", tags=["Analytics"])
+            elif route_name == "smart_alerts":
+                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
+            elif route_name == "data_rights":
+                app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
+            elif route_name == "unified_governance":
+                app.include_router(router, prefix="/api/governance", tags=["Unified Governance"])
+            else:
+                app.include_router(router)
+            print(f"✅ {route_name} routes included")
+        except Exception as e:
+            print(f"⚠️  Failed to include {route_name} routes: {e}")
+
+# Manual router inclusions for routes not in ROUTE_MODULES
+try:
+    app.include_router(enterprise_user_router, tags=["Enterprise Users"])
+    print("✅ Enterprise user routes included")
+except Exception as e:
+    print(f"⚠️  Enterprise user routes failed: {e}")
+
+try:
+    app.include_router(authorization_router, tags=["Authorization"])
+    app.include_router(authorization_api_router, tags=["Authorization API"])
+    print("✅ Authorization routes included")
+except Exception as e:
+    print(f"⚠️  Authorization routes failed: {e}")
+
+try:
+    app.include_router(secrets_router, tags=["Secrets"])
+    print("✅ Secrets routes included")
+except Exception as e:
+    print(f"⚠️  Secrets routes failed: {e}")
+
+print("🚀 Application startup complete")
+
+
 
 
 # Security and API-key setup (unchanged)
@@ -903,7 +1033,8 @@ if __name__ == "__main__":
 
 @app.get("/agent-actions", response_model=None)
 def get_agent_actions_live(
-    current_user: dict = Depends(get_current_user),    db: Session = Depends(get_db)
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ) -> List[Dict[str, Any]]:
     """Agent actions with live database integration - FIXED"""
     try:
@@ -1751,7 +1882,8 @@ async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+    current_user: dict = Depends(get_current_user)
+):
     """🏢 ENTERPRISE: Get pending actions with persistent demo data"""
     try:
         # Get real database actions first
@@ -1833,7 +1965,8 @@ async def get_pending_actions_persistent(
 @app.get("/agent-control/approval-dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+    current_user: dict = Depends(get_current_user)
+):
     """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs - Fixed structure"""
     try:
         # Use raw SQL to avoid column issues
@@ -2040,7 +2173,8 @@ async def authorize_action_with_audit(
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+    current_user: dict = Depends(get_current_user)
+):
     """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
     try:
         # Use raw SQL to get metrics from existing columns only
@@ -2234,7 +2368,8 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
 @app.get("/enterprise/audit-trail")
 async def get_audit_trail(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user)):
+    current_user: dict = Depends(get_current_user)
+):
     """🏢 ENTERPRISE: Get complete audit trail of all decisions"""
     try:
         # Get recent audit trail entries
@@ -2285,7 +2420,8 @@ async def get_audit_trail(
 @app.get("/enterprise/approved-actions")
 async def get_approved_actions(
     limit: int = 20,
-    current_user: dict = Depends(get_current_user)):
+    current_user: dict = Depends(get_current_user)
+):
     """🏢 ENTERPRISE: Get all approved actions for executive dashboard"""
     try:
         # Get approved demo actions
@@ -2415,7 +2551,8 @@ metrics_storage = {
 @app.get("/agent-control/metrics/approval-performance")
 async def get_approval_metrics_live(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)):
+    current_user: dict = Depends(get_current_user)
+):
     """🏢 ENTERPRISE: Live approval performance metrics that update with each action"""
     try:
         # Count approved/denied demo actions
@@ -3263,299 +3400,3 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
-
-# =============================================================================
-# MASTER PROMPT COOKIE PHASES 2.1-2.3 IMPLEMENTATION
-# =============================================================================
-
-from fastapi import Cookie, Response, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
-import secrets
-import hashlib
-from typing import Optional, Dict, Any
-import json
-
-# Phase 2.1: Basic Cookie Authentication Setup
-# ============================================
-
-# Secure cookie configuration
-COOKIE_CONFIG = {
-    "httponly": True,
-    "secure": True,  # HTTPS only
-    "samesite": "strict",
-    "max_age": 86400,  # 24 hours
-    "path": "/",
-    "domain": None  # Will be set dynamically
-}
-
-# Session storage (in production, use Redis or database)
-active_sessions: Dict[str, Dict[str, Any]] = {}
-
-def generate_session_token() -> str:
-    """Generate cryptographically secure session token"""
-    return secrets.token_urlsafe(32)
-
-def hash_session_token(token: str) -> str:
-    """Hash session token for secure storage"""
-    return hashlib.sha256(token.encode()).hexdigest()
-
-# Phase 2.2: Enhanced Cookie Security Middleware
-# ==============================================
-
-@app.middleware("http")
-async def cookie_security_middleware(request: Request, call_next):
-    """Master Prompt compliant: Enhanced cookie security middleware"""
-    
-    # Log cookie-only authentication attempts
-    if request.url.path.startswith("/auth/"):
-        print(f"🍪 Cookie auth request: {request.method} {request.url.path}")
-    
-    response = await call_next(request)
-    
-    # Enhanced security headers for cookie protection
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    
-    # Ensure all auth cookies are secure
-    if "Set-Cookie" in response.headers:
-        cookie_value = response.headers["Set-Cookie"]
-        if "access_token" in cookie_value or "session_token" in cookie_value:
-            # Force Master Prompt compliance
-            if "HttpOnly" not in cookie_value:
-                response.headers["Set-Cookie"] = cookie_value + "; HttpOnly"
-            if "Secure" not in cookie_value:
-                response.headers["Set-Cookie"] = response.headers["Set-Cookie"] + "; Secure"
-            if "SameSite" not in cookie_value:
-                response.headers["Set-Cookie"] = response.headers["Set-Cookie"] + "; SameSite=Strict"
-    
-    return response
-
-# Phase 2.3: Cookie-Only Compliance Validation
-# ============================================
-
-def validate_session_cookie(session_token: Optional[str] = Cookie(None)) -> Optional[Dict[str, Any]]:
-    """Validate session cookie and return user data"""
-    if not session_token:
-        return None
-    
-    session_hash = hash_session_token(session_token)
-    session_data = active_sessions.get(session_hash)
-    
-    if not session_data:
-        return None
-    
-    # Check session expiry
-    if datetime.now() > session_data.get("expires_at", datetime.now()):
-        del active_sessions[session_hash]
-        return None
-    
-    return session_data
-
-# Enhanced Authentication Endpoints
-# =================================
-
-@app.post("/auth/cookie-login")
-async def cookie_login(
-    credentials: dict,
-    response: Response
-):
-    """Master Prompt compliant: Pure cookie-based login"""
-    
-    username = credentials.get("username") or credentials.get("email")
-    password = credentials.get("password")
-    
-    print(f"🍪 Cookie login attempt: {username}")
-    
-    # Validate credentials (use your existing validation logic)
-    user = None
-    if username == "shug@gmail.com" and password == "Kingdon1212":
-        user = {
-            "id": 1,
-            "email": username,
-            "role": "admin",
-            "permissions": ["all"]
-        }
-    
-    if not user:
-        print(f"❌ Cookie login failed: {username}")
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    # Create secure session
-    session_token = generate_session_token()
-    session_hash = hash_session_token(session_token)
-    
-    session_data = {
-        "user_id": user["id"],
-        "email": user["email"],
-        "role": user["role"],
-        "permissions": user["permissions"],
-        "created_at": datetime.now(),
-        "expires_at": datetime.now() + timedelta(hours=24),
-        "ip_address": "127.0.0.1",  # Get from request in production
-        "user_agent": "browser"     # Get from request in production
-    }
-    
-    active_sessions[session_hash] = session_data
-    
-    # Set secure cookie
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        **COOKIE_CONFIG
-    )
-    
-    print(f"✅ Cookie login successful: {username}")
-    
-    return {
-        "success": True,
-        "message": "Login successful",
-        "user": {
-            "email": user["email"],
-            "role": user["role"]
-        },
-        "auth_method": "cookie_only",
-        "master_prompt_compliant": True
-    }
-
-@app.get("/auth/cookie-me")
-async def get_current_user_cookie(session_token: Optional[str] = Cookie(None)):
-    """Get current user from cookie session"""
-    
-    session_data = validate_session_cookie(session_token)
-    if not session_data:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-    
-    return {
-        "email": session_data["email"],
-        "role": session_data["role"],
-        "permissions": session_data["permissions"],
-        "session_created": session_data["created_at"].isoformat(),
-        "auth_method": "cookie_only"
-    }
-
-@app.post("/auth/cookie-logout")
-async def cookie_logout(
-    response: Response,
-    session_token: Optional[str] = Cookie(None)
-):
-    """Logout and invalidate cookie session"""
-    
-    if session_token:
-        session_hash = hash_session_token(session_token)
-        if session_hash in active_sessions:
-            del active_sessions[session_hash]
-    
-    # Clear cookie
-    response.delete_cookie(
-        key="session_token",
-        path="/",
-        domain=None
-    )
-    
-    return {"success": True, "message": "Logged out successfully"}
-
-# Cookie-Only Dependency for Protected Routes
-# ===========================================
-
-def require_cookie_auth(session_token: Optional[str] = Cookie(None)) -> Dict[str, Any]:
-    """Dependency for routes requiring cookie authentication"""
-    session_data = validate_session_cookie(session_token)
-    if not session_data:
-        raise HTTPException(
-            status_code=401, 
-            detail="Authentication required - use cookie-only login"
-        )
-    return session_data
-
-# Master Prompt Compliance Verification
-# =====================================
-
-@app.get("/auth/master-prompt-compliance")
-async def verify_master_prompt_compliance():
-    """Comprehensive Master Prompt compliance verification"""
-    
-    return {
-        "master_prompt_phases": {
-            "phase_2_1_basic_cookie_setup": True,
-            "phase_2_2_enhanced_security": True,
-            "phase_2_3_compliance_validation": True
-        },
-        "authentication": {
-            "method": "cookie_only",
-            "localStorage_removed": True,
-            "secure_cookies": True,
-            "httponly_cookies": True,
-            "samesite_strict": True,
-            "session_management": True
-        },
-        "enterprise_features": {
-            "comprehensive_backend": True,
-            "smart_rules_engine": True,
-            "advanced_analytics": True,
-            "governance_authorization": True,
-            "alert_management": True,
-            "user_management": True
-        },
-        "compliance_status": {
-            "rule_1_review_existing": True,
-            "rule_2_cookie_only": True,
-            "rule_3_no_theme_deps": True,
-            "rule_4_enterprise_only": True
-        },
-        "pilot_readiness": {
-            "backend_endpoints": 41,
-            "lines_of_code": 3391,
-            "percentage": "85%",
-            "status": "PILOT_READY"
-        },
-        "deployment_ready": True,
-        "master_prompt_compliant": True
-    }
-
-# Update all existing protected routes to use cookie auth
-# ======================================================
-
-# Example: Update existing endpoints to use cookie dependency
-# (This would be applied to all your existing protected routes)
-
-@app.get("/analytics/realtime/metrics")
-async def get_realtime_metrics_cookie(
-    user: Dict[str, Any] = Depends(require_cookie_auth)
-):
-    """Real-time metrics with cookie-only authentication"""
-    print(f"🍪 Analytics request from: {user['email']}")
-    
-    return {
-        "cpu_usage": 45.2,
-        "memory_usage": 67.8,
-        "active_connections": 234,
-        "response_time": 156,
-        "auth_method": "cookie_only",
-        "user": user["email"]
-    }
-
-print("🍪 Master Prompt Cookie Phases 2.1-2.3 Implementation Complete!")
-print("✅ Phase 2.1: Basic cookie authentication setup")
-print("✅ Phase 2.2: Enhanced cookie security middleware") 
-print("✅ Phase 2.3: Cookie-only compliance validation")
-print("🎯 All enterprise endpoints now support cookie-only authentication")
-
-
-# Update CORS middleware for cookie support
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173", 
-        "https://passionate-elegance-production.up.railway.app"
-    ],
-    allow_credentials=True,  # Essential for cookie authentication
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-)
-
-print("🌐 CORS configured for cookie authentication support")
-

@@ -3,7 +3,7 @@ JWKS (JSON Web Key Set) routes for RS256 public key distribution
 """
 
 from fastapi import APIRouter, HTTPException
-from .jwt_manager import get_jwt_manager
+from jwt_manager import get_jwt_manager
 
 router = APIRouter()
 
