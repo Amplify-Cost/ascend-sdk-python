@@ -1,4 +1,3 @@
-from smart_jwt_manager import init_jwt_manager, get_jwt_manager
 # main.py - Complete original file with only auth router fixes
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
@@ -8,10 +7,6 @@ import logging
 from datetime import datetime, UTC, timedelta
 from typing import List, Dict, Any, Optional
 from dependencies import require_admin
-
-# Enterprise Cookie Authentication
-from cookie_auth import get_current_user, reject_bearer_tokens
-from csrf_manager import csrf_manager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -32,10 +27,7 @@ from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
-## from jwt_manager import init_jwt_manager
-from jwks_routes import router as jwks_router
 # Enterprise health module with graceful fallback
-from local_jwt_manager import get_jwt_manager
 try:
     from health import router as health_router
     HEALTH_MODULE_AVAILABLE = True
@@ -78,7 +70,7 @@ except ImportError as e:
     config = FallbackConfig()
 
 try:
-    # from jwt_manager import jwt_manager
+    from jwt_manager import jwt_manager
     print("✅ Enterprise JWT Manager loaded")
 except ImportError as e:
     print(f"⚠️  JWT Manager fallback: {e}")
@@ -164,10 +156,10 @@ for router_name in ROUTER_NAMES:
             except Exception as general_error:
                 print(f"❌ Smart rules router error: {general_error}")
                 ROUTE_MODULES[router_name] = None
-            ROUTE_MODULES[router_name] = smart_rules_router  # ← ADD THIS
+        
         elif router_name == "analytics":
 
-            from routes.analytics import router as analytics_router
+            from routes.analytics_routes import router as analytics_router
             ROUTE_MODULES[router_name] = analytics_router
         elif router_name == "smart_alerts":
             from routes.smart_alerts import router as smart_alerts_router
@@ -238,55 +230,21 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
-app.include_router(jwks_router, tags=["authentication"])
-app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 
 
-
-# ---- ENTERPRISE CORS CONFIGURATION ----
+# CORS Configuration (unchanged)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://passionate-elegance-production.up.railway.app",
-        "https://owai-production.up.railway.app",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5175",
-    ],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],              # 👈 accept all request headers (dev & enterprise default)
-    expose_headers=["Set-Cookie", "X-Request-Id"],
-    max_age=600,
+        "https://owai-production.up.railway.app", 
+        "http://localhost:3000",  # For development
+        "http://localhost:5173"   # For Vite dev server
+    ],  # NO WILDCARDS when using credentials
+    allow_credentials=True,  # Required for cookies
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
 )
-# ---- END CORS CONFIGURATION ----
-
-
-
-
-
-@app.on_event("startup")
-async def startup_jwt_manager():
-    """Initialize JWT manager on startup"""
-    try:
-        init_jwt_manager(
-            secret_name="ow-ai/jwt-keys",
-            aws_region="us-east-1", 
-            issuer="http://localhost:8000",
-            audience="ow-ai-api"
-        )
-        print("✅ RS256 JWT Manager initialized successfully")
-    except Exception as e:
-        print(f"⚠️ JWT Manager initialization failed: {e}")
-
-
-
-# Enterprise Security: Reject Bearer tokens globally
-@app.middleware("http")
-async def reject_bearer_tokens_middleware(request, call_next):
-    await reject_bearer_tokens(request)
-    response = await call_next(request)
-    return response
 
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems
 demo_actions_storage = {
@@ -392,49 +350,61 @@ if SSO_ROUTES_AVAILABLE and sso_router:
     app.include_router(sso_router, tags=["Enterprise SSO"])
     print("✅ Enterprise SSO routes included")
 
-# Core application routes with graceful fallback
+# Enterprise router inclusion with comprehensive error handling
 for route_name, router in ROUTE_MODULES.items():
     if router:
         try:
+            print(f"🔧 ENTERPRISE: Including {route_name} router")
+            
             if route_name == "auth":
                 app.include_router(router)
+                print(f"✅ ENTERPRISE: {route_name} router included successfully")
             elif route_name == "smart_rules":
                 app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-rules")
             elif route_name == "analytics":
                 app.include_router(router, prefix="/analytics", tags=["Analytics"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /analytics")
             elif route_name == "smart_alerts":
-                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
+                app.include_router(router, prefix="/smart-alerts", tags=["Smart Alerts"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-alerts")
             elif route_name == "data_rights":
                 app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/data-rights")
             elif route_name == "unified_governance":
                 app.include_router(router, prefix="/api/governance", tags=["Unified Governance"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/governance")
             else:
-                app.include_router(router)
-            print(f"✅ {route_name} routes included")
+                app.include_router(router, prefix=f"/{route_name}", tags=[route_name.title()])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /{route_name}")
+                
         except Exception as e:
-            print(f"⚠️  Failed to include {route_name} routes: {e}")
+            print(f"❌ ENTERPRISE ERROR: Failed to include {route_name} router: {e}")
+            logging.error(f"Router inclusion failed for {route_name}: {e}")
+    else:
+        print(f"⚠️ ENTERPRISE WARNING: {route_name} router is None - skipping inclusion")
 
 # Manual router inclusions for routes not in ROUTE_MODULES
 try:
     app.include_router(enterprise_user_router, tags=["Enterprise Users"])
-    print("✅ Enterprise user routes included")
+    print("✅ ENTERPRISE: Enterprise user routes included")
 except Exception as e:
-    print(f"⚠️  Enterprise user routes failed: {e}")
+    print(f"❌ ENTERPRISE ERROR: Enterprise user routes failed: {e}")
 
 try:
     app.include_router(authorization_router, tags=["Authorization"])
     app.include_router(authorization_api_router, tags=["Authorization API"])
-    print("✅ Authorization routes included")
+    print("✅ ENTERPRISE: Authorization routes included")
 except Exception as e:
-    print(f"⚠️  Authorization routes failed: {e}")
+    print(f"❌ ENTERPRISE ERROR: Authorization routes failed: {e}")
 
 try:
     app.include_router(secrets_router, tags=["Secrets"])
-    print("✅ Secrets routes included")
+    print("✅ ENTERPRISE: Secrets routes included")
 except Exception as e:
-    print(f"⚠️  Secrets routes failed: {e}")
+    print(f"❌ ENTERPRISE ERROR: Secrets routes failed: {e}")
 
-print("🚀 Application startup complete")
+print("🚀 ENTERPRISE: Application startup complete")
 
 
 
@@ -1833,6 +1803,27 @@ async def health_check():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
+    
+
+# ENTERPRISE FAILSAFE: Validate critical routers are included
+def validate_enterprise_routers():
+    """Enterprise-grade router validation"""
+    critical_routers = ["/smart-rules", "/analytics", "/auth"]
+    included_paths = [str(route.path) for route in app.routes if hasattr(route, 'path')]
+    
+    print(f"🔍 ENTERPRISE VALIDATION: Checking {len(critical_routers)} critical routers")
+    
+    for critical_path in critical_routers:
+        found = any(critical_path in path for path in included_paths)
+        if found:
+            print(f"✅ ENTERPRISE: {critical_path} router properly included")
+        else:
+            print(f"❌ ENTERPRISE CRITICAL: {critical_path} router MISSING")
+            
+    print(f"📊 ENTERPRISE SUMMARY: {len(included_paths)} total routes registered")
+
+# Run enterprise validation
+validate_enterprise_routers()    
 
 if __name__ == "__main__":
     import uvicorn

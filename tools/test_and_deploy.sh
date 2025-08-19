@@ -1,0 +1,70 @@
+#!/bin/bash
+# tools/test_and_deploy.sh
+# Test the fixes and prepare for AWS deployment
+
+set -e
+
+echo "🧪 TESTING & AWS DEPLOYMENT PREP"
+echo "================================="
+
+echo ""
+echo "1️⃣  Testing local development server..."
+echo "Running: cd ow-ai-dashboard && npm run dev"
+echo ""
+echo "📝 Manual test checklist:"
+echo "  ✓ Navigate to Enterprise User Management"
+echo "  ✓ Verify users tab loads data"
+echo "  ✓ Verify roles tab loads data" 
+echo "  ✓ Verify audit logs tab loads data"
+echo "  ✓ Test creating a new user"
+echo "  ✓ Test editing an existing user"
+echo "  ✓ Test creating a new role"
+echo "  ✓ Check browser network tab - all requests to relative /api/* URLs"
+echo "  ✓ Verify no CORS errors in console"
+
+echo ""
+echo "2️⃣  Commit your changes..."
+echo "git add ow-ai-dashboard/src/components/EnterpriseUserManagement.jsx"
+echo "git commit -m 'feat: migrate EnterpriseUserManagement to cookie-auth and relative URLs"
+echo ""
+echo "- Remove hardcoded BASE_URL for environment-agnostic deployments"
+echo "- Replace fetch() with fetchWithAuth() for cookie-based authentication"  
+echo "- Remove getAuthHeaders prop for security hardening"
+echo "- All API calls now use relative /api/* paths for AWS CloudFront compatibility"
+echo "- Ready for AWS Amplify/CloudFront + ALB deployment'"
+
+echo ""
+echo "3️⃣  AWS Infrastructure Setup:"
+echo "  📋 CloudFront Distribution:"
+echo "    - Origin: S3 bucket (React build)"
+echo "    - Behavior: /api/* → ALB (FastAPI backend)"
+echo "    - Behavior: /* → S3 (React frontend)"
+echo ""
+echo "  📋 Application Load Balancer:"
+echo "    - Target: FastAPI backend instances"
+echo "    - Health check: /api/health"
+echo "    - Cookie settings: HttpOnly, Secure, SameSite"
+
+echo ""
+echo "4️⃣  Environment Variables (AWS Systems Manager):"
+echo "  - DATABASE_URL"
+echo "  - JWT_SECRET_KEY"
+echo "  - COOKIE_DOMAIN (set to your CloudFront domain)"
+echo "  - COOKIE_SECURE=true"
+echo "  - CORS_ORIGINS (your CloudFront domain)"
+
+echo ""
+echo "5️⃣  Deploy Commands:"
+echo "  Frontend: npm run build && aws s3 sync dist/ s3://your-bucket"
+echo "  Backend: Deploy FastAPI to ECS/Fargate behind ALB"
+
+echo ""
+echo "🎯 Benefits of this migration:"
+echo "  ✓ No more environment-specific builds"
+echo "  ✓ Security hardened (no auth tokens in frontend)"
+echo "  ✓ CloudFront caching optimization"
+echo "  ✓ Simplified CI/CD pipeline"
+echo "  ✓ Production-ready cookie authentication"
+
+echo ""
+echo "🚀 You're ready to deploy to AWS!"

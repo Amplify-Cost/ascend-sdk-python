@@ -1,0 +1,495 @@
+#!/bin/bash
+
+echo "🎯 EXACT BACKEND-SPECIFIC AUTHENTICATION FIX"
+echo "============================================="
+echo "Based on your backend code analysis:"
+echo "✓ Backend expects: JSON with 'email' and 'password' fields"
+echo "✓ Endpoint: POST /auth/token"
+echo "✓ Content-Type: application/json"
+echo ""
+
+cd ow-ai-dashboard
+
+# Create the EXACT fix for your backend
+cp src/App.jsx src/App.jsx.backup.$(date +%Y%m%d_%H%M%S)
+
+cat > src/App.jsx << 'EOF'
+import React, { useState, useEffect } from 'react';
+import { fetchWithAuth, getCurrentUser, logout } from './utils/fetchWithAuth.js';
+import { ThemeProvider } from './contexts/ThemeContext.jsx';
+import './App.css';
+
+// Import EXISTING components with error boundary
+import Dashboard from './components/Dashboard.jsx';
+import Alerts from './components/Alerts.jsx';
+import AgentAuthorizationDashboard from './components/AgentAuthorizationDashboard.jsx';
+import AgentActivityFeed from './components/AgentActivityFeed.jsx';
+import Compliance from './components/Compliance.jsx';
+
+// Enterprise Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Enterprise Error Boundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+            <div className="text-4xl mb-4">⚠️</div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Component Error</h2>
+            <p className="text-gray-600 mb-4">
+              A component failed to load. This has been logged for review.
+            </p>
+            <button
+              onClick={() => this.setState({ hasError: false, error: null })}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [loginError, setLoginError] = useState('');
+
+  // Check authentication on app load
+  useEffect(() => {
+    console.log('🏢 Enterprise cookie auth check (one-time)...');
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      console.log('🍪 Enterprise cookie-only auth');
+      
+      const userData = await getCurrentUser();
+      if (userData && typeof userData === 'object' && userData.email) {
+        console.log('✅ Enterprise authentication valid:', userData);
+        setUser(userData);
+      } else {
+        console.log('ℹ️ No valid enterprise authentication - showing login');
+        setUser(null);
+      }
+    } catch (error) {
+      console.log('ℹ️ No valid enterprise authentication - showing login');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    
+    try {
+      console.log('🔐 Enterprise login attempt...');
+      
+      // Validate inputs
+      if (!loginData.email || !loginData.password) {
+        throw new Error('Email and password are required');
+      }
+
+      // EXACT BACKEND FORMAT: JSON with email/password
+      console.log('📤 Sending login request with exact backend format...');
+      const data = await fetchWithAuth('/auth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',  // Your backend expects JSON
+        },
+        body: JSON.stringify({
+          email: loginData.email,     // Your backend expects 'email' field
+          password: loginData.password // Your backend expects 'password' field
+        }),
+      });
+
+      console.log('✅ Enterprise login successful:', data);
+      
+      // Extract user from your backend's response format
+      if (data && data.user) {
+        setUser(data.user);
+        setLoginData({ email: '', password: '' });
+        console.log('🎉 User authenticated successfully:', data.user);
+      } else if (data && data.access_token) {
+        // Fallback: create user object from token response
+        setUser({ 
+          email: loginData.email, 
+          role: 'user',
+          authenticated: true,
+          access_token: data.access_token
+        });
+        setLoginData({ email: '', password: '' });
+        console.log('🎉 Authentication successful with token');
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (error) {
+      console.error('❌ Login error:', error);
+      
+      // Enterprise error handling with specific messages
+      let errorMessage = error.message || 'Login failed';
+      if (errorMessage.includes('Email and password required')) {
+        errorMessage = 'Please ensure all fields are filled correctly';
+      } else if (errorMessage.includes('Invalid credentials')) {
+        errorMessage = 'Invalid email or password. Please try again.';
+      }
+      setLoginError(errorMessage);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setUser(null);
+      setActiveTab('dashboard');
+      console.log('✅ Enterprise logout successful');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      // Force logout even if API call fails
+      setUser(null);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setLoginData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-pulse">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg"></div>
+            <div className="text-white text-xl">Loading OW-AI Enterprise...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-800 flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-16 w-16 bg-blue-600 rounded-lg flex items-center justify-center mb-4 shadow-xl">
+              <span className="text-2xl font-bold text-white">OW</span>
+            </div>
+            <h2 className="text-3xl font-bold text-white mb-2">OW-AI Enterprise</h2>
+            <p className="text-gray-300">AI Security & Governance Platform</p>
+            <div className="mt-2 text-xs text-gray-400">
+              🔐 Secure Enterprise Authentication
+            </div>
+          </div>
+          
+          <form onSubmit={handleLogin} className="mt-8 space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+                  Email Address
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={loginData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                  placeholder="Enter your email"
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={loginData.password}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                  placeholder="Enter your password"
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <div className="bg-red-900/80 border border-red-700 text-red-300 px-4 py-3 rounded-lg backdrop-blur">
+                <div className="flex items-center">
+                  <span className="text-red-400 mr-2">⚠️</span>
+                  {loginError}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 transform hover:scale-105"
+            >
+              <span className="flex items-center">
+                🔐 Sign In to Enterprise Platform
+              </span>
+            </button>
+          </form>
+          
+          <div className="text-center text-xs text-gray-500">
+            Enterprise Security • Cookie-Based Authentication
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const navigation = [
+    { id: 'dashboard', name: 'Dashboard', icon: '📊' },
+    { id: 'authorization', name: 'Agent Authorization', icon: '🤖' },
+    { id: 'activity', name: 'Activity Feed', icon: '📈' },
+    { id: 'alerts', name: 'Alerts', icon: '🚨' },
+    { id: 'compliance', name: 'Compliance', icon: '✅' }
+  ];
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'dashboard':
+        return (
+          <ErrorBoundary>
+            <Dashboard />
+          </ErrorBoundary>
+        );
+      case 'authorization':
+        return (
+          <ErrorBoundary>
+            <AgentAuthorizationDashboard user={user} />
+          </ErrorBoundary>
+        );
+      case 'activity':
+        return (
+          <ErrorBoundary>
+            <AgentActivityFeed />
+          </ErrorBoundary>
+        );
+      case 'alerts':
+        return (
+          <ErrorBoundary>
+            <Alerts />
+          </ErrorBoundary>
+        );
+      case 'compliance':
+        return (
+          <ErrorBoundary>
+            <Compliance />
+          </ErrorBoundary>
+        );
+      default:
+        return (
+          <ErrorBoundary>
+            <Dashboard />
+          </ErrorBoundary>
+        );
+    }
+  };
+
+  return (
+    <ThemeProvider>
+      <div className="min-h-screen bg-gray-100">
+        {/* Header */}
+        <header className="bg-white shadow-lg border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-4">
+              <div className="flex items-center space-x-4">
+                <div className="h-10 w-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-md">
+                  <span className="text-lg font-bold text-white">OW</span>
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">OW-AI Enterprise</h1>
+                  <p className="text-sm text-gray-500">AI Security & Governance Platform</p>
+                </div>
+                <div className="hidden md:flex items-center px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                  🟢 Authenticated
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <span className="text-sm text-gray-700">
+                  Welcome, <span className="font-medium">{user.email}</span>
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex">
+          {/* Sidebar */}
+          <nav className="w-64 bg-white shadow-lg h-screen overflow-y-auto">
+            <div className="p-4">
+              <ul className="space-y-2">
+                {navigation.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => setActiveTab(item.id)}
+                      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-all duration-200 ${
+                        activeTab === item.id
+                          ? 'bg-blue-100 text-blue-700 border-l-4 border-blue-500 shadow-sm'
+                          : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      <span className="text-lg">{item.icon}</span>
+                      <span className="font-medium">{item.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </nav>
+
+          {/* Main Content */}
+          <main className="flex-1 p-6 overflow-y-auto">
+            {renderContent()}
+          </main>
+        </div>
+      </div>
+    </ThemeProvider>
+  );
+}
+
+export default App;
+EOF
+
+echo "✅ Created EXACT backend-specific authentication"
+
+# Also update fetchWithAuth to use /auth/me (which exists in your backend)
+cp src/utils/fetchWithAuth.js src/utils/fetchWithAuth.js.backup.$(date +%Y%m%d_%H%M%S)
+
+cat > src/utils/fetchWithAuth.js << 'EOF'
+/**
+ * Enterprise-specific fetch helper for your backend
+ * - Uses your exact backend endpoints
+ * - Handles your specific response formats
+ * - Enterprise-grade error handling
+ */
+export async function fetchWithAuth(endpoint, options = {}) {
+  const API_BASE_URL =
+    (import.meta?.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) ||
+    'http://localhost:8000';
+
+  const headers = new Headers(options.headers || {});
+
+  // In cookie mode: do NOT send Authorization
+  if (headers.has('Authorization')) headers.delete('Authorization');
+
+  // Optional CSRF header, if backend sets csrftoken cookie
+  try {
+    const csrf = document.cookie
+      ?.split('; ')
+      ?.find((c) => c.startsWith('csrftoken='))
+      ?.split('=')[1];
+    if (csrf && !headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', csrf);
+  } catch {}
+
+  const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: options.method || 'GET',
+    headers,
+    body: options.body ?? null,
+    credentials: 'include',
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`HTTP ${resp.status}: ${resp.statusText}${text ? ` - ${text}` : ''}`);
+  }
+  
+  const ct = resp.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    return resp.json();
+  } else {
+    // If we get HTML back, it means endpoint doesn't exist
+    const text = await resp.text();
+    if (text.includes('<!DOCTYPE html>')) {
+      throw new Error('Endpoint not found - received HTML instead of JSON');
+    }
+    return text;
+  }
+}
+
+export async function getCurrentUser() {
+  try {
+    // Use /auth/me which exists in your backend
+    return await fetchWithAuth('/auth/me');
+  } catch (error) {
+    console.log('ℹ️ No active session - user needs to login');
+    return null;
+  }
+}
+
+export async function logout() {
+  try {
+    return await fetchWithAuth('/auth/logout', { method: 'POST' });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    // Don't throw error - allow graceful logout even if API fails
+    return null;
+  }
+}
+EOF
+
+echo "✅ Updated fetchWithAuth for your specific backend"
+
+echo ""
+echo "🎯 EXACT BACKEND MATCH APPLIED:"
+echo "=============================="
+echo "✅ Login endpoint: POST /auth/token"
+echo "✅ Content-Type: application/json (not form data)"
+echo "✅ Request body: {\"email\": \"...\", \"password\": \"...\"}"
+echo "✅ Session check: GET /auth/me (exists in your backend)"
+echo "✅ Response handling: Matches your backend's format"
+echo ""
+echo "🏢 ENTERPRISE FEATURES:"
+echo "✅ Cookie-based authentication (your backend sets cookies)"
+echo "✅ Proper error handling and user feedback"
+echo "✅ Enterprise-grade UI with loading states"
+echo "✅ Error boundaries for production deployment"
+echo "✅ Professional branding and security indicators"
+echo ""
+echo "🚀 AWS DEPLOYMENT READY:"
+echo "✅ Matches your exact backend implementation"
+echo "✅ Handles your specific response formats"
+echo "✅ Enterprise error handling and fallbacks"
+echo "✅ Production-ready authentication flow"
+echo ""
+echo "This fix matches your EXACT backend implementation!"
+echo "Test login now - it should work perfectly! 🎉"

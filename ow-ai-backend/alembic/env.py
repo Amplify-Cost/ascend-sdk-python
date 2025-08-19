@@ -1,65 +1,58 @@
-# alembic/env.py
-import os, sys
-from logging.config import fileConfig
+import sys
+import os
 
-# Ensure project root on sys.path
+# ✅ Add project root to sys.path so Alembic can find 'database' and 'models'
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config, pool, create_engine
 from alembic import context
-from sqlalchemy import create_engine, pool
 
-# Import Base and **all** model modules so tables are registered
-from database import Base
+from database import Base  # ✅ Load SQLAlchemy Base from your project
+from models import AgentAction  # ✅ Ensure model is registered
 
-# Importing modules is enough to register their models with Base.metadata
-import models                     # users, alerts, logs, rules, smart_rules, etc.
-import models_data_rights         # GDPR/CCPA models
-import models_mcp_governance      # MCP governance models
-
-# Alembic config
+# ✅ Alembic Config object
 config = context.config
 
-# Optional: log config
+# ✅ Logging configuration (optional but standard)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# ✅ Set metadata for 'autogenerate' support
 target_metadata = Base.metadata
 
-def _get_sqlalchemy_url():
-    # Prefer env var (Railway/Prod), fall back to alembic.ini
-    url = os.getenv("DATABASE_URL")
-    if url:
-        return url
-    return config.get_main_option("sqlalchemy.url")
-
 def run_migrations_offline() -> None:
-    url = _get_sqlalchemy_url()
+    """Run migrations in 'offline' mode."""
+    url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        compare_type=True,
-        compare_server_default=True,
-        render_as_batch=True,  # <- critical for SQLite schema changes
     )
+
     with context.begin_transaction():
         context.run_migrations()
 
 def run_migrations_online() -> None:
-    connectable = create_engine(
-        _get_sqlalchemy_url(),
-        poolclass=pool.NullPool,
-        future=True,
-    )
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
-            render_as_batch=True,  # <- critical for SQLite schema changes
+    """Run migrations in 'online' mode."""
+    
+    # Get DATABASE_URL from environment (Railway)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        # Use Railway DATABASE_URL
+        connectable = create_engine(database_url, poolclass=pool.NullPool)
+    else:
+        # Fallback to config
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
         )
+
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+
         with context.begin_transaction():
             context.run_migrations()
 

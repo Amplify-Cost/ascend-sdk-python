@@ -1,0 +1,11 @@
+[
+  {
+    "id": 1,
+    "description": "Block suspicious outbound requests",
+    "condition": "if outbound to unknown domains",
+    "action": "alert admin",
+    "risk_level": "High",
+    "recommendation": "Restrict outbound network activity",
+    "justification": "Prevent exfiltration attempts"
+  }
+]

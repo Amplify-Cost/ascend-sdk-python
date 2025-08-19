@@ -1,0 +1,139 @@
+diff --git a/ow-ai-dashboard/src/components/EnterpriseUserManagement.jsx b/ow-ai-dashboard/src/components/EnterpriseUserManagement.jsx
+index 0000000..0000000 100644
+--- a/ow-ai-dashboard/src/components/EnterpriseUserManagement.jsx
++++ b/ow-ai-dashboard/src/components/EnterpriseUserManagement.jsx
+@@ -1,6 +1,7 @@
+ import React, { useState, useEffect } from "react";
++import { fetchWithAuth } from "../utils/fetchWithAuth";
+ 
+-const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
++const EnterpriseUserManagement = ({ user }) => {
+   const [activeTab, setActiveTab] = useState("users");
+   const [users, setUsers] = useState([]);
+   const [roles, setRoles] = useState([]);
+@@ -44,7 +45,6 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const [auditFilter, setAuditFilter] = useState("");
+   const [riskFilter, setRiskFilter] = useState("all");
+ 
+-  const BASE_URL = "https://owai-production.up.railway.app";
+ 
+   // ============================================================================
+   // DATA FETCHING
+@@ -73,11 +73,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const loadUsers = async () => {
+     try {
+       console.log("🔄 Loading users...");
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
+-         
+-      });
+-      
+-      if (response.ok) {
++      const response = await fetchWithAuth(`/api/enterprise-users/users`);
++      if (response.ok) {
+         const data = await response.json();
+         console.log("✅ Users loaded:", data);
+         setUsers(data.users || []);
+@@ -93,11 +89,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const loadRoles = async () => {
+     try {
+       console.log("🔄 Loading roles...");
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
+-         
+-      });
+-      
+-      if (response.ok) {
++      const response = await fetchWithAuth(`/api/enterprise-users/roles`);
++      if (response.ok) {
+         const data = await response.json();
+         console.log("✅ Roles loaded:", data);
+         setRoles(data.roles || []);
+@@ -113,11 +105,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const loadAuditLogs = async () => {
+     try {
+       console.log("🔄 Loading audit logs...");
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/audit-logs?limit=50`, {
+-         
+-      });
+-      
+-      if (response.ok) {
++      const response = await fetchWithAuth(`/api/enterprise-users/audit-logs?limit=50`);
++      if (response.ok) {
+         const data = await response.json();
+         console.log("✅ Audit logs loaded:", data);
+         setAuditLogs(data.logs || []);
+@@ -133,11 +121,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const loadAnalytics = async () => {
+     try {
+       console.log("🔄 Loading analytics...");
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/analytics`, {
+-         
+-      });
+-      
+-      if (response.ok) {
++      const response = await fetchWithAuth(`/api/enterprise-users/analytics`);
++      if (response.ok) {
+         const data = await response.json();
+         console.log("✅ Analytics loaded:", data);
+         setAnalytics(data);
+@@ -159,12 +143,13 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const handleCreateUser = async () => {
+     try {
+       console.log("🔄 Creating user:", newUser);
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
++      const response = await fetchWithAuth(`/api/enterprise-users/users`, {
+         method: "POST",
+         headers: {
+-          
+           "Content-Type": "application/json"
+         },
++        // cookie-mode: CSRF handled by server (same-origin); no Authorization headers here
++        credentials: "include",
+         body: JSON.stringify(newUser)
+       });
+ 
+@@ -199,12 +184,13 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+     if (!editingUser) return;
+ 
+     try {
+       console.log("🔄 Updating user:", editingUser);
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/users/${editingUser.id}`, {
++      const response = await fetchWithAuth(`/api/enterprise-users/users/${editingUser.id}`, {
+         method: "PUT",
+         headers: {
+-          
+           "Content-Type": "application/json"
+         },
++        credentials: "include",
+         body: JSON.stringify({
+           first_name: editingUser.first_name,
+           last_name: editingUser.last_name,
+@@ -238,10 +224,9 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+ 
+     try {
+       console.log("🔄 Deactivating user:", userId);
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/users/${userId}`, {
+-        method: "DELETE",
+-         
+-      });
++      const response = await fetchWithAuth(`/api/enterprise-users/users/${userId}`, {
++        method: "DELETE",
++        credentials: "include"
++      });
+ 
+       if (response.ok) {
+         const result = await response.json();
+@@ -264,12 +249,13 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
+   const handleCreateRole = async () => {
+     try {
+       console.log("🔄 Creating role:", newRole);
+-      const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
++      const response = await fetchWithAuth(`/api/enterprise-users/roles`, {
+         method: "POST",
+         headers: {
+-          
+           "Content-Type": "application/json"
+         },
++        credentials: "include",
+         body: JSON.stringify(newRole)
+       });
+ 

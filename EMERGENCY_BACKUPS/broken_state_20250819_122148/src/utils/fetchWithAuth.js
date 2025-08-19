@@ -1,0 +1,69 @@
+/**
+ * Enterprise-specific fetch helper for your backend
+ * - Uses your exact backend endpoints
+ * - Handles your specific response formats
+ * - Enterprise-grade error handling
+ */
+export async function fetchWithAuth(endpoint, options = {}) {
+  const API_BASE_URL =
+    (import.meta?.env?.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) ||
+    'http://localhost:8000';
+
+  const headers = new Headers(options.headers || {});
+
+  // In cookie mode: do NOT send Authorization
+  if (headers.has('Authorization')) headers.delete('Authorization');
+
+  // Optional CSRF header, if backend sets csrftoken cookie
+  try {
+    const csrf = document.cookie
+      ?.split('; ')
+      ?.find((c) => c.startsWith('csrftoken='))
+      ?.split('=')[1];
+    if (csrf && !headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', csrf);
+  } catch {}
+
+  const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: options.method || 'GET',
+    headers,
+    body: options.body ?? null,
+    credentials: 'include',
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`HTTP ${resp.status}: ${resp.statusText}${text ? ` - ${text}` : ''}`);
+  }
+  
+  const ct = resp.headers.get('content-type') || '';
+  if (ct.includes('application/json')) {
+    return resp.json();
+  } else {
+    // If we get HTML back, it means endpoint doesn't exist
+    const text = await resp.text();
+    if (text.includes('<!DOCTYPE html>')) {
+      throw new Error('Endpoint not found - received HTML instead of JSON');
+    }
+    return text;
+  }
+}
+
+export async function getCurrentUser() {
+  try {
+    // Use /auth/me which exists in your backend
+    return await fetchWithAuth('/auth/me');
+  } catch (error) {
+    console.log('ℹ️ No active session - user needs to login');
+    return null;
+  }
+}
+
+export async function logout() {
+  try {
+    return await fetchWithAuth('/auth/logout', { method: 'POST' });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    // Don't throw error - allow graceful logout even if API fails
+    return null;
+  }
+}

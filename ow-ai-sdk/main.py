@@ -1,135 +1,111 @@
-# ow-ai-sdk/main.py - Enterprise SDK Server
-"""
-OW-AI SDK Server
-Provides client libraries and examples for enterprise integration
-"""
 
-import os
-from fastapi import FastAPI, HTTPException
+import models  # ✅ Import the entire module ONCE
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from typing import List, Optional
 import logging
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from database import Base, engine, get_db
+from schemas import AgentActionOut
+from auth_utils import verify_token
 
+from routes.auth_routes import router as auth_router
+from routes.agent_routes import router as agent_router
+from routes.log_routes import router as log_router
+from routes.rule_routes import router as rule_router
+from routes.alert_routes import router as alert_router
+from routes.support_routes import router as support_router
+
+# ---------------------------
+# Configure Logging
+# ---------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
+logger = logging.getLogger(__name__)
+logger.info("Starting OW-AI backend...")
+
+# ---------------------------
 # Initialize FastAPI app
+# ---------------------------
 app = FastAPI(
-    title="OW-AI SDK Portal",
-    description="Enterprise SDK and client libraries for OW-AI integration",
+    title="OW-AI Governance Platform",
+    description="Enterprise-grade API for secure agent behavior logging, rule enforcement, audit trails, and security insights.",
     version="1.0.0",
-    docs_url="/sdk/docs",
-    redoc_url="/sdk/redoc"
+    contact={"name": "OW-AI Security Team", "email": "security@ow-ai.com"},
+    license_info={"name": "MIT License", "url": "https://opensource.org/licenses/MIT"},
 )
 
-# CORS for SDK downloads
+# ---------------------------
+# CORS Setup
+# ---------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # ⚠️ Replace with frontend origin in prod
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve static SDK files
-try:
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-except RuntimeError:
-    logger.warning("Static directory not found - creating it")
-    os.makedirs("static", exist_ok=True)
+# ---------------------------
+# Database Table Creation
+# ---------------------------
+Base.metadata.create_all(bind=engine)
+logger.info("✅ Database tables created")
 
-@app.get("/")
-def sdk_portal():
-    """SDK Portal Landing Page"""
-    return {
-        "message": "OW-AI Enterprise SDK Portal",
-        "version": "1.0.0",
-        "available_sdks": {
-            "python": "/sdk/python",
-            "javascript": "/sdk/javascript", 
-            "typescript": "/sdk/typescript"
-        },
-        "documentation": "/sdk/docs",
-        "examples": "/sdk/examples",
-        "jwks_endpoint": "https://api.ow-ai.com/.well-known/jwks.json"
-    }
-
-@app.get("/sdk/python")
-def python_sdk():
-    """Python SDK Information"""
-    return {
-        "name": "ow-ai-python-sdk",
-        "version": "1.0.0",
-        "install": "pip install ow-ai-sdk",
-        "documentation": "/sdk/python/docs",
-        "examples": "/sdk/python/examples",
-        "authentication": "RS256 JWT with JWKS",
-        "quick_start": {
-            "import": "from ow_ai_sdk import OWAIClient",
-            "usage": "client = OWAIClient(api_key='your-key', base_url='https://api.ow-ai.com')"
-        }
-    }
-
-@app.get("/sdk/javascript")
-def javascript_sdk():
-    """JavaScript SDK Information"""
-    return {
-        "name": "@ow-ai/sdk",
-        "version": "1.0.0", 
-        "install": "npm install @ow-ai/sdk",
-        "documentation": "/sdk/javascript/docs",
-        "examples": "/sdk/javascript/examples",
-        "authentication": "RS256 JWT with JWKS",
-        "quick_start": {
-            "import": "import { OWAIClient } from '@ow-ai/sdk'",
-            "usage": "const client = new OWAIClient({ apiKey: 'your-key', baseUrl: 'https://api.ow-ai.com' })"
-        }
-    }
-
-@app.get("/sdk/examples")
-def sdk_examples():
-    """SDK Usage Examples"""
-    return {
-        "authentication": {
-            "description": "Enterprise RS256 JWT authentication",
-            "jwks_endpoint": "/.well-known/jwks.json",
-            "example": "client.authenticate(api_key='your-enterprise-key')"
-        },
-        "agent_monitoring": {
-            "description": "Submit agent actions for monitoring",
-            "endpoint": "/agent-actions",
-            "example": "client.submit_agent_action(action_data)"
-        },
-        "rule_management": {
-            "description": "Manage governance rules",
-            "endpoint": "/rules", 
-            "example": "client.create_rule(rule_definition)"
-        },
-        "audit_trails": {
-            "description": "Retrieve audit logs",
-            "endpoint": "/logs",
-            "example": "client.get_audit_trail(filters)"
-        }
-    }
-
-@app.get("/sdk/status")
-def sdk_status():
-    """SDK Service Health Check"""
-    return {
-        "status": "healthy",
-        "sdk_portal": "operational",
-        "main_api": "https://api.ow-ai.com/health",
-        "jwks_endpoint": "https://api.ow-ai.com/.well-known/jwks.json",
-        "enterprise_features": "enabled"
-    }
-
-@app.get("/health")
+# ---------------------------
+# Health Check
+# ---------------------------
+@app.get("/health", tags=["Health"])
 def health_check():
-    """Health check for SDK portal"""
-    return {"status": "ok", "service": "ow-ai-sdk-portal"}
+    return {"status": "ok", "message": "OW-AI backend is running"}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+# ---------------------------
+# Register Routers
+# ---------------------------
+app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
+app.include_router(agent_router, tags=["Agent Actions"])
+app.include_router(log_router, tags=["Logs"])
+app.include_router(rule_router, tags=["Rules"])
+app.include_router(alert_router, tags=["Alerts"])
+app.include_router(support_router, prefix="/support", tags=["Support"])
+
+# ---------------------------
+# Get Agent Actions
+# ---------------------------
+@app.get("/agent-actions", response_model=List[AgentActionOut], tags=["Agent Actions"])
+def get_agent_actions(
+    agent_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    token_data: dict = Depends(verify_token)
+):
+    query = db.query(models.AgentAction)
+    if agent_id:
+        query = query.filter(models.AgentAction.agent_id == agent_id)
+    return query.order_by(models.AgentAction.timestamp.desc()).all()
+
+# ---------------------------
+# High-Risk Actions Stub
+# ---------------------------
+@app.get("/agent-actions/high-risk", tags=["Agent Actions"])
+def get_high_risk_actions():
+    return [{
+        "agent_id": "test-agent-123",
+        "action": "unauthorized access",
+        "risk_level": "high"
+    }]
+
+# ---------------------------
+# Mark Action as False Positive
+# ---------------------------
+@app.post("/agent-actions/{action_id}/false-positive", tags=["Agent Actions"])
+def mark_false_positive(
+    action_id: int,
+    db: Session = Depends(get_db),
+    token_data: dict = Depends(verify_token)
+):
+    action = db.query(models.AgentAction).filter(models.AgentAction.id == action_id).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Agent action not found")
+    action.is_false_positive = True
+    db.commit()
+    return {"message": "Marked as false positive"}
