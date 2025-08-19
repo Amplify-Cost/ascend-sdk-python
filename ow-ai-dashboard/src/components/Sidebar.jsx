@@ -1,4 +1,5 @@
 import React from "react";
+import { useTheme } from "../contexts/ThemeContext";
 import { useAccessibility, useScreenReaderAnnounce } from "../contexts/AccessibilityContext";
 
 // ✅ SAFE: Using emoji icons to avoid import issues
@@ -37,7 +38,7 @@ const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
 };
 
 const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
-  const { isDarkMode, toggleTheme } = { isDarkMode: false, toggleTheme: () => {} };
+  const { isDarkMode, toggleTheme } = useTheme();
   const { announce } = useScreenReaderAnnounce();
   const { focusMode, prefersReducedMotion } = useAccessibility();
   

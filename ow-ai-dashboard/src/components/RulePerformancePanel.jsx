@@ -10,8 +10,7 @@ const RulePerformancePanel = ({ getAuthHeaders }) => {
     const fetchPerformance = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/rules/performance`, {
-          credentials: "include",
-        headers: await getAuthHeaders(),
+          headers: await getAuthHeaders(),
         });
         const data = await res.json();
         setPerformance(data.performance || {});

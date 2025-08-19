@@ -14,7 +14,6 @@ const ForgotPassword = ({ switchToLogin }) => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/request-reset`, {
         method: "POST",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },

@@ -33,7 +33,6 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
       
       // Use your existing enterprise user analytics endpoint
       const reportsResponse = await fetch(`${BASE_URL}/api/enterprise-users/reports/library`, {
-        credentials: "include",
         headers: getAuthHeaders(),
       });
       
@@ -84,7 +83,6 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
       
       const response = await fetch(`${BASE_URL}/api/enterprise-users/generate-report`, {
         method: 'POST',
-        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           'Content-Type': 'application/json',
@@ -145,7 +143,6 @@ Classification: ${result.classification}`);
       
       const response = await fetch(`${BASE_URL}/api/enterprise-users/reports/download/${reportId}`, {
         method: 'POST',
-        credentials: "include",
         headers: getAuthHeaders(),
       });
 

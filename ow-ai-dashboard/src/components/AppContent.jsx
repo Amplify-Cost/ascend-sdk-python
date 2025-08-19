@@ -27,7 +27,8 @@ const AppContent = () => {
   const { toastAlert, bannerAlert, dismissBanner } = useAlert();
 
   useEffect(() => {
-    const storedToken = null;
+    const storedToken = localStorage.getItem("access_token");
+
 
     if (storedToken) {
       try {
@@ -53,7 +54,8 @@ const AppContent = () => {
           return () => clearTimeout(logoutTimer);
         }
       } catch (err) {
-        // Cookie-only auth - no localStorage
+        localStorage.removeItem("access_token");
+
       }
     }
   }, []);
@@ -61,7 +63,8 @@ const AppContent = () => {
   const handleLogout = () => {
     setToken(null);
     setUser(null);
-    // Cookie-only auth - no localStorage
+    localStorage.removeItem("access_token");
+
     setView("login");
   };
 

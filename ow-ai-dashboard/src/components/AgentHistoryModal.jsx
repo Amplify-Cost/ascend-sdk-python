@@ -7,7 +7,6 @@ const AgentHistoryModal = ({ agentId, onClose, getAuthHeaders }) => {
   useEffect(() => {
     if (agentId) {
       fetch(`${API_BASE_URL}/agent-actions?agent_id=${agentId}`, {
-        credentials: "include",
         headers: getAuthHeaders(),
       })
         .then((res) => res.json())

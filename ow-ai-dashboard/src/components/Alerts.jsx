@@ -20,15 +20,14 @@ const Alerts = ({ getAuthHeaders, user }) => {
   const [summaryError, setSummaryError] = useState("");
   const [summaryResult, setSummaryResult] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
         console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
-          credentials: "include",
-        headers: getAuthHeaders(),
+          headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch alerts");
         const data = await res.json();
@@ -72,7 +71,6 @@ const Alerts = ({ getAuthHeaders, user }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
         method: "PATCH",
-        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
@@ -104,7 +102,6 @@ const Alerts = ({ getAuthHeaders, user }) => {
       );
       const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
-        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",

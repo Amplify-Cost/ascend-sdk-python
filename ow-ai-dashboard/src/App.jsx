@@ -27,7 +27,7 @@ import SmartAlertManagement from './components/SmartAlertManagement';
 
 
 // Consistent API URL handling
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 // Enhanced Loading Screen with Enterprise Branding
 const LoadingScreen = () => {
@@ -290,15 +290,15 @@ const AppContent = () => {
           
           // 🧹 Clean up any legacy tokens when using cookies
           if (currentUser.auth_source === "cookie") {
-            // Cookie-only auth - no localStorage
-            // Cookie-only auth - no localStorage
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
             console.log("🧹 Legacy tokens cleaned up - using secure cookies");
           }
           
         } else {
           // 🎫 FALLBACK: Check for legacy token authentication
           console.log("🔍 No cookie authentication, checking legacy tokens...");
-          const storedToken = null;
+          const storedToken = localStorage.getItem("access_token");
           
           if (storedToken) {
             console.log("⚠️ Legacy token found, attempting validation...");
@@ -356,9 +356,9 @@ const AppContent = () => {
           console.log("✅ Enterprise cookie authentication established");
           
           // Store tokens for compatibility (cookies are also set automatically)
-          // Cookie-only auth - no localStorage
+          localStorage.setItem("access_token", loginResponse.access_token);
           if (loginResponse.refresh_token) {
-            // Cookie-only auth - no localStorage
+            localStorage.setItem("refresh_token", loginResponse.refresh_token);
           }
           
           // Set user state from response
@@ -386,8 +386,8 @@ const AppContent = () => {
           setAuthMode("cookie");
           
           // Clear any legacy tokens
-          // Cookie-only auth - no localStorage
-          // Cookie-only auth - no localStorage
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
           
           console.log("🍪 Secure cookie authentication activated");
           
@@ -395,7 +395,7 @@ const AppContent = () => {
           // Legacy string token (backward compatibility)
           console.log("⚠️ Legacy string token received");
           
-          // Cookie-only auth - no localStorage
+          localStorage.setItem("access_token", loginResponse);
           const { jwtDecode } = await import("jwt-decode");
           const decoded = jwtDecode(loginResponse);
           setUser({
@@ -452,8 +452,8 @@ const AppContent = () => {
       setAuthMode("unknown");
       
       // Clear any remaining localStorage
-      // Cookie-only auth - no localStorage
-      // Cookie-only auth - no localStorage
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
       
       console.log("✅ Enterprise logout complete");
     }
@@ -472,7 +472,6 @@ const AppContent = () => {
       
       const response = await fetchWithAuth(`${API_BASE_URL}/auth/update-profile`, {
         method: "POST",
-        credentials: "include",
         body: JSON.stringify(updateData)
       });
       
@@ -497,7 +496,7 @@ const AppContent = () => {
     console.log("🔍 Current auth mode:", authMode);
     
     // ENTERPRISE FIX: ALWAYS send token when available (regardless of auth mode)
-    const token = null;
+    const token = localStorage.getItem("access_token");
     console.log("🔍 Access token present:", !!token);
     
     if (token) {

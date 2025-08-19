@@ -16,7 +16,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [executiveBrief, setExecutiveBrief] = useState(null);
   const [briefLoading, setBriefLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
   // Demo data generators - FIXED VERSION
   const generateDemoMetrics = () => {
@@ -257,7 +257,6 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     console.log("🔄 Fetching performance metrics...");
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/performance-metrics`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       
@@ -284,7 +283,6 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchAlerts = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -310,7 +308,6 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchAIInsights = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/ai-insights`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -330,7 +327,6 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchThreatIntelligence = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/threat-intelligence`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {

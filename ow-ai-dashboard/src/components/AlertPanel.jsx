@@ -15,7 +15,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
   const [toolFilter, setToolFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
   useEffect(() => {
     const fetchAlerts = async () => {
@@ -23,8 +23,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
       try {
         console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
-          credentials: "include",
-        headers: getAuthHeaders(),
+          headers: getAuthHeaders(),
         });
         
         console.log("🚨 Alerts response status:", res.status);
@@ -80,7 +79,6 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
       );
       const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
         method: "POST",
-        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
@@ -102,7 +100,6 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
         method: "PATCH",
-        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",

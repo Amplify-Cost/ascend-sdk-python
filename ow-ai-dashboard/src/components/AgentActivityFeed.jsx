@@ -15,7 +15,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const itemsPerPage = 5;
 
   // ✅ Added fallback URL
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
   const fetchActivity = async () => {
     try {
@@ -27,8 +27,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
       
       console.log("📡 Full URL:", url); // Debug log
       
-      const res = await fetch(url, { credentials: "include",
-        headers: getAuthHeaders() });
+      const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent activity`);
       const data = await res.json();
       setActivities(Array.isArray(data) ? data : []);
@@ -51,7 +50,6 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/agent-action/false-positive/${id}`, {
         method: "POST",
-        credentials: "include",
         headers: getAuthHeaders(),
       });
       if (res.ok) fetchActivity();
@@ -65,7 +63,6 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/support/submit`, {
         method: "POST",
-        credentials: "include",
         headers: {
           ...getAuthHeaders(),
           "Content-Type": "application/json",
@@ -94,7 +91,6 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/agent-actions/upload-json`, {
         method: "POST",
-        credentials: "include",
         headers: getAuthHeaders(),
         body: formData,
       });

@@ -75,7 +75,6 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading users...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
-        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -97,7 +96,6 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading roles...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
-        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -118,7 +116,6 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading audit logs...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/audit-logs?limit=50`, {
-        credentials: "include",
         headers: getAuthHeaders()
       });
       
@@ -139,7 +136,6 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     try {
       console.log("🔄 Loading analytics...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/analytics`, {
-        credentials: "include",
         headers: getAuthHeaders()
       });
       

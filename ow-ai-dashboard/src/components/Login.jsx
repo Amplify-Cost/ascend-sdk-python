@@ -1,7 +1,9 @@
 // components/Login.jsx - Enterprise Cookie Authentication (Phase 2 Complete)
 import React, { useState } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+ const API_BASE_URL =
+   import.meta.env.VITE_API_URL || window.location.origin;
+
 
 const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
   const [email, setEmail] = useState("");
@@ -11,95 +13,102 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setError("");
-    setIsLoading(true);
+  e.preventDefault();
+  setError("");
+  setIsLoading(true);
 
-    try {
-      console.log("🏢 Enterprise login attempt for:", email);
+  try {
+    console.log("🏢 Enterprise login attempt for:", email);
 
-      // Enterprise cookie authentication request
-      const response = await fetch(`${API_BASE_URL}/auth/token`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Enterprise-Client": "OW-AI-Platform",
-          "X-Auth-Mode": "cookie", // 🍪 Request cookie authentication
-          "X-Platform-Version": "1.0.0"
-        },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    const response = await fetch(`${API_BASE_URL}/auth/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Enterprise-Client": "OW-AI-Platform",
+        "X-Auth-Mode": "cookie",
+        "X-Platform-Version": "1.0.0",
+      },
+      credentials: "include",
+      body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    });
+
+    const data = await response.json();
+
+    // sanitized log: no tokens or password
+    console.log("🏢 Enterprise login response: { user, auth_mode }", {
+      user: data?.user,
+      auth_mode: data?.auth_mode || (data?.access_token ? "token" : "unknown"),
+    });
+
+    if (!response.ok) {
+      setError(data.detail || "Enterprise login failed");
+      return;
+    }
+
+    // Branch 1: token + user (backend returns both; cookies also set)
+    if (data.access_token && data.user) {
+      console.log("✅ Enterprise cookie authentication successful");
+      console.log("🍪 Secure cookies set automatically");
+
+      onLoginSuccess({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        token_type: data.token_type || "bearer",
+        expires_in: data.expires_in,
+        user: data.user,
+        auth_mode: "token", // cookies may still be set server-side
+        enterprise_metadata: data.enterprise_metadata,
+        enterprise: true,
       });
 
-      const data = await response.json();
-      console.log("🏢 Enterprise login response:", data);
-
-      if (!response.ok) {
-        setError(data.detail || "Enterprise login failed");
-        return;
-      }
-
-      // CRITICAL FIX: Handle the actual backend response format
-      if (data.access_token && data.user) {
-        // 🍪 Enterprise Cookie Mode (cookies set automatically)
-        console.log("✅ Enterprise cookie authentication successful");
-        console.log("🍪 Secure cookies set automatically");
-        
-        // Pass the complete response to parent
-        onLoginSuccess({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          token_type: data.token_type || "bearer",
-          expires_in: data.expires_in,
-          user: data.user,
-          auth_mode: "token", // Backend returns "token" (cookies work in background)
-          enterprise_metadata: data.enterprise_metadata,
-          enterprise: true
-        });
-        
-      } else if (data.auth_mode === "cookie" && data.user) {
-        // Alternative cookie response format
-        console.log("✅ Enterprise cookie authentication successful");
-        console.log("🍪 Secure cookies set automatically");
-        
-        // No need to store tokens - cookies handle everything
-        onLoginSuccess({
-          user: data.user,
-          auth_mode: "cookie",
-          enterprise_features: data.enterprise_features,
-          enterprise: true
-        });
-        
-      } else if (data.access_token) {
-        // 🎫 Legacy Token Mode (Fallback Compatibility)
-        console.log("⚠️ Legacy token authentication - consider upgrading");
-        
-        // Store tokens for backward compatibility
-        // Cookie-only auth - no localStorage
-        if (data.refresh_token) {
-          // Cookie-only auth - no localStorage
-        }
-        
-        onLoginSuccess({
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          user: data.user,
-          auth_mode: "token",
-          enterprise: true
-        });
-        
-      } else {
-        setError("Invalid login response format");
-        return;
-      }
-
-    } catch (err) {
-      console.error("🏢 Enterprise login error:", err);
-      setError("Network error - please check your connection");
-    } finally {
-      setIsLoading(false);
+      setPassword(""); // scrub secret
+      return;
     }
-  };
+
+    // Branch 2: cookie mode (no token in body; httpOnly cookies set)
+    if (data.auth_mode === "cookie" && data.user) {
+      console.log("✅ Enterprise cookie authentication successful");
+      console.log("🍪 Secure cookies set automatically");
+
+      onLoginSuccess({
+        user: data.user,
+        auth_mode: "cookie",
+        enterprise_features: data.enterprise_features,
+        enterprise: true,
+      });
+
+      setPassword(""); // scrub secret
+      return;
+    }
+
+    // Branch 3: legacy token only (no explicit user object)
+    if (data.access_token) {
+      console.log("⚠️ Legacy token authentication - consider upgrading");
+
+      onLoginSuccess({
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        token_type: data.token_type || "bearer",
+        expires_in: data.expires_in,
+        user: data.user,
+        auth_mode: data.auth_mode || "token",
+        enterprise: true,
+      });
+
+      setPassword(""); // scrub secret
+      return;
+    }
+
+    // Unexpected format
+    setError("Invalid login response format");
+  } catch (err) {
+    console.error("🏢 Enterprise login error:", err);
+    setError("Network error - please check your connection");
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">

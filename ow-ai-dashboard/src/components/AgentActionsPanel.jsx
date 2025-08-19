@@ -21,7 +21,6 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
       
       const response = await fetch(`${API_BASE_URL}/agent-actions`, {
         method: "GET",
-        credentials: "include",
         headers
       });
       
@@ -58,7 +57,6 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
       
       const response = await fetch(`${API_BASE_URL}/agent-action/${id}/${statusType}`, {
         method: "POST",
-        credentials: "include",
         headers: {
           'Content-Type': 'application/json',
           ...headers

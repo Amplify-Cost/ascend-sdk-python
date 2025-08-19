@@ -14,7 +14,7 @@ export const useTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(() => {
     // Check localStorage first, then system preference
-    const saved = null;
+    const saved = localStorage.getItem('ow-ai-theme');
     if (saved) {
       return saved === 'dark';
     }
@@ -32,7 +32,7 @@ export const ThemeProvider = ({ children }) => {
     }
     
     // Save preference
-    // Cookie-only auth - no localStorage
+    localStorage.setItem('ow-ai-theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
   const toggleTheme = () => {

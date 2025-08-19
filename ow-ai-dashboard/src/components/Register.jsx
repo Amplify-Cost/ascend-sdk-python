@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 const Register = ({ onRegisterSuccess, switchToLogin }) => {
   const [email, setEmail] = useState("");
@@ -30,7 +30,6 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           email, 
@@ -53,9 +52,9 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
 
       // ✅ Registration includes tokens in response
       if (data.access_token) {
-        // Cookie-only auth - no localStorage
+        localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) {
-          // Cookie-only auth - no localStorage
+          localStorage.setItem("refresh_token", data.refresh_token);
         }
         onRegisterSuccess(data.access_token, data.refresh_token);
       } else {

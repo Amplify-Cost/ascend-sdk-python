@@ -18,15 +18,14 @@ const SecurityInsights = ({ getAuthHeaders }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
   useEffect(() => {
     const fetchInsights = async () => {
       try {
         console.log("🔍 Fetching insights from:", `${API_BASE_URL}/analytics/trends`);
         const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
-          credentials: "include",
-        headers: getAuthHeaders(),
+          headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch insights data");
         const data = await res.json();

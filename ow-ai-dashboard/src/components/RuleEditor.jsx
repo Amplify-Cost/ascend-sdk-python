@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
 const RuleEditor = ({ getAuthHeaders }) => {
   const [rules, setRules] = useState([]);
@@ -54,7 +54,6 @@ const RuleEditor = ({ getAuthHeaders }) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/rules`, {
         method: "POST",
-        credentials: "include",
         body: JSON.stringify(rules),
       });
       
@@ -74,7 +73,6 @@ const RuleEditor = ({ getAuthHeaders }) => {
     try {
       const response = await fetchWithAuth(`${API_BASE_URL}/smart-rules/generate`, {
         method: "POST",
-        credentials: "include",
         body: JSON.stringify({
           agent_id: "demo-agent",
           action_type: "suspicious_activity",

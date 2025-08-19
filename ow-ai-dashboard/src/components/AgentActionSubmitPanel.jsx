@@ -120,8 +120,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
           
           const res = await fetch(endpoint, {
             method: "POST",
-        credentials: "include",
-        headers: {
+            headers: {
               ...getAuthHeaders(),
               "Content-Type": "application/json",
             },

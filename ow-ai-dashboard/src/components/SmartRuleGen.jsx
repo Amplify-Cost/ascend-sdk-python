@@ -17,7 +17,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [abTests, setAbTests] = useState([]);
   const [creatingTest, setCreatingTest] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || window.location.origin;
 
   useEffect(() => {
     fetchInitialData();
@@ -52,7 +52,6 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const fetchRules = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/smart-rules`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -74,7 +73,6 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const fetchRuleAnalytics = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/smart-rules/analytics`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -93,7 +91,6 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const fetchAbTests = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/smart-rules/ab-tests`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -113,7 +110,6 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const fetchSuggestedRules = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/smart-rules/suggestions`, {
-        credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -197,7 +193,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
     // ENTERPRISE FIX: Send rule_id as query parameter
     const response = await fetch(`${API_BASE_URL}/smart-rules/ab-test?rule_id=${ruleId}`, {
       method: "POST",
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+      headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ 
         test_duration_hours: 24,
         traffic_split: 50
