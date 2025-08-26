@@ -1,11 +1,11 @@
 name: Deploy Backend to ECS
 
 on:
-  workflow_dispatch:  # Manual trigger
+  workflow_dispatch:
   push:
     branches: [ main ]
     paths:
-      - 'ow-ai-backend/**'  # Only run when backend code changes
+      - 'ow-ai-backend/**'
 
 env:
   AWS_REGION: us-east-2
@@ -14,7 +14,7 @@ env:
   ECS_CLUSTER: owkai-pilot
 
 permissions:
-  id-token: write   # Required for secure AWS connection
+  id-token: write
   contents: read
 
 jobs:
@@ -25,30 +25,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Configure AWS credentials (secure OIDC)
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::110948415588:role/GitHubActionsRole
         role-session-name: Backend-Deploy-${{ github.run_id }}
         aws-region: us-east-2
 
-    - name: Login to Amazon ECR (container registry)
+    - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build and push Docker image
       working-directory: ./ow-ai-backend
       run: |
-        # Create container registry if it doesn't exist
         aws ecr describe-repositories --repository-names $ECR_REPOSITORY || \
         aws ecr create-repository --repository-name $ECR_REPOSITORY
-
-        # Get registry URL
+        
         ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query 'repositories[0].repositoryUri' --output text | cut -d'/' -f1)
         
-        # Build container with unique tag
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} .
-        
-        # Push to AWS container registry
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
         
         echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> $GITHUB_ENV
@@ -98,90 +93,29 @@ jobs:
         }
         EOF
 
-   - name: Deploy to ECS with Enterprise Error Handling
+    - name: Deploy to ECS with service creation
       run: |
-        # Register new task definition (always required)
-        echo "📋 Registering new task definition..."
-        TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://task-definition.json --query 'taskDefinition.taskDefinitionArn' --output text)
-        echo "✅ Task definition registered: $TASK_DEF_ARN"
+        aws ecs register-task-definition --cli-input-json file://task-definition.json
         
-        # Enterprise approach: Check if service exists before attempting operations
-        echo "🔍 Checking if ECS service exists..."
-        SERVICE_EXISTS=$(aws ecs describe-services \
-          --cluster $ECS_CLUSTER \
-          --services $ECS_SERVICE \
-          --query 'length(services[?serviceName==`'"$ECS_SERVICE"'`])' \
-          --output text 2>/dev/null || echo "0")
-        
-        if [ "$SERVICE_EXISTS" -gt "0" ]; then
-          echo "🔄 Service exists. Performing zero-downtime update..."
+        if aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].serviceName' --output text 2>/dev/null | grep -q $ECS_SERVICE; then
+          echo "Service exists, updating..."
           aws ecs update-service \
             --cluster $ECS_CLUSTER \
             --service $ECS_SERVICE \
             --task-definition owkai-pilot-backend \
-            --force-new-deployment \
-            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100"
-          
-          echo "⏳ Waiting for deployment to stabilize..."
-          aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --cli-read-timeout 600 \
-            --cli-connect-timeout 60
-            
+            --force-new-deployment
         else
-          echo "🆕 Service doesn't exist. Creating new service with enterprise configuration..."
-          
-          # Get subnet and security group information from infrastructure
-          PRIVATE_SUBNETS=$(aws ec2 describe-subnets \
-            --filters "Name=tag:Name,Values=owkai-pilot-private-*" \
-            --query 'Subnets[].SubnetId' \
-            --output text | tr '\t' ',')
-          
-          SECURITY_GROUP=$(aws ec2 describe-security-groups \
-            --filters "Name=tag:Name,Values=owkai-pilot-ecs-sg" \
-            --query 'SecurityGroups[0].GroupId' \
-            --output text)
-          
-          BACKEND_TARGET_GROUP=$(aws elbv2 describe-target-groups \
-            --names owkai-pilot-backend-tg \
-            --query 'TargetGroups[0].TargetGroupArn' \
-            --output text)
-          
-          echo "🔧 Network configuration - Subnets: $PRIVATE_SUBNETS, Security Group: $SECURITY_GROUP"
-          
-          # Create service with enterprise-grade configuration
+          echo "Creating service..."
           aws ecs create-service \
             --cluster $ECS_CLUSTER \
             --service-name $ECS_SERVICE \
             --task-definition owkai-pilot-backend \
-            --desired-count 2 \
+            --desired-count 1 \
             --launch-type FARGATE \
-            --platform-version LATEST \
-            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100,deploymentCircuitBreaker={enable=true,rollback=true}" \
-            --network-configuration "awsvpcConfiguration={subnets=[$PRIVATE_SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
-            --load-balancers "targetGroupArn=$BACKEND_TARGET_GROUP,containerName=backend,containerPort=8000" \
-            --health-check-grace-period-seconds 300 \
-            --enable-execute-command \
-            --tags "key=Environment,value=pilot" "key=Application,value=OW-KAI" "key=Component,value=Backend"
-          
-          echo "⏳ Waiting for new service to become stable..."
-          aws ecs wait services-stable \
-            --cluster $ECS_CLUSTER \
-            --services $ECS_SERVICE \
-            --cli-read-timeout 900 \
-            --cli-connect-timeout 60
+            --network-configuration "awsvpcConfiguration={subnets=[subnet-0bddeeb5ae9b6b856,subnet-0a13742578005734f],securityGroups=[sg-0a9f384c088f3a9e9],assignPublicIp=DISABLED}" \
+            --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-2:110948415588:targetgroup/owkai-pilot-backend-tg/f36c394e1d527ae0,containerName=backend,containerPort=8000"
         fi
         
-        # Enterprise monitoring: Output service status and health
-        echo "📊 Final service status:"
-        aws ecs describe-services \
+        aws ecs wait services-stable \
           --cluster $ECS_CLUSTER \
-          --services $ECS_SERVICE \
-          --query 'services[0].{Name:serviceName,Status:status,RunningCount:runningCount,DesiredCount:desiredCount,TaskDefinition:taskDefinition}'
-        
-        # Check load balancer target health
-        echo "🎯 Load balancer target health:"
-        aws elbv2 describe-target-health \
-          --target-group-arn $BACKEND_TARGET_GROUP \
-          --query 'TargetHealthDescriptions[].{Target:Target.Id,Health:TargetHealth.State,Description:TargetHealth.Description}'
+          --services $ECS_SERVICE
