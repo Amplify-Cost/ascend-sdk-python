@@ -1,0 +1,116 @@
+name: Deploy Backend to ECS
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches: [ main ]
+    paths:
+      - 'ow-ai-backend/**'  # Only run when backend code changes
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REPOSITORY: owkai-pilot-backend
+  ECS_SERVICE: owkai-pilot-backend-service
+  ECS_CLUSTER: owkai-pilot
+
+permissions:
+  id-token: write   # Required for secure AWS connection
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials (secure OIDC)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::110948415588:role/GitHubActionsRole
+        role-session-name: Backend-Deploy-${{ github.run_id }}
+        aws-region: us-east-2
+
+    - name: Login to Amazon ECR (container registry)
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build and push Docker image
+      working-directory: ./ow-ai-backend
+      run: |
+        # Create container registry if it doesn't exist
+        aws ecr describe-repositories --repository-names $ECR_REPOSITORY || \
+        aws ecr create-repository --repository-name $ECR_REPOSITORY
+
+        # Get registry URL
+        ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query 'repositories[0].repositoryUri' --output text | cut -d'/' -f1)
+        
+        # Build container with unique tag
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} .
+        
+        # Push to AWS container registry
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+        
+        echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}" >> $GITHUB_ENV
+
+    - name: Create ECS task definition
+      run: |
+        cat > task-definition.json << EOF
+        {
+          "family": "owkai-pilot-backend",
+          "networkMode": "awsvpc",
+          "requiresCompatibilities": ["FARGATE"],
+          "cpu": "512",
+          "memory": "1024",
+          "executionRoleArn": "arn:aws:iam::110948415588:role/owkai-pilot-ecs-task-execution-role",
+          "taskRoleArn": "arn:aws:iam::110948415588:role/owkai-pilot-ecs-task-role",
+          "containerDefinitions": [
+            {
+              "name": "backend",
+              "image": "${{ env.IMAGE_URI }}",
+              "portMappings": [
+                {
+                  "containerPort": 8000,
+                  "protocol": "tcp"
+                }
+              ],
+              "essential": true,
+              "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                  "awslogs-group": "/ecs/owkai-pilot-backend",
+                  "awslogs-region": "us-east-2",
+                  "awslogs-stream-prefix": "ecs"
+                }
+              },
+              "secrets": [
+                {
+                  "name": "DB_URL",
+                  "valueFrom": "/owkai/pilot/backend/DB_URL"
+                },
+                {
+                  "name": "JWT_SECRET",
+                  "valueFrom": "/owkai/pilot/backend/JWT_SECRET"
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+
+    - name: Deploy to ECS
+      run: |
+        # Register new task definition
+        aws ecs register-task-definition --cli-input-json file://task-definition.json
+        
+        # Update service to use new task definition
+        aws ecs update-service \
+          --cluster $ECS_CLUSTER \
+          --service $ECS_SERVICE \
+          --task-definition owkai-pilot-backend \
+          --force-new-deployment
+        
+        # Wait for deployment to complete
+        aws ecs wait services-stable \
+          --cluster $ECS_CLUSTER \
+          --services $ECS_SERVICE
