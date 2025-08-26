@@ -98,19 +98,90 @@ jobs:
         }
         EOF
 
-    - name: Deploy to ECS
+   - name: Deploy to ECS with Enterprise Error Handling
       run: |
-        # Register new task definition
-        aws ecs register-task-definition --cli-input-json file://task-definition.json
+        # Register new task definition (always required)
+        echo "📋 Registering new task definition..."
+        TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://task-definition.json --query 'taskDefinition.taskDefinitionArn' --output text)
+        echo "✅ Task definition registered: $TASK_DEF_ARN"
         
-        # Update service to use new task definition
-        aws ecs update-service \
+        # Enterprise approach: Check if service exists before attempting operations
+        echo "🔍 Checking if ECS service exists..."
+        SERVICE_EXISTS=$(aws ecs describe-services \
           --cluster $ECS_CLUSTER \
-          --service $ECS_SERVICE \
-          --task-definition owkai-pilot-backend \
-          --force-new-deployment
+          --services $ECS_SERVICE \
+          --query 'length(services[?serviceName==`'"$ECS_SERVICE"'`])' \
+          --output text 2>/dev/null || echo "0")
         
-        # Wait for deployment to complete
-        aws ecs wait services-stable \
+        if [ "$SERVICE_EXISTS" -gt "0" ]; then
+          echo "🔄 Service exists. Performing zero-downtime update..."
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition owkai-pilot-backend \
+            --force-new-deployment \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100"
+          
+          echo "⏳ Waiting for deployment to stabilize..."
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --cli-read-timeout 600 \
+            --cli-connect-timeout 60
+            
+        else
+          echo "🆕 Service doesn't exist. Creating new service with enterprise configuration..."
+          
+          # Get subnet and security group information from infrastructure
+          PRIVATE_SUBNETS=$(aws ec2 describe-subnets \
+            --filters "Name=tag:Name,Values=owkai-pilot-private-*" \
+            --query 'Subnets[].SubnetId' \
+            --output text | tr '\t' ',')
+          
+          SECURITY_GROUP=$(aws ec2 describe-security-groups \
+            --filters "Name=tag:Name,Values=owkai-pilot-ecs-sg" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text)
+          
+          BACKEND_TARGET_GROUP=$(aws elbv2 describe-target-groups \
+            --names owkai-pilot-backend-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text)
+          
+          echo "🔧 Network configuration - Subnets: $PRIVATE_SUBNETS, Security Group: $SECURITY_GROUP"
+          
+          # Create service with enterprise-grade configuration
+          aws ecs create-service \
+            --cluster $ECS_CLUSTER \
+            --service-name $ECS_SERVICE \
+            --task-definition owkai-pilot-backend \
+            --desired-count 2 \
+            --launch-type FARGATE \
+            --platform-version LATEST \
+            --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100,deploymentCircuitBreaker={enable=true,rollback=true}" \
+            --network-configuration "awsvpcConfiguration={subnets=[$PRIVATE_SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
+            --load-balancers "targetGroupArn=$BACKEND_TARGET_GROUP,containerName=backend,containerPort=8000" \
+            --health-check-grace-period-seconds 300 \
+            --enable-execute-command \
+            --tags "key=Environment,value=pilot" "key=Application,value=OW-KAI" "key=Component,value=Backend"
+          
+          echo "⏳ Waiting for new service to become stable..."
+          aws ecs wait services-stable \
+            --cluster $ECS_CLUSTER \
+            --services $ECS_SERVICE \
+            --cli-read-timeout 900 \
+            --cli-connect-timeout 60
+        fi
+        
+        # Enterprise monitoring: Output service status and health
+        echo "📊 Final service status:"
+        aws ecs describe-services \
           --cluster $ECS_CLUSTER \
-          --services $ECS_SERVICE
+          --services $ECS_SERVICE \
+          --query 'services[0].{Name:serviceName,Status:status,RunningCount:runningCount,DesiredCount:desiredCount,TaskDefinition:taskDefinition}'
+        
+        # Check load balancer target health
+        echo "🎯 Load balancer target health:"
+        aws elbv2 describe-target-health \
+          --target-group-arn $BACKEND_TARGET_GROUP \
+          --query 'TargetHealthDescriptions[].{Target:Target.Id,Health:TargetHealth.State,Description:TargetHealth.Description}'
