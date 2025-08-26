@@ -80,12 +80,16 @@ jobs:
               },
               "secrets": [
                 {
-                  "name": "DB_URL",
+                  "name": "SECRET_KEY",
+                  "valueFrom": "/owkai/pilot/backend/JWT_SECRET"
+                },
+                {
+                  "name": "DATABASE_URL",
                   "valueFrom": "/owkai/pilot/backend/DB_URL"
                 },
                 {
-                  "name": "JWT_SECRET",
-                  "valueFrom": "/owkai/pilot/backend/JWT_SECRET"
+                  "name": "OPENAI_API_KEY",
+                  "valueFrom": "/owkai/pilot/backend/OPENAI_API_KEY"
                 }
               ]
             }
