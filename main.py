@@ -3391,3 +3391,18 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
+
+# Debug logging to verify enterprise modules load
+print("=== DEBUG: Starting enterprise backend ===")
+print("=== DEBUG: Importing enterprise modules ===")
+try:
+    from enterprise_config import config
+    print(f"=== DEBUG: Enterprise config loaded: {config.use_vault} ===")
+except Exception as e:
+    print(f"=== DEBUG: Enterprise config failed: {e} ===")
+
+try:
+    from jwt_manager import jwt_manager
+    print(f"=== DEBUG: JWT manager loaded ===")
+except Exception as e:
+    print(f"=== DEBUG: JWT manager failed: {e} ===")
