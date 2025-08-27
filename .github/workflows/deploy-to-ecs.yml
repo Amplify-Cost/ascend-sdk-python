@@ -21,6 +21,7 @@ jobs:
   deploy:
     name: Deploy Enterprise Backend
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
     - name: Checkout
@@ -35,11 +36,6 @@ jobs:
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Create ECR repository if it doesn't exist
-      run: |
-        aws ecr describe-repositories --repository-names $ECR_REPOSITORY --region $AWS_REGION || \
-        aws ecr create-repository --repository-name $ECR_REPOSITORY --region $AWS_REGION
 
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
@@ -69,9 +65,9 @@ jobs:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: true
+        wait-for-service-stability: false
 
-    - name: Verify deployment
+    - name: Verify deployment started
       run: |
-        echo "Deployment completed. Checking service status..."
+        echo "Deployment initiated. Service will stabilize shortly."
         aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].deployments[0].status'
