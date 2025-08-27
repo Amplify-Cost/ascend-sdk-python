@@ -326,7 +326,7 @@ workflow_config = {
 audit_trail_storage = []
 
 # <--- Added: include auth router
-#app.include_router(auth_router)
+app.include_router(auth_router)
 #app.include_router(smart_rules_router)
 #app.include_router(enterprise_user_router)
 #app.include_router(authorization_router)  
