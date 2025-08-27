@@ -1,0 +1,31 @@
+from alembic import op
+import sqlalchemy as sa
+
+def upgrade():
+    # Example: tag three tables; repeat this pattern for your tables
+    for table in ["agent_actions", "mcp_server_actions", "audit_log"]:
+        op.add_column(table, sa.Column("data_origin", sa.Enum("demo","test","real", name="data_origin_enum"), nullable=False, server_default="demo"))
+        op.add_column(table, sa.Column("origin_detail", sa.String(length=255), nullable=True))
+
+    # Optional: create views that hide demo by default
+    op.execute("""
+      CREATE OR REPLACE VIEW v_agent_actions AS
+      SELECT * FROM agent_actions WHERE data_origin <> 'demo';
+    """)
+    op.execute("""
+      CREATE OR REPLACE VIEW v_mcp_server_actions AS
+      SELECT * FROM mcp_server_actions WHERE data_origin <> 'demo';
+    """)
+    op.execute("""
+      CREATE OR REPLACE VIEW v_audit_log AS
+      SELECT * FROM audit_log WHERE data_origin <> 'demo';
+    """)
+
+def downgrade():
+    op.execute("DROP VIEW IF EXISTS v_agent_actions")
+    op.execute("DROP VIEW IF EXISTS v_mcp_server_actions")
+    op.execute("DROP VIEW IF EXISTS v_audit_log")
+    for table in ["agent_actions", "mcp_server_actions", "audit_log"]:
+        op.drop_column(table, "origin_detail")
+        op.drop_column(table, "data_origin")
+    op.execute("DROP TYPE IF EXISTS data_origin_enum")

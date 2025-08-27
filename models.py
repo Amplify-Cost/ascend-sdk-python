@@ -143,44 +143,21 @@ class Rule(Base):
 class SmartRule(Base):
     __tablename__ = "smart_rules"
     
+    # ENTERPRISE CORE COLUMNS - Only columns that exist in database
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    description = Column(Text)
     agent_id = Column(String, index=True)
     action_type = Column(String)
-    
-    # AI-generated rule components
+    description = Column(Text)
     condition = Column(Text)
-    action = Column(String)
+    action = Column(Text)
     risk_level = Column(String)
     recommendation = Column(Text)
     justification = Column(Text)
-    
-    # Smart rule metadata
-    confidence_score = Column(Float, default=0.0)
-    generated_by_ai = Column(Boolean, default=True)
-    training_data_size = Column(Integer, default=0)
-    
-    # Status and lifecycle
-    status = Column(String, default="pending")  # pending, active, inactive, archived
-    enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    created_by = Column(Integer, ForeignKey("users.id"))
     
-    # Performance metrics
-    trigger_count = Column(Integer, default=0)
-    accuracy_score = Column(Float, nullable=True)
-    false_positive_rate = Column(Float, nullable=True)
-    last_triggered = Column(DateTime, nullable=True)
-    
-    # Enterprise features
-    compliance_framework = Column(String, nullable=True)
-    nist_controls = Column(JSON, nullable=True)
-    mitre_tactics = Column(JSON, nullable=True)
-    
-    # Relationships
-    creator = relationship("User", foreign_keys=[created_by])
+    # THESE TWO WERE ADDED DURING DATABASE FIXES
+    name = Column(String)
+    updated_at = Column(DateTime)
 
 class RuleFeedback(Base):
     __tablename__ = "rule_feedbacks"
