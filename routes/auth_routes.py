@@ -97,7 +97,7 @@ async def register(
         hashed_password = pwd_context.hash(user_data.password)
         new_user = User(
             email=user_data.email,
-            password=hashed_password,
+            password_hash=hashed_password,
             role="user",
             is_active=True,
             created_at=datetime.now(UTC)
