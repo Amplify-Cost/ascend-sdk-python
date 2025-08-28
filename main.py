@@ -3409,33 +3409,4 @@ try:
 except Exception as e:
     print(f"=== DEBUG: JWT manager failed: {e} ===")
 
-@app.post("/auth/create-first-admin")
-async def create_first_admin():
-    """One-time admin user creation - removes itself after use"""
-    try:
-        from dependencies import get_db
-        from models import User
-        from passlib.context import CryptContext
-        
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        db: Session = next(get_db())
-        
-        # Check if any admin users exist
-        admin_count = db.query(User).filter(User.role == "admin").count()
-        if admin_count > 0:
-            return {"error": "Admin users already exist"}
-            
-        # Create first admin
-        hashed_password = pwd_context.hash("Admin123!")
-        admin_user = User(
-            email="admin@owkai.com",
-            password_hash=hashed_password,
-            role="admin",
-            is_active=True
-        )
-        db.add(admin_user)
-        db.commit()
-        
-        return {"success": "First admin user created", "email": "admin@owkai.com"}
-    except Exception as e:
         return {"error": str(e)}
