@@ -3427,7 +3427,7 @@ async def create_first_admin():
         hashed_password = pwd_context.hash("Admin123!")
         admin_user = User(
             email="admin@owkai.com",
-            password=hashed_password,
+            password_hash=hashed_password,
             role="admin",
             is_active=True
         )

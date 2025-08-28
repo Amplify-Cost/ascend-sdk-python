@@ -186,7 +186,7 @@ async def login(
     """Login with dual auth support + CSRF issuance for cookie mode."""
     try:
         user = db.query(User).filter(User.email == login_data.email).first()
-        if not user or not pwd_context.verify(login_data.password, user.password):
+        if not user or not pwd_context.verify(login_data.password, user.password_hash):
             logger.warning(f"❌ Failed login attempt: {login_data.email}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
