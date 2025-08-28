@@ -17,8 +17,8 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
-from routes.auth_routes import router as auth_routes_router
 from routes.smart_rules_routes import router as smart_rules_router
+from routes.auth_routes import router as auth_routes_router
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
@@ -145,7 +145,6 @@ for router_name in ROUTER_NAMES:
     try:
         if router_name == "auth":
             from routes.auth import router as auth_router
-from routes.auth_routes import router as auth_routes_router
             ROUTE_MODULES[router_name] = auth_router
         elif router_name == "smart_rules":
             try:
