@@ -242,7 +242,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        if not pwd_context.verify(password, getattr(user, "hashed_password", user.password)):
+        if not pwd_context.verify(password, user.password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create tokens
