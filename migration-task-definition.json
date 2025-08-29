@@ -11,10 +11,7 @@
       "name": "migration",
       "image": "PLACEHOLDER_IMAGE",
       "essential": true,
-      "command": [
-        "/bin/bash", "-c",
-        "alembic stamp head || alembic upgrade head"
-      ],
+      "command": ["sh", "-c", "alembic stamp head || alembic upgrade head"],
       "environment": [],
       "secrets": [
         {"name": "DATABASE_URL", "valueFrom": "DATABASE_URL"},
@@ -25,8 +22,7 @@
         "options": {
           "awslogs-group": "/ecs/owkai-pilot-migration",
           "awslogs-region": "us-east-2",
-          "awslogs-stream-prefix": "migration",
-          "awslogs-create-group": "true"
+          "awslogs-stream-prefix": "migration"
         }
       }
     }
