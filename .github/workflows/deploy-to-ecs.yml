@@ -93,7 +93,7 @@ jobs:
           --cluster owkai-pilot \
           --task-definition "$MIGRATION_TASK_DEF" \
           --launch-type FARGATE \
-          --network-configuration "awsvpcConfiguration={subnets=[subnet-0a13742578005734f,subnet-0bddeeb5ae9b6b856],securityGroups=[sg-0a9f384c088f3a9e9],assignPublicIp=DISABLED}" \
+          --network-configuration "awsvpcConfiguration={subnets=[subnet-0a13742578005734f,subnet-0bddeeb5ae9b6b856],securityGroups=[sg-0a9f384c088f3a9e9],assignPublicIp=ENABLED}" \
           --query 'tasks[0].taskArn' --output text)
         
         # Wait for migration completion
