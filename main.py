@@ -3621,7 +3621,6 @@ try:
 except Exception as e:
     print(f"=== DEBUG: JWT manager failed: {e} ===")
 
-        return {"error": str(e)}
 
 # MCP Data Backbone - AWS ECS Compatible
 @app.post("/agent-actions/mcp-ingest")
@@ -3689,46 +3688,21 @@ async def mcp_stats_aws(db: Session = Depends(get_db)):
 
 
 # API endpoints to match ALB listener rules
+
+# Enterprise MCP Data Backbone API Endpoints
 @app.get("/api/health")
 async def api_health():
-    return {"status": "healthy", "api_version": "v1", "path": "/api/health"}
-
-@app.get("/admin/health")
-async def admin_health():
-    return {"status": "healthy", "admin_access": True, "path": "/admin/health"}
-
-@app.get("/api/agent-actions")
-async def api_agent_actions(db: Session = Depends(get_db)):
-    try:
-        result = db.execute(text("SELECT COUNT(*) FROM agent_actions")).fetchone()
-        return {"message": "API agent actions endpoint", "total_actions": result[0] if result else 0}
-    except Exception as e:
-        return {"message": "API agent actions endpoint", "total_actions": 0, "error": str(e)}
-
-@app.get("/api/mcp/actions/stats")
-async def api_mcp_stats(db: Session = Depends(get_db)):
-    try:
-        result = db.execute(text("""
-            SELECT status, COUNT(*) as count FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%' GROUP BY status
-        """)).fetchall()
-        
-        return {
-            "stats": [{"status": row[0], "count": row[1]} for row in result],
-            "total": sum(row[1] for row in result),
-            "api_path": True
-        }
-    except Exception as e:
-        return {"stats": [], "error": str(e)}
+    return {"status": "healthy", "api_version": "v1", "enterprise_ready": True}
 
 @app.post("/api/mcp/actions/ingest")
-async def api_mcp_ingest(request: Request, db: Session = Depends(get_db)):
+async def enterprise_mcp_api_ingest(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         data = await request.json()
         agent_id = data.get("agent_id", "unknown")
         action = data.get("action", "unknown")
         resource = data.get("resource", "unknown")
         
+        # Enterprise risk assessment
         risk_score = 30.0
         if any(term in action.lower() for term in ["delete", "write", "modify"]):
             risk_score += 40.0
@@ -3736,18 +3710,20 @@ async def api_mcp_ingest(request: Request, db: Session = Depends(get_db)):
             risk_score += 30.0
         risk_score = min(100.0, risk_score)
         
+        # Insert with enterprise audit trail
         result = db.execute(text("""
-            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved)
-            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved)
+            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved, user_id)
+            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved, :user_id)
             RETURNING id
         """), {
             'agent_id': agent_id,
             'action_type': f"mcp_{action}",
-            'description': f"API MCP: {action} on {resource}",
+            'description': f"Enterprise MCP API: {action} on {resource}",
             'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
             'risk_score': risk_score,
             'status': "approved" if risk_score < 60 else "pending",
-            'approved': risk_score < 60
+            'approved': risk_score < 60,
+            'user_id': current_user.get('user_id', 1)
         })
         
         action_id = result.fetchone()[0]
@@ -3758,9 +3734,24 @@ async def api_mcp_ingest(request: Request, db: Session = Depends(get_db)):
             "status": "success",
             "result": "approved" if risk_score < 60 else "requires_approval",
             "risk_score": risk_score,
-            "api_path": True
+            "enterprise_compliant": True
         }
     except Exception as e:
         db.rollback()
         return {"error": str(e), "status": "failed"}
 
+@app.get("/api/mcp/actions/stats")
+async def enterprise_mcp_api_stats(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT status, COUNT(*) as count FROM agent_actions 
+            WHERE action_type LIKE 'mcp_%' GROUP BY status
+        """)).fetchall()
+        
+        return {
+            "stats": [{"status": row[0], "count": row[1]} for row in result],
+            "total": sum(row[1] for row in result),
+            "enterprise_compliant": True
+        }
+    except Exception as e:
+        return {"stats": [], "error": str(e)}
