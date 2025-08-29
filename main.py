@@ -3687,3 +3687,80 @@ async def mcp_stats_aws(db: Session = Depends(get_db)):
     except Exception as e:
         return {"stats": [], "error": str(e)}
 
+
+# API endpoints to match ALB listener rules
+@app.get("/api/health")
+async def api_health():
+    return {"status": "healthy", "api_version": "v1", "path": "/api/health"}
+
+@app.get("/admin/health")
+async def admin_health():
+    return {"status": "healthy", "admin_access": True, "path": "/admin/health"}
+
+@app.get("/api/agent-actions")
+async def api_agent_actions(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("SELECT COUNT(*) FROM agent_actions")).fetchone()
+        return {"message": "API agent actions endpoint", "total_actions": result[0] if result else 0}
+    except Exception as e:
+        return {"message": "API agent actions endpoint", "total_actions": 0, "error": str(e)}
+
+@app.get("/api/mcp/actions/stats")
+async def api_mcp_stats(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT status, COUNT(*) as count FROM agent_actions 
+            WHERE action_type LIKE 'mcp_%' GROUP BY status
+        """)).fetchall()
+        
+        return {
+            "stats": [{"status": row[0], "count": row[1]} for row in result],
+            "total": sum(row[1] for row in result),
+            "api_path": True
+        }
+    except Exception as e:
+        return {"stats": [], "error": str(e)}
+
+@app.post("/api/mcp/actions/ingest")
+async def api_mcp_ingest(request: Request, db: Session = Depends(get_db)):
+    try:
+        data = await request.json()
+        agent_id = data.get("agent_id", "unknown")
+        action = data.get("action", "unknown")
+        resource = data.get("resource", "unknown")
+        
+        risk_score = 30.0
+        if any(term in action.lower() for term in ["delete", "write", "modify"]):
+            risk_score += 40.0
+        if any(term in resource.lower() for term in ["database", "config", "secret"]):
+            risk_score += 30.0
+        risk_score = min(100.0, risk_score)
+        
+        result = db.execute(text("""
+            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved)
+            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved)
+            RETURNING id
+        """), {
+            'agent_id': agent_id,
+            'action_type': f"mcp_{action}",
+            'description': f"API MCP: {action} on {resource}",
+            'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
+            'risk_score': risk_score,
+            'status': "approved" if risk_score < 60 else "pending",
+            'approved': risk_score < 60
+        })
+        
+        action_id = result.fetchone()[0]
+        db.commit()
+        
+        return {
+            "action_id": action_id,
+            "status": "success",
+            "result": "approved" if risk_score < 60 else "requires_approval",
+            "risk_score": risk_score,
+            "api_path": True
+        }
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e), "status": "failed"}
+
