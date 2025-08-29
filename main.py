@@ -3755,3 +3755,19 @@ async def enterprise_mcp_api_stats(db: Session = Depends(get_db)):
         }
     except Exception as e:
         return {"stats": [], "error": str(e)}
+
+@app.get("/admin/db-diagnostic")
+async def db_diagnostic(db: Session = Depends(get_db)):
+    try:
+        result = db.execute(text("""
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)).fetchall()
+        
+        return {
+            "database_type": "postgresql",
+            "tables": [row[0] for row in result],
+            "total_tables": len(result)
+        }
+    except Exception as e:
+        return {"error": str(e), "database_url_detected": os.environ.get("DATABASE_URL", "not_found")}
