@@ -3771,3 +3771,30 @@ async def db_diagnostic(db: Session = Depends(get_db)):
         }
     except Exception as e:
         return {"error": str(e), "database_url_detected": os.environ.get("DATABASE_URL", "not_found")}
+
+@app.post("/admin/run-db-migration")
+async def run_db_migration():
+    """Enterprise database migration endpoint - USE WITH EXTREME CAUTION"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["python", "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            cwd="/app"
+        )
+        
+        if result.returncode == 0:
+            return {
+                "status": "success",
+                "output": result.stdout,
+                "message": "Database migration completed successfully"
+            }
+        else:
+            return {
+                "status": "error", 
+                "error": result.stderr,
+                "output": result.stdout
+            }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}

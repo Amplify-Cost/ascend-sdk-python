@@ -1,38 +1,43 @@
-"""add_mcp_data_backbone_tables
+"""create_agent_actions_table
 
-Revision ID: 897f107c5458
-Revises: de9b00ce321e
-Create Date: 2025-08-28 12:00:00.000000
+Revision ID: $(date +%s)
+Revises: 
+Create Date: $(date)
+
 """
-from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = '897f107c5458'
-down_revision: Union[str, None] = 'de9b00ce321e'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+# revision identifiers
+revision = '$(date +%s)'
+down_revision = None
+branch_labels = None
+depends_on = None
 
-def upgrade() -> None:
-    op.add_column('agent_actions', sa.Column('policy_id', sa.Text(), nullable=True))
-    op.add_column('agent_actions', sa.Column('result', sa.String(), nullable=True))
-    op.add_column('agent_actions', sa.Column('metadata', postgresql.JSONB(), nullable=True))
-    
-    op.execute("""
-        CREATE TABLE IF NOT EXISTS approvals (
-            id SERIAL PRIMARY KEY,
-            agent_action_id INTEGER REFERENCES agent_actions(id),
-            approver_id INTEGER REFERENCES users(id),
-            status TEXT DEFAULT 'pending',
-            rationale TEXT,
-            created_at TIMESTAMPTZ DEFAULT now(),
-            decided_at TIMESTAMPTZ
-        )
-    """)
+def upgrade():
+    op.create_table('agent_actions',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('agent_id', sa.String(255), nullable=False),
+        sa.Column('action_type', sa.String(100), nullable=False),
+        sa.Column('description', sa.Text(), nullable=True),
+        sa.Column('risk_level', sa.String(20), nullable=True, default='medium'),
+        sa.Column('risk_score', sa.Float(), nullable=True, default=50.0),
+        sa.Column('status', sa.String(20), nullable=True, default='pending'),
+        sa.Column('approved', sa.Boolean(), nullable=True, default=False),
+        sa.Column('user_id', sa.Integer(), nullable=True),
+        sa.Column('tool_name', sa.String(100), nullable=True),
+        sa.Column('metadata', postgresql.JSONB(), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True, default=sa.func.current_timestamp()),
+        sa.Column('updated_at', sa.DateTime(), nullable=True, default=sa.func.current_timestamp()),
+        sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('ix_agent_actions_agent_id', 'agent_actions', ['agent_id'])
+    op.create_index('ix_agent_actions_action_type', 'agent_actions', ['action_type'])
+    op.create_index('ix_agent_actions_status', 'agent_actions', ['status'])
 
-def downgrade() -> None:
-    op.execute("DROP TABLE IF EXISTS approvals")
-    op.drop_column('agent_actions', 'metadata')
-    op.drop_column('agent_actions', 'result') 
-    op.drop_column('agent_actions', 'policy_id')
+def downgrade():
+    op.drop_index('ix_agent_actions_status', table_name='agent_actions')
+    op.drop_index('ix_agent_actions_action_type', table_name='agent_actions')
+    op.drop_index('ix_agent_actions_agent_id', table_name='agent_actions')
+    op.drop_table('agent_actions')
