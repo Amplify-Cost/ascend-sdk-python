@@ -4,14 +4,14 @@
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole", 
+  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
   "taskRoleArn": "arn:aws:iam::110948415588:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "migration",
       "image": "PLACEHOLDER_IMAGE",
       "essential": true,
-      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app python -c 'from sqlalchemy import create_engine, text; import os; engine = create_engine(os.environ[\"DATABASE_URL\"]); conn = engine.connect(); conn.execute(text(\"DROP TABLE IF EXISTS alembic_version\")); conn.commit(); conn.close()' && PYTHONPATH=/app alembic upgrade head"],
+      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app python -c 'from sqlalchemy import create_engine, text; import os; engine = create_engine(os.environ[\"DATABASE_URL\"]); conn = engine.connect(); conn.execute(text(\"DROP TABLE IF EXISTS alembic_version CASCADE\")); conn.execute(text(\"DROP TABLE IF EXISTS agent_actions CASCADE\")); conn.execute(text(\"CREATE TABLE agent_actions (id SERIAL PRIMARY KEY, agent_id VARCHAR(255) NOT NULL, action_type VARCHAR(100) NOT NULL, description TEXT, risk_level VARCHAR(20), risk_score FLOAT, status VARCHAR(20), approved BOOLEAN, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, user_id INTEGER)\")); conn.commit(); conn.close(); print(\"Database reset complete\")' && PYTHONPATH=/app alembic upgrade head"],
       "environment": [],
       "secrets": [
         {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/DB_URL-RuZYGO"},
