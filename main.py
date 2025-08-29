@@ -3832,3 +3832,29 @@ async def check_migration_status(db: Session = Depends(get_db)):
             
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/admin/initialize-alembic-baseline")
+async def initialize_alembic_baseline(db: Session = Depends(get_db)):
+    try:
+        # Create alembic_version table and mark current state as baseline
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS alembic_version (
+                version_num VARCHAR(32) NOT NULL,
+                CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+            )
+        """))
+        
+        # Mark current state as baseline (no migration applied yet)
+        db.execute(text("DELETE FROM alembic_version"))
+        
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Alembic baseline initialized",
+            "next_step": "Ready to apply agent_actions migration"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
