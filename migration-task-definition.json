@@ -1,24 +1,24 @@
 {
-  "family": "owkai-pilot-migration", 
+  "family": "owkai-pilot-migration",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
-  "memory": "512", 
-  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole", 
   "taskRoleArn": "arn:aws:iam::110948415588:role/ecsTaskRole",
   "containerDefinitions": [
     {
       "name": "migration",
-      "image": "PLACEHOLDER_IMAGE", 
+      "image": "PLACEHOLDER_IMAGE",
       "essential": true,
-      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app python -c \"from sqlalchemy import create_engine, text; import os; engine = create_engine(os.environ['DATABASE_URL']); with engine.connect() as conn: conn.execute(text('DROP TABLE IF EXISTS alembic_version')); conn.commit()\" && PYTHONPATH=/app alembic upgrade head"],
+      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app python -c 'from sqlalchemy import create_engine, text; import os; engine = create_engine(os.environ[\"DATABASE_URL\"]); conn = engine.connect(); conn.execute(text(\"DROP TABLE IF EXISTS alembic_version\")); conn.commit(); conn.close()' && PYTHONPATH=/app alembic upgrade head"],
       "environment": [],
       "secrets": [
         {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/DB_URL-RuZYGO"},
         {"name": "SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/JWT_SECRET-G7tAIB"}
       ],
       "logConfiguration": {
-        "logDriver": "awslogs", 
+        "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/owkai-pilot-migration",
           "awslogs-region": "us-east-2",
