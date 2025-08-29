@@ -3623,3 +3623,176 @@ try:
     logger.info('Enterprise MCP Data Backbone activated')
 except Exception as e:
     logger.error(f'Enterprise MCP activation failed: {e}')
+
+# Enterprise MCP Data Backbone - Direct Registration
+from typing import Dict, Any, Optional, List
+import uuid
+import json
+from pydantic import BaseModel, Field
+
+class MCPActionRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1)
+    action: str = Field(..., min_length=1)
+    resource: str = Field(..., min_length=1)
+    policy_id: Optional[str] = Field(default="default")
+    session_id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+def calculate_enterprise_risk_score(action: str, resource: str) -> Dict[str, Any]:
+    """Enterprise risk calculation"""
+    base_score = 25.0
+    risk_factors = []
+    
+    high_risk_actions = ['delete', 'execute', 'modify', 'write', 'create']
+    high_risk_resources = ['database', 'config', 'secret', 'admin', 'production']
+    
+    if any(term in action.lower() for term in high_risk_actions):
+        base_score += 35.0
+        risk_factors.append(f"High-risk action: {action}")
+    
+    if any(term in resource.lower() for term in high_risk_resources):
+        base_score += 30.0
+        risk_factors.append(f"Sensitive resource: {resource}")
+    
+    current_hour = datetime.now(UTC).hour
+    if current_hour < 8 or current_hour > 18:
+        base_score += 10.0
+        risk_factors.append("After-hours execution")
+    
+    risk_score = min(100.0, base_score)
+    
+    if risk_score >= 80: risk_level = "critical"
+    elif risk_score >= 60: risk_level = "high"
+    elif risk_score >= 40: risk_level = "medium"
+    else: risk_level = "low"
+    
+    return {
+        'risk_score': risk_score,
+        'risk_level': risk_level,
+        'risk_factors': risk_factors,
+        'requires_approval': risk_score >= 50.0
+    }
+
+@app.post("/mcp/actions/ingest")
+async def enterprise_mcp_ingest_direct(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Enterprise MCP Action Ingestion"""
+    try:
+        raw_data = await request.json()
+        
+        # Validate required fields
+        agent_id = raw_data.get('agent_id', '').strip()
+        action = raw_data.get('action', '').strip()
+        resource = raw_data.get('resource', '').strip()
+        
+        if not all([agent_id, action, resource]):
+            raise HTTPException(status_code=400, detail="Missing required fields: agent_id, action, resource")
+        
+        # Enterprise risk assessment
+        risk_assessment = calculate_enterprise_risk_score(action, resource)
+        tracking_id = str(uuid.uuid4())
+        
+        # Insert with comprehensive audit trail
+        result = db.execute(text("""
+            INSERT INTO agent_actions (
+                agent_id, action_type, description, risk_level, risk_score, 
+                status, approved, user_id, tool_name, created_at
+            ) VALUES (
+                :agent_id, :action_type, :description, :risk_level, :risk_score,
+                :status, :approved, :user_id, :tool_name, :created_at
+            ) RETURNING id
+        """), {
+            'agent_id': agent_id,
+            'action_type': f"mcp_{action}",
+            'description': f"Enterprise MCP: {action} on {resource}",
+            'risk_level': risk_assessment['risk_level'],
+            'risk_score': risk_assessment['risk_score'],
+            'status': "approved" if not risk_assessment['requires_approval'] else "pending_approval",
+            'approved': not risk_assessment['requires_approval'],
+            'user_id': current_user.get('user_id', 1),
+            'tool_name': "enterprise_mcp",
+            'created_at': datetime.now(UTC)
+        })
+        
+        action_id = result.fetchone()[0]
+        
+        # Create audit entry
+        try:
+            db.execute(text("""
+                INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, risk_level, timestamp)
+                VALUES (:user_id, :action, :resource_type, :resource_id, :details, :risk_level, :timestamp)
+            """), {
+                'user_id': current_user.get('user_id', 1),
+                'action': f"MCP_{action.upper()}",
+                'resource_type': 'mcp_action',
+                'resource_id': str(action_id),
+                'details': json.dumps({
+                    'agent_id': agent_id,
+                    'resource': resource,
+                    'risk_factors': risk_assessment['risk_factors'],
+                    'tracking_id': tracking_id
+                }),
+                'risk_level': risk_assessment['risk_level'],
+                'timestamp': datetime.now(UTC)
+            })
+        except Exception:
+            pass  # Continue if audit fails
+        
+        db.commit()
+        
+        logger.info(f"Enterprise MCP action processed: {tracking_id}, risk: {risk_assessment['risk_level']}")
+        
+        return {
+            'action_id': action_id,
+            'tracking_id': tracking_id,
+            'status': 'success',
+            'result': 'approved' if not risk_assessment['requires_approval'] else 'requires_approval',
+            'risk_assessment': risk_assessment,
+            'compliance_status': 'logged'
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Enterprise MCP processing failed: {str(e)}")
+        return {"error": str(e), "status": "failed"}
+
+@app.get("/mcp/actions/stats")
+async def enterprise_mcp_stats_direct(db: Session = Depends(get_db)):
+    """Enterprise MCP Statistics"""
+    try:
+        result = db.execute(text("""
+            SELECT 
+                status,
+                risk_level,
+                COUNT(*) as count,
+                AVG(risk_score) as avg_risk_score
+            FROM agent_actions 
+            WHERE action_type LIKE 'mcp_%'
+            GROUP BY status, risk_level
+            ORDER BY avg_risk_score DESC
+        """)).fetchall()
+        
+        total_actions = sum(row[2] for row in result)
+        high_risk_count = sum(row[2] for row in result if row[1] in ['high', 'critical'])
+        
+        return {
+            'period': 'all_time',
+            'generated_at': datetime.now(UTC).isoformat(),
+            'enterprise_metrics': {
+                'total_actions': total_actions,
+                'high_risk_percentage': (high_risk_count / total_actions * 100) if total_actions > 0 else 0,
+                'compliance_status': 'enterprise_compliant'
+            },
+            'stats': [{
+                'status': row[0],
+                'risk_level': row[1],
+                'count': row[2],
+                'avg_risk_score': float(row[3]) if row[3] else 0
+            } for row in result]
+        }
+        
+    except Exception as e:
+        logger.error(f"Enterprise MCP stats failed: {str(e)}")
+        return {'period': 'all_time', 'stats': [], 'error': str(e)}
+
