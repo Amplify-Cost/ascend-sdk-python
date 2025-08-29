@@ -3798,3 +3798,37 @@ async def run_db_migration():
             }
     except Exception as e:
         return {"status": "error", "error": str(e)}
+
+@app.get("/admin/check-migration-status")
+async def check_migration_status(db: Session = Depends(get_db)):
+    try:
+        # Check if alembic_version table exists
+        version_check = db.execute(text("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'alembic_version'
+            )
+        """)).fetchone()[0]
+        
+        if version_check:
+            # Get current migration version
+            current_version = db.execute(text("""
+                SELECT version_num FROM alembic_version LIMIT 1
+            """)).fetchone()
+            
+            return {
+                "alembic_initialized": True,
+                "current_migration": current_version[0] if current_version else None,
+                "database_tables": ["sessions", "audit", "roles", "users"]
+            }
+        else:
+            return {
+                "alembic_initialized": False,
+                "current_migration": None,
+                "database_tables": ["sessions", "audit", "roles", "users"],
+                "note": "Database exists but alembic version tracking not initialized"
+            }
+            
+    except Exception as e:
+        return {"error": str(e)}
