@@ -1,0 +1,51 @@
+{
+  "family": "owkai-pilot-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "110948415588.dkr.ecr.us-east-2.amazonaws.com/owkai-pilot-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ENVIRONMENT",
+          "value": "production"
+        },
+        {
+          "name": "AWS_REGION", 
+          "value": "us-east-2"
+        },
+        {
+          "name": "SECRET_KEY",
+          "value": "***REMOVED***"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://owkai_admin:1YLIthN_fWt4H+&yJ<gl1b5}iDFQ4nAj@owkai-pilot-db.cpwaouykib7n.us-east-2.rds.amazonaws.com:5432/owkai_pilot"
+        },
+        {
+          "name": "ALGORITHM",
+          "value": "HS256"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/owkai-pilot-backend",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

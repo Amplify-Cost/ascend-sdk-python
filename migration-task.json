@@ -1,0 +1,31 @@
+{
+    "family": "owkai-pilot-migration",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
+    "taskRoleArn": "arn:aws:iam::110948415588:role/owkai-pilot-task-role",
+    "containerDefinitions": [
+        {
+            "name": "migration",
+            "image": "your-ecr-repo/owkai-pilot-backend:latest",
+            "essential": true,
+            "command": ["alembic", "upgrade", "head"],
+            "environment": [
+                {
+                    "name": "DATABASE_URL",
+                    "value": "postgresql://user:pass@rds-endpoint/dbname"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/owkai-pilot",
+                    "awslogs-region": "us-east-2",
+                    "awslogs-stream-prefix": "migration"
+                }
+            }
+        }
+    ]
+}
