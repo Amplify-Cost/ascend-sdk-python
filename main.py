@@ -426,7 +426,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 # ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-@app.get("/agent-activity")
+@app.get("/agent-actions")
 async def get_agent_activity():
     """Get agent activity data"""
     try:
@@ -1122,7 +1122,7 @@ async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db),
         logger.error(f"Enterprise MCP processing failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Enterprise MCP processing failed: {str(e)}")
 
-@app.get("/agents/activity")
+@app.get("/agent-actions/activity")
 async def enterprise_agents_activity(limit: int = 50, db: Session = Depends(get_db)):
     """Enhanced agents activity feed with MCP integration"""
     try:
