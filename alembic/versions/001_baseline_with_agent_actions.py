@@ -14,7 +14,7 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    # Create agent_actions table (other tables already exist)
+    # Create agent_actions table with all required columns for production pilot
     op.create_table('agent_actions',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('agent_id', sa.String(255), nullable=False),
@@ -24,6 +24,8 @@ def upgrade():
         sa.Column('risk_score', sa.Float(), nullable=True),
         sa.Column('status', sa.String(20), nullable=True),
         sa.Column('approved', sa.Boolean(), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=True, server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.Column('user_id', sa.Integer(), nullable=True),
         sa.PrimaryKeyConstraint('id')
     )
 
