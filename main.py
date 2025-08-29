@@ -3757,16 +3757,3 @@ async def enterprise_mcp_api_stats(db: Session = Depends(get_db)):
         return {"stats": [], "error": str(e)}
 
 
-@app.get("/admin/export-user-data")
-async def export_user_data(db: Session = Depends(get_db)):
-    try:
-        users = db.execute(text("SELECT * FROM users")).fetchall()
-        sessions = db.execute(text("SELECT * FROM sessions")).fetchall()
-        
-        return {
-            "users": [dict(row._mapping) for row in users],
-            "sessions": [dict(row._mapping) for row in sessions],
-            "export_timestamp": datetime.utcnow().isoformat()
-        }
-    except Exception as e:
-        return {"error": str(e)}
