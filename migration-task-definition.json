@@ -1,0 +1,30 @@
+{
+  "family": "owkai-pilot-migration",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::110948415588:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "migration",
+      "image": "PLACEHOLDER_IMAGE",
+      "essential": true,
+      "command": ["python", "-m", "alembic", "upgrade", "head"],
+      "environment": [],
+      "secrets": [
+        {"name": "DATABASE_URL", "valueFrom": "DATABASE_URL"},
+        {"name": "SECRET_KEY", "valueFrom": "SECRET_KEY"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/owkai-pilot-migration",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "migration"
+        }
+      }
+    }
+  ]
+}
