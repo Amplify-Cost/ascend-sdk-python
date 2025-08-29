@@ -3608,3 +3608,10 @@ except Exception as e:
     print(f"=== DEBUG: JWT manager failed: {e} ===")
 
         return {"error": str(e)}
+
+# Import MCP endpoints
+from mcp_endpoints import ingest_mcp_action, get_agents_activity
+
+# Add MCP routes
+app.post("/mcp/actions/ingest")(ingest_mcp_action)
+app.get("/agents/activity")(get_agents_activity)
