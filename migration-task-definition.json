@@ -11,7 +11,7 @@
       "name": "migration",
       "image": "PLACEHOLDER_IMAGE",
       "essential": true,
-      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app alembic upgrade head"],
+      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app alembic downgrade base && PYTHONPATH=/app alembic upgrade head"],
       "environment": [],
       "secrets": [
         {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/DB_URL-RuZYGO"},
