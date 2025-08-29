@@ -1,4 +1,3 @@
-import json
 # main.py - Complete original file with only auth router fixes
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
@@ -27,7 +26,7 @@ from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics_routes import router as analytics_router
 from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
-from routes.mcp_governance_routes import router as mcp_governance_router
+#from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
 # Enterprise health module with graceful fallback
 try:
@@ -338,7 +337,7 @@ app.include_router(auth_routes_router, prefix="/auth")
 #app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 #app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 #app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
-app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
+#app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
 # app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
 
 # Include routers with enterprise fallback handling
@@ -996,6 +995,218 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
         return []
 
 # ... Rest of your routes (agent-actions, admin fixes, submission, approval/reject, sample data, health check, main) preserved exactly as in your original 790-line file ...
+
+# ==================== ENTERPRISE MCP DATA BACKBONE ====================
+# Enterprise-grade MCP action ingestion and governance
+# Maintains full audit trail and compliance with existing enterprise features
+
+@app.post("/mcp/actions/ingest")
+async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Enterprise MCP Action Ingestion with full audit trail"""
+    try:
+        data = await request.json()
+        
+        # Enterprise validation
+        agent_id = data.get("agent_id", "").strip()
+        action = data.get("action", "").strip() 
+        resource = data.get("resource", "").strip()
+        
+        if not all([agent_id, action, resource]):
+            raise HTTPException(status_code=400, detail="Enterprise validation failed: agent_id, action, and resource are required")
+        
+        # Enterprise risk assessment
+        risk_score = 30.0
+        risk_factors = []
+        
+        high_risk_actions = ['delete', 'execute', 'modify', 'write', 'create']
+        high_risk_resources = ['database', 'config', 'secret', 'admin', 'production', 'prod']
+        
+        if any(term in action.lower() for term in high_risk_actions):
+            risk_score += 35.0
+            risk_factors.append(f"High-risk action: {action}")
+            
+        if any(term in resource.lower() for term in high_risk_resources):
+            risk_score += 30.0
+            risk_factors.append(f"Sensitive resource: {resource}")
+            
+        # Time-based risk (after hours)
+        current_hour = datetime.now(UTC).hour
+        if current_hour < 8 or current_hour > 18:
+            risk_score += 10.0
+            risk_factors.append("After-hours execution")
+            
+        risk_score = min(100.0, risk_score)
+        
+        # Determine risk level and approval requirements
+        if risk_score >= 80: risk_level = "critical"
+        elif risk_score >= 60: risk_level = "high" 
+        elif risk_score >= 40: risk_level = "medium"
+        else: risk_level = "low"
+        
+        requires_approval = risk_score >= 50.0
+        
+        # Insert into existing agent_actions table (maintains compatibility)
+        result = db.execute(text("""
+            INSERT INTO agent_actions (
+                agent_id, action_type, description, risk_level, risk_score, 
+                status, approved, user_id, tool_name, created_at
+            ) VALUES (
+                :agent_id, :action_type, :description, :risk_level, :risk_score,
+                :status, :approved, :user_id, :tool_name, :created_at
+            ) RETURNING id
+        """), {
+            'agent_id': agent_id,
+            'action_type': f"mcp_{action}",
+            'description': f"Enterprise MCP: {action} on {resource}",
+            'risk_level': risk_level,
+            'risk_score': risk_score,
+            'status': "approved" if not requires_approval else "pending_approval",
+            'approved': not requires_approval,
+            'user_id': current_user.get('user_id', 1),
+            'tool_name': 'enterprise_mcp',
+            'created_at': datetime.now(UTC)
+        })
+        
+        action_id = result.fetchone()[0]
+        
+        # Enterprise audit logging (integrates with existing audit system)
+        try:
+            db.execute(text("""
+                INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, risk_level, timestamp)
+                VALUES (:user_id, :action, :resource_type, :resource_id, :details, :risk_level, :timestamp)
+            """), {
+                'user_id': current_user.get('user_id', 1),
+                'action': f"MCP_{action.upper()}",
+                'resource_type': 'mcp_action',
+                'resource_id': str(action_id),
+                'details': json.dumps({
+                    'agent_id': agent_id,
+                    'resource': resource,
+                    'risk_factors': risk_factors,
+                    'policy_id': data.get('policy_id', 'default')
+                }),
+                'risk_level': risk_level,
+                'timestamp': datetime.now(UTC)
+            })
+        except Exception as audit_error:
+            logger.warning(f"Enterprise audit logging failed: {audit_error}")
+        
+        db.commit()
+        
+        # Enterprise response format
+        response = {
+            'action_id': action_id,
+            'status': 'success',
+            'result': 'approved' if not requires_approval else 'requires_approval',
+            'risk_assessment': {
+                'risk_score': risk_score,
+                'risk_level': risk_level,
+                'risk_factors': risk_factors,
+                'requires_approval': requires_approval
+            },
+            'compliance_status': 'logged',
+            'enterprise_metadata': {
+                'processed_by': current_user.get('email', 'system'),
+                'timestamp': datetime.now(UTC).isoformat(),
+                'environment': 'production'
+            }
+        }
+        
+        logger.info(f"Enterprise MCP action processed: {action_id}, risk: {risk_level}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Enterprise MCP processing failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Enterprise MCP processing failed: {str(e)}")
+
+@app.get("/agents/activity")
+async def enterprise_agents_activity(limit: int = 50, db: Session = Depends(get_db)):
+    """Enhanced agents activity feed with MCP integration"""
+    try:
+        result = db.execute(text("""
+            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
+                   status, created_at, approved, user_id, tool_name
+            FROM agent_actions 
+            ORDER BY created_at DESC NULLS LAST, id DESC 
+            LIMIT :limit
+        """), {'limit': limit}).fetchall()
+        
+        activities = []
+        for row in result:
+            activities.append({
+                'id': row[0],
+                'agent_id': row[1] or 'unknown',
+                'action_type': row[2] or 'action',
+                'description': row[3] or 'No description',
+                'risk_level': row[4] or 'medium',
+                'risk_score': float(row[5]) if row[5] else 50.0,
+                'result': 'approved' if row[8] else 'pending',
+                'policy_id': 'mcp_default' if row[2] and 'mcp_' in row[2] else 'default',
+                'created_at': row[7].isoformat() if row[7] else datetime.now(UTC).isoformat(),
+                'status': row[6] or 'pending',
+                'tool_name': row[10] or 'unknown',
+                'is_mcp_action': row[2] and 'mcp_' in row[2] if row[2] else False
+            })
+        
+        return activities
+        
+    except Exception as e:
+        logger.error(f"Enterprise activity feed failed: {str(e)}")
+        return []
+
+@app.get("/mcp/actions/stats")
+async def enterprise_mcp_stats(db: Session = Depends(get_db)):
+    """Enterprise MCP statistics with business intelligence"""
+    try:
+        # Get MCP-specific statistics
+        result = db.execute(text("""
+            SELECT 
+                status,
+                risk_level,
+                COUNT(*) as count,
+                AVG(risk_score) as avg_risk_score,
+                MAX(created_at) as latest_action
+            FROM agent_actions 
+            WHERE action_type LIKE 'mcp_%'
+            GROUP BY status, risk_level
+            ORDER BY avg_risk_score DESC
+        """)).fetchall()
+        
+        # Calculate enterprise metrics
+        total_actions = sum(row[2] for row in result)
+        high_risk_actions = sum(row[2] for row in result if row[1] in ['high', 'critical'])
+        approved_actions = sum(row[2] for row in result if row[0] == 'approved')
+        
+        return {
+            'period': 'all_time',
+            'generated_at': datetime.now(UTC).isoformat(),
+            'enterprise_summary': {
+                'total_mcp_actions': total_actions,
+                'high_risk_percentage': (high_risk_actions / total_actions * 100) if total_actions > 0 else 0,
+                'approval_rate': (approved_actions / total_actions * 100) if total_actions > 0 else 0,
+                'compliance_status': 'enterprise_compliant'
+            },
+            'stats': [{
+                'result': row[0],
+                'risk_level': row[1], 
+                'count': row[2],
+                'avg_risk_score': float(row[3]) if row[3] else 0,
+                'latest_action': row[4].isoformat() if row[4] else None
+            } for row in result]
+        }
+        
+    except Exception as e:
+        logger.error(f"Enterprise MCP stats failed: {str(e)}")
+        return {
+            'period': 'all_time',
+            'enterprise_summary': {'total_mcp_actions': 0},
+            'stats': [],
+            'error': str(e)
+        }
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -1782,203 +1993,6 @@ async def root():
         "status": "operational",
         "enterprise_ready": True
     }
-
-# MCP Data Backbone Endpoints
-@app.post("/mcp/actions/ingest")
-async def ingest_mcp_action(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Record MCP action and create approval request if sensitive"""
-    try:
-        data = await request.json()
-        
-        action = data.get("action", "")
-        resource = data.get("resource", "")
-        risk_score = 30.0
-        
-        if any(term in action.lower() for term in ["delete", "write", "modify"]):
-            risk_score += 40.0
-        if any(term in resource.lower() for term in ["database", "config", "secret"]):
-            risk_score += 30.0
-            
-        risk_score = min(100.0, risk_score)
-        
-        result = db.execute(text("""
-            INSERT INTO agent_actions (
-                agent_id, action_type, description, risk_level, risk_score,
-                policy_id, result, metadata, status
-            ) VALUES (
-                :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :policy_id, :result, :metadata, :status
-            ) RETURNING id
-        """), {
-            "agent_id": data.get("agent_id", "unknown"),
-            "action_type": data.get("action", "mcp_action"),
-            "description": f"MCP: {resource}",
-            "risk_level": "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
-            "risk_score": risk_score,
-            "policy_id": data.get("policy_id", "mcp_default"),
-            "result": "approved" if risk_score < 40 else "pending_approval",
-            "metadata": json.dumps(data),
-            "status": "pending" if risk_score > 40 else "approved"
-        })
-        
-        action_id = result.fetchone()[0]
-        
-        if risk_score > 40:
-            db.execute(text("""
-                INSERT INTO approvals (agent_action_id, status)
-                VALUES (:action_id, 'pending')
-            """), {"action_id": action_id})
-        
-        db.commit()
-        
-        return {
-            "action_id": action_id,
-            "result": "approved" if risk_score < 40 else "requires_approval",
-            "risk_score": risk_score,
-            "status": "success"
-        }
-        
-    except Exception as e:
-        db.rollback()
-        logger.error(f"MCP ingest failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to ingest MCP action: {str(e)}")
-
-@app.get("/agents/activity")
-async def get_agents_activity(limit: int = 50, db: Session = Depends(get_db)):
-    """Get recent agent activity"""
-    try:
-        result = db.execute(text("""
-            SELECT id, agent_id, action_type, description, risk_level, 
-                   risk_score, result, policy_id, created_at, status
-            FROM agent_actions 
-            ORDER BY created_at DESC NULLS LAST, id DESC
-            LIMIT :limit
-        """), {"limit": limit}).fetchall()
-        
-        return [
-            {
-                "id": row[0],
-                "agent_id": row[1] or "unknown",
-                "action_type": row[2] or "action",
-                "description": row[3] or "No description",
-                "risk_level": row[4] or "medium",
-                "risk_score": float(row[5]) if row[5] else 50.0,
-                "result": row[6] or "pending",
-                "policy_id": row[7] or "default",
-                "created_at": row[8].isoformat() if row[8] else datetime.now(UTC).isoformat(),
-                "status": row[9] or "pending"
-            } for row in result
-        ]
-        
-    except Exception as e:
-        logger.error(f"Get activity failed: {e}")
-        return []
-
-@app.get("/mcp/actions/stats")
-async def get_mcp_stats(db: Session = Depends(get_db)):
-    """Get MCP action statistics"""
-    try:
-        result = db.execute(text("""
-            SELECT 
-                COALESCE(result, 'unknown') as result,
-                COALESCE(policy_id, 'default') as policy_id,
-                COUNT(*) as count
-            FROM agent_actions 
-            WHERE created_at >= NOW() - INTERVAL '24 hours' OR created_at IS NULL
-            GROUP BY result, policy_id
-        """)).fetchall()
-        
-        return {
-            "period": "24h",
-            "stats": [
-                {
-                    "result": row[0],
-                    "policy_id": row[1], 
-                    "count": row[2]
-                } for row in result
-            ]
-        }
-        
-    except Exception as e:
-        logger.error(f"Get MCP stats failed: {e}")
-        return {"period": "24h", "stats": []}
-
-@app.get("/mcp/approvals/queue")
-async def get_approval_queue(db: Session = Depends(get_db)):
-    """Get pending approvals"""
-    try:
-        result = db.execute(text("""
-            SELECT a.id, a.agent_action_id, a.status, a.created_at,
-                   aa.agent_id, aa.action_type, aa.description, aa.risk_score
-            FROM approvals a
-            JOIN agent_actions aa ON a.agent_action_id = aa.id  
-            WHERE a.status = 'pending'
-            ORDER BY aa.risk_score DESC, a.created_at ASC
-        """)).fetchall()
-        
-        return [
-            {
-                "approval_id": row[0],
-                "action_id": row[1],
-                "status": row[2],
-                "created_at": row[3].isoformat() if row[3] else None,
-                "agent_id": row[4] or "unknown",
-                "action_type": row[5] or "action",
-                "description": row[6] or "No description", 
-                "risk_score": float(row[7]) if row[7] else 50.0
-            } for row in result
-        ]
-        
-    except Exception as e:
-        logger.error(f"Get approval queue failed: {e}")
-        return []
-
-@app.post("/mcp/approvals/{approval_id}/decision")
-async def make_approval_decision(approval_id: int, request: Request, db: Session = Depends(get_db)):
-    """Make approval decision"""
-    try:
-        data = await request.json()
-        decision = data.get("decision", "deny")
-        rationale = data.get("rationale", "")
-        
-        if decision not in ["approve", "deny", "escalate"]:
-            raise HTTPException(status_code=400, detail="Invalid decision")
-        
-        status_map = {"approve": "approved", "deny": "denied", "escalate": "escalated"}
-        new_status = status_map[decision]
-        
-        db.execute(text("""
-            UPDATE approvals 
-            SET status = :status, rationale = :rationale, decided_at = now()
-            WHERE id = :approval_id
-        """), {
-            "approval_id": approval_id,
-            "status": new_status,
-            "rationale": rationale
-        })
-        
-        db.execute(text("""
-            UPDATE agent_actions 
-            SET result = :result, status = :status
-            WHERE id = (SELECT agent_action_id FROM approvals WHERE id = :approval_id)
-        """), {
-            "result": new_status,
-            "status": new_status,
-            "approval_id": approval_id
-        })
-        
-        db.commit()
-        
-        return {
-            "approval_id": approval_id,
-            "decision": decision,
-            "status": "completed"
-        }
-        
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Approval decision failed: {e}")
-        raise HTTPException(status_code=500, detail="Failed to process decision")
 
 @app.get("/health")
 async def health_check():
@@ -3609,190 +3623,67 @@ except Exception as e:
 
         return {"error": str(e)}
 
-# Import MCP endpoints
-from mcp_endpoints import ingest_mcp_action, get_agents_activity
-
-# Add MCP routes
-app.post("/mcp/actions/ingest")(ingest_mcp_action)
-app.get("/agents/activity")(get_agents_activity)
-
-# Enterprise MCP Data Backbone Integration
-try:
-    from enterprise_mcp_service import create_enterprise_mcp_endpoints
-    create_enterprise_mcp_endpoints(app, Depends(get_db), Depends(get_current_user))
-    logger.info('Enterprise MCP Data Backbone activated')
-except Exception as e:
-    logger.error(f'Enterprise MCP activation failed: {e}')
-
-# Enterprise MCP Data Backbone - Direct Registration
-from typing import Dict, Any, Optional, List
-import uuid
-import json
-from pydantic import BaseModel, Field
-
-class MCPActionRequest(BaseModel):
-    agent_id: str = Field(..., min_length=1)
-    action: str = Field(..., min_length=1)
-    resource: str = Field(..., min_length=1)
-    policy_id: Optional[str] = Field(default="default")
-    session_id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
-def calculate_enterprise_risk_score(action: str, resource: str) -> Dict[str, Any]:
-    """Enterprise risk calculation"""
-    base_score = 25.0
-    risk_factors = []
-    
-    high_risk_actions = ['delete', 'execute', 'modify', 'write', 'create']
-    high_risk_resources = ['database', 'config', 'secret', 'admin', 'production']
-    
-    if any(term in action.lower() for term in high_risk_actions):
-        base_score += 35.0
-        risk_factors.append(f"High-risk action: {action}")
-    
-    if any(term in resource.lower() for term in high_risk_resources):
-        base_score += 30.0
-        risk_factors.append(f"Sensitive resource: {resource}")
-    
-    current_hour = datetime.now(UTC).hour
-    if current_hour < 8 or current_hour > 18:
-        base_score += 10.0
-        risk_factors.append("After-hours execution")
-    
-    risk_score = min(100.0, base_score)
-    
-    if risk_score >= 80: risk_level = "critical"
-    elif risk_score >= 60: risk_level = "high"
-    elif risk_score >= 40: risk_level = "medium"
-    else: risk_level = "low"
-    
-    return {
-        'risk_score': risk_score,
-        'risk_level': risk_level,
-        'risk_factors': risk_factors,
-        'requires_approval': risk_score >= 50.0
-    }
-
-@app.post("/mcp/actions/ingest")
-async def enterprise_mcp_ingest_direct(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Enterprise MCP Action Ingestion"""
+# MCP Data Backbone - AWS ECS Compatible
+@app.post("/agent-actions/mcp-ingest")
+async def mcp_ingest_aws(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """MCP ingestion using existing agent-actions path pattern"""
     try:
-        raw_data = await request.json()
-        
-        # Validate required fields
-        agent_id = raw_data.get('agent_id', '').strip()
-        action = raw_data.get('action', '').strip()
-        resource = raw_data.get('resource', '').strip()
-        
-        if not all([agent_id, action, resource]):
-            raise HTTPException(status_code=400, detail="Missing required fields: agent_id, action, resource")
+        data = await request.json()
+        agent_id = data.get("agent_id", "unknown")
+        action = data.get("action", "unknown")
+        resource = data.get("resource", "unknown")
         
         # Enterprise risk assessment
-        risk_assessment = calculate_enterprise_risk_score(action, resource)
-        tracking_id = str(uuid.uuid4())
+        risk_score = 30.0
+        if any(term in action.lower() for term in ["delete", "write", "modify"]):
+            risk_score += 40.0
+        if any(term in resource.lower() for term in ["database", "config", "secret"]):
+            risk_score += 30.0
+        risk_score = min(100.0, risk_score)
         
-        # Insert with comprehensive audit trail
+        # Insert into database
         result = db.execute(text("""
-            INSERT INTO agent_actions (
-                agent_id, action_type, description, risk_level, risk_score, 
-                status, approved, user_id, tool_name, created_at
-            ) VALUES (
-                :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :status, :approved, :user_id, :tool_name, :created_at
-            ) RETURNING id
+            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved)
+            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved)
+            RETURNING id
         """), {
             'agent_id': agent_id,
             'action_type': f"mcp_{action}",
-            'description': f"Enterprise MCP: {action} on {resource}",
-            'risk_level': risk_assessment['risk_level'],
-            'risk_score': risk_assessment['risk_score'],
-            'status': "approved" if not risk_assessment['requires_approval'] else "pending_approval",
-            'approved': not risk_assessment['requires_approval'],
-            'user_id': current_user.get('user_id', 1),
-            'tool_name': "enterprise_mcp",
-            'created_at': datetime.now(UTC)
+            'description': f"AWS MCP: {action} on {resource}",
+            'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
+            'risk_score': risk_score,
+            'status': "approved" if risk_score < 60 else "pending",
+            'approved': risk_score < 60
         })
         
         action_id = result.fetchone()[0]
-        
-        # Create audit entry
-        try:
-            db.execute(text("""
-                INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, risk_level, timestamp)
-                VALUES (:user_id, :action, :resource_type, :resource_id, :details, :risk_level, :timestamp)
-            """), {
-                'user_id': current_user.get('user_id', 1),
-                'action': f"MCP_{action.upper()}",
-                'resource_type': 'mcp_action',
-                'resource_id': str(action_id),
-                'details': json.dumps({
-                    'agent_id': agent_id,
-                    'resource': resource,
-                    'risk_factors': risk_assessment['risk_factors'],
-                    'tracking_id': tracking_id
-                }),
-                'risk_level': risk_assessment['risk_level'],
-                'timestamp': datetime.now(UTC)
-            })
-        except Exception:
-            pass  # Continue if audit fails
-        
         db.commit()
         
-        logger.info(f"Enterprise MCP action processed: {tracking_id}, risk: {risk_assessment['risk_level']}")
-        
         return {
-            'action_id': action_id,
-            'tracking_id': tracking_id,
-            'status': 'success',
-            'result': 'approved' if not risk_assessment['requires_approval'] else 'requires_approval',
-            'risk_assessment': risk_assessment,
-            'compliance_status': 'logged'
+            "action_id": action_id,
+            "status": "success",
+            "result": "approved" if risk_score < 60 else "requires_approval",
+            "risk_score": risk_score,
+            "aws_deployment": True
         }
-        
-    except HTTPException:
-        raise
     except Exception as e:
         db.rollback()
-        logger.error(f"Enterprise MCP processing failed: {str(e)}")
         return {"error": str(e), "status": "failed"}
 
-@app.get("/mcp/actions/stats")
-async def enterprise_mcp_stats_direct(db: Session = Depends(get_db)):
-    """Enterprise MCP Statistics"""
+@app.get("/agent-actions/mcp-stats")
+async def mcp_stats_aws(db: Session = Depends(get_db)):
+    """MCP stats using existing agent-actions path pattern"""
     try:
         result = db.execute(text("""
-            SELECT 
-                status,
-                risk_level,
-                COUNT(*) as count,
-                AVG(risk_score) as avg_risk_score
-            FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%'
-            GROUP BY status, risk_level
-            ORDER BY avg_risk_score DESC
+            SELECT status, COUNT(*) as count FROM agent_actions 
+            WHERE action_type LIKE 'mcp_%' GROUP BY status
         """)).fetchall()
         
-        total_actions = sum(row[2] for row in result)
-        high_risk_count = sum(row[2] for row in result if row[1] in ['high', 'critical'])
-        
         return {
-            'period': 'all_time',
-            'generated_at': datetime.now(UTC).isoformat(),
-            'enterprise_metrics': {
-                'total_actions': total_actions,
-                'high_risk_percentage': (high_risk_count / total_actions * 100) if total_actions > 0 else 0,
-                'compliance_status': 'enterprise_compliant'
-            },
-            'stats': [{
-                'status': row[0],
-                'risk_level': row[1],
-                'count': row[2],
-                'avg_risk_score': float(row[3]) if row[3] else 0
-            } for row in result]
+            "stats": [{"status": row[0], "count": row[1]} for row in result],
+            "total": sum(row[1] for row in result),
+            "aws_deployment": True
         }
-        
     except Exception as e:
-        logger.error(f"Enterprise MCP stats failed: {str(e)}")
-        return {'period': 'all_time', 'stats': [], 'error': str(e)}
+        return {"stats": [], "error": str(e)}
 
