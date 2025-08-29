@@ -14,8 +14,8 @@
       "command": ["sh", "-c", "alembic stamp head || alembic upgrade head"],
       "environment": [],
       "secrets": [
-        {"name": "DATABASE_URL", "valueFrom": "DATABASE_URL"},
-        {"name": "SECRET_KEY", "valueFrom": "SECRET_KEY"}
+        {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/DB_URL-RuZYGO"},
+        {"name": "SECRET_KEY", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/JWT_SECRET-G7tAIB"}
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
