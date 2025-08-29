@@ -3615,3 +3615,11 @@ from mcp_endpoints import ingest_mcp_action, get_agents_activity
 # Add MCP routes
 app.post("/mcp/actions/ingest")(ingest_mcp_action)
 app.get("/agents/activity")(get_agents_activity)
+
+# Enterprise MCP Data Backbone Integration
+try:
+    from enterprise_mcp_service import create_enterprise_mcp_endpoints
+    create_enterprise_mcp_endpoints(app, Depends(get_db), Depends(get_current_user))
+    logger.info('Enterprise MCP Data Backbone activated')
+except Exception as e:
+    logger.error(f'Enterprise MCP activation failed: {e}')
