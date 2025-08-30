@@ -4024,3 +4024,30 @@ async def fix_admin_bcrypt_password(db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         return {"error": str(e)}
+
+@app.get("/admin/check-schema")
+async def check_database_schema(db: Session = Depends(get_db)):
+    """Check agent_actions table schema"""
+    try:
+        result = db.execute(text("""
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'agent_actions' 
+            ORDER BY ordinal_position
+        """))
+        
+        columns = []
+        for row in result:
+            columns.append({
+                "column_name": row[0],
+                "data_type": row[1]
+            })
+        
+        return {
+            "table": "agent_actions",
+            "columns": columns,
+            "total_columns": len(columns)
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
