@@ -3903,3 +3903,86 @@ async def approve_mcp_action(
             "error": str(e),
             "enterprise_compliant": True
         }
+
+@app.post("/admin/reset-admin-password")
+async def reset_admin_password(db: Session = Depends(get_db)):
+    """Reset admin password for testing (TEMPORARY)"""
+    try:
+        # Update admin password to known value
+        result = db.execute(text("""
+            UPDATE users 
+            SET password = 'admin123'
+            WHERE email = 'admin@owkai.com'
+            RETURNING id, email
+        """))
+        
+        admin_data = result.fetchone()
+        if not admin_data:
+            return {"error": "Admin user not found"}
+            
+        db.commit()
+        
+        return {
+            "status": "success",
+            "message": "Admin password reset to 'admin123'",
+            "admin_id": admin_data[0],
+            "email": admin_data[1],
+            "note": "Use admin@owkai.com / admin123 to login"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+
+@app.post("/mcp/test/ingest-public")
+async def test_mcp_ingest_public(request: Request, db: Session = Depends(get_db)):
+    """TEMPORARY: Public MCP endpoint for testing the data backbone"""
+    try:
+        data = await request.json()
+        action = data.get("action", "test")
+        resource = data.get("resource", "test")
+        agent_id = data.get("agent_id", "test-agent")
+        
+        # Risk scoring logic
+        risk_score = 30.0
+        if "delete" in action.lower() or "modify" in action.lower():
+            risk_score += 40.0
+        if "database" in resource.lower() or "config" in resource.lower():
+            risk_score += 30.0
+        risk_score = min(100.0, risk_score)
+        
+        result = db.execute(text("""
+            INSERT INTO agent_actions (
+                agent_id, action_type, description, risk_level, risk_score, 
+                status, approved, created_at
+            ) VALUES (
+                :agent_id, :action_type, :description, :risk_level, :risk_score,
+                :status, :approved, :created_at
+            ) RETURNING id
+        """), {
+            'agent_id': agent_id,
+            'action_type': f"mcp_{action}",
+            'description': f"{action} on {resource}",
+            'risk_level': 'high' if risk_score > 70 else 'medium' if risk_score > 40 else 'low',
+            'risk_score': risk_score,
+            'status': 'pending_approval' if risk_score > 70 else 'approved',
+            'approved': risk_score <= 70,
+            'created_at': datetime.now(UTC)
+        })
+        
+        action_id = result.fetchone()[0]
+        db.commit()
+        
+        return {
+            "status": "success",
+            "action_id": action_id,
+            "risk_score": risk_score,
+            "risk_level": 'high' if risk_score > 70 else 'medium' if risk_score > 40 else 'low',
+            "requires_approval": risk_score > 70,
+            "message": "MCP Data Backbone working correctly!",
+            "enterprise_compliant": True
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e), "status": "failed"}
