@@ -4050,3 +4050,34 @@ async def check_database_schema(db: Session = Depends(get_db)):
         
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/admin/debug-actions")
+async def debug_actions_table(db: Session = Depends(get_db)):
+    """Debug: Check what's in agent_actions table"""
+    try:
+        # Check all records
+        result = db.execute(text("SELECT id, agent_id, action_type, description, status, approved FROM agent_actions ORDER BY id DESC LIMIT 5"))
+        
+        actions = []
+        for row in result:
+            actions.append({
+                "id": row[0],
+                "agent_id": row[1], 
+                "action_type": row[2],
+                "description": row[3],
+                "status": row[4],
+                "approved": row[5]
+            })
+        
+        # Also check specifically for MCP actions
+        mcp_result = db.execute(text("SELECT COUNT(*) FROM agent_actions WHERE action_type LIKE 'mcp_%'"))
+        mcp_count = mcp_result.fetchone()[0]
+        
+        return {
+            "total_actions": len(actions),
+            "mcp_actions_count": mcp_count,
+            "recent_actions": actions
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
