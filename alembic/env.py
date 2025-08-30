@@ -9,7 +9,7 @@ if config.config_file_name:
     fileConfig(config.config_file_name)
 
 # Import ONLY your metadata (no engine/session side-effects)
-from database import Base
+from app.database import Base
 target_metadata = Base.metadata
 
 def run_migrations_online():

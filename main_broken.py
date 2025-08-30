@@ -1,5 +1,5 @@
+import json
 # main.py - Complete original file with only auth router fixes
-# FORCE_REBUILD_1756528577
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import openai
@@ -27,7 +27,7 @@ from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics_routes import router as analytics_router
 from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
-#from routes.mcp_governance_routes import router as mcp_governance_router
+from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
 # Enterprise health module with graceful fallback
 try:
@@ -338,7 +338,7 @@ app.include_router(auth_routes_router, prefix="/auth")
 #app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 #app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 #app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
-#app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
+app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
 # app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
 
 # Include routers with enterprise fallback handling
@@ -427,7 +427,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 # ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-@app.get("/agent-actions")
+@app.get("/agent-activity")
 async def get_agent_activity():
     """Get agent activity data"""
     try:
@@ -997,218 +997,6 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
 
 # ... Rest of your routes (agent-actions, admin fixes, submission, approval/reject, sample data, health check, main) preserved exactly as in your original 790-line file ...
 
-# ==================== ENTERPRISE MCP DATA BACKBONE ====================
-# Enterprise-grade MCP action ingestion and governance
-# Maintains full audit trail and compliance with existing enterprise features
-
-@app.post("/mcp/actions/ingest")
-async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Enterprise MCP Action Ingestion with full audit trail"""
-    try:
-        data = await request.json()
-        
-        # Enterprise validation
-        agent_id = data.get("agent_id", "").strip()
-        action = data.get("action", "").strip() 
-        resource = data.get("resource", "").strip()
-        
-        if not all([agent_id, action, resource]):
-            raise HTTPException(status_code=400, detail="Enterprise validation failed: agent_id, action, and resource are required")
-        
-        # Enterprise risk assessment
-        risk_score = 30.0
-        risk_factors = []
-        
-        high_risk_actions = ['delete', 'execute', 'modify', 'write', 'create']
-        high_risk_resources = ['database', 'config', 'secret', 'admin', 'production', 'prod']
-        
-        if any(term in action.lower() for term in high_risk_actions):
-            risk_score += 35.0
-            risk_factors.append(f"High-risk action: {action}")
-            
-        if any(term in resource.lower() for term in high_risk_resources):
-            risk_score += 30.0
-            risk_factors.append(f"Sensitive resource: {resource}")
-            
-        # Time-based risk (after hours)
-        current_hour = datetime.now(UTC).hour
-        if current_hour < 8 or current_hour > 18:
-            risk_score += 10.0
-            risk_factors.append("After-hours execution")
-            
-        risk_score = min(100.0, risk_score)
-        
-        # Determine risk level and approval requirements
-        if risk_score >= 80: risk_level = "critical"
-        elif risk_score >= 60: risk_level = "high" 
-        elif risk_score >= 40: risk_level = "medium"
-        else: risk_level = "low"
-        
-        requires_approval = risk_score >= 50.0
-        
-        # Insert into existing agent_actions table (maintains compatibility)
-        result = db.execute(text("""
-            INSERT INTO agent_actions (
-                agent_id, action_type, description, risk_level, risk_score, 
-                status, approved, user_id, created_at
-            ) VALUES (
-                :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :status, :approved, :user_id, :created_at
-            ) RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"Enterprise MCP: {action} on {resource}",
-            'risk_level': risk_level,
-            'risk_score': risk_score,
-            'status': "approved" if not requires_approval else "pending_approval",
-            'approved': not requires_approval,
-            'user_id': current_user.get('user_id', 1),
-            'created_at': datetime.now(UTC)
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        
-        # Enterprise audit logging (integrates with existing audit system)
-        try:
-            db.execute(text("""
-                INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, risk_level, timestamp)
-                VALUES (:user_id, :action, :resource_type, :resource_id, :details, :risk_level, :timestamp)
-            """), {
-                'user_id': current_user.get('user_id', 1),
-                'action': f"MCP_{action.upper()}",
-                'resource_type': 'mcp_action',
-                'resource_id': str(action_id),
-                'details': json.dumps({
-                    'agent_id': agent_id,
-                    'resource': resource,
-                    'risk_factors': risk_factors,
-                    'policy_id': data.get('policy_id', 'default')
-                }),
-                'risk_level': risk_level,
-                'timestamp': datetime.now(UTC)
-            })
-        except Exception as audit_error:
-            logger.warning(f"Enterprise audit logging failed: {audit_error}")
-        
-        db.commit()
-        
-        # Enterprise response format
-        response = {
-            'action_id': action_id,
-            'status': 'success',
-            'result': 'approved' if not requires_approval else 'requires_approval',
-            'risk_assessment': {
-                'risk_score': risk_score,
-                'risk_level': risk_level,
-                'risk_factors': risk_factors,
-                'requires_approval': requires_approval
-            },
-            'compliance_status': 'logged',
-            'enterprise_metadata': {
-                'processed_by': current_user.get('email', 'system'),
-                'timestamp': datetime.now(UTC).isoformat(),
-                'environment': 'production'
-            }
-        }
-        
-        logger.info(f"Enterprise MCP action processed: {action_id}, risk: {risk_level}")
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Enterprise MCP processing failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Enterprise MCP processing failed: {str(e)}")
-
-@app.get("/agent-actions/activity")
-async def enterprise_agents_activity(limit: int = 50, db: Session = Depends(get_db)):
-    """Enhanced agents activity feed with MCP integration"""
-    try:
-        result = db.execute(text("""
-            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                   status, created_at, approved, user_id
-            FROM agent_actions 
-            ORDER BY created_at DESC NULLS LAST, id DESC 
-            LIMIT :limit
-        """), {'limit': limit}).fetchall()
-        
-        activities = []
-        for row in result:
-            activities.append({
-                'id': row[0],
-                'agent_id': row[1] or 'unknown',
-                'action_type': row[2] or 'action',
-                'description': row[3] or 'No description',
-                'risk_level': row[4] or 'medium',
-                'risk_score': float(row[5]) if row[5] else 50.0,
-                'result': 'approved' if row[8] else 'pending',
-                'policy_id': 'mcp_default' if row[2] and 'mcp_' in row[2] else 'default',
-                'created_at': row[7].isoformat() if row[7] else datetime.now(UTC).isoformat(),
-                'status': row[6] or 'pending',
-                'tool_name': row[10] or 'unknown',
-                'is_mcp_action': row[2] and 'mcp_' in row[2] if row[2] else False
-            })
-        
-        return activities
-        
-    except Exception as e:
-        logger.error(f"Enterprise activity feed failed: {str(e)}")
-        return []
-
-@app.get("/mcp/actions/stats")
-async def enterprise_mcp_stats(db: Session = Depends(get_db)):
-    """Enterprise MCP statistics with business intelligence"""
-    try:
-        # Get MCP-specific statistics
-        result = db.execute(text("""
-            SELECT 
-                status,
-                risk_level,
-                COUNT(*) as count,
-                AVG(risk_score) as avg_risk_score,
-                MAX(created_at) as latest_action
-            FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%'
-            GROUP BY status, risk_level
-            ORDER BY avg_risk_score DESC
-        """)).fetchall()
-        
-        # Calculate enterprise metrics
-        total_actions = sum(row[2] for row in result)
-        high_risk_actions = sum(row[2] for row in result if row[1] in ['high', 'critical'])
-        approved_actions = sum(row[2] for row in result if row[0] == 'approved')
-        
-        return {
-            'period': 'all_time',
-            'generated_at': datetime.now(UTC).isoformat(),
-            'enterprise_summary': {
-                'total_mcp_actions': total_actions,
-                'high_risk_percentage': (high_risk_actions / total_actions * 100) if total_actions > 0 else 0,
-                'approval_rate': (approved_actions / total_actions * 100) if total_actions > 0 else 0,
-                'compliance_status': 'enterprise_compliant'
-            },
-            'stats': [{
-                'result': row[0],
-                'risk_level': row[1], 
-                'count': row[2],
-                'avg_risk_score': float(row[3]) if row[3] else 0,
-                'latest_action': row[4].isoformat() if row[4] else None
-            } for row in result]
-        }
-        
-    except Exception as e:
-        logger.error(f"Enterprise MCP stats failed: {str(e)}")
-        return {
-            'period': 'all_time',
-            'enterprise_summary': {'total_mcp_actions': 0},
-            'stats': [],
-            'error': str(e)
-        }
-
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -1492,7 +1280,6 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-        db.commit()
             
             db.commit()
             
@@ -1880,7 +1667,6 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-        db.commit()
             
             db.commit()
             
@@ -1996,6 +1782,203 @@ async def root():
         "status": "operational",
         "enterprise_ready": True
     }
+
+# MCP Data Backbone Endpoints
+@app.post("/mcp/actions/ingest")
+async def ingest_mcp_action(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    """Record MCP action and create approval request if sensitive"""
+    try:
+        data = await request.json()
+        
+        action = data.get("action", "")
+        resource = data.get("resource", "")
+        risk_score = 30.0
+        
+        if any(term in action.lower() for term in ["delete", "write", "modify"]):
+            risk_score += 40.0
+        if any(term in resource.lower() for term in ["database", "config", "secret"]):
+            risk_score += 30.0
+            
+        risk_score = min(100.0, risk_score)
+        
+        result = db.execute(text("""
+            INSERT INTO agent_actions (
+                agent_id, action_type, description, risk_level, risk_score,
+                policy_id, result, metadata, status
+            ) VALUES (
+                :agent_id, :action_type, :description, :risk_level, :risk_score,
+                :policy_id, :result, :metadata, :status
+            ) RETURNING id
+        """), {
+            "agent_id": data.get("agent_id", "unknown"),
+            "action_type": data.get("action", "mcp_action"),
+            "description": f"MCP: {resource}",
+            "risk_level": "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
+            "risk_score": risk_score,
+            "policy_id": data.get("policy_id", "mcp_default"),
+            "result": "approved" if risk_score < 40 else "pending_approval",
+            "metadata": json.dumps(data),
+            "status": "pending" if risk_score > 40 else "approved"
+        })
+        
+        action_id = result.fetchone()[0]
+        
+        if risk_score > 40:
+            db.execute(text("""
+                INSERT INTO approvals (agent_action_id, status)
+                VALUES (:action_id, 'pending')
+            """), {"action_id": action_id})
+        
+        db.commit()
+        
+        return {
+            "action_id": action_id,
+            "result": "approved" if risk_score < 40 else "requires_approval",
+            "risk_score": risk_score,
+            "status": "success"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"MCP ingest failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to ingest MCP action: {str(e)}")
+
+@app.get("/agents/activity")
+async def get_agents_activity(limit: int = 50, db: Session = Depends(get_db)):
+    """Get recent agent activity"""
+    try:
+        result = db.execute(text("""
+            SELECT id, agent_id, action_type, description, risk_level, 
+                   risk_score, result, policy_id, created_at, status
+            FROM agent_actions 
+            ORDER BY created_at DESC NULLS LAST, id DESC
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
+        
+        return [
+            {
+                "id": row[0],
+                "agent_id": row[1] or "unknown",
+                "action_type": row[2] or "action",
+                "description": row[3] or "No description",
+                "risk_level": row[4] or "medium",
+                "risk_score": float(row[5]) if row[5] else 50.0,
+                "result": row[6] or "pending",
+                "policy_id": row[7] or "default",
+                "created_at": row[8].isoformat() if row[8] else datetime.now(UTC).isoformat(),
+                "status": row[9] or "pending"
+            } for row in result
+        ]
+        
+    except Exception as e:
+        logger.error(f"Get activity failed: {e}")
+        return []
+
+@app.get("/mcp/actions/stats")
+async def get_mcp_stats(db: Session = Depends(get_db)):
+    """Get MCP action statistics"""
+    try:
+        result = db.execute(text("""
+            SELECT 
+                COALESCE(result, 'unknown') as result,
+                COALESCE(policy_id, 'default') as policy_id,
+                COUNT(*) as count
+            FROM agent_actions 
+            WHERE created_at >= NOW() - INTERVAL '24 hours' OR created_at IS NULL
+            GROUP BY result, policy_id
+        """)).fetchall()
+        
+        return {
+            "period": "24h",
+            "stats": [
+                {
+                    "result": row[0],
+                    "policy_id": row[1], 
+                    "count": row[2]
+                } for row in result
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"Get MCP stats failed: {e}")
+        return {"period": "24h", "stats": []}
+
+@app.get("/mcp/approvals/queue")
+async def get_approval_queue(db: Session = Depends(get_db)):
+    """Get pending approvals"""
+    try:
+        result = db.execute(text("""
+            SELECT a.id, a.agent_action_id, a.status, a.created_at,
+                   aa.agent_id, aa.action_type, aa.description, aa.risk_score
+            FROM approvals a
+            JOIN agent_actions aa ON a.agent_action_id = aa.id  
+            WHERE a.status = 'pending'
+            ORDER BY aa.risk_score DESC, a.created_at ASC
+        """)).fetchall()
+        
+        return [
+            {
+                "approval_id": row[0],
+                "action_id": row[1],
+                "status": row[2],
+                "created_at": row[3].isoformat() if row[3] else None,
+                "agent_id": row[4] or "unknown",
+                "action_type": row[5] or "action",
+                "description": row[6] or "No description", 
+                "risk_score": float(row[7]) if row[7] else 50.0
+            } for row in result
+        ]
+        
+    except Exception as e:
+        logger.error(f"Get approval queue failed: {e}")
+        return []
+
+@app.post("/mcp/approvals/{approval_id}/decision")
+async def make_approval_decision(approval_id: int, request: Request, db: Session = Depends(get_db)):
+    """Make approval decision"""
+    try:
+        data = await request.json()
+        decision = data.get("decision", "deny")
+        rationale = data.get("rationale", "")
+        
+        if decision not in ["approve", "deny", "escalate"]:
+            raise HTTPException(status_code=400, detail="Invalid decision")
+        
+        status_map = {"approve": "approved", "deny": "denied", "escalate": "escalated"}
+        new_status = status_map[decision]
+        
+        db.execute(text("""
+            UPDATE approvals 
+            SET status = :status, rationale = :rationale, decided_at = now()
+            WHERE id = :approval_id
+        """), {
+            "approval_id": approval_id,
+            "status": new_status,
+            "rationale": rationale
+        })
+        
+        db.execute(text("""
+            UPDATE agent_actions 
+            SET result = :result, status = :status
+            WHERE id = (SELECT agent_action_id FROM approvals WHERE id = :approval_id)
+        """), {
+            "result": new_status,
+            "status": new_status,
+            "approval_id": approval_id
+        })
+        
+        db.commit()
+        
+        return {
+            "approval_id": approval_id,
+            "decision": decision,
+            "status": "completed"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Approval decision failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process decision")
 
 @app.get("/health")
 async def health_check():
@@ -2677,965 +2660,17 @@ async def get_approved_actions(
             
         except Exception as db_error:
             logger.warning(f"Could not get approved real actions: {db_error}")
-            approved_real = []
-        
-        # Combine and sort by review date
-        all_approved = approved_demo + approved_real
-        all_approved.sort(key=lambda x: x["reviewed_at"], reverse=True)
-        
-        return {
-            "total_approved": len(all_approved),
-            "demo_actions": len(approved_demo),
-            "database_actions": len(approved_real),
-            "approved_actions": all_approved[:limit],
-            "last_updated": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get approved actions: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve approved actions")    
-    
-@app.get("/agent-control/workflow-config")
-async def get_workflow_config(current_user: dict = Depends(get_current_user)):
-    """🏢 ENTERPRISE: Get current workflow configuration"""
-    try:
-        return {
-            "workflows": workflow_config,
-            "last_modified": datetime.utcnow().isoformat(),
-            "modified_by": "system",
-            "total_workflows": len(workflow_config),
-            "emergency_override_enabled": any(w["emergency_override"] for w in workflow_config.values())
-        }
-    except Exception as e:
-        logger.error(f"Failed to get workflow config: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to get workflow configuration")
 
-@app.post("/agent-control/workflow-config")
-async def update_workflow_config(
-    request: Request,
-    current_user: dict = Depends(require_admin)
-):
-    """🏢 ENTERPRISE: Update workflow configuration (admin only)"""
-    try:
-        data = await request.json()
-        workflow_id = data.get("workflow_id")
-        updates = data.get("updates", {})
-        
-        if workflow_id not in workflow_config:
-            raise HTTPException(status_code=404, detail="Workflow not found")
-        
-        # Update workflow configuration
-        for key, value in updates.items():
-            if key in workflow_config[workflow_id]:
-                workflow_config[workflow_id][key] = value
-        
-        # Log the change
-        logger.info(f"🔧 ENTERPRISE: Workflow {workflow_id} updated by {current_user['email']}")
-        
-        return {
-            "message": "✅ Workflow configuration updated successfully",
-            "workflow_id": workflow_id,
-            "updated_fields": list(updates.keys()),
-            "modified_by": current_user["email"],
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to update workflow config: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to update workflow configuration")
-
-# Enhanced metrics that actually track your actions
-metrics_storage = {
-    "total_actions_processed": 0,
-    "approved_count": 0,
-    "denied_count": 0,
-    "emergency_overrides": 0,
-    "average_processing_time": 45,
-    "last_updated": datetime.utcnow().isoformat()
-}
-
-@app.get("/agent-control/metrics/approval-performance")
-async def get_approval_metrics_live(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """🏢 ENTERPRISE: Live approval performance metrics that update with each action"""
-    try:
-        # Count approved/denied demo actions
-        demo_approved = sum(1 for action in demo_actions_storage.values() if action["status"] == "approved")
-        demo_denied = sum(1 for action in demo_actions_storage.values() if action["status"] == "denied")
-        demo_emergency = sum(1 for action in demo_actions_storage.values() if action["status"] == "emergency_approved")
-        demo_pending = sum(1 for action in demo_actions_storage.values() if action["status"] == "pending")
-        
-        # Get real database metrics
-        try:
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-            result = db.execute(text("""
-                SELECT status, risk_level, approved
-                FROM agent_actions 
-                WHERE created_at >= :thirty_days_ago OR created_at IS NULL
-            """), {'thirty_days_ago': thirty_days_ago}).fetchall()
-            
-            db_approved = len([r for r in result if r[0] == "approved" or r[2] == True])
-            db_denied = len([r for r in result if r[0] == "denied" or r[2] == False])
-            db_pending = len([r for r in result if r[0] in ["pending", "pending_approval", "submitted"]])
-            db_high_risk = len([r for r in result if r[1] == "high"])
-            
-        except Exception:
-            db_approved = db_denied = db_pending = db_high_risk = 0
-        
-        # Combine demo and real metrics
-        total_approved = demo_approved + db_approved
-        total_denied = demo_denied + db_denied
-        total_pending = demo_pending + db_pending
-        total_emergency = demo_emergency
-        total_requests = total_approved + total_denied + total_pending
-        
-        # Calculate live approval rate
-        approval_rate = (total_approved / total_requests * 100) if total_requests > 0 else 0
-        
-        # Update metrics storage
-        metrics_storage.update({
-            "total_actions_processed": total_requests,
-            "approved_count": total_approved,
-            "denied_count": total_denied,
-            "emergency_overrides": total_emergency,
-            "last_updated": datetime.utcnow().isoformat()
-        })
-        
-        return {
-            "decision_breakdown": {
-                "approved": total_approved,
-                "denied": total_denied,
-                "pending": total_pending,
-                "emergency_overrides": total_emergency,
-                "approval_rate": round(approval_rate, 1)
-            },
-            "performance_metrics": {
-                "average_processing_time_minutes": 45,
-                "average_risk_score": 65,
-                "sla_compliance_rate": 95.0
-            },
-            "risk_analysis": {
-                "high_risk_requests": db_high_risk + sum(1 for a in demo_actions_storage.values() if a["risk_level"] == "high"),
-                "emergency_requests": total_emergency,
-                "after_hours_requests": 0
-            },
-            "period_summary": {
-                "days_analyzed": 30,
-                "total_requests": total_requests,
-                "completion_rate": ((total_approved + total_denied) / total_requests * 100) if total_requests > 0 else 0
-            },
-            "live_metrics": {
-                "demo_actions": {
-                    "approved": demo_approved,
-                    "denied": demo_denied,
-                    "pending": demo_pending,
-                    "emergency": demo_emergency
-                },
-                "database_actions": {
-                    "approved": db_approved,
-                    "denied": db_denied,
-                    "pending": db_pending
-                }
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"🏢 ENTERPRISE: Failed to get live approval metrics: {str(e)}")
-        # Return fallback metrics
-        return {
-            "decision_breakdown": {
-                "approved": metrics_storage["approved_count"],
-                "denied": metrics_storage["denied_count"],
-                "pending": 0,
-                "emergency_overrides": metrics_storage["emergency_overrides"],
-                "approval_rate": 0
-            },
-            "performance_metrics": {
-                "average_processing_time_minutes": 45,
-                "average_risk_score": 65,
-                "sla_compliance_rate": 95.0
-            },
-            "risk_analysis": {
-                "high_risk_requests": 0,
-                "emergency_requests": 0,
-                "after_hours_requests": 0
-            },
-            "period_summary": {
-                "days_analyzed": 30,
-                "total_requests": 0,
-                "completion_rate": 0
-            }
-        }    
-    
-# Enhanced AI Alert Management Endpoints
-@app.get("/alerts/ai-insights")
-async def get_ai_alert_insights(current_user: dict = Depends(get_current_user)):
-    """🧠 ENTERPRISE: AI-powered alert insights and recommendations"""
-    try:
-        # Get current alerts for analysis
-        db: Session = next(get_db())
-        
-        try:
-            alerts_result = db.execute(text("""
-                SELECT id, alert_type, severity, message, timestamp, agent_id
-                FROM alerts 
-                ORDER BY timestamp DESC 
-                LIMIT 50
-            """)).fetchall()
-            
-            alert_count = len(alerts_result)
-            critical_count = len([a for a in alerts_result if a[2] == 'high'])
-            
-        except Exception:
-            alert_count = 15  # Fallback demo data
-            critical_count = 5
-        
-        # Generate AI insights
-        ai_insights = {
-            "threat_summary": {
-                "total_threats": alert_count,
-                "critical_threats": critical_count,
-                "automated_responses": int(alert_count * 0.3),
-                "false_positive_rate": 12.5,
-                "avg_response_time": "4.2 minutes",
-                "trends_analysis": f"↗️ {(critical_count/alert_count*100):.0f}% of alerts are high-severity"
-            },
-            "ai_recommendations": [
-                {
-                    "type": "immediate_action",
-                    "priority": "critical" if critical_count > 3 else "medium",
-                    "title": "Threat Correlation Analysis",
-                    "description": f"AI detected {critical_count} high-severity alerts requiring correlation analysis",
-                    "action": "Review alert patterns for potential coordinated attacks"
-                },
-                {
-                    "type": "process_improvement", 
-                    "priority": "medium",
-                    "title": "Alert Optimization",
-                    "description": "Machine learning suggests optimizing alert rules",
-                    "action": "Tune detection thresholds to reduce false positives"
-                }
-            ],
-            "predictive_analysis": {
-                "risk_score": min(100, 50 + critical_count * 10),
-                "trend_direction": "increasing" if critical_count > 3 else "stable",
-                "predicted_incidents": max(1, critical_count // 2),
-                "confidence_level": 87
-            }
-        }
-        
-        logger.info(f"🧠 AI insights generated for {alert_count} alerts")
-        return ai_insights
-        
-    except Exception as e:
-        logger.error(f"AI insights generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate AI insights")
-
-@app.get("/alerts/threat-intelligence")
-async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
-    """📡 ENTERPRISE: Global threat intelligence feed"""
-    try:
-        threat_intel = {
-            "active_campaigns": [
-                {
-                    "name": "Operation CloudStrike",
-                    "severity": "high", 
-                    "targets": "Cloud Infrastructure",
-                    "first_seen": "2025-07-28",
-                    "indicators": 15,
-                    "description": "Sophisticated APT targeting cloud environments"
-                },
-                {
-                    "name": "Ransomware-as-a-Service",
-                    "severity": "critical",
-                    "targets": "Healthcare, Finance", 
-                    "first_seen": "2025-07-25",
-                    "indicators": 32,
-                    "description": "New ransomware variant targeting critical infrastructure"
-                }
-            ],
-            "ioc_matches": 7,
-            "new_indicators": 23, 
-            "threat_actors": [
-                {"name": "APT-2024-07", "activity": "Active", "risk_level": "High"},
-                {"name": "Lazarus Group", "activity": "Monitoring", "risk_level": "Critical"}
-            ]
-        }
-        
-        logger.info("📡 Threat intelligence data retrieved")
-        return threat_intel
-        
-    except Exception as e:
-        logger.error(f"Threat intelligence fetch failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
-
-@app.post("/alerts/correlate")
-async def correlate_alerts(request: Request, current_user: dict = Depends(get_current_user)):
-    """🔗 ENTERPRISE: AI-powered alert correlation"""
-    try:
-        data = await request.json()
-        alert_ids = data.get("alert_ids", [])
-        
-        # AI correlation logic would go here
-        correlation_result = {
-            "correlation_id": f"corr-{len(alert_ids)}-{int(datetime.now().timestamp())}",
-            "related_alerts": len(alert_ids),
-            "correlation_strength": 85,
-            "threat_category": "Advanced Persistent Threat",
-            "recommended_actions": [
-                "Isolate affected systems",
-                "Initiate incident response procedures", 
-                "Collect forensic evidence"
-            ]
-        }
-        
-        logger.info(f"🔗 Alert correlation completed for {len(alert_ids)} alerts")
-        return correlation_result
-        
-    except Exception as e:
-        logger.error(f"Alert correlation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to correlate alerts")    
-
-# ================== ENTERPRISE AI ALERT MANAGEMENT ENDPOINTS ==================
-# Add these endpoints to your main.py file
-
-@app.get("/alerts/ai-insights")
-async def get_ai_alert_insights(current_user: dict = Depends(get_current_user)):
-    """🧠 ENTERPRISE: AI-powered alert insights and recommendations"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            # Get current alerts for analysis
-            alerts_result = db.execute(text("""
-                SELECT id, alert_type, severity, message, timestamp, agent_id, tool_name
-                FROM alerts 
-                ORDER BY timestamp DESC 
-                LIMIT 100
-            """)).fetchall()
-            
-            alert_count = len(alerts_result)
-            critical_count = len([a for a in alerts_result if a[2] == 'high'])
-            
-            # Get recent agent actions for correlation
-            actions_result = db.execute(text("""
-                SELECT COUNT(*) as total, 
-                       SUM(CASE WHEN approved = true THEN 1 ELSE 0 END) as approved_count
-                FROM agent_actions 
-                WHERE created_at >= NOW() - INTERVAL '24 hours' OR created_at IS NULL
-            """)).fetchone()
-            
-            automated_responses = int((actions_result[1] or 0) * 0.3) if actions_result else 0
-            
-        except Exception as db_error:
-            logger.warning(f"Database query failed, using fallback data: {db_error}")
-            alert_count = 15  # Fallback demo data
-            critical_count = 5
-            automated_responses = 4
-        
-        finally:
-            db.close()
-        
-        # Generate AI insights based on real data
-        false_positive_rate = max(5.0, min(25.0, (alert_count - critical_count) / max(alert_count, 1) * 100))
-        risk_score = min(100, 40 + critical_count * 8)
-        
-        ai_insights = {
-            "threat_summary": {
-                "total_threats": alert_count,
-                "critical_threats": critical_count,
-                "automated_responses": automated_responses,
-                "false_positive_rate": round(false_positive_rate, 1),
-                "avg_response_time": f"{3.2 + (critical_count * 0.3):.1f} minutes",
-                "trends_analysis": f"{'↗️ Increasing' if critical_count > 3 else '→ Stable'} threat activity detected"
-            },
-            "ai_recommendations": [
-                {
-                    "type": "immediate_action",
-                    "priority": "critical" if critical_count > 5 else "high" if critical_count > 2 else "medium",
-                    "title": "Threat Correlation Analysis Required",
-                    "description": f"AI detected {critical_count} high-severity alerts requiring immediate correlation analysis",
-                    "action": "Review alert patterns for potential coordinated attacks and activate threat hunting procedures"
-                },
-                {
-                    "type": "process_improvement", 
-                    "priority": "medium",
-                    "title": "Alert Rule Optimization",
-                    "description": f"ML analysis suggests {int(false_positive_rate)}% false positive rate - optimization recommended",
-                    "action": "Tune detection thresholds and review alert rules to reduce noise"
-                },
-                {
-                    "type": "threat_intelligence",
-                    "priority": "low" if critical_count < 3 else "medium",
-                    "title": "Emerging Threat Pattern Detection",
-                    "description": "AI correlation engine identified potential new attack vectors in recent alerts",
-                    "action": "Update threat intelligence feeds and enhance detection rules"
-                }
-            ],
-            "predictive_analysis": {
-                "risk_score": risk_score,
-                "trend_direction": "increasing" if critical_count > 4 else "stable",
-                "predicted_incidents": max(1, critical_count // 2),
-                "confidence_level": min(95, 75 + (alert_count // 2))
-            }
-        }
-        
-        logger.info(f"🧠 AI insights generated: {alert_count} alerts, {critical_count} critical, risk score {risk_score}")
-        return ai_insights
-        
-    except Exception as e:
-        logger.error(f"AI insights generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate AI insights")
-
-@app.get("/alerts/threat-intelligence")
-async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
-    """📡 ENTERPRISE: Global threat intelligence feed with real-time data"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            # Get threat indicators from recent alerts
-            recent_threats = db.execute(text("""
-                SELECT alert_type, severity, agent_id, COUNT(*) as frequency
-                FROM alerts 
-                WHERE timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL
-                GROUP BY alert_type, severity, agent_id
-                ORDER BY frequency DESC
-                LIMIT 10
-            """)).fetchall()
-            
-            threat_count = len(recent_threats)
-            high_severity_count = len([t for t in recent_threats if t[1] == 'high'])
-            
-        except Exception as db_error:
-            logger.warning(f"Threat intelligence query failed: {db_error}")
-            threat_count = 8
-            high_severity_count = 3
-        finally:
-            db.close()
-        
-        # Generate dynamic threat intelligence based on real data
-        current_date = datetime.now(UTC).strftime("%Y-%m-%d")
-        
-        threat_intel = {
-            "active_campaigns": [
-                {
-                    "name": "Operation CloudStrike 2025",
-                    "severity": "high" if high_severity_count > 2 else "medium", 
-                    "targets": "Cloud Infrastructure, SaaS Platforms",
-                    "first_seen": current_date,
-                    "indicators": 15 + threat_count,
-                    "description": f"Sophisticated APT campaign targeting cloud environments - {threat_count} related indicators detected"
-                },
-                {
-                    "name": "Ransomware-as-a-Service Evolution",
-                    "severity": "critical" if high_severity_count > 4 else "high",
-                    "targets": "Healthcare, Finance, Critical Infrastructure", 
-                    "first_seen": (datetime.now(UTC) - timedelta(days=3)).strftime("%Y-%m-%d"),
-                    "indicators": 32 + (high_severity_count * 2),
-                    "description": "Next-generation ransomware with AI-powered evasion techniques targeting enterprise networks"
-                },
-                {
-                    "name": "Supply Chain Infiltration",
-                    "severity": "medium",
-                    "targets": "Software Vendors, DevOps Pipelines",
-                    "first_seen": (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%d"),
-                    "indicators": 18,
-                    "description": "Advanced persistent threat targeting software supply chains and CI/CD infrastructure"
-                }
-            ],
-            "ioc_matches": 7 + (threat_count // 2),
-            "new_indicators": 23 + threat_count, 
-            "threat_actors": [
-                {
-                    "name": "APT-2025-Alpha", 
-                    "activity": "Active" if high_severity_count > 3 else "Monitoring", 
-                    "risk_level": "Critical" if high_severity_count > 4 else "High"
-                },
-                {
-                    "name": "Lazarus Group", 
-                    "activity": "Monitoring", 
-                    "risk_level": "Critical"
-                },
-                {
-                    "name": "Quantum Spider", 
-                    "activity": "Active" if threat_count > 5 else "Low", 
-                    "risk_level": "High"
-                }
-            ]
-        }
-        
-        logger.info(f"📡 Threat intelligence generated: {len(threat_intel['active_campaigns'])} campaigns, {threat_intel['ioc_matches']} IoC matches")
-        return threat_intel
-        
-    except Exception as e:
-        logger.error(f"Threat intelligence fetch failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
-
-@app.post("/alerts/correlate")
-async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get_current_user)):
-    """🔗 ENTERPRISE: AI-powered alert correlation engine"""
-    try:
-        data = await request.json()
-        alert_ids = data.get("alert_ids", [])
-        
-        if not alert_ids:
-            raise HTTPException(status_code=400, detail="No alert IDs provided for correlation")
-        
-        db: Session = next(get_db())
-        
-        try:
-            # Get alert details for correlation
-            placeholders = ','.join(['%s'] * len(alert_ids))
-            correlation_query = db.execute(text(f"""
-                SELECT id, alert_type, severity, agent_id, tool_name, timestamp, message
-                FROM alerts 
-                WHERE id IN ({placeholders})
-                ORDER BY timestamp DESC
-            """), alert_ids).fetchall()
-            
-            alert_details = []
-            for row in correlation_query:
-                alert_details.append({
-                    "id": row[0],
-                    "alert_type": row[1],
-                    "severity": row[2], 
-                    "agent_id": row[3],
-                    "tool_name": row[4],
-                    "timestamp": row[5],
-                    "message": row[6]
-                })
-            
-        except Exception as db_error:
-            logger.warning(f"Alert correlation query failed: {db_error}")
-            alert_details = [{"id": aid, "alert_type": "security_event", "severity": "medium"} for aid in alert_ids]
-        finally:
-            db.close()
-        
-        # AI correlation analysis
-        correlation_strength = 65  # Base correlation
-        threat_category = "Security Event"
-        
-        # Enhance correlation based on alert patterns
-        if len(set(a.get("agent_id") for a in alert_details)) == 1:
-            correlation_strength += 15
-            threat_category = "Agent-Specific Threat"
-        
-        if len([a for a in alert_details if a.get("severity") == "high"]) > 1:
-            correlation_strength += 20
-            threat_category = "Advanced Persistent Threat"
-        
-        # Time-based correlation
-        timestamps = [a.get("timestamp") for a in alert_details if a.get("timestamp")]
-        if len(timestamps) > 1:
-            time_span = max(timestamps) - min(timestamps)
-            if time_span.total_seconds() < 1800:  # 30 minutes
-                correlation_strength += 10
-                threat_category = "Coordinated Attack Campaign"
-        
-        correlation_result = {
-            "correlation_id": f"corr-{len(alert_ids)}-{int(datetime.now(UTC).timestamp())}",
-            "related_alerts": len(alert_ids),
-            "correlation_strength": min(95, correlation_strength),
-            "threat_category": threat_category,
-            "confidence_level": min(92, 70 + (correlation_strength // 3)),
-            "ai_analysis": f"Machine learning correlation identified {len(alert_ids)} related security events with {correlation_strength}% confidence",
-            "recommended_actions": [
-                "Isolate affected systems and initiate containment procedures",
-                "Activate incident response team and escalate to security leadership", 
-                "Collect forensic evidence and preserve logs for investigation",
-                "Implement additional monitoring on correlated systems",
-                "Brief executive team on potential coordinated threat activity"
-            ],
-            "threat_indicators": {
-                "attack_vector": "Multi-vector" if len(set(a.get("alert_type") for a in alert_details)) > 2 else "Single-vector",
-                "target_scope": "Enterprise-wide" if len(set(a.get("agent_id") for a in alert_details)) > 3 else "Focused",
-                "urgency_level": "Critical" if correlation_strength > 80 else "High" if correlation_strength > 60 else "Medium"
-            }
-        }
-        
-        logger.info(f"🔗 Alert correlation completed: {len(alert_ids)} alerts, {correlation_strength}% strength, {threat_category}")
-        return correlation_result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Alert correlation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to correlate alerts")
-
-@app.post("/alerts/executive-brief")
-async def generate_executive_brief_ai(request: Request, current_user: dict = Depends(get_current_user)):
-    """👔 ENTERPRISE: AI-generated executive security briefing"""
-    try:
-        data = await request.json()
-        alert_data = data.get("alerts", [])
-        
-        # Use existing LLM infrastructure if available
-        try:
-            from llm_utils import generate_summary
-            
-            # Prepare executive-focused prompt
-            executive_prompt = f"""
-EXECUTIVE SECURITY BRIEFING - {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}
-
-Alert Summary: {len(alert_data)} security events detected
-High-Priority Alerts: {len([a for a in alert_data if a.get('severity') == 'high'])}
-
-Please provide an executive-level security briefing including:
-1. EXECUTIVE SUMMARY (2-3 sentences for C-level)
-2. KEY SECURITY RISKS & BUSINESS IMPACT
-3. IMMEDIATE ACTIONS REQUIRED (prioritized)
-4. RESOURCE & BUDGET IMPLICATIONS
-5. RECOMMENDED STRATEGIC RESPONSE
-
-Focus on business impact, risk mitigation, and strategic decision-making.
-"""
-            
-            # Generate using existing LLM infrastructure
-            ai_brief = generate_summary(
-                agent_id="executive_security_system",
-                action_type="executive_briefing",
-                description=executive_prompt
-            )
-            
-            logger.info("👔 Executive brief generated using AI/LLM")
-            
-        except Exception as llm_error:
-            logger.warning(f"LLM brief generation failed: {llm_error}")
-            
-            # Enterprise fallback brief
-            high_priority_count = len([a for a in alert_data if a.get('severity') == 'high'])
-            total_alerts = len(alert_data)
-            
-            ai_brief = f"""
-🏢 EXECUTIVE SECURITY BRIEFING
-Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}
-
-EXECUTIVE SUMMARY:
-Your enterprise security monitoring systems detected {total_alerts} security events in the past 24 hours, with {high_priority_count} classified as high-priority threats requiring immediate executive attention. Our AI-powered security operations center has analyzed these events and determined potential coordinated threat activity targeting critical business systems.
-
-KEY SECURITY RISKS & BUSINESS IMPACT:
-• {high_priority_count} high-severity security incidents pose immediate risk to business operations
-• Potential for service disruption, data exposure, or compliance violations
-• Estimated business impact: ${high_priority_count * 50000} if incidents escalate
-• Customer trust and regulatory compliance at risk if not addressed promptly
-
-IMMEDIATE ACTIONS REQUIRED:
-1. CRITICAL: Activate enterprise incident response procedures within 2 hours
-2. HIGH: Security team to implement immediate containment measures
-3. MEDIUM: Legal and compliance teams to assess regulatory notification requirements
-4. LOW: Prepare executive communication strategy for stakeholders
-
-RESOURCE & BUDGET IMPLICATIONS:
-• Additional security personnel may be required for 24/7 monitoring
-• Consider emergency cybersecurity consulting engagement ($75K-150K)
-• Potential legal and regulatory costs if incidents escalate ($200K+)
-• Business continuity planning activation may be necessary
-
-RECOMMENDED STRATEGIC RESPONSE:
-1. Convene emergency executive security committee within 4 hours
-2. Authorize additional cybersecurity budget for enhanced monitoring tools
-3. Consider engaging external threat intelligence services
-4. Review and update enterprise security policies and procedures
-5. Implement enhanced employee security awareness training program
-
-CONFIDENCE LEVEL: 87% (AI-powered analysis)
-NEXT REVIEW: 12 hours or upon significant status change
-
-This briefing was generated by your enterprise AI security operations center. For detailed technical analysis, please consult with your Chief Information Security Officer.
-"""
-        
-        brief_result = {
-            "brief_id": f"exec-brief-{int(datetime.now(UTC).timestamp())}",
-            "generated_at": datetime.now(UTC).isoformat(),
-            "generated_by": current_user["email"],
-            "alert_count": len(alert_data),
-            "high_priority_count": len([a for a in alert_data if a.get('severity') == 'high']),
-            "executive_summary": ai_brief,
-            "confidence_level": 87,
-            "next_review": (datetime.now(UTC) + timedelta(hours=12)).isoformat(),
-            "distribution_list": [
-                "CEO", "CISO", "CTO", "Legal Counsel", "Board of Directors"
-            ]
-        }
-        
-        logger.info(f"👔 Executive brief generated: {len(alert_data)} alerts analyzed")
-        return brief_result
-        
-    except Exception as e:
-        logger.error(f"Executive brief generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate executive security briefing")
-
-@app.get("/alerts/performance-metrics")
-async def get_ai_performance_metrics(current_user: dict = Depends(get_current_user)):
-    """📊 ENTERPRISE: AI alert management performance analytics"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            # Get alert processing metrics
-            alert_metrics = db.execute(text("""
-                SELECT 
-                    COUNT(*) as total_alerts,
-                    SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high_severity,
-                    SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium_severity,
-                    SUM(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) as low_severity
-                FROM alerts 
-                WHERE timestamp >= NOW() - INTERVAL '30 days' OR timestamp IS NULL
-            """)).fetchone()
-            
-            # Get response time metrics from agent actions
-            response_metrics = db.execute(text("""
-                SELECT 
-                    COUNT(*) as total_responses,
-                    SUM(CASE WHEN approved = true THEN 1 ELSE 0 END) as approved_responses,
-                    SUM(CASE WHEN approved = false THEN 1 ELSE 0 END) as denied_responses
-                FROM agent_actions 
-                WHERE created_at >= NOW() - INTERVAL '30 days' OR created_at IS NULL
-            """)).fetchone()
-            
-            total_alerts = alert_metrics[0] if alert_metrics else 0
-            high_severity = alert_metrics[1] if alert_metrics else 0
-            total_responses = response_metrics[0] if response_metrics else 0
-            approved = response_metrics[1] if response_metrics else 0
-            
-        except Exception as db_error:
-            logger.warning(f"Performance metrics query failed: {db_error}")
-            total_alerts = 45
-            high_severity = 12
-            total_responses = 38
-            approved = 31
-        finally:
-            db.close()
-        
-        # Calculate AI performance metrics
-        false_positive_rate = max(5.0, min(20.0, (total_alerts - high_severity) / max(total_alerts, 1) * 100))
-        response_accuracy = (approved / max(total_responses, 1) * 100) if total_responses > 0 else 85.0
-        automation_rate = min(75.0, (total_responses * 0.6))
-        
-        performance_metrics = {
-            "alert_processing": {
-                "total_processed": total_alerts,
-                "high_severity_detected": high_severity,
-                "medium_severity_detected": total_alerts - high_severity,
-                "processing_accuracy": round(100 - false_positive_rate, 1),
-                "false_positive_rate": round(false_positive_rate, 1)
-            },
-            "ai_response_metrics": {
-                "automated_responses": int(total_responses * 0.4),
-                "response_accuracy": round(response_accuracy, 1),
-                "average_response_time": f"{2.8 + (high_severity * 0.2):.1f} minutes",
-                "automation_rate": round(automation_rate, 1)
-            },
-            "threat_detection": {
-                "threat_patterns_identified": max(3, high_severity // 2),
-                "correlation_success_rate": "94.2%",
-                "prediction_accuracy": "89.7%",
-                "threat_intelligence_matches": max(5, high_severity)
-            },
-            "operational_efficiency": {
-                "analyst_time_saved": f"{int(total_responses * 0.3)} hours",
-                "cost_savings": f"${int(total_responses * 150)}",
-                "sla_compliance": "96.8%",
-                "escalation_rate": f"{max(5, min(15, high_severity // total_alerts * 100)) if total_alerts > 0 else 8}%"
-            }
-        }
-        
-        logger.info(f"📊 AI performance metrics calculated: {total_alerts} alerts, {response_accuracy:.1f}% accuracy")
-        return performance_metrics
-        
-    except Exception as e:
-        logger.error(f"AI performance metrics failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to calculate AI performance metrics")       
-
-
-# Add this to your main.py file - temporary setup endpoint
-
-@app.post("/admin/setup-enterprise-user-tables")
-async def setup_enterprise_user_tables(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
-):
-    """One-time setup for Enterprise User Management database tables"""
-    try:
-        # Create user_roles table
-        db.execute(text("""
-            CREATE TABLE IF NOT EXISTS user_roles (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                description TEXT,
-                permissions JSONB,
-                level INTEGER DEFAULT 1,
-                risk_level VARCHAR(20) DEFAULT 'Medium',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        
-        # Create user_permissions table
-        db.execute(text("""
-            CREATE TABLE IF NOT EXISTS user_permissions (
-                id SERIAL PRIMARY KEY,
-                category VARCHAR(50) NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                description TEXT,
-                risk_level VARCHAR(20) DEFAULT 'Medium',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        
-        # Create user_audit_logs table
-        db.execute(text("""
-            CREATE TABLE IF NOT EXISTS user_audit_logs (
-                id SERIAL PRIMARY KEY,
-                user_email VARCHAR(255),
-                action VARCHAR(100),
-                target VARCHAR(255),
-                details TEXT,
-                ip_address VARCHAR(45),
-                risk_level VARCHAR(20) DEFAULT 'Medium',
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        
-        # Add enterprise columns to existing users table
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS access_level VARCHAR(100);"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE;"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS login_attempts INTEGER DEFAULT 0;"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP;"))
-        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Active';"))
-        
-        # Insert default enterprise roles
-        default_roles = [
-            {
-                "name": "Level 0 - Restricted",
-                "description": "Restricted access for suspended or probationary users",
-                "permissions": '{"dashboard": false, "analytics": false, "alerts": false, "rules": false, "authorization": false, "users": false, "audit": false}',
-                "level": 0,
-                "risk_level": "Critical"
-            },
-            {
-                "name": "Level 1 - Basic User", 
-                "description": "Basic dashboard access for standard users",
-                "permissions": '{"dashboard": true, "analytics": false, "alerts": false, "rules": false, "authorization": false, "users": false, "audit": false}',
-                "level": 1,
-                "risk_level": "Low"
-            },
-            {
-                "name": "Level 2 - Power User",
-                "description": "Enhanced access with analytics and alert viewing", 
-                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": false, "authorization": false, "users": false, "audit": false}',
-                "level": 2,
-                "risk_level": "Medium"
-            },
-            {
-                "name": "Level 3 - Manager",
-                "description": "Management access with authorization capabilities",
-                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": false, "authorization": true, "users": false, "audit": true}',
-                "level": 3,
-                "risk_level": "Medium"
-            },
-            {
-                "name": "Level 4 - Administrator",
-                "description": "Full system access with user management",
-                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": true, "authorization": true, "users": true, "audit": true}',
-                "level": 4,
-                "risk_level": "High"
-            },
-            {
-                "name": "Level 5 - Executive", 
-                "description": "Executive access with all privileges and reporting",
-                "permissions": '{"dashboard": true, "analytics": true, "alerts": true, "rules": true, "authorization": true, "users": true, "audit": true}',
-                "level": 5,
-                "risk_level": "Critical"
-            }
-        ]
-        
-        for role in default_roles:
-            db.execute(text("""
-                INSERT INTO user_roles (name, description, permissions, level, risk_level, created_at)
-                VALUES (:name, :description, :permissions, :level, :risk_level, CURRENT_TIMESTAMP)
-                ON CONFLICT DO NOTHING;
-            """), {
-                "name": role["name"],
-                "description": role["description"], 
-                "permissions": role["permissions"],
-                "level": role["level"],
-                "risk_level": role["risk_level"]
-            })
-        
-        db.commit()
-        
-        return {
-            "message": "✅ Enterprise User Management tables created successfully!",
-            "tables_created": [
-                "user_roles",
-                "user_permissions", 
-                "user_audit_logs"
-            ],
-            "columns_added": [
-                "users.first_name",
-                "users.last_name",
-                "users.department",
-                "users.access_level",
-                "users.mfa_enabled",
-                "users.login_attempts", 
-                "users.last_login",
-                "users.status"
-            ],
-            "default_roles_inserted": len(default_roles)
-        }
-        
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Error setting up enterprise tables: {e}")
-        return {
-            "error": f"Failed to create enterprise tables: {str(e)}",
-            "details": "Check your database connection and permissions"
-        }     
-    
-
-# Enterprise Audit Routes (Phase 2.1)
-try:
-    from routes import audit_routes
-    app.include_router(audit_routes.router, prefix="/api", tags=["audit"])
-    print("✅ Enterprise audit routes loaded")
-except ImportError as e:
-    print(f"⚠️  Audit routes not available: {e}")
-
-# Debug logging to verify enterprise modules load
-print("=== DEBUG: Starting enterprise backend ===")
-print("=== DEBUG: Importing enterprise modules ===")
-try:
-    from enterprise_config import config
-    print(f"=== DEBUG: Enterprise config loaded: {config.use_vault} ===")
-except Exception as e:
-    print(f"=== DEBUG: Enterprise config failed: {e} ===")
-
-try:
-    from jwt_manager import jwt_manager
-    print(f"=== DEBUG: JWT manager loaded ===")
-except Exception as e:
-    print(f"=== DEBUG: JWT manager failed: {e} ===")
-
-
-# MCP Data Backbone - AWS ECS Compatible
-@app.post("/agent-actions/mcp-ingest")
-async def mcp_ingest_aws(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """MCP ingestion using existing agent-actions path pattern"""
+# MCP Data Backbone Implementation
+@app.post("/mcp/actions/ingest")
+async def mcp_ingest(request: Request, db: Session = Depends(get_db)):
     try:
         data = await request.json()
         agent_id = data.get("agent_id", "unknown")
         action = data.get("action", "unknown")
         resource = data.get("resource", "unknown")
         
-        # Enterprise risk assessment
+        # Calculate risk score
         risk_score = 30.0
         if any(term in action.lower() for term in ["delete", "write", "modify"]):
             risk_score += 40.0
@@ -3651,7 +2686,7 @@ async def mcp_ingest_aws(request: Request, db: Session = Depends(get_db), curren
         """), {
             'agent_id': agent_id,
             'action_type': f"mcp_{action}",
-            'description': f"AWS MCP: {action} on {resource}",
+            'description': f"MCP: {action} on {resource}",
             'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
             'risk_score': risk_score,
             'status': "approved" if risk_score < 60 else "pending",
@@ -3660,22 +2695,19 @@ async def mcp_ingest_aws(request: Request, db: Session = Depends(get_db), curren
         
         action_id = result.fetchone()[0]
         db.commit()
-        db.commit()
         
         return {
             "action_id": action_id,
             "status": "success",
-            "result": "approved" if risk_score < 60 else "requires_approval",
-            "risk_score": risk_score,
-            "aws_deployment": True
+            "result": "approved" if risk_score < 60 else "requires_approval", 
+            "risk_score": risk_score
         }
     except Exception as e:
         db.rollback()
         return {"error": str(e), "status": "failed"}
 
-@app.get("/agent-actions/mcp-stats")
-async def mcp_stats_aws(db: Session = Depends(get_db)):
-    """MCP stats using existing agent-actions path pattern"""
+@app.get("/mcp/actions/stats")
+async def mcp_stats(db: Session = Depends(get_db)):
     try:
         result = db.execute(text("""
             SELECT status, COUNT(*) as count FROM agent_actions 
@@ -3684,423 +2716,11 @@ async def mcp_stats_aws(db: Session = Depends(get_db)):
         
         return {
             "stats": [{"status": row[0], "count": row[1]} for row in result],
-            "total": sum(row[1] for row in result),
-            "aws_deployment": True
+            "total": sum(row[1] for row in result)
         }
     except Exception as e:
         return {"stats": [], "error": str(e)}
 
-
-# API endpoints to match ALB listener rules
-
-# Enterprise MCP Data Backbone API Endpoints
-@app.get("/api/health")
-async def api_health():
-    return {"status": "healthy", "api_version": "v1", "enterprise_ready": True}
-
-@app.post("/api/mcp/actions/ingest")
-async def enterprise_mcp_api_ingest(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    try:
-        data = await request.json()
-        agent_id = data.get("agent_id", "unknown")
-        action = data.get("action", "unknown")
-        resource = data.get("resource", "unknown")
-        
-        # Enterprise risk assessment
-        risk_score = 30.0
-        if any(term in action.lower() for term in ["delete", "write", "modify"]):
-            risk_score += 40.0
-        if any(term in resource.lower() for term in ["database", "config", "secret"]):
-            risk_score += 30.0
-        risk_score = min(100.0, risk_score)
-        
-        # Insert with enterprise audit trail
-        result = db.execute(text("""
-            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved, user_id)
-            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved, :user_id)
-            RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"Enterprise MCP API: {action} on {resource}",
-            'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
-            'risk_score': risk_score,
-            'status': "approved" if risk_score < 60 else "pending",
-            'approved': risk_score < 60,
-            'user_id': current_user.get('user_id', 1)
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        db.commit()
-        
-        return {
-            "action_id": action_id,
-            "status": "success",
-            "result": "approved" if risk_score < 60 else "requires_approval",
-            "risk_score": risk_score,
-            "enterprise_compliant": True
-        }
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e), "status": "failed"}
-
-@app.get("/api/mcp/actions/stats")
-async def enterprise_mcp_api_stats(db: Session = Depends(get_db)):
-    try:
-        result = db.execute(text("""
-            SELECT status, COUNT(*) as count FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%' GROUP BY status
-        """)).fetchall()
-        
-        return {
-            "stats": [{"status": row[0], "count": row[1]} for row in result],
-            "total": sum(row[1] for row in result),
-            "enterprise_compliant": True
-        }
-    except Exception as e:
-        return {"stats": [], "error": str(e)}
-
-
-
-@app.post("/admin/create-enterprise-admin")
-async def create_enterprise_admin(db: Session = Depends(get_db)):
-    """🏢 ENTERPRISE: Create initial admin user (matches existing patterns)"""
-    try:
-        # Check if admin already exists (matches your existing query pattern)
-        existing = db.execute(text("SELECT id, email FROM users WHERE role = 'admin' LIMIT 1")).fetchone()
-        if existing:
-            return {
-                "status": "success", 
-                "message": "Admin user already exists",
-                "admin_id": existing[0],
-                "email": existing[1],
-                "enterprise_compliant": True
-            }
-        
-        # Create admin with simple password (matches your enterprise patterns)
-        # Note: Your system doesn't use password hashing yet, so using plain text temporarily
-        result = db.execute(text("""
-            INSERT INTO users (email, password, role, is_active, created_at) 
-            VALUES ('admin@owkai.app', 'admin123', 'admin', true, :created_at)
-            RETURNING id, email
-        """), {"created_at": datetime.now(UTC)})
-        
-        admin_data = result.fetchone()
-        db.commit()
-        
-        return {
-            "status": "success",
-            "message": "Enterprise admin created successfully",
-            "admin_id": admin_data[0],
-            "email": admin_data[1],
-            "temp_password": "admin123",
-            "note": "Setup password hashing before production",
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {
-            "status": "failed",
-            "error": str(e),
-            "enterprise_compliant": True
-        }
-
-@app.get("/mcp/actions")  
-async def get_mcp_actions(db: Session = Depends(get_db)):
-    """🏢 ENTERPRISE: Get MCP actions (matches your existing query patterns)"""
-    try:
-        # Use your exact existing column pattern from line 1147
-        result = db.execute(text("""
-            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                   status, approved, created_at
-            FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%' 
-            ORDER BY created_at DESC 
-            LIMIT 100
-        """))
-        
-        actions = []
-        for row in result:
-            # Match your existing data format from lines 1141-1151
-            actions.append({
-                "id": row[0],
-                "agent_id": row[1] or "unknown",
-                "action_type": row[2],
-                "description": row[3] or "No description",
-                "risk_level": row[4] or "unknown", 
-                "risk_score": float(row[5]) if row[5] else 0.0,
-                "status": row[6] or "pending",
-                "approved": bool(row[7]) if row[7] is not None else False,
-                "created_at": row[8].isoformat() if row[8] else None,
-                "enterprise_compliant": True
-            })
-        
-        return {
-            "actions": actions,
-            "total": len(actions),
-            "enterprise_compliant": True,
-            "query_pattern": "matches_existing_schema"
-        }
-        
-    except Exception as e:
-        return {
-            "actions": [],
-            "error": str(e),
-            "enterprise_compliant": True
-        }
-
-@app.post("/mcp/approve/{action_id}")
-async def approve_mcp_action(
-    action_id: int, 
-    db: Session = Depends(get_db), 
-    current_user: dict = Depends(get_current_user)
-):
-    """🏢 ENTERPRISE: Approve MCP action (matches your approval patterns)"""
-    try:
-        # Check if action exists first (matches your pattern from line 1547)
-        existing = db.execute(text("""
-            SELECT id, status FROM agent_actions WHERE id = :action_id
-        """), {'action_id': action_id}).fetchone()
-        
-        if not existing:
-            return {
-                "status": "failed",
-                "error": f"Action {action_id} not found",
-                "enterprise_compliant": True
-            }
-        
-        # Update using your exact pattern from lines 1547-1560
-        db.execute(text("""
-            UPDATE agent_actions 
-            SET approved = true, 
-                status = 'approved', 
-                
-                
-            WHERE id = :action_id
-        """), {
-            "action_id": action_id,
-            
-        })
-        
-        db.commit()
-        
-        # Match your logging pattern from line 1568
-        logging.info(f"Enterprise MCP action {action_id} approved by {current_user.get('email', 'unknown')}")
-        
-        return {
-            "status": "success",
-            "message": f"MCP action {action_id} approved successfully",
-            "action_id": action_id,
-            "approved_by": current_user.get("email", "unknown"),
-            "approved_status": "approved",
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {
-            "status": "failed", 
-            "error": str(e),
-            "enterprise_compliant": True
-        }
-
-@app.post("/admin/reset-admin-password")
-async def reset_admin_password(db: Session = Depends(get_db)):
-    """Reset admin password for testing (TEMPORARY)"""
-    try:
-        # Update admin password to known value
-        result = db.execute(text("""
-            UPDATE users 
-            SET password = 'admin123'
-            WHERE email = 'admin@owkai.com'
-            RETURNING id, email
-        """))
-        
-        admin_data = result.fetchone()
-        if not admin_data:
-            return {"error": "Admin user not found"}
-            
-        db.commit()
-        
-        return {
-            "status": "success",
-            "message": "Admin password reset to 'admin123'",
-            "admin_id": admin_data[0],
-            "email": admin_data[1],
-            "note": "Use admin@owkai.com / admin123 to login"
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-@app.post("/mcp/test/ingest-public")
-async def test_mcp_ingest_public(request: Request, db: Session = Depends(get_db)):
-    """TEMPORARY: Public MCP endpoint for testing the data backbone"""
-    try:
-        data = await request.json()
-        action = data.get("action", "test")
-        resource = data.get("resource", "test")
-        agent_id = data.get("agent_id", "test-agent")
-        
-        # Risk scoring logic
-        risk_score = 30.0
-        if "delete" in action.lower() or "modify" in action.lower():
-            risk_score += 40.0
-        if "database" in resource.lower() or "config" in resource.lower():
-            risk_score += 30.0
-        risk_score = min(100.0, risk_score)
-        
-        result = db.execute(text("""
-            INSERT INTO agent_actions (
-                agent_id, action_type, description, risk_level, risk_score, 
-                status, approved, created_at
-            ) VALUES (
-                :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :status, :approved, :created_at
-            ) RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"{action} on {resource}",
-            'risk_level': 'high' if risk_score > 70 else 'medium' if risk_score > 40 else 'low',
-            'risk_score': risk_score,
-            'status': 'pending_approval' if risk_score > 70 else 'approved',
-            'approved': risk_score <= 70,
-            'created_at': datetime.now(UTC)
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        db.commit()
-        
-        return {
-            "status": "success",
-            "action_id": action_id,
-            "risk_score": risk_score,
-            "risk_level": 'high' if risk_score > 70 else 'medium' if risk_score > 40 else 'low',
-            "requires_approval": risk_score > 70,
-            "message": "MCP Data Backbone working correctly!",
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e), "status": "failed"}
-
-@app.post("/admin/fix-admin-bcrypt")
-async def fix_admin_bcrypt_password(db: Session = Depends(get_db)):
-    """Fix admin user with proper bcrypt password hashing"""
-    try:
-        from passlib.context import CryptContext
-        
-        # Use the same password context as your auth_routes.py
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        
-        # Hash the password with bcrypt (same as registration)
-        hashed_password = pwd_context.hash("admin123")
-        
-        # Update admin user with properly hashed password in correct column
-        result = db.execute(text("""
-            UPDATE users 
-            SET password_hash = :hashed_password
-            WHERE email = 'admin@owkai.com'
-            RETURNING id, email
-        """), {"hashed_password": hashed_password})
-        
-        admin_data = result.fetchone()
-        if not admin_data:
-            return {"error": "Admin user not found"}
-            
-        db.commit()
-        
-        return {
-            "status": "success", 
-            "message": "Admin password properly bcrypt hashed",
-            "admin_id": admin_data[0],
-            "email": admin_data[1],
-            "note": "Password now matches authentication system"
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-@app.get("/admin/check-schema")
-async def check_database_schema(db: Session = Depends(get_db)):
-    """Check agent_actions table schema"""
-    try:
-        result = db.execute(text("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'agent_actions' 
-            ORDER BY ordinal_position
-        """))
-        
-        columns = []
-        for row in result:
-            columns.append({
-                "column_name": row[0],
-                "data_type": row[1]
-            })
-        
-        return {
-            "table": "agent_actions",
-            "columns": columns,
-            "total_columns": len(columns)
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/admin/debug-actions")
-async def debug_actions_table(db: Session = Depends(get_db)):
-    """Debug: Check what's in agent_actions table"""
-    try:
-        # Check all records
-        result = db.execute(text("SELECT id, agent_id, action_type, description, status, approved FROM agent_actions ORDER BY id DESC LIMIT 5"))
-        
-        actions = []
-        for row in result:
-            actions.append({
-                "id": row[0],
-                "agent_id": row[1], 
-                "action_type": row[2],
-                "description": row[3],
-                "status": row[4],
-                "approved": row[5]
-            })
-        
-        # Also check specifically for MCP actions
-        mcp_result = db.execute(text("SELECT COUNT(*) FROM agent_actions WHERE action_type LIKE 'mcp_%'"))
-        mcp_count = mcp_result.fetchone()[0]
-        
-        return {
-            "total_actions": len(actions),
-            "mcp_actions_count": mcp_count,
-            "recent_actions": actions
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-# Deployment verification 1756528361
-
-@app.get("/deployment/verify") 
-async def verify_deployment():
-    """Deployment verification endpoint"""
-    import subprocess
-    try:
-        git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
-    except:
-        git_hash = "unknown"
-    
-    return {
-        "deployment_id": git_hash,
-        "deployed_at": datetime.now(UTC).isoformat(),
-        "container_healthy": True,
-        "schema_version": "v2_corrected",
-        "endpoints_fixed": True
-    }
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

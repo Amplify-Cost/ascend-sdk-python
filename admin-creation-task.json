@@ -1,0 +1,29 @@
+{
+  "family": "owkai-pilot-admin-setup",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::110948415588:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "admin-setup",
+      "image": "110948415588.dkr.ecr.us-east-2.amazonaws.com/owkai-pilot-backend:2dbe18a",
+      "essential": true,
+      "command": ["python", "-c", "from sqlalchemy import create_engine, text; from passlib.context import CryptContext; import os; engine = create_engine(os.environ['DATABASE_URL']); pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto'); hashed_password = pwd_context.hash('admin123'); conn = engine.connect(); conn.execute(text('CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL, role VARCHAR(50) DEFAULT \\'user\\', is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, approval_level INTEGER DEFAULT 1, is_emergency_approver BOOLEAN DEFAULT FALSE, max_risk_approval INTEGER DEFAULT 50)')); conn.execute(text('INSERT INTO users (email, password, role, approval_level, is_emergency_approver, max_risk_approval) VALUES (:email, :password, \\'admin\\', 5, TRUE, 100) ON CONFLICT (email) DO UPDATE SET password = :password, role = \\'admin\\', approval_level = 5, is_emergency_approver = TRUE, max_risk_approval = 100'), {'email': 'admin@owkai.com', 'password': hashed_password}); conn.commit(); conn.close(); print('Enterprise admin user ready')"],
+      "environment": [],
+      "secrets": [
+        {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/DB_URL-RuZYGO"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/owkai-pilot-admin-setup",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "admin-setup"
+        }
+      }
+    }
+  ]
+}

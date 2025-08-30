@@ -1,5 +1,4 @@
 # main.py - Complete original file with only auth router fixes
-# FORCE_REBUILD_1756528577
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import openai
@@ -19,7 +18,6 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
 from routes.smart_rules_routes import router as smart_rules_router
-from routes.auth_routes import router as auth_routes_router
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
@@ -329,7 +327,6 @@ audit_trail_storage = []
 
 # <--- Added: include auth router
 app.include_router(auth_router)
-app.include_router(auth_routes_router, prefix="/auth")
 #app.include_router(smart_rules_router)
 #app.include_router(enterprise_user_router)
 #app.include_router(authorization_router)  
@@ -427,7 +424,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 # ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-@app.get("/agent-actions")
+@app.get("/agent-activity")
 async def get_agent_activity():
     """Get agent activity data"""
     try:
@@ -997,218 +994,6 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
 
 # ... Rest of your routes (agent-actions, admin fixes, submission, approval/reject, sample data, health check, main) preserved exactly as in your original 790-line file ...
 
-# ==================== ENTERPRISE MCP DATA BACKBONE ====================
-# Enterprise-grade MCP action ingestion and governance
-# Maintains full audit trail and compliance with existing enterprise features
-
-@app.post("/mcp/actions/ingest")
-async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Enterprise MCP Action Ingestion with full audit trail"""
-    try:
-        data = await request.json()
-        
-        # Enterprise validation
-        agent_id = data.get("agent_id", "").strip()
-        action = data.get("action", "").strip() 
-        resource = data.get("resource", "").strip()
-        
-        if not all([agent_id, action, resource]):
-            raise HTTPException(status_code=400, detail="Enterprise validation failed: agent_id, action, and resource are required")
-        
-        # Enterprise risk assessment
-        risk_score = 30.0
-        risk_factors = []
-        
-        high_risk_actions = ['delete', 'execute', 'modify', 'write', 'create']
-        high_risk_resources = ['database', 'config', 'secret', 'admin', 'production', 'prod']
-        
-        if any(term in action.lower() for term in high_risk_actions):
-            risk_score += 35.0
-            risk_factors.append(f"High-risk action: {action}")
-            
-        if any(term in resource.lower() for term in high_risk_resources):
-            risk_score += 30.0
-            risk_factors.append(f"Sensitive resource: {resource}")
-            
-        # Time-based risk (after hours)
-        current_hour = datetime.now(UTC).hour
-        if current_hour < 8 or current_hour > 18:
-            risk_score += 10.0
-            risk_factors.append("After-hours execution")
-            
-        risk_score = min(100.0, risk_score)
-        
-        # Determine risk level and approval requirements
-        if risk_score >= 80: risk_level = "critical"
-        elif risk_score >= 60: risk_level = "high" 
-        elif risk_score >= 40: risk_level = "medium"
-        else: risk_level = "low"
-        
-        requires_approval = risk_score >= 50.0
-        
-        # Insert into existing agent_actions table (maintains compatibility)
-        result = db.execute(text("""
-            INSERT INTO agent_actions (
-                agent_id, action_type, description, risk_level, risk_score, 
-                status, approved, user_id, created_at
-            ) VALUES (
-                :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :status, :approved, :user_id, :created_at
-            ) RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"Enterprise MCP: {action} on {resource}",
-            'risk_level': risk_level,
-            'risk_score': risk_score,
-            'status': "approved" if not requires_approval else "pending_approval",
-            'approved': not requires_approval,
-            'user_id': current_user.get('user_id', 1),
-            'created_at': datetime.now(UTC)
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        
-        # Enterprise audit logging (integrates with existing audit system)
-        try:
-            db.execute(text("""
-                INSERT INTO audit_logs (user_id, action, resource_type, resource_id, details, risk_level, timestamp)
-                VALUES (:user_id, :action, :resource_type, :resource_id, :details, :risk_level, :timestamp)
-            """), {
-                'user_id': current_user.get('user_id', 1),
-                'action': f"MCP_{action.upper()}",
-                'resource_type': 'mcp_action',
-                'resource_id': str(action_id),
-                'details': json.dumps({
-                    'agent_id': agent_id,
-                    'resource': resource,
-                    'risk_factors': risk_factors,
-                    'policy_id': data.get('policy_id', 'default')
-                }),
-                'risk_level': risk_level,
-                'timestamp': datetime.now(UTC)
-            })
-        except Exception as audit_error:
-            logger.warning(f"Enterprise audit logging failed: {audit_error}")
-        
-        db.commit()
-        
-        # Enterprise response format
-        response = {
-            'action_id': action_id,
-            'status': 'success',
-            'result': 'approved' if not requires_approval else 'requires_approval',
-            'risk_assessment': {
-                'risk_score': risk_score,
-                'risk_level': risk_level,
-                'risk_factors': risk_factors,
-                'requires_approval': requires_approval
-            },
-            'compliance_status': 'logged',
-            'enterprise_metadata': {
-                'processed_by': current_user.get('email', 'system'),
-                'timestamp': datetime.now(UTC).isoformat(),
-                'environment': 'production'
-            }
-        }
-        
-        logger.info(f"Enterprise MCP action processed: {action_id}, risk: {risk_level}")
-        return response
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Enterprise MCP processing failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Enterprise MCP processing failed: {str(e)}")
-
-@app.get("/agent-actions/activity")
-async def enterprise_agents_activity(limit: int = 50, db: Session = Depends(get_db)):
-    """Enhanced agents activity feed with MCP integration"""
-    try:
-        result = db.execute(text("""
-            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                   status, created_at, approved, user_id
-            FROM agent_actions 
-            ORDER BY created_at DESC NULLS LAST, id DESC 
-            LIMIT :limit
-        """), {'limit': limit}).fetchall()
-        
-        activities = []
-        for row in result:
-            activities.append({
-                'id': row[0],
-                'agent_id': row[1] or 'unknown',
-                'action_type': row[2] or 'action',
-                'description': row[3] or 'No description',
-                'risk_level': row[4] or 'medium',
-                'risk_score': float(row[5]) if row[5] else 50.0,
-                'result': 'approved' if row[8] else 'pending',
-                'policy_id': 'mcp_default' if row[2] and 'mcp_' in row[2] else 'default',
-                'created_at': row[7].isoformat() if row[7] else datetime.now(UTC).isoformat(),
-                'status': row[6] or 'pending',
-                'tool_name': row[10] or 'unknown',
-                'is_mcp_action': row[2] and 'mcp_' in row[2] if row[2] else False
-            })
-        
-        return activities
-        
-    except Exception as e:
-        logger.error(f"Enterprise activity feed failed: {str(e)}")
-        return []
-
-@app.get("/mcp/actions/stats")
-async def enterprise_mcp_stats(db: Session = Depends(get_db)):
-    """Enterprise MCP statistics with business intelligence"""
-    try:
-        # Get MCP-specific statistics
-        result = db.execute(text("""
-            SELECT 
-                status,
-                risk_level,
-                COUNT(*) as count,
-                AVG(risk_score) as avg_risk_score,
-                MAX(created_at) as latest_action
-            FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%'
-            GROUP BY status, risk_level
-            ORDER BY avg_risk_score DESC
-        """)).fetchall()
-        
-        # Calculate enterprise metrics
-        total_actions = sum(row[2] for row in result)
-        high_risk_actions = sum(row[2] for row in result if row[1] in ['high', 'critical'])
-        approved_actions = sum(row[2] for row in result if row[0] == 'approved')
-        
-        return {
-            'period': 'all_time',
-            'generated_at': datetime.now(UTC).isoformat(),
-            'enterprise_summary': {
-                'total_mcp_actions': total_actions,
-                'high_risk_percentage': (high_risk_actions / total_actions * 100) if total_actions > 0 else 0,
-                'approval_rate': (approved_actions / total_actions * 100) if total_actions > 0 else 0,
-                'compliance_status': 'enterprise_compliant'
-            },
-            'stats': [{
-                'result': row[0],
-                'risk_level': row[1], 
-                'count': row[2],
-                'avg_risk_score': float(row[3]) if row[3] else 0,
-                'latest_action': row[4].isoformat() if row[4] else None
-            } for row in result]
-        }
-        
-    except Exception as e:
-        logger.error(f"Enterprise MCP stats failed: {str(e)}")
-        return {
-            'period': 'all_time',
-            'enterprise_summary': {'total_mcp_actions': 0},
-            'stats': [],
-            'error': str(e)
-        }
-
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -1492,7 +1277,6 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-        db.commit()
             
             db.commit()
             
@@ -1880,7 +1664,6 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-        db.commit()
             
             db.commit()
             
@@ -3624,483 +3407,33 @@ try:
 except Exception as e:
     print(f"=== DEBUG: JWT manager failed: {e} ===")
 
-
-# MCP Data Backbone - AWS ECS Compatible
-@app.post("/agent-actions/mcp-ingest")
-async def mcp_ingest_aws(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """MCP ingestion using existing agent-actions path pattern"""
+@app.post("/auth/create-first-admin")
+async def create_first_admin():
+    """One-time admin user creation - removes itself after use"""
     try:
-        data = await request.json()
-        agent_id = data.get("agent_id", "unknown")
-        action = data.get("action", "unknown")
-        resource = data.get("resource", "unknown")
-        
-        # Enterprise risk assessment
-        risk_score = 30.0
-        if any(term in action.lower() for term in ["delete", "write", "modify"]):
-            risk_score += 40.0
-        if any(term in resource.lower() for term in ["database", "config", "secret"]):
-            risk_score += 30.0
-        risk_score = min(100.0, risk_score)
-        
-        # Insert into database
-        result = db.execute(text("""
-            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved)
-            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved)
-            RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"AWS MCP: {action} on {resource}",
-            'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
-            'risk_score': risk_score,
-            'status': "approved" if risk_score < 60 else "pending",
-            'approved': risk_score < 60
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        db.commit()
-        
-        return {
-            "action_id": action_id,
-            "status": "success",
-            "result": "approved" if risk_score < 60 else "requires_approval",
-            "risk_score": risk_score,
-            "aws_deployment": True
-        }
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e), "status": "failed"}
-
-@app.get("/agent-actions/mcp-stats")
-async def mcp_stats_aws(db: Session = Depends(get_db)):
-    """MCP stats using existing agent-actions path pattern"""
-    try:
-        result = db.execute(text("""
-            SELECT status, COUNT(*) as count FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%' GROUP BY status
-        """)).fetchall()
-        
-        return {
-            "stats": [{"status": row[0], "count": row[1]} for row in result],
-            "total": sum(row[1] for row in result),
-            "aws_deployment": True
-        }
-    except Exception as e:
-        return {"stats": [], "error": str(e)}
-
-
-# API endpoints to match ALB listener rules
-
-# Enterprise MCP Data Backbone API Endpoints
-@app.get("/api/health")
-async def api_health():
-    return {"status": "healthy", "api_version": "v1", "enterprise_ready": True}
-
-@app.post("/api/mcp/actions/ingest")
-async def enterprise_mcp_api_ingest(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    try:
-        data = await request.json()
-        agent_id = data.get("agent_id", "unknown")
-        action = data.get("action", "unknown")
-        resource = data.get("resource", "unknown")
-        
-        # Enterprise risk assessment
-        risk_score = 30.0
-        if any(term in action.lower() for term in ["delete", "write", "modify"]):
-            risk_score += 40.0
-        if any(term in resource.lower() for term in ["database", "config", "secret"]):
-            risk_score += 30.0
-        risk_score = min(100.0, risk_score)
-        
-        # Insert with enterprise audit trail
-        result = db.execute(text("""
-            INSERT INTO agent_actions (agent_id, action_type, description, risk_level, risk_score, status, approved, user_id)
-            VALUES (:agent_id, :action_type, :description, :risk_level, :risk_score, :status, :approved, :user_id)
-            RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"Enterprise MCP API: {action} on {resource}",
-            'risk_level': "high" if risk_score > 70 else "medium" if risk_score > 40 else "low",
-            'risk_score': risk_score,
-            'status': "approved" if risk_score < 60 else "pending",
-            'approved': risk_score < 60,
-            'user_id': current_user.get('user_id', 1)
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        db.commit()
-        
-        return {
-            "action_id": action_id,
-            "status": "success",
-            "result": "approved" if risk_score < 60 else "requires_approval",
-            "risk_score": risk_score,
-            "enterprise_compliant": True
-        }
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e), "status": "failed"}
-
-@app.get("/api/mcp/actions/stats")
-async def enterprise_mcp_api_stats(db: Session = Depends(get_db)):
-    try:
-        result = db.execute(text("""
-            SELECT status, COUNT(*) as count FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%' GROUP BY status
-        """)).fetchall()
-        
-        return {
-            "stats": [{"status": row[0], "count": row[1]} for row in result],
-            "total": sum(row[1] for row in result),
-            "enterprise_compliant": True
-        }
-    except Exception as e:
-        return {"stats": [], "error": str(e)}
-
-
-
-@app.post("/admin/create-enterprise-admin")
-async def create_enterprise_admin(db: Session = Depends(get_db)):
-    """🏢 ENTERPRISE: Create initial admin user (matches existing patterns)"""
-    try:
-        # Check if admin already exists (matches your existing query pattern)
-        existing = db.execute(text("SELECT id, email FROM users WHERE role = 'admin' LIMIT 1")).fetchone()
-        if existing:
-            return {
-                "status": "success", 
-                "message": "Admin user already exists",
-                "admin_id": existing[0],
-                "email": existing[1],
-                "enterprise_compliant": True
-            }
-        
-        # Create admin with simple password (matches your enterprise patterns)
-        # Note: Your system doesn't use password hashing yet, so using plain text temporarily
-        result = db.execute(text("""
-            INSERT INTO users (email, password, role, is_active, created_at) 
-            VALUES ('admin@owkai.app', 'admin123', 'admin', true, :created_at)
-            RETURNING id, email
-        """), {"created_at": datetime.now(UTC)})
-        
-        admin_data = result.fetchone()
-        db.commit()
-        
-        return {
-            "status": "success",
-            "message": "Enterprise admin created successfully",
-            "admin_id": admin_data[0],
-            "email": admin_data[1],
-            "temp_password": "admin123",
-            "note": "Setup password hashing before production",
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {
-            "status": "failed",
-            "error": str(e),
-            "enterprise_compliant": True
-        }
-
-@app.get("/mcp/actions")  
-async def get_mcp_actions(db: Session = Depends(get_db)):
-    """🏢 ENTERPRISE: Get MCP actions (matches your existing query patterns)"""
-    try:
-        # Use your exact existing column pattern from line 1147
-        result = db.execute(text("""
-            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                   status, approved, created_at
-            FROM agent_actions 
-            WHERE action_type LIKE 'mcp_%' 
-            ORDER BY created_at DESC 
-            LIMIT 100
-        """))
-        
-        actions = []
-        for row in result:
-            # Match your existing data format from lines 1141-1151
-            actions.append({
-                "id": row[0],
-                "agent_id": row[1] or "unknown",
-                "action_type": row[2],
-                "description": row[3] or "No description",
-                "risk_level": row[4] or "unknown", 
-                "risk_score": float(row[5]) if row[5] else 0.0,
-                "status": row[6] or "pending",
-                "approved": bool(row[7]) if row[7] is not None else False,
-                "created_at": row[8].isoformat() if row[8] else None,
-                "enterprise_compliant": True
-            })
-        
-        return {
-            "actions": actions,
-            "total": len(actions),
-            "enterprise_compliant": True,
-            "query_pattern": "matches_existing_schema"
-        }
-        
-    except Exception as e:
-        return {
-            "actions": [],
-            "error": str(e),
-            "enterprise_compliant": True
-        }
-
-@app.post("/mcp/approve/{action_id}")
-async def approve_mcp_action(
-    action_id: int, 
-    db: Session = Depends(get_db), 
-    current_user: dict = Depends(get_current_user)
-):
-    """🏢 ENTERPRISE: Approve MCP action (matches your approval patterns)"""
-    try:
-        # Check if action exists first (matches your pattern from line 1547)
-        existing = db.execute(text("""
-            SELECT id, status FROM agent_actions WHERE id = :action_id
-        """), {'action_id': action_id}).fetchone()
-        
-        if not existing:
-            return {
-                "status": "failed",
-                "error": f"Action {action_id} not found",
-                "enterprise_compliant": True
-            }
-        
-        # Update using your exact pattern from lines 1547-1560
-        db.execute(text("""
-            UPDATE agent_actions 
-            SET approved = true, 
-                status = 'approved', 
-                
-                
-            WHERE id = :action_id
-        """), {
-            "action_id": action_id,
-            
-        })
-        
-        db.commit()
-        
-        # Match your logging pattern from line 1568
-        logging.info(f"Enterprise MCP action {action_id} approved by {current_user.get('email', 'unknown')}")
-        
-        return {
-            "status": "success",
-            "message": f"MCP action {action_id} approved successfully",
-            "action_id": action_id,
-            "approved_by": current_user.get("email", "unknown"),
-            "approved_status": "approved",
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {
-            "status": "failed", 
-            "error": str(e),
-            "enterprise_compliant": True
-        }
-
-@app.post("/admin/reset-admin-password")
-async def reset_admin_password(db: Session = Depends(get_db)):
-    """Reset admin password for testing (TEMPORARY)"""
-    try:
-        # Update admin password to known value
-        result = db.execute(text("""
-            UPDATE users 
-            SET password = 'admin123'
-            WHERE email = 'admin@owkai.com'
-            RETURNING id, email
-        """))
-        
-        admin_data = result.fetchone()
-        if not admin_data:
-            return {"error": "Admin user not found"}
-            
-        db.commit()
-        
-        return {
-            "status": "success",
-            "message": "Admin password reset to 'admin123'",
-            "admin_id": admin_data[0],
-            "email": admin_data[1],
-            "note": "Use admin@owkai.com / admin123 to login"
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-@app.post("/mcp/test/ingest-public")
-async def test_mcp_ingest_public(request: Request, db: Session = Depends(get_db)):
-    """TEMPORARY: Public MCP endpoint for testing the data backbone"""
-    try:
-        data = await request.json()
-        action = data.get("action", "test")
-        resource = data.get("resource", "test")
-        agent_id = data.get("agent_id", "test-agent")
-        
-        # Risk scoring logic
-        risk_score = 30.0
-        if "delete" in action.lower() or "modify" in action.lower():
-            risk_score += 40.0
-        if "database" in resource.lower() or "config" in resource.lower():
-            risk_score += 30.0
-        risk_score = min(100.0, risk_score)
-        
-        result = db.execute(text("""
-            INSERT INTO agent_actions (
-                agent_id, action_type, description, risk_level, risk_score, 
-                status, approved, created_at
-            ) VALUES (
-                :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :status, :approved, :created_at
-            ) RETURNING id
-        """), {
-            'agent_id': agent_id,
-            'action_type': f"mcp_{action}",
-            'description': f"{action} on {resource}",
-            'risk_level': 'high' if risk_score > 70 else 'medium' if risk_score > 40 else 'low',
-            'risk_score': risk_score,
-            'status': 'pending_approval' if risk_score > 70 else 'approved',
-            'approved': risk_score <= 70,
-            'created_at': datetime.now(UTC)
-        })
-        
-        action_id = result.fetchone()[0]
-        db.commit()
-        db.commit()
-        
-        return {
-            "status": "success",
-            "action_id": action_id,
-            "risk_score": risk_score,
-            "risk_level": 'high' if risk_score > 70 else 'medium' if risk_score > 40 else 'low',
-            "requires_approval": risk_score > 70,
-            "message": "MCP Data Backbone working correctly!",
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e), "status": "failed"}
-
-@app.post("/admin/fix-admin-bcrypt")
-async def fix_admin_bcrypt_password(db: Session = Depends(get_db)):
-    """Fix admin user with proper bcrypt password hashing"""
-    try:
+        from dependencies import get_db
+        from models import User
         from passlib.context import CryptContext
         
-        # Use the same password context as your auth_routes.py
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        db: Session = next(get_db())
         
-        # Hash the password with bcrypt (same as registration)
-        hashed_password = pwd_context.hash("admin123")
-        
-        # Update admin user with properly hashed password in correct column
-        result = db.execute(text("""
-            UPDATE users 
-            SET password_hash = :hashed_password
-            WHERE email = 'admin@owkai.com'
-            RETURNING id, email
-        """), {"hashed_password": hashed_password})
-        
-        admin_data = result.fetchone()
-        if not admin_data:
-            return {"error": "Admin user not found"}
+        # Check if any admin users exist
+        admin_count = db.query(User).filter(User.role == "admin").count()
+        if admin_count > 0:
+            return {"error": "Admin users already exist"}
             
+        # Create first admin
+        hashed_password = pwd_context.hash("Admin123!")
+        admin_user = User(
+            email="admin@owkai.com",
+            password_hash=hashed_password,
+            role="admin",
+            is_active=True
+        )
+        db.add(admin_user)
         db.commit()
         
-        return {
-            "status": "success", 
-            "message": "Admin password properly bcrypt hashed",
-            "admin_id": admin_data[0],
-            "email": admin_data[1],
-            "note": "Password now matches authentication system"
-        }
-        
-    except Exception as e:
-        db.rollback()
-        return {"error": str(e)}
-
-@app.get("/admin/check-schema")
-async def check_database_schema(db: Session = Depends(get_db)):
-    """Check agent_actions table schema"""
-    try:
-        result = db.execute(text("""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name = 'agent_actions' 
-            ORDER BY ordinal_position
-        """))
-        
-        columns = []
-        for row in result:
-            columns.append({
-                "column_name": row[0],
-                "data_type": row[1]
-            })
-        
-        return {
-            "table": "agent_actions",
-            "columns": columns,
-            "total_columns": len(columns)
-        }
-        
+        return {"success": "First admin user created", "email": "admin@owkai.com"}
     except Exception as e:
         return {"error": str(e)}
-
-@app.get("/admin/debug-actions")
-async def debug_actions_table(db: Session = Depends(get_db)):
-    """Debug: Check what's in agent_actions table"""
-    try:
-        # Check all records
-        result = db.execute(text("SELECT id, agent_id, action_type, description, status, approved FROM agent_actions ORDER BY id DESC LIMIT 5"))
-        
-        actions = []
-        for row in result:
-            actions.append({
-                "id": row[0],
-                "agent_id": row[1], 
-                "action_type": row[2],
-                "description": row[3],
-                "status": row[4],
-                "approved": row[5]
-            })
-        
-        # Also check specifically for MCP actions
-        mcp_result = db.execute(text("SELECT COUNT(*) FROM agent_actions WHERE action_type LIKE 'mcp_%'"))
-        mcp_count = mcp_result.fetchone()[0]
-        
-        return {
-            "total_actions": len(actions),
-            "mcp_actions_count": mcp_count,
-            "recent_actions": actions
-        }
-        
-    except Exception as e:
-        return {"error": str(e)}
-
-# Deployment verification 1756528361
-
-@app.get("/deployment/verify") 
-async def verify_deployment():
-    """Deployment verification endpoint"""
-    import subprocess
-    try:
-        git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
-    except:
-        git_hash = "unknown"
-    
-    return {
-        "deployment_id": git_hash,
-        "deployed_at": datetime.now(UTC).isoformat(),
-        "container_healthy": True,
-        "schema_version": "v2_corrected",
-        "endpoints_fixed": True
-    }
