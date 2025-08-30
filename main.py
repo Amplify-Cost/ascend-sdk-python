@@ -1492,9 +1492,8 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-        db.commit()
-            
             db.commit()
+            
             
             # Enterprise audit logging
             logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
@@ -1880,9 +1879,8 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-        db.commit()
-            
             db.commit()
+            
             
             # Enterprise audit logging
             logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
