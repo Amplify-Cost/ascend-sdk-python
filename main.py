@@ -1049,10 +1049,10 @@ async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db),
         result = db.execute(text("""
             INSERT INTO agent_actions (
                 agent_id, action_type, description, risk_level, risk_score, 
-                status, approved, user_id, tool_name, created_at
+                status, approved, user_id, created_at
             ) VALUES (
                 :agent_id, :action_type, :description, :risk_level, :risk_score,
-                :status, :approved, :user_id, :tool_name, :created_at
+                :status, :approved, :user_id, :created_at
             ) RETURNING id
         """), {
             'agent_id': agent_id,
@@ -1127,7 +1127,7 @@ async def enterprise_agents_activity(limit: int = 50, db: Session = Depends(get_
     try:
         result = db.execute(text("""
             SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                   status, created_at, approved, user_id, tool_name
+                   status, created_at, approved, user_id
             FROM agent_actions 
             ORDER BY created_at DESC NULLS LAST, id DESC 
             LIMIT :limit
