@@ -1063,7 +1063,6 @@ async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db),
             'status': "approved" if not requires_approval else "pending_approval",
             'approved': not requires_approval,
             'user_id': current_user.get('user_id', 1),
-            'tool_name': 'enterprise_mcp',
             'created_at': datetime.now(UTC)
         })
         
