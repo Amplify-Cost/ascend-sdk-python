@@ -3879,11 +3879,11 @@ async def approve_mcp_action(
             SET approved = true, 
                 status = 'approved', 
                 
-                updated_at = :updated_at
+                
             WHERE id = :action_id
         """), {
             "action_id": action_id,
-            "updated_at": datetime.now(UTC)
+            
         })
         
         db.commit()
