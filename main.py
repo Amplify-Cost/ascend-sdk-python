@@ -3986,3 +3986,41 @@ async def test_mcp_ingest_public(request: Request, db: Session = Depends(get_db)
     except Exception as e:
         db.rollback()
         return {"error": str(e), "status": "failed"}
+
+@app.post("/admin/fix-admin-bcrypt")
+async def fix_admin_bcrypt_password(db: Session = Depends(get_db)):
+    """Fix admin user with proper bcrypt password hashing"""
+    try:
+        from passlib.context import CryptContext
+        
+        # Use the same password context as your auth_routes.py
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        # Hash the password with bcrypt (same as registration)
+        hashed_password = pwd_context.hash("admin123")
+        
+        # Update admin user with properly hashed password in correct column
+        result = db.execute(text("""
+            UPDATE users 
+            SET password_hash = :hashed_password
+            WHERE email = 'admin@owkai.com'
+            RETURNING id, email
+        """), {"hashed_password": hashed_password})
+        
+        admin_data = result.fetchone()
+        if not admin_data:
+            return {"error": "Admin user not found"}
+            
+        db.commit()
+        
+        return {
+            "status": "success", 
+            "message": "Admin password properly bcrypt hashed",
+            "admin_id": admin_data[0],
+            "email": admin_data[1],
+            "note": "Password now matches authentication system"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
