@@ -3833,9 +3833,6 @@ async def get_mcp_actions(db: Session = Depends(get_db)):
                 "status": row[6] or "pending",
                 "approved": bool(row[7]) if row[7] is not None else False,
                 "created_at": row[8].isoformat() if row[8] else None,
-                "tool_name": row[9] or "enterprise_mcp",
-                "resource_type": row[10] or "mcp_action",
-                "result": row[11],
                 "enterprise_compliant": True
             })
         
