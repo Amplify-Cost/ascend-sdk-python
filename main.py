@@ -4085,3 +4085,4 @@ async def debug_actions_table(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
+# Deployment verification 1756528361
