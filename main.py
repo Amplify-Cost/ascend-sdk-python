@@ -3813,7 +3813,7 @@ async def get_mcp_actions(db: Session = Depends(get_db)):
         # Use your exact existing column pattern from line 1147
         result = db.execute(text("""
             SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                   status, approved, created_at, tool_name, resource_type, result
+                   status, approved, created_at
             FROM agent_actions 
             WHERE action_type LIKE 'mcp_%' 
             ORDER BY created_at DESC 
