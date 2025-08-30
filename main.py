@@ -1067,6 +1067,7 @@ async def enterprise_mcp_ingest(request: Request, db: Session = Depends(get_db),
         })
         
         action_id = result.fetchone()[0]
+        db.commit()
         
         # Enterprise audit logging (integrates with existing audit system)
         try:
@@ -1490,6 +1491,7 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
+        db.commit()
             
             db.commit()
             
@@ -1877,6 +1879,7 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
             
             # Get the inserted action ID
             action_id = result.fetchone()[0]
+        db.commit()
             
             db.commit()
             
@@ -3656,6 +3659,7 @@ async def mcp_ingest_aws(request: Request, db: Session = Depends(get_db), curren
         
         action_id = result.fetchone()[0]
         db.commit()
+        db.commit()
         
         return {
             "action_id": action_id,
@@ -3726,6 +3730,7 @@ async def enterprise_mcp_api_ingest(request: Request, db: Session = Depends(get_
         })
         
         action_id = result.fetchone()[0]
+        db.commit()
         db.commit()
         
         return {
@@ -3970,6 +3975,7 @@ async def test_mcp_ingest_public(request: Request, db: Session = Depends(get_db)
         })
         
         action_id = result.fetchone()[0]
+        db.commit()
         db.commit()
         
         return {
