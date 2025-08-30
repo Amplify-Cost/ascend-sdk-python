@@ -4085,4 +4085,3 @@ async def debug_actions_table(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
-# ENTERPRISE DEPLOYMENT REFRESH - Sat Aug 30 00:21:43 EDT 2025
