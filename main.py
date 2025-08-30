@@ -3873,7 +3873,7 @@ async def approve_mcp_action(
             UPDATE agent_actions 
             SET approved = true, 
                 status = 'approved', 
-                result = 'approved_by_user',
+                
                 updated_at = :updated_at
             WHERE id = :action_id
         """), {
