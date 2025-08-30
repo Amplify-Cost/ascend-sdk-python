@@ -1,4 +1,5 @@
 # main.py - Complete original file with only auth router fixes
+# FORCE_REBUILD_1756528577
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 import openai
