@@ -162,10 +162,13 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
         method: "POST",
         headers: {
+    "X-Requested-With": "XMLHttpRequest",
+    "X-CSRFToken": "exempt",
           ...getAuthHeaders(),
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(newUser)
+        credentials: "include",
+  body: JSON.stringify(newUser)
       });
 
       if (response.ok) {
@@ -267,6 +270,8 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
         method: "POST",
         headers: {
+    "X-Requested-With": "XMLHttpRequest",
+    "X-CSRFToken": "exempt",
           ...getAuthHeaders(),
           "Content-Type": "application/json"
         },
