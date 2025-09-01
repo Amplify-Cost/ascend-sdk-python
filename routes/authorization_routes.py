@@ -908,9 +908,7 @@ async def authorize_enterprise_action(
 """), {
     "action_id": action_id,
     "reviewed_by": admin_user.get("email", "enterprise_admin"),
-                "reviewed_at": datetime.now(UTC)
-    "reviewed_at": authorization_timestamp
-}.update({"metadata": json.dumps(enterprise_metadata)}))
+    "reviewed_at": authorization_timestamp)
 db.commit()
             except Exception as update_error:
                 # Fallback for databases without all columns
@@ -2180,7 +2178,6 @@ async def authorize_enterprise_action_synchronized(
                 "status": decision,
                 "approved": decision == "approved",
                 "reviewed_by": admin_user.get("email", "enterprise_admin"),
-                "reviewed_at": datetime.now(UTC)
                 "reviewed_at": datetime.now(UTC)
             })
             db.commit()
