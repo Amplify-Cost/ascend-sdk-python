@@ -908,7 +908,8 @@ async def authorize_enterprise_action(
 """), {
     "action_id": action_id,
     "reviewed_by": admin_user.get("email", "enterprise_admin"),
-    "reviewed_at": authorization_timestamp)
+    "reviewed_at": authorization_timestamp
+})
 db.commit()
             except Exception as update_error:
                 # Fallback for databases without all columns
