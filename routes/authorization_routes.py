@@ -2135,8 +2135,8 @@ async def get_approval_dashboard_enhanced(
 async def authorize_enterprise_action_synchronized(
     action_id: int,
     request: Request,
-    db: Session,
-    admin_user: dict,
+    db: Session = Depends(get_db),
+    admin_user: dict = Depends(require_admin),
     execute_immediately: bool = True
 ):
     """🏢 ENTERPRISE: Fixed authorization with database synchronization"""
