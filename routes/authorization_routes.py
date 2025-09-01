@@ -2165,9 +2165,6 @@ async def authorize_enterprise_action_synchronized(
         result = db.execute(text("SELECT * FROM agent_actions WHERE id = :action_id"), {"action_id": action_id}).fetchone()
         
         if result:
-            # ENTERPRISE DEBUG: Log exact values being set
-            logger.info(f"ENTERPRISE UPDATE DEBUG: action_id={action_id}, status='{decision}', approved={decision == 'approved'}")
-            
             # Update REAL database status
             db.execute(text("""
                 UPDATE agent_actions 
