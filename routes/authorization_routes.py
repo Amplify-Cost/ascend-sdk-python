@@ -2181,6 +2181,9 @@ async def authorize_enterprise_action_synchronized(
                 "reviewed_at": datetime.now(UTC)
             })
             db.commit()
+            # ENTERPRISE DIAGNOSTIC: Verify database update
+            verify_result = db.execute(text("SELECT status, approved FROM agent_actions WHERE id = :action_id"), {"action_id": action_id}).fetchone()
+            logger.info(f"ENTERPRISE TRACE: After UPDATE - Status: {verify_result[0] if verify_result else 'NOT_FOUND'}, Approved: {verify_result[1] if verify_result else 'NOT_FOUND'}")
             logger.info(f"✅ REAL DATABASE UPDATED: Action {action_id} status = {decision}")
         
         # Create comprehensive audit trail
