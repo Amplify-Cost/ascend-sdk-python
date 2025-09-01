@@ -2186,11 +2186,6 @@ async def authorize_enterprise_action_synchronized(
             })
             db.commit()
             
-            # ENTERPRISE FIX: Isolate approval transaction from execution
-            db.close()
-            from database import get_db
-            db = next(get_db())
-            
             # ENTERPRISE DIAGNOSTIC: Verify database update
             verify_result = db.execute(text("SELECT status, approved FROM agent_actions WHERE id = :action_id"), {"action_id": action_id}).fetchone()
             logger.info(f"ENTERPRISE TRACE: After UPDATE - Status: {verify_result[0] if verify_result else 'NOT_FOUND'}, Approved: {verify_result[1] if verify_result else 'NOT_FOUND'}")
