@@ -864,7 +864,7 @@ async def authorize_enterprise_action(
             raise HTTPException(status_code=404, detail="Enterprise action not found")
         
         # Validate current status
-        current_status = result[6] if len(result) > 5 else "pending"
+        current_status = result[5] if len(result) > 5 else "pending"
         if current_status not in ["pending", "submitted", "pending_approval"]:
             raise HTTPException(status_code=400, detail=f"Enterprise action already processed: {current_status}")
         
@@ -1176,7 +1176,7 @@ async def execute_approved_action(
         if not result:
             raise HTTPException(status_code=404, detail="Enterprise action not found")
         
-        status = result[6] if len(result) > 5 else "pending"
+        status = result[5] if len(result) > 5 else "pending"
         if status != "approved":
             raise HTTPException(status_code=400, detail=f"Enterprise action must be approved before execution. Current status: {status}")
         

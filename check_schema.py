@@ -1,23 +1,23 @@
-import psycopg2
-import os
+import sqlite3
+import sys
 
-# Connect to database
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://owkai_admin:1YLIthN_fWt4H+&yJ<gl1b5}iDFQ4nAj@owkai-pilot-db.cpwaouykib7n.us-east-2.rds.amazonaws.com:5432/owkai_pilot')
-conn = psycopg2.connect(DATABASE_URL)
-cur = conn.cursor()
-
-# Get table schema
-cur.execute("""
-    SELECT column_name, data_type 
-    FROM information_schema.columns 
-    WHERE table_name = 'agent_actions' 
-    ORDER BY ordinal_position;
-""")
-
-columns = cur.fetchall()
-print("agent_actions table columns:")
-for col_name, col_type in columns:
-    print(f"  {col_name}: {col_type}")
-
-cur.close()
-conn.close()
+try:
+    conn = sqlite3.connect('database.db')  # Adjust path if needed
+    cursor = conn.cursor()
+    
+    cursor.execute("PRAGMA table_info(agent_actions)")
+    columns = cursor.fetchall()
+    
+    print("=== AGENT_ACTIONS TABLE SCHEMA ===")
+    for col in columns:
+        print(f"{col[1]:<20} {col[2]:<15} {'NOT NULL' if col[3] else 'NULLABLE':<10} DEFAULT: {col[4] or 'None'}")
+    
+    cursor.execute("SELECT id, status, approved, risk_level FROM agent_actions WHERE id = 2")
+    result = cursor.fetchone()
+    if result:
+        print(f"\n=== ACTION 2 CURRENT STATE ===")
+        print(f"ID: {result[0]}, Status: {result[1]}, Approved: {result[2]}, Risk Level: {result[3]}")
+    
+    conn.close()
+except Exception as e:
+    print(f"Error: {e}")

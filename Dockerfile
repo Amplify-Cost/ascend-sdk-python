@@ -1,35 +1,38 @@
+# Use Python 3.11 as base - this gives us a Linux environment with Python ready
 FROM python:3.11-slim
 
-# Set working directory
-WORKDIR /app
+# Set environment variables that optimize Python for containers
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
-# Install system dependencies for PostgreSQL and cryptography
+# Install system dependencies that your app might need
 RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    libffi-dev \
-    libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Create a working directory inside the container
+WORKDIR /app
 
-# Copy application code
+# Copy requirements first (Docker optimization - if requirements don't change, this step is cached)
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy your application code
 COPY . .
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
-USER app
+# Create a non-root user for security (enterprise standard)
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
 
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Health check - tells AWS if your app is working properly
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose the port your FastAPI app runs on
+EXPOSE 8000
+
+# Command to start your application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
