@@ -162,10 +162,10 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
         method: "POST",
         headers: {
-    "X-Requested-With": "XMLHttpRequest",
-    "X-CSRFToken": "exempt",
           ...getAuthHeaders(),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": "exempt"
         },
         credentials: "include",
   body: JSON.stringify(newUser)
@@ -270,10 +270,10 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
         method: "POST",
         headers: {
-    "X-Requested-With": "XMLHttpRequest",
-    "X-CSRFToken": "exempt",
           ...getAuthHeaders(),
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": "exempt"
         },
         body: JSON.stringify(newRole)
       });
