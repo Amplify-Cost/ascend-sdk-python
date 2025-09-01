@@ -2164,6 +2164,9 @@ async def authorize_enterprise_action_synchronized(
         # CRITICAL FIX: Check and update REAL database first
         result = db.execute(text("SELECT * FROM agent_actions WHERE id = :action_id"), {"action_id": action_id}).fetchone()
         
+        # ENTERPRISE DEBUG: Verify result object before UPDATE
+        logger.info(f"ENTERPRISE: result exists = {result is not None}, result = {result}")
+        
         if result:
             # Update REAL database status
             db.execute(text("""
