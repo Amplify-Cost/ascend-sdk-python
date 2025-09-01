@@ -26,7 +26,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       
       console.log('🔄 Auth headers available:', !!headers.Authorization);
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}${endpoint}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://pilot.owkai.app'}${endpoint}`, {
         method: 'GET',
         headers: {
           ...headers,
@@ -72,7 +72,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
     }
 
     const userEmail = user.email;
-    const wsUrl = `${(import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
+    const wsUrl = `${(import.meta.env.VITE_API_URL || 'https://pilot.owkai.app').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
     
     try {
       console.log('🔌 Initializing WebSocket:', wsUrl);
@@ -361,7 +361,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <h4 className="text-sm font-medium text-gray-700 mb-2">Debug Information:</h4>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>API URL: {import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}</p>
+                <p>API URL: {import.meta.env.VITE_API_URL || 'https://pilot.owkai.app'}</p>
                 <p>Auth Headers: {getAuthHeaders ? 'Available' : 'Not available'}</p>
                 <p>User Role: {user?.role || 'Unknown'}</p>
                 <p>Endpoints: /analytics/realtime/metrics, /analytics/predictive/trends, /analytics/performance/system</p>
@@ -642,7 +642,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
               <p><strong>User:</strong> {user?.email || 'Not authenticated'}</p>
               <p><strong>Role:</strong> {user?.role || 'Unknown'}</p>
               <p><strong>Auth Headers:</strong> {!!getAuthHeaders ? 'Available' : 'Not available'}</p>
-              <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'https://owai-production.up.railway.app'}</p>
+              <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'https://pilot.owkai.app'}</p>
               <p><strong>Expected Endpoints:</strong></p>
               <ul className="ml-4 text-xs text-gray-600">
                 <li>• /analytics/realtime/metrics</li>

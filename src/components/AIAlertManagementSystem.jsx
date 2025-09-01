@@ -16,7 +16,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [executiveBrief, setExecutiveBrief] = useState(null);
   const [briefLoading, setBriefLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
 
   // Demo data generators - FIXED VERSION
   const generateDemoMetrics = () => {

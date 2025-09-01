@@ -18,7 +18,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
     confidential_reports: 23
   });
 
-  const BASE_URL = "https://owai-production.up.railway.app";
+  const BASE_URL = "https://pilot.owkai.app";
 
   // Load data on component mount
   useEffect(() => {

@@ -20,7 +20,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
   const [summaryError, setSummaryError] = useState("");
   const [summaryResult, setSummaryResult] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
 
   useEffect(() => {
     const fetchAlerts = async () => {

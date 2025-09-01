@@ -1,5 +1,5 @@
 // utils/fetchWithAuth.js — Hybrid Cookie + Token (Enterprise Phase 1.5)
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
 
 // Read a simple cookie value (used for CSRF; session cookie is HttpOnly and not readable)
 function getCookie(name) {

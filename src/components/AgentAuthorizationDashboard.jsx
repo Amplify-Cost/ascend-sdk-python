@@ -44,7 +44,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   const [selectedExecution, setSelectedExecution] = useState(null);
 
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
 
   // Fixed useEffect for real-time updates
   useEffect(() => {

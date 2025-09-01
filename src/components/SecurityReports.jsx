@@ -13,7 +13,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const [filterType, setFilterType] = useState("all");
   const [sortBy, setSortBy] = useState("date");
 
-  const BASE_URL = "https://owai-production.up.railway.app";
+  const BASE_URL = "https://pilot.owkai.app";
 
   // Enterprise-level mock data
   const enterpriseReports = [

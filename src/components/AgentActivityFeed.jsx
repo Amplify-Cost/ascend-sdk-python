@@ -15,7 +15,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const itemsPerPage = 5;
 
   // ✅ Added fallback URL
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
 
   const fetchActivity = async () => {
     try {

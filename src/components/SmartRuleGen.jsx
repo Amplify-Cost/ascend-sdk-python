@@ -17,7 +17,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [abTests, setAbTests] = useState([]);
   const [creatingTest, setCreatingTest] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
 
   useEffect(() => {
     fetchInitialData();

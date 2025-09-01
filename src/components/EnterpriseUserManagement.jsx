@@ -44,7 +44,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
   const [auditFilter, setAuditFilter] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
 
-  const BASE_URL = "https://owai-production.up.railway.app";
+  const BASE_URL = "https://pilot.owkai.app";
 
   // ============================================================================
   // DATA FETCHING
