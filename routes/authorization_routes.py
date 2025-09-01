@@ -856,6 +856,14 @@ async def authorize_enterprise_action(
     """Enterprise authorization workflow with comprehensive audit and execution"""
     try:
         authorization_id = str(uuid.uuid4())
+        
+        # Store enterprise metadata in existing extra_data column
+        enterprise_metadata = {
+            "authorization_id": authorization_id,
+            "approval_comments": comments,
+            "enterprise_audit": True,
+            "compliance_logged": True
+        }
         logger.info(f"🏢 ENTERPRISE AUTHORIZATION: Starting {authorization_id} for action {action_id}")
         
         # Retrieve action with enterprise validation
@@ -891,22 +899,18 @@ async def authorize_enterprise_action(
             # Update action with enterprise metadata
             try:
                 db.execute(text("""
-                    UPDATE agent_actions 
-                    SET status = 'approved', 
-                        approved = true, 
-                        reviewed_by = :reviewed_by,
-                        reviewed_at = :reviewed_at,
-                        approval_comments = :comments,
-                        authorization_id = :authorization_id
-                    WHERE id = :action_id
-                """), {
-                    "action_id": action_id,
-                    "reviewed_by": admin_user.get("email", "enterprise_admin"),
-                    "reviewed_at": authorization_timestamp,
-                    "comments": comments,
-                    "authorization_id": authorization_id
-                })
-                db.commit()
+    UPDATE agent_actions 
+    SET status = 'approved', 
+        approved = true, 
+        reviewed_by = :reviewed_by,
+        reviewed_at = :reviewed_at
+    WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
+"""), {
+    "action_id": action_id,
+    "reviewed_by": admin_user.get("email", "enterprise_admin"),
+    "reviewed_at": authorization_timestamp
+}.update({"metadata": json.dumps(enterprise_metadata)}))
+db.commit()
             except Exception as update_error:
                 # Fallback for databases without all columns
                 logger.warning(f"Enterprise update fallback: {update_error}")
@@ -1034,7 +1038,7 @@ async def authorize_enterprise_action(
                     approved = false, 
                     reviewed_by = :reviewed_by,
                     reviewed_at = :reviewed_at
-                WHERE id = :action_id
+                WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
             """), {
                 "action_id": action_id,
                 "reviewed_by": admin_user.get("email", "enterprise_admin"),
@@ -1484,7 +1488,7 @@ async def emergency_override_action(
                 approved = true, 
                 reviewed_by = :reviewed_by,
                 reviewed_at = :reviewed_at
-            WHERE id = :action_id
+            WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
         """), {
             "action_id": action_id,
             "reviewed_by": f"EMERGENCY_OVERRIDE_{admin_user.get('email', 'unknown')}",
@@ -2138,6 +2142,14 @@ async def authorize_enterprise_action_synchronized(
     """🏢 ENTERPRISE: Fixed authorization with database synchronization"""
     try:
         authorization_id = str(uuid.uuid4())
+        
+        # Store enterprise metadata in existing extra_data column
+        enterprise_metadata = {
+            "authorization_id": authorization_id,
+            "approval_comments": comments,
+            "enterprise_audit": True,
+            "compliance_logged": True
+        }
         logger.info(f"🏢 SYNCHRONIZED AUTHORIZATION: {authorization_id} for action {action_id}")
         
         # Parse request data
@@ -2160,7 +2172,7 @@ async def authorize_enterprise_action_synchronized(
                     approved = :approved, 
                     reviewed_by = :reviewed_by,
                     reviewed_at = :reviewed_at
-                WHERE id = :action_id
+                WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
             """), {
                 "action_id": action_id,
                 "status": decision,
