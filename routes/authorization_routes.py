@@ -860,7 +860,7 @@ async def authorize_enterprise_action(
         # Store enterprise metadata in existing extra_data column
         enterprise_metadata = {
             "authorization_id": authorization_id,
-            "approval_comments": comments,
+            "approval_comments": justification,
             "enterprise_audit": True,
             "compliance_logged": True
         }
@@ -904,10 +904,11 @@ async def authorize_enterprise_action(
         approved = true, 
         reviewed_by = :reviewed_by,
         reviewed_at = :reviewed_at
-    WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
+    WHERE id = :action_id
 """), {
     "action_id": action_id,
     "reviewed_by": admin_user.get("email", "enterprise_admin"),
+                "reviewed_at": datetime.now(UTC)
     "reviewed_at": authorization_timestamp
 }.update({"metadata": json.dumps(enterprise_metadata)}))
 db.commit()
@@ -1038,10 +1039,11 @@ db.commit()
                     approved = false, 
                     reviewed_by = :reviewed_by,
                     reviewed_at = :reviewed_at
-                WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
+                WHERE id = :action_id
             """), {
                 "action_id": action_id,
                 "reviewed_by": admin_user.get("email", "enterprise_admin"),
+                "reviewed_at": datetime.now(UTC)
                 "reviewed_at": rejection_timestamp
             })
             db.commit()
@@ -1488,7 +1490,7 @@ async def emergency_override_action(
                 approved = true, 
                 reviewed_by = :reviewed_by,
                 reviewed_at = :reviewed_at
-            WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
+            WHERE id = :action_id
         """), {
             "action_id": action_id,
             "reviewed_by": f"EMERGENCY_OVERRIDE_{admin_user.get('email', 'unknown')}",
@@ -2146,7 +2148,7 @@ async def authorize_enterprise_action_synchronized(
         # Store enterprise metadata in existing extra_data column
         enterprise_metadata = {
             "authorization_id": authorization_id,
-            "approval_comments": comments,
+            "approval_comments": justification,
             "enterprise_audit": True,
             "compliance_logged": True
         }
@@ -2172,12 +2174,13 @@ async def authorize_enterprise_action_synchronized(
                     approved = :approved, 
                     reviewed_by = :reviewed_by,
                     reviewed_at = :reviewed_at
-                WHERE id = :action_id, extra_data = :metadata WHERE id = :action_id
+                WHERE id = :action_id
             """), {
                 "action_id": action_id,
                 "status": decision,
                 "approved": decision == "approved",
                 "reviewed_by": admin_user.get("email", "enterprise_admin"),
+                "reviewed_at": datetime.now(UTC)
                 "reviewed_at": datetime.now(UTC)
             })
             db.commit()
@@ -2233,6 +2236,7 @@ async def authorize_enterprise_action_synchronized(
             "decision": decision,
             "authorization_status": decision,
             "reviewed_by": admin_user.get("email", "enterprise_admin"),
+                "reviewed_at": datetime.now(UTC)
             "compliance_logged": True,
             "enterprise_audit_complete": True,
             "database_synchronized": True,
