@@ -2162,15 +2162,10 @@ async def authorize_enterprise_action_synchronized(
             decision = "approved"
             justification = "Enterprise authorization via API"
         
-        # CRITICAL FIX: Check and update REAL database first
-        result = db.execute(text("SELECT * FROM agent_actions WHERE id = :action_id"), {"action_id": action_id}).fetchone()
-        
-        # ENTERPRISE DEBUG: Verify result object before UPDATE
-        logger.info(f"ENTERPRISE: result exists = {result is not None}, result = {result}")
-        
-        if result:
-            # Update REAL database status
-            db.execute(text("""
+        # ENTERPRISE FIX: Direct UPDATE for customer pilot readiness
+        try:
+            # Direct database update - bypasses session isolation issues
+            update_result = db.execute(text("""
                 UPDATE agent_actions 
                 SET status = :status, 
                     approved = :approved, 
@@ -2185,6 +2180,17 @@ async def authorize_enterprise_action_synchronized(
                 "reviewed_at": datetime.now(UTC)
             })
             db.commit()
+            
+            # Verify the update worked
+            if update_result.rowcount > 0:
+                logger.info(f"✅ ENTERPRISE: Successfully updated action {action_id} to {decision}")
+            else:
+                logger.warning(f"⚠️ ENTERPRISE: UPDATE affected 0 rows for action {action_id}")
+                
+        except Exception as update_error:
+            logger.error(f"❌ ENTERPRISE: Database update failed: {update_error}")
+            db.rollback()
+            raise
             
             # ENTERPRISE DIAGNOSTIC: Verify database update
             verify_result = db.execute(text("SELECT status, approved FROM agent_actions WHERE id = :action_id"), {"action_id": action_id}).fetchone()
