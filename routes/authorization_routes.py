@@ -1096,3 +1096,6 @@ def ensure_array_response(data, field_name="actions"):
 
 # Export routers for main application
 __all__ = ["router", "api_router"]
+
+# Backward compatibility aliases for existing imports in main.py
+authorization_api_router = api_router  # Alias for backward compatibility
