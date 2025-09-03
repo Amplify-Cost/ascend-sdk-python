@@ -916,8 +916,7 @@ async def authorize_enterprise_action(
         except Exception as update_error:
             logger.error(f"❌ ENTERPRISE: Database update failed: {update_error}")
             db.rollback()
-                db.execute(text("""
-                    UPDATE agent_actions 
+            raise 
                     SET status = 'approved', 
                         approved = true, 
                         reviewed_by = :reviewed_by
