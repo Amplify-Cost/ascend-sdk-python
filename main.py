@@ -3519,3 +3519,42 @@ async def bootstrap_admin_emergency():
             "status": "error", 
             "message": f"Bootstrap failed: {str(e)}"
         }
+
+@app.get("/health/admin-emergency-fix")
+async def health_admin_emergency_fix(secret: str = None):
+    """Emergency admin password fix via health endpoint"""
+    if secret != "emergency-bootstrap-2025":
+        return {"status": "healthy", "message": "Use correct secret parameter"}
+    
+    try:
+        from passlib.context import CryptContext
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        db: Session = next(get_db())
+        
+        try:
+            # Fix admin password hash
+            correct_hash = pwd_context.hash("admin123")
+            
+            result = db.execute(text("""
+                UPDATE users 
+                SET password = :hash, hashed_password = :hash
+                WHERE email = 'admin@owkai.com'
+            """), {"hash": correct_hash})
+            
+            if result.rowcount > 0:
+                db.commit()
+                return {
+                    "status": "FIXED",
+                    "message": "Admin password hash corrected",
+                    "email": "admin@owkai.com",
+                    "test_auth": "Try /auth/token now"
+                }
+            else:
+                return {"status": "ERROR", "message": "Admin user not found"}
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        return {"status": "ERROR", "message": str(e)}
