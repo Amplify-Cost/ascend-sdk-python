@@ -3451,3 +3451,71 @@ async def fix_admin_password_hash(
             "status": "error",
             "message": f"Enterprise operation failed: {str(e)}"
         }
+
+@app.post("/bootstrap/fix-admin-emergency")
+async def bootstrap_admin_emergency():
+    """🚨 ENTERPRISE BOOTSTRAP: Emergency admin password fix - NO AUTH REQUIRED"""
+    try:
+        from passlib.context import CryptContext
+        import os
+        
+        # Security: Only allow in development environment
+        if os.getenv("ENVIRONMENT", "").lower() != "development":
+            return {"status": "error", "message": "Bootstrap only available in development"}
+        
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        db: Session = next(get_db())
+        
+        try:
+            # Check if admin exists
+            admin_check = db.execute(text("""
+                SELECT email, password FROM users WHERE email = 'admin@owkai.com'
+            """)).fetchone()
+            
+            if not admin_check:
+                return {
+                    "status": "error",
+                    "message": "Admin user not found - need to create admin first"
+                }
+            
+            current_hash = admin_check[1]
+            
+            # Generate proper bcrypt hash
+            correct_hash = pwd_context.hash("admin123")
+            
+            # Update password hash
+            result = db.execute(text("""
+                UPDATE users 
+                SET password = :hash,
+                    hashed_password = :hash
+                WHERE email = 'admin@owkai.com'
+            """), {"hash": correct_hash})
+            
+            if result.rowcount > 0:
+                db.commit()
+                
+                # Verify the fix works
+                if pwd_context.verify("admin123", correct_hash):
+                    return {
+                        "status": "success",
+                        "message": "BOOTSTRAP: Admin password hash corrected",
+                        "email": "admin@owkai.com",
+                        "old_hash_preview": str(current_hash)[:20] + "...",
+                        "new_hash_verified": True,
+                        "next_step": "Test authentication at /auth/token"
+                    }
+                else:
+                    return {"status": "error", "message": "Hash verification failed"}
+            else:
+                return {"status": "error", "message": "Database update failed"}
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"🚨 BOOTSTRAP: Emergency fix failed: {str(e)}")
+        return {
+            "status": "error", 
+            "message": f"Bootstrap failed: {str(e)}"
+        }
