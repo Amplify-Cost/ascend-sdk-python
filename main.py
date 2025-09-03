@@ -3391,3 +3391,63 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
+
+@app.post("/admin/fix-admin-password-hash")
+async def fix_admin_password_hash(
+    current_user: dict = Depends(require_admin)
+):
+    """🏢 ENTERPRISE: Fix admin password hash format - AWS deployment compatible"""
+    try:
+        from passlib.context import CryptContext
+        
+        # Use same password context as auth system
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        
+        # Get database session using your established pattern
+        db: Session = next(get_db())
+        
+        try:
+            # Generate proper bcrypt hash for admin123
+            correct_hash = pwd_context.hash("admin123")
+            
+            # Update admin user using your SQL pattern
+            result = db.execute(text("""
+                UPDATE users 
+                SET password = :hash,
+                    hashed_password = :hash
+                WHERE email = 'admin@owkai.com'
+            """), {"hash": correct_hash})
+            
+            if result.rowcount > 0:
+                db.commit()
+                
+                # Verify the fix using your User model pattern  
+                admin_user = db.query(User).filter(User.email == "admin@owkai.com").first()
+                if admin_user and pwd_context.verify("admin123", admin_user.password):
+                    return {
+                        "status": "success",
+                        "message": "Enterprise admin password hash corrected",
+                        "email": "admin@owkai.com", 
+                        "hash_format": "bcrypt_verified",
+                        "enterprise_compliant": True
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": "Hash update failed verification"
+                    }
+            else:
+                return {
+                    "status": "error", 
+                    "message": "Admin user not found in database"
+                }
+                
+        finally:
+            db.close()
+            
+    except Exception as e:
+        logger.error(f"🏢 ENTERPRISE: Admin password fix failed: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Enterprise operation failed: {str(e)}"
+        }
