@@ -910,10 +910,12 @@ async def authorize_enterprise_action(
     "reviewed_by": admin_user.get("email", "enterprise_admin"),
     "reviewed_at": authorization_timestamp
 })
-db.commit()
-            except Exception as update_error:
-                # Fallback for databases without all columns
-                logger.warning(f"Enterprise update fallback: {update_error}")
+            db.commit()
+            logger.info(f"✅ ENTERPRISE: Successfully updated action {action_id} to approved")
+            
+        except Exception as update_error:
+            logger.error(f"❌ ENTERPRISE: Database update failed: {update_error}")
+            db.rollback()
                 db.execute(text("""
                     UPDATE agent_actions 
                     SET status = 'approved', 
