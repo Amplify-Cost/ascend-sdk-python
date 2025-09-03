@@ -23,6 +23,7 @@ from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import authorization_api_router
 from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics_routes import router as analytics_router
+from routes.automation_orchestration_routes import router as automation_router
 from routes.smart_alerts import router as smart_alerts_router
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
@@ -236,8 +237,8 @@ app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://passionate-elegance-production.up.railway.app",
-        "https://owai-production.up.railway.app", 
+        "https://pilot.owkai.app",
+        "https://pilot.owkai.app", 
         "http://localhost:3000",  # For development
         "http://localhost:5173"   # For Vite dev server
     ],  # NO WILDCARDS when using credentials
@@ -396,6 +397,7 @@ try:
     app.include_router(authorization_api_router, tags=["Authorization API"])
     print("✅ ENTERPRISE: Authorization routes included")
 except Exception as e:
+    app.include_router(automation_router, tags=["Automation & Orchestration"])
     print(f"❌ ENTERPRISE ERROR: Authorization routes failed: {e}")
 
 try:
