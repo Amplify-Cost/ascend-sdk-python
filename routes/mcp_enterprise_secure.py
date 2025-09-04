@@ -12,8 +12,8 @@ import uuid
 
 from database import get_db
 from dependencies import get_current_user
-from schemas.mcp_enterprise_schemas import MCPActionRequest, EnterpriseRiskResponse
-from middleware.enterprise_security import enterprise_security
+from mcp_enterprise_schemas import MCPActionRequest, EnterpriseRiskResponse
+from enterprise_security import enterprise_security
 
 # Import existing working components
 from enterprise_risk_assessment import EnterpriseRiskAssessment
