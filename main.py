@@ -3581,3 +3581,6 @@ from routes.authorization_api_adapter import router as authorization_adapter_rou
 
 # Register authorization adapter router
 app.include_router(authorization_adapter_router, tags=["authorization-adapter"])
+
+# Register authorization adapter with MCP governance prefix  
+app.include_router(authorization_adapter_router, prefix="/api/mcp-governance", tags=["mcp-governance-adapter"])
