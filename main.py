@@ -3575,3 +3575,9 @@ from routes.mcp_enterprise_secure import router as mcp_secure_router
 
 # Register secure MCP router
 app.include_router(mcp_secure_router, tags=["mcp-secure"])
+
+# Import authorization API adapter
+from routes.authorization_api_adapter import router as authorization_adapter_router
+
+# Register authorization adapter router
+app.include_router(authorization_adapter_router, tags=["authorization-adapter"])
