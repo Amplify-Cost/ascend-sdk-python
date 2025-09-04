@@ -21,7 +21,7 @@ class ActionType(str, Enum):
 
 class MCPActionRequest(BaseModel):
     """Secure MCP action request with comprehensive validation"""
-    agent_id: str = Field(..., min_length=1, max_length=100, regex=r'^[a-zA-Z0-9_-]+$')
+    agent_id: str = Field(..., min_length=1, max_length=100, pattern=r'^[a-zA-Z0-9_-]+$')
     action_type: Union[ActionType, str]  # Accept both enum and string for compatibility
     resource: str = Field(..., min_length=1, max_length=500)
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
