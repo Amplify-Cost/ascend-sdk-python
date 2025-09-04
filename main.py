@@ -3558,3 +3558,20 @@ try:
     print("✅ Enterprise audit routes loaded")
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
+
+# Import secure enterprise MCP router
+
+# Register secure MCP router
+
+# Import secure enterprise MCP router
+
+
+# Import secure enterprise MCP router
+
+# Register secure MCP router
+
+# Import secure enterprise MCP router
+from routes.mcp_enterprise_secure import router as mcp_secure_router
+
+# Register secure MCP router
+app.include_router(mcp_secure_router, tags=["mcp-secure"])
