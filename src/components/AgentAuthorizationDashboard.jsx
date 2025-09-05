@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { syncDashboardMetrics } from "../utils/dashboardMetricsSync";import React, { useState, useEffect } from "react";
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -125,7 +125,10 @@ useEffect(() => {
         }
       };
       
-      setDashboardData(enhancedData);
+        const dashboardSync = syncDashboardMetrics(pendingActions);
+        if (dashboardSync) {
+          enhancedData.pending_summary = dashboardSync.pending_summary;
+        }      setDashboardData(enhancedData);
       setCompatibilityApplied(true);
       console.log("✅ ENTERPRISE: Compatibility layer applied successfully");
     }
@@ -335,7 +338,10 @@ useEffect(() => {
           }
         };
         
-        setDashboardData(enhancedData);
+        const dashboardSync = syncDashboardMetrics(pendingActions);
+        if (dashboardSync) {
+          enhancedData.pending_summary = dashboardSync.pending_summary;
+        }        setDashboardData(enhancedData);
         console.log("📊 Real-time dashboard data updated:", enhancedData);
       }
     } catch (err) {
