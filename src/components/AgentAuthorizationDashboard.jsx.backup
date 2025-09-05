@@ -245,7 +245,7 @@ useEffect(() => {
       console.log("✅ Real enhanced API data:", realData);
       
       // Handle both unified and legacy response formats
-      const actions = (realData.success && realData.actions) ? realData.actions : (realData.actions || realData || []);
+      const actions = realData.actions || realData || [];
       
       if (Array.isArray(actions) && actions.length > 0) {
         setPendingActions(actions);
