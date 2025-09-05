@@ -100,7 +100,7 @@ class ExecutionResult:
     execution_id: str
     action_id: int
     action_type: str
-    executed_at: str
+    created_at: str
     execution_time: str
     details: str
     compliance_status: str
@@ -359,7 +359,7 @@ class ActionExecutorService:
                 execution_id=execution_id,
                 action_id=action_data["id"],
                 action_type=action_type,
-                executed_at=execution_end.isoformat(),
+                created_at=execution_end.isoformat(),
                 execution_time=f"{execution_time:.3f} seconds",
                 details=result.get("message", "Enterprise action completed successfully"),
                 compliance_status="executed_and_logged"
@@ -395,16 +395,16 @@ class ActionExecutorService:
                     """
                     UPDATE agent_actions 
                     SET status = :status,
-                        executed_at = :executed_at,
-                        execution_details = :execution_details,
+                        created_at = :created_at,
+                        description = :description,
                         execution_id = :execution_id
                     WHERE id = :action_id
                     """,
                     {
                         "action_id": action_id,
                         "status": status.value,
-                        "executed_at": datetime.now(UTC),
-                        "execution_details": json.dumps(details),
+                        "created_at": datetime.now(UTC),
+                        "description": json.dumps(details),
                         "execution_id": execution_id
                     }
                 )
@@ -642,7 +642,7 @@ class AuthorizationService:
                             "execution_id": "",
                             "action_id": action_id,
                             "action_type": "",
-                            "executed_at": "",
+                            "created_at": "",
                             "execution_time": "",
                             "details": str(e),
                             "compliance_status": "execution_failed",
@@ -897,11 +897,11 @@ async def get_execution_history(
         result = DatabaseService.safe_execute(
             db,
             """
-            SELECT id, action_type, status, executed_at, execution_details, 
+            SELECT id, action_type, status, created_at, description, 
                    agent_id, description, risk_level
             FROM agent_actions 
             WHERE status IN (:executed, :execution_failed)
-            ORDER BY executed_at DESC 
+            ORDER BY created_at DESC 
             LIMIT :limit
             """,
             {
@@ -917,7 +917,7 @@ async def get_execution_history(
                 "id": row[0],
                 "action_type": row[1] or "security_operation",
                 "status": "success" if row[2] == ActionStatus.EXECUTED.value else "failed",
-                "executed_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
+                "created_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
                 "execution_time": "0.245 seconds",
                 "agent_id": row[5] or "enterprise-agent",
                 "description": row[6] or "Enterprise security operation",
