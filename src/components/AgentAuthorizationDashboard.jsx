@@ -1,4 +1,5 @@
-import { syncDashboardMetrics } from "../utils/dashboardMetricsSync";import React, { useState, useEffect } from "react";
+import { syncDashboardMetrics } from "../utils/dashboardMetricsSync";
+import React, { useState, useEffect } from "react";
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
