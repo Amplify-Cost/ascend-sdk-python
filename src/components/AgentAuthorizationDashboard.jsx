@@ -1560,7 +1560,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Pending Actions</h3>
-                <p className="text-2xl font-bold">{dashboardData.pending_summary.total_pending}</p>
+                <p className="text-2xl font-bold">{pendingActions.length}</p>
               </div>
               <div className="text-3xl opacity-80">📋</div>
             </div>
@@ -1570,7 +1570,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Critical Risk</h3>
-                <p className="text-2xl font-bold">{dashboardData.pending_summary.critical_pending}</p>
+                <p className="text-2xl font-bold">{pendingActions.filter(a => a.ai_risk_score >= 80).length}</p>
               </div>
               <div className="text-3xl opacity-80">🚨</div>
             </div>
@@ -1580,7 +1580,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Emergency Queue</h3>
-                <p className="text-2xl font-bold">{dashboardData.pending_summary.emergency_pending}</p>
+                <p className="text-2xl font-bold">{pendingActions.filter(a => a.is_emergency).length}</p>
               </div>
               <div className="text-3xl opacity-80">⚡</div>
             </div>
