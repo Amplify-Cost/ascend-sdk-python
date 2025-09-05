@@ -797,7 +797,6 @@ const fetchWorkflowOrchestrations = async () => {
           
           const updatedDashboardData = { ...dashboardData, pending_summary: dashboardData?.pending_summary,
             ...dashboardData,
-            pending_summary: dashboardData.pending_summary || {}, // Preserve synced metrics
             ...dashboardData,
             recent_activity: [newActivity, ...dashboardData.recent_activity.slice(0, 14)]
           };
@@ -911,7 +910,6 @@ const fetchWorkflowOrchestrations = async () => {
           
           const updatedDashboardData = { ...dashboardData, pending_summary: dashboardData?.pending_summary,
             ...dashboardData,
-            pending_summary: dashboardData.pending_summary || {}, // Preserve synced metrics
             ...dashboardData,
             recent_activity: [newActivity, ...dashboardData.recent_activity.slice(0, 14)]
           };
