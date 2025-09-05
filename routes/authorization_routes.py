@@ -516,7 +516,7 @@ class AuthorizationService:
                     "status": row[5] or ActionStatus.PENDING.value,
                     "created_at": row[6].isoformat() if row[6] else datetime.now(UTC).isoformat(),
                     "tool_name": "enterprise-mcp" or "enterprise-security-platform",
-                    "user_id": row[8] or 1,
+                    "user_id": 1,
                     "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
                     "requires_approval": True,
                     "estimated_impact": "Enterprise security enhancement",
