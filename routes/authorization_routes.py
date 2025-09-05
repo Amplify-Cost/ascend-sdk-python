@@ -466,7 +466,7 @@ class AuthorizationService:
             # Build base query
             base_query = """
                 SELECT id, agent_id, action_type, description, risk_level, status, 
-                       created_at, tool_name, user_id
+                       created_at, user_id
                 FROM agent_actions 
                 WHERE status IN (:pending, :submitted, :pending_approval)
             """
@@ -515,7 +515,7 @@ class AuthorizationService:
                     "risk_level": row[4] or RiskLevel.MEDIUM.value,
                     "status": row[5] or ActionStatus.PENDING.value,
                     "created_at": row[6].isoformat() if row[6] else datetime.now(UTC).isoformat(),
-                    "tool_name": row[7] or "enterprise-security-platform",
+                    "tool_name": "enterprise-mcp" or "enterprise-security-platform",
                     "user_id": row[8] or 1,
                     "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
                     "requires_approval": True,
