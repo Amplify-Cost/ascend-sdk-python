@@ -795,7 +795,9 @@ const fetchWorkflowOrchestrations = async () => {
             execution_time_seconds: Math.floor(Math.random() * 30) + 5
           };
           
-          const updatedDashboardData = {
+          const updatedDashboardData = { ...dashboardData, pending_summary: dashboardData?.pending_summary,
+            ...dashboardData,
+            pending_summary: dashboardData.pending_summary || {}, // Preserve synced metrics
             ...dashboardData,
             recent_activity: [newActivity, ...dashboardData.recent_activity.slice(0, 14)]
           };
@@ -907,7 +909,9 @@ const fetchWorkflowOrchestrations = async () => {
             execution_time_seconds: Math.floor(Math.random() * 60) + 30
           };
           
-          const updatedDashboardData = {
+          const updatedDashboardData = { ...dashboardData, pending_summary: dashboardData?.pending_summary,
+            ...dashboardData,
+            pending_summary: dashboardData.pending_summary || {}, // Preserve synced metrics
             ...dashboardData,
             recent_activity: [newActivity, ...dashboardData.recent_activity.slice(0, 14)]
           };
