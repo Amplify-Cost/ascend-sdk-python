@@ -46,7 +46,6 @@ jobs:
     - name: Force Build Cache Invalidation
       run: |
         echo "BUILD_TIMESTAMP=$(date +%s)" >> $GITHUB_ENV
-        echo "BUILD_HASH=$(echo '${{ github.sha }}' | cut -c1-8)" >> $GITHUB_ENV
         echo "FORCE_REBUILD=true" >> $GITHUB_ENV
     - name: Build Docker image
       id: build-image
