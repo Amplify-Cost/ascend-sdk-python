@@ -1811,7 +1811,7 @@ if (dashboardData) {
                           📋 Review Details
                         </button>
                         
-                        {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
+                        {user?.role === "admin" && (
                           <>
                             <button
                               onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -1848,7 +1848,7 @@ if (dashboardData) {
                           </button>
                         )}
                         
-                        {dashboardData?.user_info?.is_emergency_approver && (
+                        {user?.role === "admin" && (
                           <button
                             onClick={() => {
                               setSelectedAction(action);
@@ -2937,7 +2937,7 @@ if (dashboardData) {
                       📋 Review Details
                     </button>
                     
-                    {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
+                    {user?.role === "admin" && (
                       <>
                         <button
                           onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -3218,7 +3218,7 @@ if (dashboardData) {
                   </button>
                 )}
                 
-                {dashboardData?.user_info?.is_emergency_approver && (
+                {user?.role === "admin" && (
                   <button
                     onClick={() => setShowEmergencyModal(true)}
                     className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white rounded-md border-2 border-red-600"
