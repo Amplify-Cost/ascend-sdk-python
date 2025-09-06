@@ -102,7 +102,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 useEffect(() => {
   if (dashboardData && !compatibilityApplied) {
     // Fix data structure compatibility
-    if (dashboardData.user_context && !dashboardData.user_info) {
+    if (true) {
       console.log("🔧 ENTERPRISE: Applying data compatibility layer");
       
       // Create a new object to avoid mutation issues
@@ -1532,7 +1532,7 @@ const createWorkflow = async (workflowData) => {
 
 
   // 🔧 IMMEDIATE FALLBACK: Ensure user_info exists before render
-if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
+if (dashboardData) {
   dashboardData.user_info = {
     email: user?.email || 'admin@enterprise.com',
     role: user?.role || 'admin', 
