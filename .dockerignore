@@ -1,3 +1,7 @@
 dist/
 node_modules/
 .env*
+node_modules
+dist
+.git
+BUILD_TIMESTAMP=1757197703
