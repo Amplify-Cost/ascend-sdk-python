@@ -146,7 +146,7 @@ useEffect(() => {
         id: 35,
         agent_id: "Agent-7432",
         action_type: "security_scan",
-        ai_risk_score: 65,
+        risk_score: 65,
         description: "Test action for loading verification",
         workflow_stage: "level_1",
         current_approval_level: 1,
@@ -169,7 +169,7 @@ useEffect(() => {
           resource: "/home/user/sensitive_data.csv",
           params: { encoding: "utf8", max_size: "10MB" }
         },
-        ai_risk_score: 75,
+        risk_score: 75,
         description: "MCP: Read sensitive file via Claude Desktop",
         workflow_stage: "level_2",
         current_approval_level: 1,
@@ -196,7 +196,7 @@ useEffect(() => {
             reviewers: ["security-team"] 
           }
         },
-        ai_risk_score: 45,
+        risk_score: 45,
         description: "MCP: Create production pull request via GitHub MCP",
         workflow_stage: "level_1",
         current_approval_level: 1,
@@ -271,7 +271,7 @@ useEffect(() => {
         id: 36,
         agent_id: "Agent-ERROR",
         action_type: "error_fallback",
-        ai_risk_score: 50,
+        risk_score: 50,
         description: "Fallback action due to API error",
         workflow_stage: "level_1",
         current_approval_level: 1,
