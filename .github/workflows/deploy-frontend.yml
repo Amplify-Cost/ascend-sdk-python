@@ -38,11 +38,21 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Force Build Cache Invalidation
+      run: |
+        echo "BUILD_TIMESTAMP=$(date +%s)" >> $GITHUB_ENV
+        echo "BUILD_HASH=$(echo '${{ github.sha }}' | cut -c1-8)" >> $GITHUB_ENV
+        echo "FORCE_REBUILD=true" >> $GITHUB_ENV
+    - name: Force Build Cache Invalidation
+      run: |
+        echo "BUILD_TIMESTAMP=$(date +%s)" >> $GITHUB_ENV
+        echo "BUILD_HASH=$(echo '${{ github.sha }}' | cut -c1-8)" >> $GITHUB_ENV
+        echo "FORCE_REBUILD=true" >> $GITHUB_ENV
     - name: Build Docker image
       id: build-image
       run: |
         IMAGE_TAG=${{ github.sha }}
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
