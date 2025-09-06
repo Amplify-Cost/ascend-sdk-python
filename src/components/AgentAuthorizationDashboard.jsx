@@ -112,7 +112,7 @@ useEffect(() => {
           email: user?.email || 'admin@enterprise.com',
           role: user?.role || 'admin', 
           approval_level: user?.role === 'admin' ? 5 : 1,
-          max_risk_approval: user?.role === 'admin' ? 100 : 50,
+          max_risk_approval: user?.role === 'admin' ? 100 : 100,
           is_emergency_approver: user?.role === 'admin',
           enterprise_privileges: user?.role === 'admin'
         },
@@ -1537,7 +1537,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
     email: user?.email || 'admin@enterprise.com',
     role: user?.role || 'admin', 
     approval_level: user?.role === 'admin' ? 5 : 1,
-    max_risk_approval: user?.role === 'admin' ? 100 : 50,
+    max_risk_approval: user?.role === 'admin' ? 100 : 100,
     is_emergency_approver: user?.role === 'admin',
     enterprise_privileges: user?.role === 'admin'
   };
@@ -1811,7 +1811,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           📋 Review Details
                         </button>
                         
-                        {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
+                        {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
                           <>
                             <button
                               onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -2937,7 +2937,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                       📋 Review Details
                     </button>
                     
-                    {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
+                    {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
                       <>
                         <button
                           onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -3184,7 +3184,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                   Cancel
                 </button>
                 
-                {selectedAction.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
+                {selectedAction.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
                   <>
                     <button
                       onClick={() => handleApproval(selectedAction.id, 'denied', 'Detailed review - denied')}
