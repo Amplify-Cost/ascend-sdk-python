@@ -93,7 +93,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       if (activeTab === "execution") {
         fetchExecutionHistory();
       }
-    }, 15000); // Reduced from 30 seconds to 15 seconds
+    }, 60000); // Optimized for enterprise performance
         
     return () => clearInterval(interval);
   }, [activeTab]);
@@ -118,7 +118,7 @@ useEffect(() => {
         },
         pending_summary: dashboardData.pending_summary || {
           total_pending: pendingActions.length,
-          critical_pending: pendingActions.filter(a => a.ai_risk_score >= 80).length,
+          critical_pending: pendingActions.filter(a => a.risk_score >= 80).length,
           emergency_pending: pendingActions.filter(a => a.is_emergency).length
         },
         recent_activity: dashboardData.recent_activity || {
@@ -308,10 +308,10 @@ useEffect(() => {
         // Calculate real-time metrics from pending actions
         const totalPending = pendingActions.length;
         const criticalPending = pendingActions.filter(action => 
-          action.ai_risk_score >= 80 || action.risk_level === "high"
+          action.risk_score >= 80 || action.risk_level === "high"
         ).length;
         const emergencyPending = pendingActions.filter(action => 
-          action.is_emergency || action.ai_risk_score >= 90
+          action.is_emergency || action.risk_score >= 90
         ).length;
         
         // Override static numbers with real-time calculations
@@ -327,7 +327,7 @@ useEffect(() => {
             total_pending: totalPending,
             critical_pending: criticalPending,
             high_risk_pending: pendingActions.filter(action => 
-              action.ai_risk_score >= 70
+              action.risk_score >= 70
             ).length,
             emergency_pending: emergencyPending,
             overdue_count: pendingActions.filter(action => 
@@ -374,7 +374,7 @@ useEffect(() => {
         // Calculate real-time processing metrics
         const currentPendingCount = pendingActions.length;
         const avgRiskScore = pendingActions.length > 0 
-          ? Math.round(pendingActions.reduce((sum, action) => sum + action.ai_risk_score, 0) / pendingActions.length)
+          ? Math.round(pendingActions.reduce((sum, action) => sum + action.risk_score, 0) / pendingActions.length)
           : data.performance_metrics.average_risk_score;
         
         const enhancedMetrics = {
@@ -391,14 +391,14 @@ useEffect(() => {
           },
           risk_analysis: {
             ...data.risk_analysis,
-            current_high_risk: pendingActions.filter(action => action.ai_risk_score >= 70).length,
-            current_critical_risk: pendingActions.filter(action => action.ai_risk_score >= 90).length
+            current_high_risk: pendingActions.filter(action => action.risk_score >= 70).length,
+            current_critical_risk: pendingActions.filter(action => action.risk_score >= 90).length
           },
           real_time_stats: {
             last_updated: new Date().toISOString(),
             live_pending_count: currentPendingCount,
-            live_high_risk_count: pendingActions.filter(action => action.ai_risk_score >= 70).length,
-            live_critical_count: pendingActions.filter(action => action.ai_risk_score >= 90).length,
+            live_high_risk_count: pendingActions.filter(action => action.risk_score >= 70).length,
+            live_critical_count: pendingActions.filter(action => action.risk_score >= 90).length,
             actions_requiring_escalation: pendingActions.filter(action => 
               action.required_approval_level > action.current_approval_level + 1
             ).length
@@ -1570,7 +1570,7 @@ if (dashboardData) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Critical Risk</h3>
-                <p className="text-2xl font-bold">{pendingActions.filter(a => a.ai_risk_score >= 80).length}</p>
+                <p className="text-2xl font-bold">{pendingActions.filter(a => a.risk_score >= 80).length}</p>
               </div>
               <div className="text-3xl opacity-80">🚨</div>
             </div>
@@ -1696,8 +1696,8 @@ if (dashboardData) {
     <>🤖 Agent {action.agent_id}</>
   )}
 </h3>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
-                            RISK {action.ai_risk_score}/100
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.risk_score)}`}>
+                            RISK {action.risk_score}/100
                           </span>
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                             {getWorkflowStageLabel(action.workflow_stage)}
@@ -1863,7 +1863,7 @@ if (dashboardData) {
                     </div>
                     
                     {/* Quick action buttons for high-priority items */}
-                    {action.ai_risk_score >= 80 && (
+                    {action.risk_score >= 80 && (
                       <div className="bg-red-50 border border-red-200 rounded p-3 mt-3">
                         <div className="flex items-center justify-between">
                           <div className="text-red-800 font-medium">
@@ -2837,7 +2837,7 @@ if (dashboardData) {
         </div>
         <div>
           <span className="text-purple-100">High Risk:</span>
-          <span className="ml-2 text-2xl font-bold">{pendingActions.filter(a => a.action_type === 'mcp_server_action' && a.ai_risk_score >= 70).length}</span>
+          <span className="ml-2 text-2xl font-bold">{pendingActions.filter(a => a.action_type === 'mcp_server_action' && a.risk_score >= 70).length}</span>
         </div>
         <div>
           <span className="text-purple-100">Active Servers:</span>
@@ -2874,8 +2874,8 @@ if (dashboardData) {
                       <h3 className="text-lg font-semibold text-gray-900">
                         🔌 MCP Server: {action.mcp_data?.server || 'Unknown'}
                       </h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
-                        RISK {action.ai_risk_score}/100
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.risk_score)}`}>
+                        RISK {action.risk_score}/100
                       </span>
                       <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                         {getWorkflowStageLabel(action.workflow_stage)}
@@ -3121,8 +3121,8 @@ if (dashboardData) {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <strong>Risk Score:</strong>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskBadgeColor(selectedAction.ai_risk_score)}`}>
-                          {selectedAction.ai_risk_score}/100
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskBadgeColor(selectedAction.risk_score)}`}>
+                          {selectedAction.risk_score}/100
                         </span>
                       </div>
                       <div><strong>Workflow Stage:</strong> {getWorkflowStageLabel(selectedAction.workflow_stage)}</div>
@@ -3184,7 +3184,7 @@ if (dashboardData) {
                   Cancel
                 </button>
                 
-                {selectedAction.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
+                {selectedAction.risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
                   <>
                     <button
                       onClick={() => handleApproval(selectedAction.id, 'denied', 'Detailed review - denied')}
@@ -3248,7 +3248,7 @@ if (dashboardData) {
                 <div className="text-sm text-red-800">
                   <div><strong>Agent:</strong> {selectedAction.agent_id}</div>
                   <div><strong>Action:</strong> {selectedAction.action_type}</div>
-                  <div><strong>Risk Score:</strong> {selectedAction.ai_risk_score}/100</div>
+                  <div><strong>Risk Score:</strong> {selectedAction.risk_score}/100</div>
                 </div>
               </div>
               
