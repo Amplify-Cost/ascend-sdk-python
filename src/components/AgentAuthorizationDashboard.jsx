@@ -1,4 +1,3 @@
-import { syncDashboardMetrics } from "../utils/dashboardMetricsSync";
 import React, { useState, useEffect } from "react";
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
@@ -45,7 +44,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   const [selectedExecution, setSelectedExecution] = useState(null);
 
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://owai-production.up.railway.app";
 
   // Fixed useEffect for real-time updates
   useEffect(() => {
@@ -93,7 +92,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       if (activeTab === "execution") {
         fetchExecutionHistory();
       }
-    }, 60000); // Optimized for enterprise performance
+    }, 15000); // Reduced from 30 seconds to 15 seconds
         
     return () => clearInterval(interval);
   }, [activeTab]);
@@ -102,7 +101,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 useEffect(() => {
   if (dashboardData && !compatibilityApplied) {
     // Fix data structure compatibility
-    if (true) {
+    if (dashboardData.user_context && !dashboardData.user_info) {
       console.log("🔧 ENTERPRISE: Applying data compatibility layer");
       
       // Create a new object to avoid mutation issues
@@ -112,13 +111,13 @@ useEffect(() => {
           email: user?.email || 'admin@enterprise.com',
           role: user?.role || 'admin', 
           approval_level: user?.role === 'admin' ? 5 : 1,
-          max_risk_approval: user?.role === 'admin' ? 100 : 100,
+          max_risk_approval: user?.role === 'admin' ? 100 : 50,
           is_emergency_approver: user?.role === 'admin',
           enterprise_privileges: user?.role === 'admin'
         },
         pending_summary: dashboardData.pending_summary || {
           total_pending: pendingActions.length,
-          critical_pending: pendingActions.filter(a => a.risk_score >= 80).length,
+          critical_pending: pendingActions.filter(a => a.ai_risk_score >= 80).length,
           emergency_pending: pendingActions.filter(a => a.is_emergency).length
         },
         recent_activity: dashboardData.recent_activity || {
@@ -126,10 +125,7 @@ useEffect(() => {
         }
       };
       
-        const dashboardSync = syncDashboardMetrics(pendingActions);
-        if (dashboardSync) {
-          enhancedData.pending_summary = dashboardSync.pending_summary;
-        }      setDashboardData(enhancedData);
+      setDashboardData(enhancedData);
       setCompatibilityApplied(true);
       console.log("✅ ENTERPRISE: Compatibility layer applied successfully");
     }
@@ -146,7 +142,7 @@ useEffect(() => {
         id: 35,
         agent_id: "Agent-7432",
         action_type: "security_scan",
-        risk_score: 65,
+        ai_risk_score: 65,
         description: "Test action for loading verification",
         workflow_stage: "level_1",
         current_approval_level: 1,
@@ -169,7 +165,7 @@ useEffect(() => {
           resource: "/home/user/sensitive_data.csv",
           params: { encoding: "utf8", max_size: "10MB" }
         },
-        risk_score: 75,
+        ai_risk_score: 75,
         description: "MCP: Read sensitive file via Claude Desktop",
         workflow_stage: "level_2",
         current_approval_level: 1,
@@ -196,7 +192,7 @@ useEffect(() => {
             reviewers: ["security-team"] 
           }
         },
-        risk_score: 45,
+        ai_risk_score: 45,
         description: "MCP: Create production pull request via GitHub MCP",
         workflow_stage: "level_1",
         current_approval_level: 1,
@@ -223,7 +219,7 @@ useEffect(() => {
     // Try unified endpoint first, fallback to existing
     let response;
     try {
-      response = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
+      response = await fetch(`${API_BASE_URL}/api/governance/unified-actions`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -232,7 +228,7 @@ useEffect(() => {
       });
     } catch (err) {
       console.log("📊 Unified endpoint not available, trying existing agent endpoint");
-      response = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
+      response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -249,7 +245,7 @@ useEffect(() => {
       console.log("✅ Real enhanced API data:", realData);
       
       // Handle both unified and legacy response formats
-      const actions = (realData.success && realData.actions) ? realData.actions : (realData.actions || realData || []);
+      const actions = realData.actions || realData || [];
       
       if (Array.isArray(actions) && actions.length > 0) {
         setPendingActions(actions);
@@ -271,7 +267,7 @@ useEffect(() => {
         id: 36,
         agent_id: "Agent-ERROR",
         action_type: "error_fallback",
-        risk_score: 50,
+        ai_risk_score: 50,
         description: "Fallback action due to API error",
         workflow_stage: "level_1",
         current_approval_level: 1,
@@ -295,7 +291,7 @@ useEffect(() => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/dashboard`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -308,10 +304,10 @@ useEffect(() => {
         // Calculate real-time metrics from pending actions
         const totalPending = pendingActions.length;
         const criticalPending = pendingActions.filter(action => 
-          action.risk_score >= 80 || action.risk_level === "high"
+          action.ai_risk_score >= 80 || action.risk_level === "high"
         ).length;
         const emergencyPending = pendingActions.filter(action => 
-          action.is_emergency || action.risk_score >= 90
+          action.is_emergency || action.ai_risk_score >= 90
         ).length;
         
         // Override static numbers with real-time calculations
@@ -327,7 +323,7 @@ useEffect(() => {
             total_pending: totalPending,
             critical_pending: criticalPending,
             high_risk_pending: pendingActions.filter(action => 
-              action.risk_score >= 70
+              action.ai_risk_score >= 70
             ).length,
             emergency_pending: emergencyPending,
             overdue_count: pendingActions.filter(action => 
@@ -339,10 +335,7 @@ useEffect(() => {
           }
         };
         
-        const dashboardSync = syncDashboardMetrics(pendingActions);
-        if (dashboardSync) {
-          enhancedData.pending_summary = dashboardSync.pending_summary;
-        }        setDashboardData(enhancedData);
+        setDashboardData(enhancedData);
         console.log("📊 Real-time dashboard data updated:", enhancedData);
       }
     } catch (err) {
@@ -352,7 +345,7 @@ useEffect(() => {
 
   const fetchApprovalMetrics = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/metrics/approval-performance`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -374,7 +367,7 @@ useEffect(() => {
         // Calculate real-time processing metrics
         const currentPendingCount = pendingActions.length;
         const avgRiskScore = pendingActions.length > 0 
-          ? Math.round(pendingActions.reduce((sum, action) => sum + action.risk_score, 0) / pendingActions.length)
+          ? Math.round(pendingActions.reduce((sum, action) => sum + action.ai_risk_score, 0) / pendingActions.length)
           : data.performance_metrics.average_risk_score;
         
         const enhancedMetrics = {
@@ -391,14 +384,14 @@ useEffect(() => {
           },
           risk_analysis: {
             ...data.risk_analysis,
-            current_high_risk: pendingActions.filter(action => action.risk_score >= 70).length,
-            current_critical_risk: pendingActions.filter(action => action.risk_score >= 90).length
+            current_high_risk: pendingActions.filter(action => action.ai_risk_score >= 70).length,
+            current_critical_risk: pendingActions.filter(action => action.ai_risk_score >= 90).length
           },
           real_time_stats: {
             last_updated: new Date().toISOString(),
             live_pending_count: currentPendingCount,
-            live_high_risk_count: pendingActions.filter(action => action.risk_score >= 70).length,
-            live_critical_count: pendingActions.filter(action => action.risk_score >= 90).length,
+            live_high_risk_count: pendingActions.filter(action => action.ai_risk_score >= 70).length,
+            live_critical_count: pendingActions.filter(action => action.ai_risk_score >= 90).length,
             actions_requiring_escalation: pendingActions.filter(action => 
               action.required_approval_level > action.current_approval_level + 1
             ).length
@@ -643,7 +636,7 @@ const fetchWorkflowOrchestrations = async () => {
   // 🚀 NEW: Fetch execution history
   const fetchExecutionHistory = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/agent-control/execution-history`, {
+    const response = await fetch(`${API_BASE_URL}/api/authorization/execution-history`, {
       headers: { 
         ...getAuthHeaders(), 
         "Content-Type": "application/json",
@@ -795,8 +788,7 @@ const fetchWorkflowOrchestrations = async () => {
             execution_time_seconds: Math.floor(Math.random() * 30) + 5
           };
           
-          const updatedDashboardData = { ...dashboardData, pending_summary: dashboardData?.pending_summary,
-            ...dashboardData,
+          const updatedDashboardData = {
             ...dashboardData,
             recent_activity: [newActivity, ...dashboardData.recent_activity.slice(0, 14)]
           };
@@ -908,8 +900,7 @@ const fetchWorkflowOrchestrations = async () => {
             execution_time_seconds: Math.floor(Math.random() * 60) + 30
           };
           
-          const updatedDashboardData = { ...dashboardData, pending_summary: dashboardData?.pending_summary,
-            ...dashboardData,
+          const updatedDashboardData = {
             ...dashboardData,
             recent_activity: [newActivity, ...dashboardData.recent_activity.slice(0, 14)]
           };
@@ -1161,10 +1152,10 @@ const createWorkflow = async (workflowData) => {
     // 🔌 ENHANCED: Route to appropriate endpoint based on action type
     let endpoint;
     if (action?.action_type === 'mcp_server_action') {
-      endpoint = `${API_BASE_URL}/agent-control/dashboard`;
+      endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
     } else {
       // PRESERVE: Use existing agent approval endpoint
-      endpoint = `${API_BASE_URL}/agent-control/authorize-with-audit/${actionId}`;
+      endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
     
     const response = await fetch(endpoint, {
@@ -1532,12 +1523,12 @@ const createWorkflow = async (workflowData) => {
 
 
   // 🔧 IMMEDIATE FALLBACK: Ensure user_info exists before render
-if (dashboardData) {
+if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   dashboardData.user_info = {
     email: user?.email || 'admin@enterprise.com',
     role: user?.role || 'admin', 
     approval_level: user?.role === 'admin' ? 5 : 1,
-    max_risk_approval: user?.role === 'admin' ? 100 : 100,
+    max_risk_approval: user?.role === 'admin' ? 100 : 50,
     is_emergency_approver: user?.role === 'admin',
     enterprise_privileges: user?.role === 'admin'
   };
@@ -1560,7 +1551,7 @@ if (dashboardData) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Pending Actions</h3>
-                <p className="text-2xl font-bold">{pendingActions.length}</p>
+                <p className="text-2xl font-bold">{dashboardData.pending_summary.total_pending}</p>
               </div>
               <div className="text-3xl opacity-80">📋</div>
             </div>
@@ -1570,7 +1561,7 @@ if (dashboardData) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Critical Risk</h3>
-                <p className="text-2xl font-bold">{pendingActions.filter(a => a.risk_score >= 80).length}</p>
+                <p className="text-2xl font-bold">{dashboardData.pending_summary.critical_pending}</p>
               </div>
               <div className="text-3xl opacity-80">🚨</div>
             </div>
@@ -1580,7 +1571,7 @@ if (dashboardData) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Emergency Queue</h3>
-                <p className="text-2xl font-bold">{pendingActions.filter(a => a.is_emergency).length}</p>
+                <p className="text-2xl font-bold">{dashboardData.pending_summary.emergency_pending}</p>
               </div>
               <div className="text-3xl opacity-80">⚡</div>
             </div>
@@ -1628,7 +1619,7 @@ if (dashboardData) {
       {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "automation", "execution", ,"mcp"].map((tab) => (
+          {["pending", "metrics", "workflows", "automation", "execution", "policies", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1644,6 +1635,7 @@ if (dashboardData) {
               {tab === "automation" && "🤖 Automation Center"}
               {tab === "execution" && "🚀 Execution Center"}
               {tab === "mcp" && "🔌 MCP Servers"}
+              {tab === "policies" && "📋 Policy Management"}
             </button>
           ))}
         </nav>
@@ -1696,8 +1688,8 @@ if (dashboardData) {
     <>🤖 Agent {action.agent_id}</>
   )}
 </h3>
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.risk_score)}`}>
-                            RISK {action.risk_score}/100
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
+                            RISK {action.ai_risk_score}/100
                           </span>
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                             {getWorkflowStageLabel(action.workflow_stage)}
@@ -1811,7 +1803,7 @@ if (dashboardData) {
                           📋 Review Details
                         </button>
                         
-                        {user?.role === "admin" && (
+                        {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
                           <>
                             <button
                               onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -1848,7 +1840,7 @@ if (dashboardData) {
                           </button>
                         )}
                         
-                        {user?.role === "admin" && (
+                        {dashboardData?.user_info?.is_emergency_approver && (
                           <button
                             onClick={() => {
                               setSelectedAction(action);
@@ -1863,7 +1855,7 @@ if (dashboardData) {
                     </div>
                     
                     {/* Quick action buttons for high-priority items */}
-                    {action.risk_score >= 80 && (
+                    {action.ai_risk_score >= 80 && (
                       <div className="bg-red-50 border border-red-200 rounded p-3 mt-3">
                         <div className="flex items-center justify-between">
                           <div className="text-red-800 font-medium">
@@ -2837,7 +2829,7 @@ if (dashboardData) {
         </div>
         <div>
           <span className="text-purple-100">High Risk:</span>
-          <span className="ml-2 text-2xl font-bold">{pendingActions.filter(a => a.action_type === 'mcp_server_action' && a.risk_score >= 70).length}</span>
+          <span className="ml-2 text-2xl font-bold">{pendingActions.filter(a => a.action_type === 'mcp_server_action' && a.ai_risk_score >= 70).length}</span>
         </div>
         <div>
           <span className="text-purple-100">Active Servers:</span>
@@ -2874,8 +2866,8 @@ if (dashboardData) {
                       <h3 className="text-lg font-semibold text-gray-900">
                         🔌 MCP Server: {action.mcp_data?.server || 'Unknown'}
                       </h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.risk_score)}`}>
-                        RISK {action.risk_score}/100
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
+                        RISK {action.ai_risk_score}/100
                       </span>
                       <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                         {getWorkflowStageLabel(action.workflow_stage)}
@@ -2937,7 +2929,7 @@ if (dashboardData) {
                       📋 Review Details
                     </button>
                     
-                    {user?.role === "admin" && (
+                    {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
                       <>
                         <button
                           onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -2964,6 +2956,64 @@ if (dashboardData) {
   </div>
 )}
 
+
+      {/* Policy Management Tab */}
+      {activeTab === "policies" && (
+        <div className="space-y-6">
+          {/* Policy Creation Section */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4">Create New Policy</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Policy Name
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., File Access Control"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Natural Language Description
+                </label>
+                <textarea
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
+                />
+              </div>
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                Create Policy
+              </button>
+            </div>
+          </div>
+
+          {/* Policy Engine Status */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4">Enterprise Policy Engine Status</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">Active</div>
+                <div className="text-sm text-gray-600">Policy Engine</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">Enabled</div>
+                <div className="text-sm text-gray-600">Natural Language</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">Available</div>
+                <div className="text-sm text-gray-600">Version Control</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">Ready</div>
+                <div className="text-sm text-gray-600">Deployment</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 🚀 NEW: Execution Center Tab */}
       {activeTab === "execution" && (
         <div className="space-y-6">
@@ -3121,8 +3171,8 @@ if (dashboardData) {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <strong>Risk Score:</strong>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskBadgeColor(selectedAction.risk_score)}`}>
-                          {selectedAction.risk_score}/100
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskBadgeColor(selectedAction.ai_risk_score)}`}>
+                          {selectedAction.ai_risk_score}/100
                         </span>
                       </div>
                       <div><strong>Workflow Stage:</strong> {getWorkflowStageLabel(selectedAction.workflow_stage)}</div>
@@ -3184,7 +3234,7 @@ if (dashboardData) {
                   Cancel
                 </button>
                 
-                {selectedAction.risk_score <= (dashboardData?.user_info?.max_risk_approval || 100) && (
+                {selectedAction.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
                   <>
                     <button
                       onClick={() => handleApproval(selectedAction.id, 'denied', 'Detailed review - denied')}
@@ -3218,7 +3268,7 @@ if (dashboardData) {
                   </button>
                 )}
                 
-                {user?.role === "admin" && (
+                {dashboardData?.user_info?.is_emergency_approver && (
                   <button
                     onClick={() => setShowEmergencyModal(true)}
                     className="px-4 py-2 bg-red-800 hover:bg-red-900 text-white rounded-md border-2 border-red-600"
@@ -3248,7 +3298,7 @@ if (dashboardData) {
                 <div className="text-sm text-red-800">
                   <div><strong>Agent:</strong> {selectedAction.agent_id}</div>
                   <div><strong>Action:</strong> {selectedAction.action_type}</div>
-                  <div><strong>Risk Score:</strong> {selectedAction.risk_score}/100</div>
+                  <div><strong>Risk Score:</strong> {selectedAction.ai_risk_score}/100</div>
                 </div>
               </div>
               
@@ -3506,7 +3556,4 @@ if (dashboardData) {
   );
 };
 
-export default AgentAuthorizationDashboard;// Cache bust 1757197015
-// Cache bust 1757197432
-// BUILD_TIMESTAMP: 1757197933
-// FORCE_REBUILD: true
+export default AgentAuthorizationDashboard;
