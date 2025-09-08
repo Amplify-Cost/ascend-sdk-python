@@ -26,7 +26,7 @@ class MCPServerAction(Base):
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     
     # MCP Server Identity
-    mcp_server_id = Column(String(100), nullable=False, index=True)  # e.g., "claude-desktop", "vscode-mcp"
+    mcp_server_id = Column(UUID(as_uuid=True), ForeignKey("mcp_servers.id"), nullable=False, index=True)  # e.g., "claude-desktop", "vscode-mcp"
     mcp_server_name = Column(String(200), nullable=False)  # Human readable name
     mcp_server_version = Column(String(50))  # Version info
     
