@@ -100,7 +100,7 @@ class ExecutionResult:
     execution_id: str
     action_id: int
     action_type: str
-    created_at: str
+    executed_at: str
     execution_time: str
     details: str
     compliance_status: str
@@ -359,7 +359,7 @@ class ActionExecutorService:
                 execution_id=execution_id,
                 action_id=action_data["id"],
                 action_type=action_type,
-                created_at=execution_end.isoformat(),
+                executed_at=execution_end.isoformat(),
                 execution_time=f"{execution_time:.3f} seconds",
                 details=result.get("message", "Enterprise action completed successfully"),
                 compliance_status="executed_and_logged"
@@ -395,16 +395,16 @@ class ActionExecutorService:
                     """
                     UPDATE agent_actions 
                     SET status = :status,
-                        created_at = :created_at,
-                        description = :description,
+                        executed_at = :executed_at,
+                        execution_details = :execution_details,
                         execution_id = :execution_id
                     WHERE id = :action_id
                     """,
                     {
                         "action_id": action_id,
                         "status": status.value,
-                        "created_at": datetime.now(UTC),
-                        "description": json.dumps(details),
+                        "executed_at": datetime.now(UTC),
+                        "execution_details": json.dumps(details),
                         "execution_id": execution_id
                     }
                 )
@@ -466,7 +466,7 @@ class AuthorizationService:
             # Build base query
             base_query = """
                 SELECT id, agent_id, action_type, description, risk_level, status, 
-                       created_at, user_id
+                       created_at, tool_name, user_id
                 FROM agent_actions 
                 WHERE status IN (:pending, :submitted, :pending_approval)
             """
@@ -515,9 +515,9 @@ class AuthorizationService:
                     "risk_level": row[4] or RiskLevel.MEDIUM.value,
                     "status": row[5] or ActionStatus.PENDING.value,
                     "created_at": row[6].isoformat() if row[6] else datetime.now(UTC).isoformat(),
-                    "tool_name": "enterprise-mcp" or "enterprise-security-platform",
-                    "user_id": 1,
-                    "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
+                    "tool_name": row[7] or "enterprise-security-platform",
+                    "user_id": row[8] or 1,
+                    "can_approve": current_user.get("role") in ["admin", "security_manager"],
                     "requires_approval": True,
                     "estimated_impact": "Enterprise security enhancement",
                     "execution_time_estimate": "45 seconds",
@@ -574,8 +574,8 @@ class AuthorizationService:
                 raise InvalidActionStateError(f"Action already processed: {current_status}")
             
             # Parse authorization data
-            approved = request_data.get("approved", request_data.get("decision") == "approved")
-            comments = request_data.get("comments", request_data.get("justification", "Enterprise authorization"))
+            approved = request_data.get("approved", True)
+            comments = request_data.get("comments", "Enterprise authorization")
             execute_now = request_data.get("execute_immediately", execute_immediately)
             
             authorization_timestamp = datetime.now(UTC)
@@ -633,35 +633,28 @@ class AuthorizationService:
                         execution_result = await ActionExecutorService.execute_action(
                             action_data, execution_context, db
                         )
-                        execution_result = asdict(execution_result)
                         
                     except ExecutionFailureError as e:
                         logger.error(f"Execution failed: {str(e)}")
-                        execution_result = {
-                            "status": "failed",
-                            "execution_id": "",
-                            "action_id": action_id,
-                            "action_type": "",
-                            "created_at": "",
-                            "execution_time": "",
-                            "details": str(e),
-                            "compliance_status": "execution_failed",
-                            "enterprise_grade": True
-                        }
+                        execution_result = asdict(ExecutionResult(
+                            status="failed",
+                            execution_id="",
+                            action_id=action_id,
+                            action_type="",
+                            executed_at="",
+                            execution_time="",
+                            details=str(e),
+                            compliance_status="execution_failed"
+                        ))
                 
                 return {
                     "success": True,
-                    "message": "🏢 Enterprise authorization approved successfully with comprehensive audit",
+                    "message": "Enterprise action approved and executed successfully" if execution_result and execution_result.get("status") == "success" else "Enterprise action approved successfully",
                     "authorization_id": authorization_id,
                     "action_id": action_id,
-                    "decision": "approved",
-                    "authorization_status": "approved",
                     "status": ActionStatus.APPROVED.value,
                     "approved_at": authorization_timestamp.isoformat(),
                     "approved_by": admin_user.get("email", "enterprise_admin"),
-                    "reviewed_by": admin_user.get("email", "enterprise_admin"),
-                    "compliance_logged": True,
-                    "enterprise_audit_complete": True,
                     "execution_result": execution_result
                 }
             
@@ -756,17 +749,6 @@ async def authorize_action(
     return await AuthorizationService.authorize_action(
         action_id, body, admin_user, db, client_ip, execute_immediately=True
     )
-
-
-@router.post("/authorize-with-audit/{action_id}")
-async def authorize_action_with_audit(
-    action_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
-):
-    """Authorize action with comprehensive audit - compatibility endpoint."""
-    return await authorize_action(action_id, request, db, admin_user)
 
 
 @router.get("/dashboard")
@@ -897,11 +879,11 @@ async def get_execution_history(
         result = DatabaseService.safe_execute(
             db,
             """
-            SELECT id, action_type, status, created_at, description, 
+            SELECT id, action_type, status, executed_at, execution_details, 
                    agent_id, description, risk_level
             FROM agent_actions 
             WHERE status IN (:executed, :execution_failed)
-            ORDER BY created_at DESC 
+            ORDER BY executed_at DESC 
             LIMIT :limit
             """,
             {
@@ -917,7 +899,7 @@ async def get_execution_history(
                 "id": row[0],
                 "action_type": row[1] or "security_operation",
                 "status": "success" if row[2] == ActionStatus.EXECUTED.value else "failed",
-                "created_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
+                "executed_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
                 "execution_time": "0.245 seconds",
                 "agent_id": row[5] or "enterprise-agent",
                 "description": row[6] or "Enterprise security operation",
@@ -1097,84 +1079,3 @@ def ensure_array_response(data, field_name="actions"):
 # Export routers for main application
 __all__ = ["router", "api_router"]
 
-# Backward compatibility aliases for existing imports in main.py
-authorization_api_router = api_router  # Alias for backward compatibility
-
-# Enterprise Policy Management Endpoints - REQUIREMENT 1
-from enterprise_policy_engine import PolicyEngine
-
-@router.post("/policies/create-from-natural-language")
-async def create_policy_from_natural_language(
-    request: dict,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create enterprise policy from natural language description"""
-    try:
-        policy_engine = PolicyEngine(db)
-        
-        policy = policy_engine.create_policy_from_natural_language(
-            description=request["description"],
-            creator=current_user.username,
-            policy_name=request["policy_name"]
-        )
-        
-        return {
-            "success": True,
-            "policy_id": str(policy.id),
-            "status": policy.policy_status,
-            "version": f"{policy.major_version}.{policy.minor_version}.{policy.patch_version}",
-            "message": "Policy created successfully - requires approval before deployment"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/policies/{policy_id}/deploy")
-async def deploy_policy(
-    policy_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Deploy approved policy to production"""
-    try:
-        policy_engine = PolicyEngine(db)
-        
-        if policy_engine.deploy_policy(policy_id, current_user.username):
-            return {
-                "success": True,
-                "message": "Policy deployed successfully",
-                "deployed_by": current_user.username,
-                "deployment_time": datetime.now(UTC).isoformat()
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Policy not found")
-            
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/policies/{policy_id}/rollback/{target_version_id}")
-async def rollback_policy(
-    policy_id: str,
-    target_version_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Rollback policy to previous version"""
-    try:
-        policy_engine = PolicyEngine(db)
-        
-        if policy_engine.rollback_policy(policy_id, target_version_id):
-            return {
-                "success": True,
-                "message": "Policy rollback completed successfully",
-                "rolled_back_by": current_user.username,
-                "rollback_time": datetime.now(UTC).isoformat()
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Policy or target version not found")
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
