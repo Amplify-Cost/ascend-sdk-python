@@ -28,7 +28,7 @@ from enum import Enum
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from dependencies import get_current_user, require_admin, require_csrf
-from schemas import (
+from models import Userfrom schemas import (
     AgentActionOut, 
     AgentActionCreate,
     AutomationPlaybookOut, 
