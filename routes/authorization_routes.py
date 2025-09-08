@@ -1221,3 +1221,24 @@ async def get_discovery_server_status(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/mcp-discovery/health-monitor")
+async def monitor_mcp_server_health(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enterprise MCP server health monitoring"""
+    try:
+        from mcp_health_monitor import MCPHealthMonitor
+        
+        monitor = MCPHealthMonitor()
+        health_report = await monitor.monitor_all_servers(db)
+        
+        return {
+            "success": True,
+            "monitoring_results": health_report,
+            "enterprise_compliant": True
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
