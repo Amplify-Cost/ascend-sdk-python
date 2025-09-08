@@ -37,3 +37,4 @@ EXPOSE 8000
 # Command to start your application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 # Build timestamp: Mon Sep  8 09:52:27 EDT 2025
+# Docker cache bust: 1757349207
