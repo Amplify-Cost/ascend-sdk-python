@@ -354,7 +354,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         raise
     except Exception as e:
         logger.error(f"🚨 Login error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Authentication system error")
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 @router.get("/me")
 async def get_current_user_diagnostic(
