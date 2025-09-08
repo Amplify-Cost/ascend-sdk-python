@@ -1619,7 +1619,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "automation", "execution", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
+          {["pending", "metrics", "workflows", "automation", "execution", "policies", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1635,6 +1635,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               {tab === "automation" && "🤖 Automation Center"}
               {tab === "execution" && "🚀 Execution Center"}
               {tab === "mcp" && "🔌 MCP Servers"}
+              {tab === "policies" && "📋 Policy Management"}
             </button>
           ))}
         </nav>
@@ -2955,6 +2956,64 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   </div>
 )}
 
+
+      {/* Policy Management Tab */}
+      {activeTab === "policies" && (
+        <div className="space-y-6">
+          {/* Policy Creation Section */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4">Create New Policy</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Policy Name
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., File Access Control"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Natural Language Description
+                </label>
+                <textarea
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
+                />
+              </div>
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                Create Policy
+              </button>
+            </div>
+          </div>
+
+          {/* Policy Engine Status */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4">Enterprise Policy Engine Status</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">Active</div>
+                <div className="text-sm text-gray-600">Policy Engine</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">Enabled</div>
+                <div className="text-sm text-gray-600">Natural Language</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">Available</div>
+                <div className="text-sm text-gray-600">Version Control</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">Ready</div>
+                <div className="text-sm text-gray-600">Deployment</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 🚀 NEW: Execution Center Tab */}
       {activeTab === "execution" && (
         <div className="space-y-6">
