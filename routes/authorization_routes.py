@@ -26,10 +26,10 @@ from enum import Enum
 
 # Internal imports
 from database import get_db
-from dependencies import get_current_user, require_admin, require_csrffrom models import AgentAction, LogAuditTrail, Alert, SmartRule
+from dependencies import get_current_user, require_admin, require_csrf
+from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
-from schemas import (    AgentActionOut, 
-    AgentActionCreate,
+from schemas import (    AgentActionOut,    AgentActionCreate,
     AutomationPlaybookOut, 
     AutomationExecutionCreate, 
     AuthorizationRequest,
