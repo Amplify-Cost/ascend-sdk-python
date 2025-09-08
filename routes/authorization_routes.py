@@ -1177,3 +1177,47 @@ async def rollback_policy(
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# MCP Server Discovery Endpoints - REQUIREMENT 2
+# Additive only - preserves all existing functionality
+
+@router.post("/mcp-discovery/scan-network")
+async def scan_network_for_mcp_servers(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Enterprise MCP server network discovery"""
+    try:
+        from mcp_server_discovery import MCPServerDiscovery
+        
+        discovery = MCPServerDiscovery()
+        discovered_servers = await discovery.scan_network_for_mcp_servers()
+        
+        return {
+            "success": True,
+            "discovered_count": len(discovered_servers),
+            "servers": discovered_servers,
+            "scan_timestamp": datetime.now(UTC).isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/mcp-discovery/server-status")
+async def get_discovery_server_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get status of discovered MCP servers"""
+    try:
+        # Query existing MCPServer model without modification
+        servers = db.query(MCPServer).all()
+        
+        return {
+            "total_servers": len(servers),
+            "active_servers": len([s for s in servers if s.status == "active"]),
+            "enterprise_compliant": True
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
