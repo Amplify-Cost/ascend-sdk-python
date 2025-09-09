@@ -1631,7 +1631,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "execution", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
+          {["pending", "metrics", "workflows", "automation", "execution", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
