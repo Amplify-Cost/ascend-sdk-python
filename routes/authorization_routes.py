@@ -1245,7 +1245,7 @@ async def monitor_mcp_server_health(
 
 # ========== ENTERPRISE PERFORMANCE METRICS ENDPOINT ==========
 
-@router.get("/metrics/approval-performance", response_model=Dict[str, Any])
+@api_router.get("/metrics/approval-performance", response_model=Dict[str, Any])
 async def get_approval_performance_metrics(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
