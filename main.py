@@ -342,7 +342,7 @@ app.include_router(auth_router)
 #app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 #app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
-# app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
+app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
 
 # Include routers with enterprise fallback handling
 print("🔗 Loading application routes...")
