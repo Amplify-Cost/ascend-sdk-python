@@ -356,12 +356,12 @@ useEffect(() => {
         const data = await response.json();
         
         // Add real-time calculations for better accuracy
-        const totalActions = data.decision_breakdown.approved + 
-                            data.decision_breakdown.denied + 
-                            data.decision_breakdown.pending;
+        const totalActions = (data.decision_breakdown?.approved || data.total_processed_actions || 0) + 
+                            data.decision_breakdown?.denied || 0 + 
+                            data.decision_breakdown?.pending || 0;
         
         const realTimeApprovalRate = totalActions > 0 
-          ? (data.decision_breakdown.approved / totalActions * 100)
+          ? ((data.decision_breakdown?.approved || data.total_processed_actions || 0) / totalActions * 100)
           : 0;
         
         // Calculate real-time processing metrics
@@ -1906,15 +1906,15 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span>Approved:</span>
-                  <span className="font-semibold text-green-600">{approvalMetrics.decision_breakdown.approved}</span>
+                  <span className="font-semibold text-green-600">{approvalMetrics.decision_breakdown?.approved || approvalMetrics.total_processed_actions || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Denied:</span>
-                  <span className="font-semibold text-red-600">{approvalMetrics.decision_breakdown.denied}</span>
+                  <span className="font-semibold text-red-600">{approvalMetrics.decision_breakdown?.denied || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Emergency Overrides:</span>
-                  <span className="font-semibold text-orange-600">{approvalMetrics.decision_breakdown.emergency_overrides}</span>
+                  <span className="font-semibold text-orange-600">{approvalMetrics.decision_breakdown?.emergency_overrides || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Approval Rate:</span>
