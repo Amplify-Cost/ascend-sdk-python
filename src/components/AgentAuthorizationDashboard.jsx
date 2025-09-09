@@ -1145,6 +1145,18 @@ const createWorkflow = async (workflowData) => {
   };
 
   // 🚀 ENHANCED: handleApproval with real-time execution
+  const handleCreatePolicy = async () => {
+    try {
+      console.log("Creating new policy...");
+      // Call your governance API endpoint
+      const response = await fetch(`${API_BASE_URL}/api/governance/create-policy`, { method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() }, body: JSON.stringify({ policy_type: "access_control", description: "New policy" }) });
+      const result = await response.json();
+      console.log("Policy creation response:", result);
+    } catch (error) {
+      console.error("Policy creation failed:", error);
+    }
+  };
+
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
   try {
     const action = pendingActions.find(a => a.id === actionId);
@@ -2984,7 +2996,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                   placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
                 />
               </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+              <button onClick={handleCreatePolicy} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
                 Create Policy
               </button>
             </div>
