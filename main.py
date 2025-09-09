@@ -300,15 +300,34 @@ workflow_config = {
         "approvers": ["security@company.com", "senior@company.com", "executive@company.com"],
         "timeout_hours": 2,
         "emergency_override": True,
-        "escalation_minutes": 30
+        "escalation_minutes": 30,
+        "policy_rules": {
+            "auto_deny_conditions": [
+                {"field": "risk_score", "operator": ">=", "value": 95},
+                {"field": "data_classification", "operator": "equals", "value": "top_secret"}
+            ],
+            "auto_approve_conditions": [],
+            "compliance_checks": ["SOX", "GDPR"],
+            "business_justification_required": True
+        }
     },
     "risk_70_89": {
-        "name": "High Risk (70-89)", 
+        "name": "High Risk (70-89)",
         "approval_levels": 2,
         "approvers": ["security@company.com", "senior@company.com"],
         "timeout_hours": 4,
         "emergency_override": False,
-        "escalation_minutes": 60
+        "escalation_minutes": 60,
+        "policy_rules": {
+            "auto_deny_conditions": [
+                {"field": "data_classification", "operator": "equals", "value": "classified"}
+            ],
+            "auto_approve_conditions": [
+                {"field": "user_clearance", "operator": ">=", "value": "level_2"}
+            ],
+            "compliance_checks": ["SOX"],
+            "business_justification_required": False
+        }
     },
     "risk_50_69": {
         "name": "Medium Risk (50-69)",
@@ -316,7 +335,16 @@ workflow_config = {
         "approvers": ["security@company.com", "security2@company.com"],
         "timeout_hours": 8,
         "emergency_override": False,
-        "escalation_minutes": 120
+        "escalation_minutes": 120,
+        "policy_rules": {
+            "auto_deny_conditions": [],
+            "auto_approve_conditions": [
+                {"field": "business_hours", "operator": "equals", "value": True},
+                {"field": "user_department", "operator": "in", "value": ["security", "it"]}
+            ],
+            "compliance_checks": ["SOX"],
+            "business_justification_required": False
+        }
     },
     "risk_0_49": {
         "name": "Low Risk (0-49)",
@@ -324,10 +352,17 @@ workflow_config = {
         "approvers": ["security@company.com"],
         "timeout_hours": 24,
         "emergency_override": False,
-        "escalation_minutes": 480
+        "escalation_minutes": 480,
+        "policy_rules": {
+            "auto_deny_conditions": [],
+            "auto_approve_conditions": [
+                {"field": "risk_score", "operator": "<=", "value": 25}
+            ],
+            "compliance_checks": [],
+            "business_justification_required": False
+        }
     }
 }
-
 # Enterprise audit trail storage
 audit_trail_storage = []
 
