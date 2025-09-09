@@ -2157,6 +2157,63 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               </div>
             </div>
           </div>
+
+          {/* Integrated Automation Playbooks */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Automation Playbooks</h3>
+              <button
+                onClick={() => fetchAutomationData()}
+                className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {automationData && automationData.playbooks && Object.keys(automationData.playbooks).length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(automationData.playbooks).map(([playbookId, playbook]) => (
+                  <div key={playbookId} className={`border-2 rounded-lg p-4 ${
+                    playbook.enabled ? "border-green-200 bg-green-50" : "border-gray-200 bg-gray-50"
+                  }`}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">
+                          {playbook.enabled ? "🟢" : "🔴"}
+                        </span>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{playbook.name || "Unnamed Playbook"}</h4>
+                          <p className="text-xs text-gray-600">Success Rate: {playbook.success_rate || 0}%</p>
+                        </div>
+                      </div>
+                      {user?.role === "admin" && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => togglePlaybook(playbookId)}
+                            className={`px-2 py-1 rounded text-xs ${
+                              playbook.enabled
+                                ? "bg-red-100 hover:bg-red-200 text-red-700"
+                                : "bg-green-100 hover:bg-green-200 text-green-700"
+                            }`}
+                          >
+                            {playbook.enabled ? "Disable" : "Enable"}
+                          </button>
+                          <button
+                            onClick={() => executePlaybook(playbookId)}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-xs"
+                          >
+                            Test
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-4">No automation playbooks available</p>
+            )}
+          </div>
         </div>
       )}
 
