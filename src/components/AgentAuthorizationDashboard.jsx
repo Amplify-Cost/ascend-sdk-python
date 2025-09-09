@@ -2214,6 +2214,47 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               <p className="text-gray-500 text-center py-4">No automation playbooks available</p>
             )}
           </div>
+
+          {/* Enterprise Workflow Creation */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Create Enterprise Workflow</h3>
+              <button
+                onClick={() => setShowWorkflowBuilder(!showWorkflowBuilder)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+              >
+                {showWorkflowBuilder ? "Cancel" : "Create Workflow"}
+              </button>
+            </div>
+            {showWorkflowBuilder && (
+              <div className="mt-4 space-y-4">
+                <input
+                  type="text"
+                  placeholder="Workflow Name (e.g., Financial Approval Process)"
+                  value={newWorkflow.name}
+                  onChange={(e) => setNewWorkflow({...newWorkflow, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  value={newWorkflow.riskLevel || ""}
+                  onChange={(e) => setNewWorkflow({...newWorkflow, riskLevel: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select Risk Level</option>
+                  <option value="risk_90_100">Critical Risk (90-100)</option>
+                  <option value="risk_70_89">High Risk (70-89)</option>
+                  <option value="risk_50_69">Medium Risk (50-69)</option>
+                  <option value="risk_0_49">Low Risk (0-49)</option>
+                </select>
+                <button
+                  onClick={() => createWorkflow(newWorkflow)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md font-medium"
+                >
+                  Create Enterprise Workflow
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
