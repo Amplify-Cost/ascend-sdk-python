@@ -1631,7 +1631,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "automation", "execution", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
+          {["pending", "metrics", "workflows", "execution", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -2091,6 +2091,30 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                       ))}
                     </div>
                   </div>
+
+                  {/* Policy Rules Display */}
+                  {workflow.policy_rules && (
+                    <div className="pt-2 border-t border-current border-opacity-20">
+                      <span className="font-medium">Policy Rules:</span>
+                      <div className="mt-1 space-y-1">
+                        {workflow.policy_rules.auto_deny_conditions && workflow.policy_rules.auto_deny_conditions.length > 0 && (
+                          <div className="text-xs bg-red-100 bg-opacity-50 px-2 py-1 rounded">
+                            Auto-Deny: {workflow.policy_rules.auto_deny_conditions.length} conditions
+                          </div>
+                        )}
+                        {workflow.policy_rules.auto_approve_conditions && workflow.policy_rules.auto_approve_conditions.length > 0 && (
+                          <div className="text-xs bg-green-100 bg-opacity-50 px-2 py-1 rounded">
+                            Auto-Approve: {workflow.policy_rules.auto_approve_conditions.length} conditions
+                          </div>
+                        )}
+                        {workflow.policy_rules.compliance_checks && workflow.policy_rules.compliance_checks.length > 0 && (
+                          <div className="text-xs bg-blue-100 bg-opacity-50 px-2 py-1 rounded">
+                            Compliance: {workflow.policy_rules.compliance_checks.join(", ")}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
