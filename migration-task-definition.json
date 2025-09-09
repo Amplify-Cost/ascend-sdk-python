@@ -1,6 +1,6 @@
 {
   "family": "owkai-pilot-migration",
-  "networkMode": "awsvpc",
+  "networkMode": "awsvpc", 
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
@@ -9,9 +9,9 @@
   "containerDefinitions": [
     {
       "name": "migration",
-      "image": "PLACEHOLDER_IMAGE",
+      "image": "PLACEHOLDER_IMAGE", 
       "essential": true,
-      "command": ["sh", "-c", "cd /app && PYTHONPATH=/app python -c \"from sqlalchemy import create_engine, text; import os; engine = create_engine(os.environ['DATABASE_URL']); conn = engine.connect(); conn.execute(text('DROP TABLE IF EXISTS alembic_version CASCADE')); conn.execute(text('DROP TABLE IF EXISTS agent_actions CASCADE')); conn.execute(text('CREATE TABLE agent_actions (id SERIAL PRIMARY KEY, agent_id VARCHAR(255) NOT NULL, action_type VARCHAR(100) NOT NULL, description TEXT, risk_level VARCHAR(20), risk_score FLOAT, status VARCHAR(20), approved BOOLEAN, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, user_id INTEGER)')); conn.execute(text('CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))')); conn.execute(text(\\\"INSERT INTO alembic_version (version_num) VALUES ('001')\\\")); conn.commit(); conn.close(); print('Enterprise MCP database ready')\" && echo 'Migration completed successfully'"],
+      "command": ["sh", "-c", "cd /app && python -c \"from sqlalchemy import create_engine, text; import os; engine = create_engine(os.environ['DATABASE_URL']); conn = engine.connect(); conn.execute(text('CREATE TABLE IF NOT EXISTS agent_actions (id SERIAL PRIMARY KEY, agent_id VARCHAR(255), action_type VARCHAR(100), description TEXT, risk_level VARCHAR(20), risk_score FLOAT, status VARCHAR(20), approved BOOLEAN, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, user_id INTEGER)')); conn.execute(text('ALTER TABLE agent_actions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE')); conn.execute(text('ALTER TABLE agent_actions ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(255)')); conn.execute(text('ALTER TABLE agent_actions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()')); conn.execute(text('ALTER TABLE agent_actions ADD COLUMN IF NOT EXISTS approved_by VARCHAR(255)')); conn.commit(); conn.close(); print('Enterprise schema migration completed')\" && echo 'Migration completed successfully'"],
       "environment": [],
       "secrets": [
         {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-2:110948415588:secret:/owkai/pilot/backend/DB_URL-RuZYGO"},
@@ -21,7 +21,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/owkai-pilot-migration",
-          "awslogs-region": "us-east-2",
+          "awslogs-region": "us-east-2", 
           "awslogs-stream-prefix": "migration"
         }
       }
