@@ -458,3 +458,27 @@ def extract_mcp_data_from_action(action: AgentAction) -> Dict[str, Any]:
             mcp_data["verb"] = "create"
     
     return mcp_data
+
+@router.post("/create-policy")
+async def create_governance_policy(
+    policy_data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Enterprise policy creation endpoint
+    """
+    try:
+        logger.info(f"Policy creation requested by {current_user.get('email', 'unknown')}")
+        
+        # For now, return success response while policy storage is implemented
+        return {
+            "success": True,
+            "message": "Policy creation initiated",
+            "policy_id": f"policy_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "status": "pending_review",
+            "created_by": current_user.get('email', 'admin')
+        }
+    except Exception as e:
+        logger.error(f"Policy creation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Policy creation failed: {str(e)}")
