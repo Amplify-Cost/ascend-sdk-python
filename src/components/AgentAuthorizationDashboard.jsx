@@ -150,7 +150,7 @@ useEffect(() => {
     // Try unified endpoint first, fallback to existing
     let response;
     try {
-      response = await fetch(`${API_BASE_URL}/api/governance/unified-actions`, {
+      response = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
