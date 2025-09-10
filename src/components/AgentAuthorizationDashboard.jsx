@@ -138,78 +138,8 @@ useEffect(() => {
   
   try {
     // IMMEDIATE: Load enhanced demo data for instant display
-    const demoActions = [
-      {
-        id: 35,
-        agent_id: "Agent-7432",
-        action_type: "security_scan",
-        ai_risk_score: 65,
-        description: "Test action for loading verification",
-        workflow_stage: "level_1",
-        current_approval_level: 1,
-        required_approval_level: 2,
-        is_emergency: false,
-        authorization_status: "pending_approval",
-        execution_status: "pending_approval",
-        contextual_risk_factors: ["Production environment"],
-        time_remaining: "2:30:00",
-        requested_at: new Date().toISOString()
-      },
-      // 🔌 NEW: MCP Demo Actions
-      {
-        id: 501,
-        action_type: "mcp_server_action",
-        mcp_data: {
-          server: "claude-desktop",
-          namespace: "filesystem",
-          verb: "read_file",
-          resource: "/home/user/sensitive_data.csv",
-          params: { encoding: "utf8", max_size: "10MB" }
-        },
-        ai_risk_score: 75,
-        description: "MCP: Read sensitive file via Claude Desktop",
-        workflow_stage: "level_2",
-        current_approval_level: 1,
-        required_approval_level: 2,
-        is_emergency: false,
-        authorization_status: "pending_approval",
-        execution_status: "pending_approval",
-        contextual_risk_factors: ["Sensitive data access", "External MCP server"],
-        time_remaining: "1:45:00",
-        requested_at: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-        user_email: "developer@company.com"
-      },
-      {
-        id: 502,
-        action_type: "mcp_server_action",
-        mcp_data: {
-          server: "github-mcp",
-          namespace: "repository",
-          verb: "create_pr",
-          resource: "company/production-repo",
-          params: { 
-            title: "Security patch deployment", 
-            branch: "security-fix-2024",
-            reviewers: ["security-team"] 
-          }
-        },
-        ai_risk_score: 45,
-        description: "MCP: Create production pull request via GitHub MCP",
-        workflow_stage: "level_1",
-        current_approval_level: 1,
-        required_approval_level: 1,
-        is_emergency: false,
-        authorization_status: "pending_approval",
-        execution_status: "pending_approval",
-        contextual_risk_factors: ["Production repository", "Code deployment"],
-        time_remaining: "3:15:00",
-        requested_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
-        user_email: "devops@company.com"
-      }
-    ];
     
     // Set enhanced demo data immediately
-    setPendingActions(demoActions);
     setLoading(false);
     console.log("✅ Enhanced demo actions (agents + MCP) loaded immediately");
     
@@ -2924,7 +2854,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           <span className="text-green-600">🤖</span>
           <div className="flex-1">
             <span className="font-medium">Low Risk Auto-Approval</span>
-            <span className="text-gray-600 ml-2">executed for Agent-7432</span>
+            <span className="text-gray-600 ml-2">executed successfully</span>
           </div>
           <span className="text-xs text-green-600">2 minutes ago</span>
         </div>
