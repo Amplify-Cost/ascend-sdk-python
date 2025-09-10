@@ -229,7 +229,7 @@ useEffect(() => {
       });
     } catch (err) {
       console.log("📊 Unified endpoint not available, trying existing agent endpoint");
-      response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
+      response = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
