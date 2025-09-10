@@ -39,7 +39,7 @@ class EnterpriseApiService {
   }
 
   async approveAction(actionId, approvalData) {
-    return this.request(`/agent-control/authorize-with-audit/${actionId}`, {
+    return this.request(`/agent-action/${actionId}/approve`, {
       method: 'POST',
       body: JSON.stringify(approvalData),
     });

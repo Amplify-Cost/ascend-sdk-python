@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import EnterpriseWorkflowBuilder from "./EnterpriseWorkflowBuilder";
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
