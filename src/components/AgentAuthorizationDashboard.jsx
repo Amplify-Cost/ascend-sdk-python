@@ -140,15 +140,15 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
   const fetchWorkflows = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+      const workflowResponse = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
           "X-API-Version": "v1.0"
         }
       });
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         setWorkflows(data.workflows || {});
       }
       setError(null);
@@ -314,8 +314,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       const apiTime = Date.now() - startTime;
       console.log(`⏱️ Enhanced API call took ${apiTime}ms`);
       
-      if (response.ok) {
-        const realData = await response.json();
+      if (workflowResponse.ok) {
+        const realData = await workflowResponse.json();
         console.log("✅ Real enhanced API data:", realData);
         
         // Handle both unified and legacy response formats
@@ -364,15 +364,15 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   
   async function fetchDashboardData() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
+      const dashboardResponse = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
           "X-API-Version": "v1.0"  // For backward compatibility
         }
       });
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         
         // Calculate real-time metrics from pending actions
         const totalPending = pendingActions.length;
@@ -425,7 +425,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       
       console.log("📈 [FETCH] Starting approval metrics fetch with enterprise safety...");
       
-      const response = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
+      const metricsResponse = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -433,8 +433,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
         }
       });
       
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         
         // 🛡️ ENTERPRISE: Safe data extraction with comprehensive validation
         const safeDecisionBreakdown = {
@@ -504,16 +504,16 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
         console.log("✅ [FETCH] Approval metrics updated safely:", enhancedMetrics);
         
       } else {
-        const errorMessage = `Failed to fetch approval metrics: ${response.status} ${response.statusText}`;
+        const errorMessage = `Failed to fetch approval metrics: ${workflowResponse.status} ${workflowResponse.statusText}`;
         setMetricsError(errorMessage);
         
         const duration = performance.now() - startTime;
         logPerformanceMetric('fetchApprovalMetrics', duration, false, {
-          httpStatus: response.status,
-          httpStatusText: response.statusText
+          httpStatus: workflowResponse.status,
+          httpStatusText: workflowResponse.statusText
         });
         
-        logError(new Error(errorMessage), { httpStatus: response.status });
+        logError(new Error(errorMessage), { httpStatus: workflowResponse.status });
       }
     } catch (err) {
       const errorMessage = `Network error fetching approval metrics: ${err.message}`;
@@ -551,8 +551,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
         response = { ok: false };
       }
       
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         console.log("✅ Real automation data loaded:", data);
         
         const safeData = {
@@ -653,8 +653,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
         response = { ok: false };
       }
       
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         console.log("✅ Real workflow data loaded:", data);
         
         const safeData = {
@@ -738,15 +738,15 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   
   async function fetchExecutionHistory() {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/authorization/execution-history`, {
+      const historyResponse = await fetch(`${API_BASE_URL}/api/authorization/execution-history`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
           "X-API-Version": "v1.0"
         }
       });
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         setExecutionHistory(data.execution_history || []);
         console.log("🚀 Execution history loaded:", data);
       }
@@ -926,15 +926,15 @@ useEffect(() => {
   // 🚀 NEW: Get execution status for specific action
   const fetchExecutionStatus = async (actionId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
+      const statusResponse = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
   "X-API-Version": "v1.0"  // For backward compatibility
 }
       });
-      if (response.ok) {
-        const data = await response.json();
+      if (workflowResponse.ok) {
+        const workflowData = await workflowResponse.json();
         setExecutionStatus(prev => ({...prev, [actionId]: data}));
         return data;
       }
@@ -1315,7 +1315,7 @@ const createWorkflow = async (workflowData) => {
   // 🚀 NEW: Manual execution function
   const executeAction = async (actionId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/authorization/execute/${actionId}`, {
+      const executeResponse = await fetch(`${API_BASE_URL}/api/authorization/execute/${actionId}`, {
         method: "POST",
         headers: { 
   ...getAuthHeaders(), 
@@ -1324,8 +1324,8 @@ const createWorkflow = async (workflowData) => {
 }
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      if (workflowResponse.ok) {
+        const result = await workflowResponse.json();
         console.log("🚀 Execution result:", result);
         
         // Update the action in pending actions list with execution results
@@ -1350,7 +1350,7 @@ const createWorkflow = async (workflowData) => {
         setTimeout(() => setMessage(null), 5000);
         
       } else {
-        const error = await response.json();
+        const error = await workflowResponse.json();
         setError(`❌ Failed to execute action: ${error.detail}`);
       }
     } catch (err) {
@@ -1386,7 +1386,7 @@ const createWorkflow = async (workflowData) => {
 
   const updateWorkflow = async (workflowId, updates) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+      const workflowResponse = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
         method: "POST",
         headers: { 
   ...getAuthHeaders(), 
@@ -1399,13 +1399,13 @@ const createWorkflow = async (workflowData) => {
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      if (workflowResponse.ok) {
+        const result = await workflowResponse.json();
         setMessage(`✅ ${result.message}`);
         fetchWorkflows(); // Refresh data
         setEditingWorkflow(null);
       } else {
-        const errorData = await response.json();
+        const errorData = await workflowResponse.json();
         setError(`❌ Failed to update workflow: ${errorData.detail}`);
       }
     } catch (err) {
@@ -1428,7 +1428,7 @@ const createWorkflow = async (workflowData) => {
       endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
     
-    const response = await fetch(endpoint, {
+    const endpointResponse = await fetch(endpoint, {
       method: "POST",
       headers: { 
         ...getAuthHeaders(), 
@@ -1448,8 +1448,8 @@ const createWorkflow = async (workflowData) => {
       })
     });
 
-    if (response.ok) {
-      const result = await response.json();
+    if (workflowResponse.ok) {
+      const result = await workflowResponse.json();
       console.log("✅ Enhanced approval result:", result);
               
       // PRESERVE: Your existing UI update logic
@@ -1483,7 +1483,7 @@ const createWorkflow = async (workflowData) => {
       setTimeout(() => setMessage(null), 5000);
       
     } else {
-      const error = await response.json();
+      const error = await workflowResponse.json();
       setError(`❌ Failed to ${decision} action: ${error.detail}`);
     }
   } catch (err) {
@@ -1499,7 +1499,7 @@ const createWorkflow = async (workflowData) => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/emergency-override/${actionId}`, {
+      const overrideResponse = await fetch(`${API_BASE_URL}/agent-control/emergency-override/${actionId}`, {
         method: "POST",
         headers: { 
   ...getAuthHeaders(), 
@@ -1509,8 +1509,8 @@ const createWorkflow = async (workflowData) => {
         body: JSON.stringify({ justification: emergencyJustification })
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      if (workflowResponse.ok) {
+        const result = await workflowResponse.json();
         console.log("🚨 Emergency override result:", result);
                 
         // Immediate UI updates for real-time feedback
@@ -1546,7 +1546,7 @@ const createWorkflow = async (workflowData) => {
         setTimeout(() => setMessage(null), 6000);
         
       } else {
-        const error = await response.json();
+        const error = await workflowResponse.json();
         setError(`❌ Emergency override failed: ${error.detail}`);
       }
     } catch (err) {
