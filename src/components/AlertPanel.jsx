@@ -15,7 +15,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
   const [toolFilter, setToolFilter] = useState("all");
   const [agentFilter, setAgentFilter] = useState("all");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchAlerts = async () => {

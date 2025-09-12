@@ -20,7 +20,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
   const [summaryError, setSummaryError] = useState("");
   const [summaryResult, setSummaryResult] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchAlerts = async () => {

@@ -13,7 +13,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const [filterType, setFilterType] = useState("all");
   const [sortBy, setSortBy] = useState("date");
 
-  const BASE_URL = "https://pilot.owkai.app";
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Enterprise-level mock data
   const enterpriseReports = [

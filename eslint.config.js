@@ -23,11 +23,26 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', { 
+        varsIgnorePattern: '^[A-Z_]',
+        argsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_'
+      }],
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
       ],
+      // Enhanced quality rules
+      'no-console': 'warn',
+      'no-debugger': 'error',
+      'no-alert': 'error',
+      'no-unused-expressions': 'error',
+      'no-unreachable': 'error',
+      'no-duplicate-imports': 'error',
+      'prefer-const': 'error',
+      'no-var': 'error',
+      'eqeqeq': ['error', 'always'],
+      'curly': ['error', 'all'],
     },
   },
 ]

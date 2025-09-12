@@ -1,23 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useFocusTrap, useScreenReaderAnnounce, useKeyboardNavigation } from '../contexts/AccessibilityContext';
 
-const GlobalSearch = ({ onNavigate }) => {
-  const { isDarkMode } = useTheme();
-  const { announce } = useScreenReaderAnnounce();
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredResults, setFilteredResults] = useState([]);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
-  const inputRef = useRef(null);
-  const searchRef = useRef(null);
-  const resultsRef = useRef([]);
-
-  // Enable focus trap when modal is open
-  useFocusTrap(isOpen);
-
-  // Mock search data - in real app, this would come from your API
-  const searchData = [
+// Move searchData outside component to prevent recreation on every render
+const searchData = [
     { 
       type: 'page', 
       title: 'Security Dashboard', 
@@ -124,6 +110,25 @@ const GlobalSearch = ({ onNavigate }) => {
     }
   ];
 
+const GlobalSearch = ({ onNavigate }) => {
+  const { isDarkMode } = useTheme();
+  const { announce } = useScreenReaderAnnounce();
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredResults, setFilteredResults] = useState([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const inputRef = useRef(null);
+  const searchRef = useRef(null);
+  const resultsRef = useRef([]);
+
+  // Enable focus trap when modal is open
+  useFocusTrap(isOpen);
+
+  // Create stable announce function to prevent infinite loops
+  const stableAnnounce = useCallback((message, priority) => {
+    announce(message, priority);
+  }, [announce]);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -131,13 +136,13 @@ const GlobalSearch = ({ onNavigate }) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setIsOpen(true);
-        announce('Search opened', 'assertive');
+        stableAnnounce('Search opened', 'assertive');
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [announce]);
+  }, []); // Remove announce dependency to prevent infinite loops
 
   // Handle keyboard navigation within search
   useKeyboardNavigation(
@@ -147,7 +152,7 @@ const GlobalSearch = ({ onNavigate }) => {
         setIsOpen(false);
         setSearchQuery('');
         setSelectedIndex(-1);
-        announce('Search closed', 'polite');
+        stableAnnounce('Search closed', 'polite');
       }
     },
     (e) => {
@@ -169,7 +174,7 @@ const GlobalSearch = ({ onNavigate }) => {
           setSelectedIndex(prev => {
             const next = Math.min(prev + 1, filteredResults.length - 1);
             if (next !== prev && filteredResults[next]) {
-              announce(`${filteredResults[next].title}, ${filteredResults[next].type}`, 'polite');
+              stableAnnounce(`${filteredResults[next].title}, ${filteredResults[next].type}`, 'polite');
             }
             return next;
           });
@@ -180,9 +185,9 @@ const GlobalSearch = ({ onNavigate }) => {
             const next = Math.max(prev - 1, -1);
             if (next !== prev) {
               if (next === -1) {
-                announce('Search input', 'polite');
+                stableAnnounce('Search input', 'polite');
               } else if (filteredResults[next]) {
-                announce(`${filteredResults[next].title}, ${filteredResults[next].type}`, 'polite');
+                stableAnnounce(`${filteredResults[next].title}, ${filteredResults[next].type}`, 'polite');
               }
             }
             return next;
@@ -195,7 +200,7 @@ const GlobalSearch = ({ onNavigate }) => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, filteredResults, announce]);
+  }, [isOpen, filteredResults, stableAnnounce]);
 
   // Focus input when opened
   useEffect(() => {
@@ -241,11 +246,11 @@ const GlobalSearch = ({ onNavigate }) => {
     setSelectedIndex(-1);
     
     if (filtered.length > 0) {
-      announce(`${filtered.length} search result${filtered.length === 1 ? '' : 's'} found`, 'polite');
+      stableAnnounce(`${filtered.length} search result${filtered.length === 1 ? '' : 's'} found`, 'polite');
     } else {
-      announce('No search results found', 'polite');
+      stableAnnounce('No search results found', 'polite');
     }
-  }, [searchQuery, announce]);
+  }, [searchQuery, stableAnnounce]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -257,13 +262,13 @@ const GlobalSearch = ({ onNavigate }) => {
     }
   }, [selectedIndex]);
 
-  const handleSelect = (item) => {
+  const handleSelect = useCallback((item) => {
     onNavigate(item.path);
     setIsOpen(false);
     setSearchQuery('');
     setSelectedIndex(-1);
-    announce(`Navigating to ${item.title}`, 'assertive');
-  };
+    stableAnnounce(`Navigating to ${item.title}`, 'assertive');
+  }, [onNavigate, stableAnnounce]);
 
   const getTypeColor = (type) => {
     switch (type) {
@@ -293,7 +298,7 @@ const GlobalSearch = ({ onNavigate }) => {
       <button
         onClick={() => {
           setIsOpen(true);
-          announce('Search opened', 'assertive');
+          stableAnnounce('Search opened', 'assertive');
         }}
         className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           isDarkMode 

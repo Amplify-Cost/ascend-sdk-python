@@ -1,7 +1,7 @@
 // components/RealTimeAnalyticsDashboard.jsx
 // Enterprise Real-Time Analytics Dashboard Component - Master Prompt Aligned Fix
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, TrendingUp, Users, Shield, Cpu, HardDrive, Wifi, AlertTriangle, CheckCircle, Target, BarChart3, PieChart, LineChart, Zap, Clock, Server, Database, Globe, Lock } from 'lucide-react';
+import { Activity, TrendingUp, AlertTriangle, CheckCircle, Target, Server, Database } from 'lucide-react';
 
 // 🎯 MASTER PROMPT FIX: Complete enterprise analytics component
 const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
@@ -26,7 +26,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       
       console.log('🔄 Auth headers available:', !!headers.Authorization);
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://pilot.owkai.app'}${endpoint}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${endpoint}`, {
         method: 'GET',
         headers: {
           ...headers,
@@ -72,7 +72,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
     }
 
     const userEmail = user.email;
-    const wsUrl = `${(import.meta.env.VITE_API_URL || 'https://pilot.owkai.app').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
+    const wsUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
     
     try {
       console.log('🔌 Initializing WebSocket:', wsUrl);
@@ -361,7 +361,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <h4 className="text-sm font-medium text-gray-700 mb-2">Debug Information:</h4>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>API URL: {import.meta.env.VITE_API_URL || 'https://pilot.owkai.app'}</p>
+                <p>API URL: {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
                 <p>Auth Headers: {getAuthHeaders ? 'Available' : 'Not available'}</p>
                 <p>User Role: {user?.role || 'Unknown'}</p>
                 <p>Endpoints: /analytics/realtime/metrics, /analytics/predictive/trends, /analytics/performance/system</p>
@@ -642,7 +642,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
               <p><strong>User:</strong> {user?.email || 'Not authenticated'}</p>
               <p><strong>Role:</strong> {user?.role || 'Unknown'}</p>
               <p><strong>Auth Headers:</strong> {!!getAuthHeaders ? 'Available' : 'Not available'}</p>
-              <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'https://pilot.owkai.app'}</p>
+              <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
               <p><strong>Expected Endpoints:</strong></p>
               <ul className="ml-4 text-xs text-gray-600">
                 <li>• /analytics/realtime/metrics</li>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const RuleEditor = ({ getAuthHeaders }) => {
   const [rules, setRules] = useState([]);

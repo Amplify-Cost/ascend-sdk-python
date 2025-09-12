@@ -44,7 +44,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
   const [auditFilter, setAuditFilter] = useState("");
   const [riskFilter, setRiskFilter] = useState("all");
 
-  const BASE_URL = "https://pilot.owkai.app";
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // ============================================================================
   // DATA FETCHING

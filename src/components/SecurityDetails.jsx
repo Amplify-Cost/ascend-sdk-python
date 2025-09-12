@@ -6,7 +6,7 @@ const SecurityDetails = ({ log, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     if (log?.id) {

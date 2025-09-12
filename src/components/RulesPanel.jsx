@@ -1,6 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 
 const Rules = ({ getAuthHeaders, user }) => {
   const [rules, setRules] = useState([]);
@@ -15,7 +15,7 @@ const Rules = ({ getAuthHeaders, user }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const rulesPerPage = 5;
 
-  const fetchRules = async () => {
+  const fetchRules = useCallback(async () => {
     try {
       console.log("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
       const res = await fetch(`${API_BASE_URL}/rules`, {
@@ -28,7 +28,7 @@ const Rules = ({ getAuthHeaders, user }) => {
       console.error("❌ Failed to fetch rules", err);
       setRules([]); // ✅ Set empty array on error
     }
-  };
+  }, [getAuthHeaders]);
 
   // ✅ REMOVED: fetchVersionHistory function that was causing 404
 
@@ -97,7 +97,7 @@ const Rules = ({ getAuthHeaders, user }) => {
   useEffect(() => {
     fetchRules();
     // ✅ REMOVED: fetchVersionHistory() call that was causing 404
-  }, []);
+  }, [fetchRules]);
 
   const filteredRules = rules.filter((r) =>
     r.condition?.toLowerCase().includes(filter.toLowerCase()) ||

@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 
 const AuditTrailModal = ({ token, actionId, onClose }) => {
   const [auditLogs, setAuditLogs] = useState([]);
   const API_BASE_URL = import.meta.env.VITE_API_URL;
 
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/audit-trail`, {
         headers: {
@@ -17,11 +17,11 @@ const AuditTrailModal = ({ token, actionId, onClose }) => {
     } catch (err) {
       console.error("Failed to fetch audit logs:", err);
     }
-  };
+  }, [API_BASE_URL, token, actionId]);
 
   useEffect(() => {
     fetchAuditLogs();
-  }, [actionId]);
+  }, [fetchAuditLogs]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">

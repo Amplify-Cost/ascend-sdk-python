@@ -5,9 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "VITE_API_URL=http://localhost:8000 vite",
+    "dev:prod": "VITE_API_URL=https://pilot.owkai.app vite",
     "build": "vite build",
+    "build:local": "VITE_API_URL=http://localhost:8000 vite build",
+    "build:prod": "VITE_API_URL=https://pilot.owkai.app vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify-config": "echo 'API URL:' $VITE_API_URL"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.26.0",

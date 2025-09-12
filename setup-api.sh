@@ -26,7 +26,7 @@ cat > src/services/EnterpriseApiService.js << 'EOF'
  * Maintains 100% functionality while fixing endpoint routing
  */
 
-const API_BASE_URL = 'https://pilot.owkai.app';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:8000';
 
 class EnterpriseApiService {
   constructor() {

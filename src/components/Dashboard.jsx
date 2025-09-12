@@ -155,7 +155,7 @@ const Dashboard = ({ getAuthHeaders }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Mock trend data for metric cards
   const mockTrendData = [
