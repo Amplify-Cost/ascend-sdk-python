@@ -532,12 +532,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   }, [getAuthHeaders, pendingActions, safeGet, safeArray, logPerformanceMetric, logError]);
   
       setError(null);
-    } catch (err) {
-      console.error("Error fetching workflows:", err);
-      setError("Failed to load workflow configuration");
-    }
-  }
-  
   async function fetchAutomationData() {
     try {
       console.log("🤖 Fetching automation data...");
