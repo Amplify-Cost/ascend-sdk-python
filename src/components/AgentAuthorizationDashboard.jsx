@@ -822,7 +822,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       default:
         break;
     }
-  }, [activeTab, fetchApprovalMetrics]);
+  }, [activeTab, fetchApprovalMetrics, fetchWorkflows, fetchAutomationData, fetchWorkflowOrchestrations, fetchExecutionHistory]);
 
   // Fixed useEffect for initial data loading
   useEffect(() => {
