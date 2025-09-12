@@ -1,6 +1,9 @@
 # Multi-stage build for production optimization
 FROM node:22-alpine AS build
 
+# Add build argument inside the build stage
+ARG VITE_API_URL
+
 WORKDIR /app
 
 # Copy package files
