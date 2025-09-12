@@ -137,7 +137,26 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
     
     // In production, this would send to error tracking service
     return errorEntry;
-  }, [activeTab, user]);
+
+  const fetchWorkflows = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+        headers: { 
+          ...getAuthHeaders(), 
+          "Content-Type": "application/json",
+          "X-API-Version": "v1.0"
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setWorkflows(data.workflows || {});
+      }
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching workflows:", err);
+      setError("Failed to load workflow configuration");
+    }
+  }, [getAuthHeaders]);  }, [activeTab, user]);
 
   const [dashboardData, setDashboardData] = useState(null);
   const [pendingActions, setPendingActions] = useState([]);
@@ -512,19 +531,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
     }
   }, [getAuthHeaders, pendingActions, safeGet, safeArray, logPerformanceMetric, logError]);
   
-  async function fetchWorkflows() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
-        headers: { 
-          ...getAuthHeaders(), 
-          "Content-Type": "application/json",
-          "X-API-Version": "v1.0"  // For backward compatibility
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setWorkflows(data.workflows || {});
-      }
       setError(null);
     } catch (err) {
       console.error("Error fetching workflows:", err);
