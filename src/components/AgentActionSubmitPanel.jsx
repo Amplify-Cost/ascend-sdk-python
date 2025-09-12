@@ -11,7 +11,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Predefined test scenarios for quick testing
   const testScenarios = [

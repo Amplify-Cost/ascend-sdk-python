@@ -5,7 +5,7 @@ const ForgotPassword = ({ switchToLogin }) => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleRequestReset = async (e) => {
     e.preventDefault();

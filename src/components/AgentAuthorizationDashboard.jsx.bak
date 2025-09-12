@@ -318,7 +318,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   });
 
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://pilot.owkai.app";
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Memoized calculations for better performance
   const filteredMcpActions = useMemo(() => 

@@ -15,7 +15,7 @@ ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearS
 const Analytics = ({ getAuthHeaders }) => {
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState(null);
-  const API_BASE_URL = import.meta.env.VITE_API_URL;
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchLogs = async () => {
