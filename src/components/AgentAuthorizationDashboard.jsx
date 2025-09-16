@@ -44,7 +44,46 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
   const [selectedExecution, setSelectedExecution] = useState(null);
 
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  // Enterprise utility functions
+  const safeToFixed = useCallback((value, decimals = 1, fallback = 0) => {
+    try {
+      if (value === null || value === undefined || isNaN(value)) return fallback;
+      const numValue = typeof value === "string" ? parseFloat(value) : Number(value);
+      return isNaN(numValue) ? fallback : numValue.toFixed(decimals);
+    } catch {
+      return fallback;
+    }
+  }, []);
+
+
+  const logError = useCallback((error, context = {}) => {
+    const errorEntry = {
+      timestamp: new Date().toISOString(),
+      error: error.message || error,
+      stack: error.stack,
+      context,
+      tab: activeTab,
+      user: user?.email || "unknown",
+      userAgent: navigator.userAgent
+    };
+    console.error("🚨 [ERROR]", errorEntry);
+    return errorEntry;
+  }, [activeTab, user]);
+  const safeGet = useCallback((obj, path, fallback = null) => {
+    try {
+      const keys = path.split(".");
+      let current = obj;
+      for (const key of keys) {
+        if (current === null || current === undefined) return fallback;
+        current = current[key];
+      }
+      return current !== undefined ? current : fallback;
+    } catch {
+      return fallback;
+    }
+  }, []);
+
+
 
   // Fixed useEffect for real-time updates
   useEffect(() => {
