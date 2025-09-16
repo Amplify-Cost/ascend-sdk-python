@@ -1918,7 +1918,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 </div>
                 <div className="flex justify-between">
                   <span>Approval Rate:</span>
-                  <span className="font-semibold">{approvalMetrics.decision_breakdown.approval_rate.toFixed(1)}%</span>
+                  <span className="font-semibold">{safeToFixed(approvalMetrics.decision_breakdown.approval_rate, 1)}%</span>
                 </div>
               </div>
             </div>
@@ -1943,7 +1943,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 <div className="flex justify-between">
                   <span>SLA Compliance:</span>
                   <span className={`font-semibold ${approvalMetrics.performance_metrics.sla_compliance_rate >= 80 ? 'text-green-600' : 'text-red-600'}`}>
-                    {approvalMetrics.performance_metrics.sla_compliance_rate.toFixed(1)}%
+                    {safeToFixed(approvalMetrics.performance_metrics.sla_compliance_rate, 1)}%
                   </span>
                 </div>
               </div>
