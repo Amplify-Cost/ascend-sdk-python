@@ -45,7 +45,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
   // Fixed useEffect for real-time updates
   useEffect(() => {
     // Fetch initial data
@@ -400,7 +399,7 @@ useEffect(() => {
         
         setApprovalMetrics(enhancedMetrics);
         console.log("📈 Real-time metrics updated:", enhancedMetrics);
-    console.log("🔍 DEBUG approvalMetrics structure:", JSON.stringify(approvalMetrics, null, 2));      }
+      }
     } catch (err) {
       console.error("Error fetching metrics:", err);
     }
