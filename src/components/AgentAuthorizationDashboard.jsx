@@ -397,6 +397,7 @@ useEffect(() => {
           }
         };
         
+        console.log("🔍 DEBUG: approvalMetrics from backend:", JSON.stringify(enhancedMetrics, null, 2));
         setApprovalMetrics(enhancedMetrics);
         console.log("📈 Real-time metrics updated:", enhancedMetrics);
       }
