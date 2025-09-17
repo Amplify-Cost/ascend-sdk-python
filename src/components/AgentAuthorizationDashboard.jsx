@@ -1975,11 +1975,11 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <span className="text-purple-100">Total Requests:</span>
-                <span className="ml-2 text-2xl font-bold">{approvalMetrics.period_summary.total_requests}</span>
+                <span className="ml-2 text-2xl font-bold">{approvalMetrics?.total_processed_actions || 0}</span>
               </div>
               <div>
                 <span className="text-purple-100">Completion Rate:</span>
-                <span className="ml-2 text-2xl font-bold">{approvalMetrics.period_summary.completion_rate.toFixed(1)}%</span>
+                <span className="ml-2 text-2xl font-bold">{Number(approvalMetrics?.decision_breakdown?.approval_rate ?? 0).toFixed(1)}%</span>
               </div>
             </div>
           </div>
