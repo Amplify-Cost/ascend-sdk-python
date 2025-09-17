@@ -947,6 +947,7 @@ const fetchWorkflowOrchestrations = async () => {
 
   // Enterprise Policy Creation Function
   const createEnterprisePolicy = async () => {
+    console.log("🏛️ Policy creation started with:", newPolicy);
     if (!newPolicy.policy_name || !newPolicy.description) {
       alert("Please fill in both policy name and description");
       return;
@@ -3024,7 +3025,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                   value={newPolicy.description} onChange={(e) => setNewPolicy({...newPolicy, description: e.target.value})} placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
                 />
               </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700" onClick={createEnterprisePolicy}>
                 Create Policy
               </button>
             </div>
