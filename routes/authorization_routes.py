@@ -26,10 +26,11 @@ from enum import Enum
 
 # Internal imports
 from database import get_db
-from dependencies import get_current_user, require_admin, require_csrf
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
-from models import User
-from schemas import (    AgentActionOut,    AgentActionCreate,
+from dependencies import get_current_user, require_admin, require_csrf
+from schemas import (
+    AgentActionOut, 
+    AgentActionCreate,
     AutomationPlaybookOut, 
     AutomationExecutionCreate, 
     AuthorizationRequest,
@@ -99,7 +100,7 @@ class ExecutionResult:
     execution_id: str
     action_id: int
     action_type: str
-    created_at: str
+    executed_at: str
     execution_time: str
     details: str
     compliance_status: str
@@ -358,7 +359,7 @@ class ActionExecutorService:
                 execution_id=execution_id,
                 action_id=action_data["id"],
                 action_type=action_type,
-                created_at=execution_end.isoformat(),
+                executed_at=execution_end.isoformat(),
                 execution_time=f"{execution_time:.3f} seconds",
                 details=result.get("message", "Enterprise action completed successfully"),
                 compliance_status="executed_and_logged"
@@ -394,16 +395,16 @@ class ActionExecutorService:
                     """
                     UPDATE agent_actions 
                     SET status = :status,
-                        created_at = :created_at,
-                        description = :description,
+                        executed_at = :executed_at,
+                        execution_details = :execution_details,
                         execution_id = :execution_id
                     WHERE id = :action_id
                     """,
                     {
                         "action_id": action_id,
                         "status": status.value,
-                        "created_at": datetime.now(UTC),
-                        "description": json.dumps(details),
+                        "executed_at": datetime.now(UTC),
+                        "execution_details": json.dumps(details),
                         "execution_id": execution_id
                     }
                 )
@@ -465,7 +466,7 @@ class AuthorizationService:
             # Build base query
             base_query = """
                 SELECT id, agent_id, action_type, description, risk_level, status, 
-                       created_at, user_id
+                       created_at, tool_name, user_id
                 FROM agent_actions 
                 WHERE status IN (:pending, :submitted, :pending_approval)
             """
@@ -514,8 +515,8 @@ class AuthorizationService:
                     "risk_level": row[4] or RiskLevel.MEDIUM.value,
                     "status": row[5] or ActionStatus.PENDING.value,
                     "created_at": row[6].isoformat() if row[6] else datetime.now(UTC).isoformat(),
-                    "tool_name": "enterprise-mcp" or "enterprise-security-platform",
-                    "user_id": 1,
+                    "tool_name": row[7] or "enterprise-security-platform",
+                    "user_id": row[8] or 1,
                     "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
                     "requires_approval": True,
                     "estimated_impact": "Enterprise security enhancement",
@@ -641,7 +642,7 @@ class AuthorizationService:
                             "execution_id": "",
                             "action_id": action_id,
                             "action_type": "",
-                            "created_at": "",
+                            "executed_at": "",
                             "execution_time": "",
                             "details": str(e),
                             "compliance_status": "execution_failed",
@@ -896,11 +897,11 @@ async def get_execution_history(
         result = DatabaseService.safe_execute(
             db,
             """
-            SELECT id, action_type, status, created_at, description, 
+            SELECT id, action_type, status, executed_at, execution_details, 
                    agent_id, description, risk_level
             FROM agent_actions 
             WHERE status IN (:executed, :execution_failed)
-            ORDER BY created_at DESC 
+            ORDER BY executed_at DESC 
             LIMIT :limit
             """,
             {
@@ -916,7 +917,7 @@ async def get_execution_history(
                 "id": row[0],
                 "action_type": row[1] or "security_operation",
                 "status": "success" if row[2] == ActionStatus.EXECUTED.value else "failed",
-                "created_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
+                "executed_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
                 "execution_time": "0.245 seconds",
                 "agent_id": row[5] or "enterprise-agent",
                 "description": row[6] or "Enterprise security operation",
@@ -1095,267 +1096,3 @@ def ensure_array_response(data, field_name="actions"):
 
 # Export routers for main application
 __all__ = ["router", "api_router"]
-
-# Backward compatibility aliases for existing imports in main.py
-authorization_api_router = api_router  # Alias for backward compatibility
-
-# Enterprise Policy Management Endpoints - REQUIREMENT 1
-from enterprise_policy_engine import PolicyEngine
-
-@router.post("/policies/create-from-natural-language")
-async def create_policy_from_natural_language(
-    request: dict,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create enterprise policy from natural language description"""
-    try:
-        policy_engine = PolicyEngine(db)
-        
-        policy = policy_engine.create_policy_from_natural_language(
-            description=request["description"],
-            creator=current_user.username,
-            policy_name=request["policy_name"]
-        )
-        
-        return {
-            "success": True,
-            "policy_id": str(policy.id),
-            "status": policy.policy_status,
-            "version": f"{policy.major_version}.{policy.minor_version}.{policy.patch_version}",
-            "message": "Policy created successfully - requires approval before deployment"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/policies/{policy_id}/deploy")
-async def deploy_policy(
-    policy_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Deploy approved policy to production"""
-    try:
-        policy_engine = PolicyEngine(db)
-        
-        if policy_engine.deploy_policy(policy_id, current_user.username):
-            return {
-                "success": True,
-                "message": "Policy deployed successfully",
-                "deployed_by": current_user.username,
-                "deployment_time": datetime.now(UTC).isoformat()
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Policy not found")
-            
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/policies/{policy_id}/rollback/{target_version_id}")
-async def rollback_policy(
-    policy_id: str,
-    target_version_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Rollback policy to previous version"""
-    try:
-        policy_engine = PolicyEngine(db)
-        
-        if policy_engine.rollback_policy(policy_id, target_version_id):
-            return {
-                "success": True,
-                "message": "Policy rollback completed successfully",
-                "rolled_back_by": current_user.username,
-                "rollback_time": datetime.now(UTC).isoformat()
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Policy or target version not found")
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# MCP Server Discovery Endpoints - REQUIREMENT 2
-# Additive only - preserves all existing functionality
-
-@router.post("/mcp-discovery/scan-network")
-async def scan_network_for_mcp_servers(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Enterprise MCP server network discovery"""
-    try:
-        from mcp_server_discovery import MCPServerDiscovery
-        
-        discovery = MCPServerDiscovery()
-        discovered_servers = await discovery.scan_network_for_mcp_servers()
-        
-        return {
-            "success": True,
-            "discovered_count": len(discovered_servers),
-            "servers": discovered_servers,
-            "scan_timestamp": datetime.now(UTC).isoformat()
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/mcp-discovery/server-status")
-async def get_discovery_server_status(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get status of discovered MCP servers"""
-    try:
-        # Query existing MCPServer model without modification
-        servers = db.query(MCPServer).all()
-        
-        return {
-            "total_servers": len(servers),
-            "active_servers": len([s for s in servers if s.status == "active"]),
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/mcp-discovery/health-monitor")
-async def monitor_mcp_server_health(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Enterprise MCP server health monitoring"""
-    try:
-        from mcp_health_monitor import MCPHealthMonitor
-        
-        monitor = MCPHealthMonitor()
-        health_report = await monitor.monitor_all_servers(db)
-        
-        return {
-            "success": True,
-            "monitoring_results": health_report,
-            "enterprise_compliant": True
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# ========== ENTERPRISE PERFORMANCE METRICS ENDPOINT ==========
-
-@api_router.get("/metrics/approval-performance", response_model=Dict[str, Any])
-async def get_approval_performance_metrics(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Enterprise approval performance analytics endpoint
-    
-    Provides critical metrics for:
-    - SOX compliance reporting
-    - SLA performance tracking  
-    - Operational efficiency analysis
-    - Capacity planning insights
-    """
-    try:
-        logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
-        
-        # Calculate average approval time (minutes)
-        avg_time_result = db.execute(text("""
-            SELECT AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at))/60) as avg_minutes
-            FROM agent_actions 
-            WHERE reviewed_at IS NOT NULL AND status != 'pending'
-        """)).fetchone()
-        
-        avg_approval_time = round(avg_time_result[0] if avg_time_result[0] else 0, 2)
-        
-        # SLA compliance calculation (actions approved within 30 minutes)
-        sla_compliance_result = db.execute(text("""
-            SELECT 
-                COUNT(CASE WHEN EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 <= 30 THEN 1 END) * 100.0 / 
-                NULLIF(COUNT(*), 0) as sla_percentage
-            FROM agent_actions 
-            WHERE reviewed_at IS NOT NULL
-        """)).fetchone()
-        
-        sla_compliance = round(sla_compliance_result[0] if sla_compliance_result[0] else 96.8, 1)
-        
-        # Total processed actions
-        total_processed_result = db.execute(text("""
-            SELECT COUNT(*) FROM agent_actions WHERE status != 'pending'
-        """)).fetchone()
-        
-        total_processed = total_processed_result[0] if total_processed_result else 0
-        
-        # Approver performance breakdown
-        approver_performance_result = db.execute(text("""
-            SELECT 
-                reviewed_by,
-                COUNT(*) as total_reviews,
-                AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at))/60) as avg_time_minutes
-            FROM agent_actions 
-            WHERE reviewed_by IS NOT NULL 
-            GROUP BY reviewed_by
-            ORDER BY total_reviews DESC
-        """)).fetchall()
-        
-        approver_performance = [
-            {
-                "approver": row[0],
-                "total_reviews": row[1],
-                "avg_time_minutes": round(row[2], 2) if row[2] else 0
-            }
-            for row in approver_performance_result
-        ]
-        
-        # Performance bottlenecks (actions taking > 60 minutes)
-        bottlenecks_result = db.execute(text("""
-            SELECT action_type, COUNT(*) as delayed_count
-            FROM agent_actions 
-            WHERE EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 > 60
-            GROUP BY action_type
-            ORDER BY delayed_count DESC
-        """)).fetchall()
-        
-        bottlenecks = [
-            {"action_type": row[0], "delayed_count": row[1]}
-            for row in bottlenecks_result
-        ]
-        
-        enterprise_metrics = {
-            "avg_approval_time_minutes": avg_approval_time,
-            "sla_compliance_percentage": sla_compliance,
-            "total_processed_actions": total_processed,
-            "approver_performance": approver_performance,
-            "bottlenecks": bottlenecks,
-            "enterprise_analytics": {
-                "sox_compliance_ready": True,
-                "audit_trail_complete": True,
-                "operational_efficiency": "HIGH" if avg_approval_time < 15 else "MEDIUM",
-                "capacity_utilization": min(100, (total_processed / 100) * 100)
-            },
-            # COMPATIBILITY LAYER: Frontend-expected structure
-            "decision_breakdown": {
-                "approved": total_processed,
-                "denied": 0,
-                "pending": 0,
-                "emergency_overrides": 0,
-                "approval_rate": sla_compliance
-            },
-            "performance_metrics": {
-                "average_risk_score": 50,
-                "average_approval_time": avg_approval_time,
-                "sla_compliance_rate": sla_compliance,
-                "total_actions": total_processed
-            },            "last_updated": datetime.now(UTC).isoformat()
-        }
-        
-        logger.info("✅ ENTERPRISE: Performance metrics calculated successfully")
-        return enterprise_metrics
-        
-    except Exception as e:
-        logger.error(f"❌ ENTERPRISE ERROR: Performance metrics failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Enterprise metrics calculation failed: {str(e)}")
-
