@@ -46,12 +46,6 @@ export async function fetchWithAuth(url, options = {}) {
 
   let res = await fetch(absoluteUrl, init);
 
-  // Handle 401 unauthorized - redirect to login
-  if (res.status === 401) {
-    console.warn("🔒 401 Unauthorized - redirecting to login");
-    window.location.reload(); // Force re-authentication
-    return;
-  }
   // If CSRF expired, get a fresh one and retry once
   if (res.status === 403) {
     try {
