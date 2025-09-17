@@ -20,6 +20,20 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 });
 
 // 🔌 NEW: MCP Integration State
+
+// Enterprise Policy Management State
+const [newPolicy, setNewPolicy] = useState({
+  policy_name: "",
+  description: "",
+  policy_type: "access_control",
+  severity_level: "medium",
+  target_resources: [],
+  conditions: [],
+  actions: ["block", "require_approval"]
+});
+const [showPolicyBuilder, setShowPolicyBuilder] = useState(false);
+const [policies, setPolicies] = useState([]);
+const [policyDeployments, setPolicyDeployments] = useState([]);
 const [mcpActions, setMcpActions] = useState([]);
 const [showMcpFilters, setShowMcpFilters] = useState(false);
 
@@ -938,6 +952,58 @@ const fetchWorkflowOrchestrations = async () => {
 
 
 // 🏗️ NEW: Enterprise Workflow Creation Function
+
+  // Enterprise Policy Creation Function
+  // Fetch Policy List Function
+  const fetchPolicies = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/policies/list`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPolicies(data.policies || []);
+      }
+    } catch (error) {
+      console.error("Error fetching policies:", error);
+    }
+  };
+
+  const createEnterprisePolicy = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/policies/create-from-natural-language`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          policy_name: newPolicy.policy_name,
+          description: newPolicy.description
+        })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log("✅ Enterprise policy created successfully:", result);
+        setShowPolicyBuilder(false);
+        setNewPolicy({
+          policy_name: "",
+          description: "",
+          policy_type: "access_control",
+          severity_level: "medium",
+          target_resources: [],
+          conditions: [],
+          actions: ["block", "require_approval"]
+        });
+        fetchPolicies();
+      } else {
+        console.error("❌ Policy creation failed:", await response.text());
+      }
+    } catch (error) {
+      console.error("❌ Policy creation error:", error);
+    }
+  };
 const createWorkflow = async (workflowData) => {
   try {
     console.log("🏗️ Creating new workflow:", workflowData);
@@ -2956,35 +3022,21 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 )}
 
 
-      {/* Policy Management Tab */}
+      {/* Enterprise Policy Management Tab */}
       {activeTab === "policies" && (
         <div className="space-y-6">
-          {/* Policy Creation Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Create New Policy</h3>
-            <div className="space-y-4">
+          {/* Policy Management Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Policy Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., File Access Control"
-                />
+                <h2 className="text-2xl font-semibold mb-2">Enterprise Policy Management</h2>
+                <p className="text-blue-100">Create, deploy, and manage enterprise policies with natural language</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Natural Language Description
-                </label>
-                <textarea
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
-                />
-              </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                Create Policy
+              <button
+                onClick={() => setShowPolicyBuilder(true)}
+                className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
+              >
+                Create New Policy
               </button>
             </div>
           </div>
@@ -3554,5 +3606,85 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
     </div>
   );
 };
+
+
+      {/* Enterprise Policy Builder Modal */}
+      {showPolicyBuilder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold">🏛️ Enterprise Policy Builder</h3>
+                <button
+                  onClick={() => {
+                    setShowPolicyBuilder(false);
+                    setNewPolicy({
+                      policy_name: "",
+                      description: "",
+                      policy_type: "access_control",
+                      severity_level: "medium",
+                      target_resources: [],
+                      conditions: [],
+                      actions: ["block", "require_approval"]
+                    });
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-3xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Policy Information */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-4">📝 Policy Information</h4>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Policy Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={newPolicy.policy_name}
+                        onChange={(e) => setNewPolicy({...newPolicy, policy_name: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., File Access Control Policy"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Natural Language Description *
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={newPolicy.description}
+                        onChange={(e) => setNewPolicy({...newPolicy, description: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Describe the policy in natural language, e.g., Block all delete operations on sensitive files and require manager approval for modification of user data"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowPolicyBuilder(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createEnterprisePolicy}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Create Policy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 export default AgentAuthorizationDashboard;
