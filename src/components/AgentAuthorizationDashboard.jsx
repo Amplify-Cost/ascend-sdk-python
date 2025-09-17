@@ -1971,7 +1971,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 
           {/* Period Summary */}
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-2">📈 {approvalMetrics.period_summary.days_analyzed}-Day Summary</h3>
+            <h3 className="text-xl font-semibold mb-2">📈 {approvalMetrics?.total_processed_actions || 0}-Day Summary</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <span className="text-purple-100">Total Requests:</span>
