@@ -1705,8 +1705,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       {/* Tabs - UPDATED with execution tab */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
-          {["pending", "metrics", "workflows", "automation", "execution", "policies", ...(pendingActions.some(a => a.action_type === 'mcp_server_action') ? ["mcp"] : [])].map((tab) => (
-            <button
+        {["pending", "metrics", "workflows", "automation", "execution", "policies", "mcp"].map((tab) => (            <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -1889,31 +1888,31 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           📋 Review Details
                         </button>
                         
-                        {action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 50) && (
-                          <>
-                            <button
-                              onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
-                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                            >
-                              ✅ Approve
-                            </button>
-                            <button
-                              onClick={() => handleApproval(action.id, 'denied', 'Quick denial')}
-                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                            >
-                              ❌ Deny
-                            </button>
-                          </>
-                        )}
+                        {(user?.role === 'admin' || action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 0)) && (
+  <>
+    <button
+      onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
+      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition-colors"
+    >
+      ✅ Approve
+    </button>
+    <button
+      onClick={() => handleApproval(action.id, 'denied', 'Quick denial')}
+      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors"
+    >
+      ❌ Deny
+    </button>
+  </>
+)}
                         
-                        {action.required_approval_level > 1 && (
-                          <button
-                            onClick={() => handleApproval(action.id, 'escalated', 'Escalating to next level', {escalate_to_level: action.current_approval_level + 2})}
-                            className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm transition-colors"
-                          >
-                            ⬆️ Escalate
-                          </button>
-                        )}
+                        {(user?.role === 'admin' || action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 0)) && (
+  <button
+    onClick={() => handleApproval(action.id, 'escalated', 'Escalating to next level', {escalate_to_level: action.current_approval_level + 2})}
+    className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm transition-colors"
+  >
+    ⬆️ Escalate
+  </button>
+)}
 
                         {/* 🚀 NEW: Execute button for approved actions */}
                         {action.authorization_status === "approved" && 
