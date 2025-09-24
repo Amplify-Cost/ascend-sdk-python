@@ -1622,6 +1622,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+       {console.log("🔍 DEBUG: dashboardData =", dashboardData)}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
           🛡️ Enterprise Authorization Center
@@ -1636,8 +1637,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Pending Actions</h3>
-                console.log("DEBUG: dashboardData structure:", JSON.stringify(dashboardData, null, 2));
-
                 <p className="text-2xl font-bold">{dashboardData?.pending_summary?.total_pending || 0}</p>
                 </div>
               <div className="text-3xl opacity-80">📋</div>
