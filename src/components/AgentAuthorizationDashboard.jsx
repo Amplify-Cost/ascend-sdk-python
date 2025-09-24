@@ -1637,7 +1637,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Pending Actions</h3>
-                <p className="text-2xl font-bold">{dashboardData?.pending_summary?.total_pending || 0}</p>
+                <p className="text-2xl font-bold">{dashboardData?.summary?.total_pending || 0}</p>
                 </div>
               <div className="text-3xl opacity-80">📋</div>
             </div>
@@ -1647,8 +1647,8 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Critical Risk</h3>
-                <p className="text-2xl font-bold">{dashboardData.pending_summary.critical_pending}</p>
-              </div>
+                <p className="text-2xl font-bold">{dashboardData?.enterprise_kpis?.high_risk_pending || 0}</p>
+                </div>
               <div className="text-3xl opacity-80">🚨</div>
             </div>
           </div>
@@ -1657,8 +1657,8 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Emergency Queue</h3>
-                <p className="text-2xl font-bold">{dashboardData.pending_summary.emergency_pending}</p>
-              </div>
+                <p className="text-2xl font-bold">{dashboardData?.enterprise_kpis?.critical_pending || 0}</p>
+                </div>
               <div className="text-3xl opacity-80">⚡</div>
             </div>
           </div>
