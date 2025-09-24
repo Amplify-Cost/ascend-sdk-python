@@ -1636,8 +1636,10 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Pending Actions</h3>
-                <p className="text-2xl font-bold">{dashboardData.pending_summary.total_pending}</p>
-              </div>
+                console.log("DEBUG: dashboardData structure:", JSON.stringify(dashboardData, null, 2));
+
+                <p className="text-2xl font-bold">{dashboardData?.pending_summary?.total_pending || 0}</p>
+                </div>
               <div className="text-3xl opacity-80">📋</div>
             </div>
           </div>
