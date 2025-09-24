@@ -9,7 +9,7 @@ import json
 import time
 
 # Configuration - UPDATE THESE VALUES
-API_BASE = "https://owai-production.up.railway.app"  # Your Railway URL
+API_BASE = "https://pilot.owkai.app"  # AWS Production URL
 TOKEN = "your-auth-token-here"  # Get this from your login
 
 headers = {

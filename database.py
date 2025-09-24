@@ -2,23 +2,40 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
+import logging
 
 # Load local .env if present (optional for local dev)
 load_dotenv()
 
-# Use DATABASE_URL provided by Railway automatically
+logger = logging.getLogger(__name__)
+
+# Get DATABASE_URL from environment or use local default
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:
-    raise ValueError("DATABASE_URL not set. Ensure Railway Postgres is attached and injected.")
+    # Default to local PostgreSQL for development
+    SQLALCHEMY_DATABASE_URL = "postgresql://localhost:5432/owai_dev"
+    logger.warning("DATABASE_URL not set, using local PostgreSQL default")
 
-# Create SQLAlchemy engine with recommended production settings
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10
-)
+# Create SQLAlchemy engine with appropriate settings
+try:
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        # Additional options for better local development
+        connect_args={"connect_timeout": 10} if "localhost" in SQLALCHEMY_DATABASE_URL else {}
+    )
+    logger.info(f"Database engine created successfully")
+except Exception as e:
+    logger.error(f"Failed to create database engine: {e}")
+    # Create a minimal engine for development
+    engine = create_engine(
+        "sqlite:///./owai_dev.db",
+        pool_pre_ping=True
+    )
+    logger.warning("Fallback to SQLite database for development")
 
 # Session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -4,6 +4,7 @@ Enterprise Schema Fix Script for OW-AI Platform
 Fixes critical schema mismatches preventing A/B testing functionality
 """
 
+import os
 import psycopg2
 import sys
 
@@ -11,10 +12,14 @@ def fix_enterprise_schema():
     print("🔧 OW-AI Enterprise Schema Fix")
     print("=" * 60)
     
-    # External Railway connection
-    database_url = "postgresql://postgres:juVnTTAwjcgEAkNPMTXoYVhcdqljgyHr@hopper.proxy.rlwy.net:13171/railway"
+    # AWS RDS connection from environment
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        print("❌ ERROR: DATABASE_URL environment variable not set")
+        print("Please set DATABASE_URL to your AWS RDS endpoint")
+        sys.exit(1)
     
-    print("🌐 Connecting to Railway PostgreSQL...")
+    print("🌐 Connecting to AWS RDS PostgreSQL...")
     
     try:
         conn = psycopg2.connect(

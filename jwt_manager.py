@@ -14,7 +14,7 @@ class EnterpriseJWTManager:
         self.private_key = config.get_secret('jwt-private-key')
         self.public_key = config.get_secret('jwt-public-key')
         
-        # Enterprise fallback for Railway deployment
+        # Enterprise fallback for AWS deployment
         if not self.private_key or not self.public_key:
             print("⚠️  JWT keys not found in AWS, using fallback RSA key generation")
             self._generate_fallback_keys()
