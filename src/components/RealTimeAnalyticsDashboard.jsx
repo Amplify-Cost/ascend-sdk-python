@@ -1,7 +1,9 @@
 // components/RealTimeAnalyticsDashboard.jsx
 // Enterprise Real-Time Analytics Dashboard Component - Master Prompt Aligned Fix
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, TrendingUp, AlertTriangle, CheckCircle, Target, Server, Database } from 'lucide-react';
+import { Activity, TrendingUp, AlertTriangle, CheckCircle, Target, Server, Database,
+  Users, Shield, BarChart3 
+} from 'lucide-react';
 
 // 🎯 MASTER PROMPT FIX: Complete enterprise analytics component
 const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
@@ -196,15 +198,18 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       setLoading(false);
     }
   };
-
   // 🎯 MASTER PROMPT: Only fetch data when user is available
   useEffect(() => {
     if (user) {
       console.log('🚀 RealTimeAnalyticsDashboard: User available, fetching data...');
       fetchAnalyticsData();
-      
+
+
       // Initialize WebSocket for real-time updates
-      initializeWebSocket();
+      // Only enable WebSocket if backend supports it
+if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
+  initializeWebSocket();
+}
 
       // Refresh data every 30 seconds
       const interval = setInterval(() => {
