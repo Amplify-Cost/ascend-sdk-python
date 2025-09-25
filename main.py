@@ -17,28 +17,17 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.smart_rules_routes import router as smart_rules_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.enterprise_user_management_routes import router as enterprise_user_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.authorization_routes import router as authorization_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.authorization_routes import api_router as authorization_api_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.enterprise_secrets_routes import router as secrets_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.analytics_routes import router as analytics_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.smart_alerts import router as smart_alerts_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.data_rights_routes import router as data_rights_router
-from startup_create_tables import create_smart_rules_table_on_startup
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
-from startup_create_tables import create_smart_rules_table_on_startup
 from routes.automation_orchestration_routes import router as automation_orchestration_router
-from startup_create_tables import create_smart_rules_table_on_startup
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -56,7 +45,6 @@ except ImportError as e:
     
     HEALTH_MODULE_AVAILABLE = False
 from routes.sso_routes import router as sso_router
-from startup_create_tables import create_smart_rules_table_on_startup
 # Enterprise-grade imports with graceful fallback handling
 print("🏢 Loading OW-AI Enterprise System...")
 
@@ -1843,9 +1831,6 @@ def validate_enterprise_routers():
 # Run enterprise validation
 validate_enterprise_routers()    
 
-@app.on_event("startup")
-async def startup_event():
-    create_smart_rules_table_on_startup()
 
 
 
@@ -1876,6 +1861,24 @@ async def create_smart_rules_table_admin(db: Session = Depends(get_db)):
             ('threat-detector', 'anomaly_detection', 'Alert', 'action_type = anomaly', 'alert', 'medium', 'Monitor', 'Detection')
             ON CONFLICT DO NOTHING
         """))
+        db.commit()
+        return {"status": "success"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/admin/fix-users-table")
+async def fix_users_table_admin(db: Session = Depends(get_db)):
+    """Fix users table schema"""
+    try:
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100)"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS access_level VARCHAR(100) DEFAULT 'Level 1 - Basic'"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS login_attempts INTEGER DEFAULT 0"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP"))
+        db.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Active'"))
         db.commit()
         return {"status": "success"}
     except Exception as e:
