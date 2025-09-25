@@ -3468,3 +3468,36 @@ from startup_create_tables import create_smart_rules_table_on_startup
 async def startup_event():
     create_smart_rules_table_on_startup()
 
+
+@app.post("/admin/create-smart-rules-table")
+async def create_smart_rules_table_admin():
+    """Create smart_rules table - no auth for initial setup"""
+    try:
+        db = next(get_db())
+        db.execute(text("""
+            CREATE TABLE IF NOT EXISTS smart_rules (
+                id SERIAL PRIMARY KEY,
+                agent_id VARCHAR(255),
+                action_type VARCHAR(255),
+                description TEXT,
+                condition TEXT,
+                action VARCHAR(100),
+                risk_level VARCHAR(50),
+                recommendation TEXT,
+                justification TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
+        
+        db.execute(text("""
+            INSERT INTO smart_rules (agent_id, action_type, description, condition, action, risk_level, recommendation, justification) 
+            VALUES 
+            ('security-scanner-01', 'vulnerability_scan', 'High-risk scan approval', 'risk_level = high', 'require_approval', 'high', 'Manual approval', 'Security'),
+            ('compliance-agent', 'compliance_check', 'Auto-approve compliance', 'risk_level = low', 'auto_approve', 'low', 'Automated', 'Routine'),
+            ('threat-detector', 'anomaly_detection', 'Alert anomalies', 'action_type = anomaly_detection', 'alert', 'medium', 'Monitor', 'Detection')
+            ON CONFLICT DO NOTHING
+        """))
+        db.commit()
+        return {"status": "success", "message": "Table created"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
