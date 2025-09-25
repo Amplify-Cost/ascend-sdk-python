@@ -17,17 +17,28 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.smart_rules_routes import router as smart_rules_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.enterprise_user_management_routes import router as enterprise_user_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.authorization_routes import router as authorization_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.authorization_routes import api_router as authorization_api_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.enterprise_secrets_routes import router as secrets_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.analytics_routes import router as analytics_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.smart_alerts import router as smart_alerts_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.data_rights_routes import router as data_rights_router
+from startup_create_tables import create_smart_rules_table_on_startup
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
+from startup_create_tables import create_smart_rules_table_on_startup
 from routes.automation_orchestration_routes import router as automation_orchestration_router
+from startup_create_tables import create_smart_rules_table_on_startup
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -45,6 +56,7 @@ except ImportError as e:
     
     HEALTH_MODULE_AVAILABLE = False
 from routes.sso_routes import router as sso_router
+from startup_create_tables import create_smart_rules_table_on_startup
 # Enterprise-grade imports with graceful fallback handling
 print("🏢 Loading OW-AI Enterprise System...")
 
@@ -1831,6 +1843,11 @@ def validate_enterprise_routers():
 # Run enterprise validation
 validate_enterprise_routers()    
 
+@app.on_event("startup")
+async def startup_event():
+    create_smart_rules_table_on_startup()
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
@@ -3443,3 +3460,11 @@ async def create_first_admin():
         return {"success": "First admin user created", "email": "admin@owkai.com"}
     except Exception as e:
         return {"error": str(e)}
+
+# Add to startup
+from startup_create_tables import create_smart_rules_table_on_startup
+
+@app.on_event('startup')
+async def startup_event():
+    create_smart_rules_table_on_startup()
+
