@@ -51,7 +51,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
   const fetchRules = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/smart-rules`, {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -72,7 +72,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
   const fetchRuleAnalytics = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/smart-rules/analytics`, {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/analytics`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -90,7 +90,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
   const fetchAbTests = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/smart-rules/ab-tests`, {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/ab-tests`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -109,7 +109,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
   const fetchSuggestedRules = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/smart-rules/suggestions`, {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/suggestions`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
       if (response.ok) {
@@ -133,7 +133,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
     setGeneratingRule(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/smart-rules/generate-from-nl`, {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/generate-from-nl`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -166,7 +166,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
     
     setDeletingId(id);
     try {
-      const response = await fetch(`${API_BASE_URL}/smart-rules/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/${id}`, {
         method: "DELETE",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
@@ -191,7 +191,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
     console.log(`🧪 ENTERPRISE: Creating A/B test for rule ${ruleId}`);
     
     // ENTERPRISE FIX: Send rule_id as query parameter
-    const response = await fetch(`${API_BASE_URL}/smart-rules/ab-test?rule_id=${ruleId}`, {
+    const response = await fetch(`${API_BASE_URL}/api/smart-rules/ab-test?rule_id=${ruleId}`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ 
