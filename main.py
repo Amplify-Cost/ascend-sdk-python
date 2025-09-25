@@ -367,7 +367,8 @@ for route_name, router in ROUTE_MODULES.items():
                 app.include_router(router)
                 print(f"✅ ENTERPRISE: {route_name} router included successfully")
             elif route_name == "smart_rules":
-                app.include_router(router, prefix="/smart-rules", tags=["Smart Rules"])
+                app.include_router(router, prefix="/api/smart-rules", tags=["Smart Rules"])
+
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-rules")
             elif route_name == "analytics":
                 app.include_router(router, prefix="/analytics", tags=["Analytics"])
