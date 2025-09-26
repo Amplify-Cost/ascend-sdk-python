@@ -152,7 +152,7 @@ async def create_user(
         # Insert new user
         insert_query = text("""
             INSERT INTO users (
-                email, password, role, first_name, last_name, 
+                email, password_hash, role, first_name, last_name, 
                 department, access_level, mfa_enabled, status, created_at
             ) VALUES (
                 :email, :password_hash, :role, :first_name, :last_name,
