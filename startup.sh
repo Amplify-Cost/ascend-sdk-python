@@ -68,3 +68,7 @@ exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 # Fix admin user password
 python3 fix_admin.py
+
+# Fix database tables
+python3 fix_smart_rules_tables.py
+python3 fix_mcp_tables.py
