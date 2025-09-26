@@ -162,7 +162,7 @@ async def create_user(
         
         result = db.execute(insert_query, {
             "email": user_data.email,
-            "password": password_hash,
+            "password_hash": password_hash,
             "role": user_data.role,
             "first_name": user_data.first_name,
             "last_name": user_data.last_name,
