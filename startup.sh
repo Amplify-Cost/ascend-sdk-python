@@ -36,7 +36,6 @@ with engine.connect() as conn:
     conn.commit()
     print("✅ Database tables created")
     
-    # Check and create/update admin user
     result = conn.execute(text("SELECT id, email FROM users WHERE email = 'admin@owkai.com'"))
     admin = result.fetchone()
     
@@ -61,12 +60,11 @@ with engine.connect() as conn:
 print("✅ Startup complete - Database ready")
 PYTHON
 
-# Run fix scripts BEFORE starting server
 echo "🔧 Running database migrations..."
 python3 fix_smart_rules_tables.py
 python3 fix_mcp_tables.py
 python3 add_security_columns.py
+python3 add_audit_logs_table.py
 
 echo "🚀 Starting application server..."
 exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
-python3 add_audit_logs_table.py
