@@ -3,8 +3,8 @@
 Revision ID: 7a3cfedc32f0
 Revises: 
 Create Date: 2025-09-25
-
 """
+
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import text
