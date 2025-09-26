@@ -37,4 +37,4 @@ EXPOSE 8000
 CMD ["/app/startup.sh"]
 
 # Build metadata
-# Build timestamp: $(date)
+# Build timestamp: 1758849518
