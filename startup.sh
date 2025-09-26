@@ -6,9 +6,9 @@ echo "📊 Creating database tables..."
 
 python << 'PYTHON'
 from sqlalchemy import create_engine, text
-from database import DATABASE_URL
+from database import SQLALCHEMY_DATABASE_URL
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 with engine.connect() as conn:
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS smart_rules (
