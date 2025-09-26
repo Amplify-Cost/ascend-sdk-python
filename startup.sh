@@ -41,12 +41,11 @@ PYTHON
 
 echo "📊 Fixing admin password..."
 python << 'PWDFIX'
-from passlib.context import CryptContext
 from sqlalchemy import create_engine, text
 from database import SQLALCHEMY_DATABASE_URL
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-hashed = pwd_context.hash("admin123")
+# Pre-generated bcrypt hash for 'admin123'
+ADMIN_HASH = '$2b$12$DOU1IyWwPIA5MfanqguaB.mwcV79vLd9q8pgROL5M82yuTfnUky6S'
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 with engine.connect() as conn:
@@ -54,7 +53,7 @@ with engine.connect() as conn:
         UPDATE users 
         SET password = :pwd, hashed_password = :pwd 
         WHERE email = 'admin@owkai.com'
-    """), {"pwd": hashed})
+    """), {"pwd": ADMIN_HASH})
     conn.commit()
     print("✅ Admin password fixed")
 PWDFIX
