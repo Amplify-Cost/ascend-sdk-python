@@ -1,3 +1,4 @@
+from auth_utils import hash_password
 # routes/enterprise_user_management_routes.py - Complete Enterprise Backend
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -146,7 +147,7 @@ async def create_user(
         
         # Generate temporary password
         temp_password = f"TempPass{datetime.now().strftime('%m%d')}"
-        hashed_password = bcrypt.hashpw(temp_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        password_hash = hash_password(temp_password)
         
         # Insert new user
         insert_query = text("""
@@ -154,14 +155,14 @@ async def create_user(
                 email, password, role, first_name, last_name, 
                 department, access_level, mfa_enabled, status, created_at
             ) VALUES (
-                :email, :password, :role, :first_name, :last_name,
+                :email, :password_hash, :role, :first_name, :last_name,
                 :department, :access_level, :mfa_enabled, 'Active', CURRENT_TIMESTAMP
             ) RETURNING id, email, created_at
         """)
         
         result = db.execute(insert_query, {
             "email": user_data.email,
-            "password": hashed_password,
+            "password": password_hash,
             "role": user_data.role,
             "first_name": user_data.first_name,
             "last_name": user_data.last_name,

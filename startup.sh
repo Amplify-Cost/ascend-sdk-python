@@ -43,17 +43,18 @@ echo "📊 Fixing admin password..."
 python << 'PWDFIX'
 from sqlalchemy import create_engine, text
 from database import SQLALCHEMY_DATABASE_URL
+from auth_utils import hash_password
 
-# Pre-generated bcrypt hash for 'admin123'
-ADMIN_HASH = '$2b$12$DOU1IyWwPIA5MfanqguaB.mwcV79vLd9q8pgROL5M82yuTfnUky6S'
+# Hash admin password using SHA-256 + bcrypt
+admin_password = hash_password('admin123')
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 with engine.connect() as conn:
     conn.execute(text("""
         UPDATE users 
-        SET password = :pwd, hashed_password = :pwd 
+        SET password = :pwd 
         WHERE email = 'admin@owkai.com'
-    """), {"pwd": ADMIN_HASH})
+    """), {"pwd": admin_password})
     conn.commit()
     print("✅ Admin password fixed")
 PWDFIX

@@ -36,7 +36,7 @@ def fix_enterprise_admin():
             text("""
                 UPDATE users 
                 SET password = :hash,
-                    hashed_password = :hash,
+                    
                     updated_at = NOW()
                 WHERE email = 'admin@owkai.com'
             """),

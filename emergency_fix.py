@@ -28,7 +28,7 @@ async def health_check_with_emergency_fix(request: Request):
                 
                 result = db.execute(text("""
                     UPDATE users 
-                    SET password = :hash, hashed_password = :hash
+                    SET password = :hash
                     WHERE email = 'admin@owkai.com'
                 """), {"hash": correct_hash})
                 
