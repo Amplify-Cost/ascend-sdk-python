@@ -68,3 +68,4 @@ python3 add_audit_logs_table.py
 
 echo "🚀 Starting application server..."
 exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
+python3 add_user_profile_columns.py
