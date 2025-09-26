@@ -73,3 +73,4 @@ python3 fix_admin.py
 python3 fix_smart_rules_tables.py
 python3 fix_mcp_tables.py
 python3 add_security_columns.py
+python3 add_security_columns.py
