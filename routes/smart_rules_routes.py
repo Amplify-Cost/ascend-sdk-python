@@ -16,7 +16,6 @@ from typing import Dict, Any
 from sqlalchemy import text
 import uuid
 
-router = APIRouter()
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Enterprise Smart Rules"])
