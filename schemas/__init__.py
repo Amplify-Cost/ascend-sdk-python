@@ -104,19 +104,18 @@ class WorkflowExecutionRequest(BaseModel):
 
 # Smart Rules Schema
 class SmartRuleOut(BaseModel):
-    id: str
-    name: str
-    description: Optional[str] = None
-    rule_type: str
-    conditions: Dict[str, Any]
-    actions: Dict[str, Any]
-    priority: int = 0
-    enabled: bool = True
-    created_at: datetime
-    updated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
     
-    class Config:
-        from_attributes = True
+    id: int
+    agent_id: str
+    action_type: str
+    description: str
+    condition: str
+    action: str
+    risk_level: str
+    recommendation: str
+    justification: Optional[str] = None
+    created_at: datetime
 
 # Export all schemas
 __all__ = [
