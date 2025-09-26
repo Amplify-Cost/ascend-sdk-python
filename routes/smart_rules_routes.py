@@ -705,7 +705,6 @@ async def get_rule_suggestions(current_user: dict = Depends(get_current_user)):
 async def generate_rule_from_natural_language(
     request: Request,
     current_user: dict = Depends(require_admin),
-    ,
     db: Session = Depends(get_db)
 ):
     """✨ ENTERPRISE: Advanced natural language to rule conversion using AI - RAW SQL VERSION"""
