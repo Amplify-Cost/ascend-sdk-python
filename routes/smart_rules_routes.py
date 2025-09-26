@@ -590,7 +590,7 @@ async def get_ab_test_results_enterprise(
 async def setup_ab_testing_table_smart_rules(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """🔧 ENTERPRISE: Setup A/B testing database table"""
     try:
@@ -705,7 +705,7 @@ async def get_rule_suggestions(current_user: dict = Depends(get_current_user)):
 async def generate_rule_from_natural_language(
     request: Request,
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
+    ,
     db: Session = Depends(get_db)
 ):
     """✨ ENTERPRISE: Advanced natural language to rule conversion using AI - RAW SQL VERSION"""
@@ -871,7 +871,7 @@ async def generate_rule_from_natural_language(
 async def optimize_rule_performance(
     rule_id: int,
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
+    ,
     db: Session = Depends(get_db)
 ):
     """🎯 ENTERPRISE: Use advanced ML to optimize rule performance"""
@@ -922,7 +922,7 @@ def delete_smart_rule(
     rule_id: int,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """🗑️ ENTERPRISE: Delete smart rule with comprehensive audit logging"""
     try:
@@ -965,7 +965,7 @@ async def generate_smart_rule_endpoint(
     request: Request,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Generate a new smart rule using AI"""
     try:
@@ -1006,7 +1006,7 @@ async def generate_smart_rule_endpoint(
 def seed_smart_rules(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Seed demo smart rules"""
     try:
