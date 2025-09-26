@@ -1,26 +1,28 @@
-from sqlalchemy import text
-from database import engine
-import logging
+import sys
+import time
+from sqlalchemy import text, create_engine
+import os
 
-logger = logging.getLogger(__name__)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def add_security_columns():
     """Add security tracking columns to users table"""
     try:
+        engine = create_engine(DATABASE_URL)
+        
         with engine.connect() as conn:
-            # Add columns with safe defaults
             conn.execute(text("""
                 ALTER TABLE users 
                 ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE,
                 ADD COLUMN IF NOT EXISTS login_attempts INTEGER DEFAULT 0,
-                ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Active'
+                ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Active',
+                ADD COLUMN IF NOT EXISTS department VARCHAR(100) DEFAULT 'Engineering'
             """))
             conn.commit()
-            logger.info("✅ Security columns added to users table")
-            print("✅ Security columns added to users table")
+            print("✅ Security columns added to users table", flush=True)
     except Exception as e:
-        logger.error(f"Failed to add security columns: {e}")
-        print(f"⚠️ Security columns may already exist: {e}")
+        print(f"⚠️ Error adding security columns: {e}", flush=True)
+        sys.exit(0)
 
 if __name__ == "__main__":
     add_security_columns()
