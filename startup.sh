@@ -44,9 +44,9 @@ python << 'PWDFIX'
 from sqlalchemy import create_engine, text
 from database import SQLALCHEMY_DATABASE_URL
 
-# Pre-generated SHA-256+bcrypt hash for 'admin123'
+# Pre-generated SHA-256+bcrypt hash for 'Admin123!'
 # Generated using: hash_password('admin123') with SHA-256 pre-hashing
-admin_password = '$2b$12$vcZFdVINSAiDP7t838EVSe8ebTUSS1AUEy0XS4s5rt2WMRwjbVEMy'
+admin_password = '$2b$12$oPl0qQuyGNnIpQ7oK.diF.qjxpGSQS6dulUJn/M161DuDo5wWb2iG'
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 with engine.connect() as conn:
