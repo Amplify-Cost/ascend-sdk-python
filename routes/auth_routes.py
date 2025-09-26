@@ -7,6 +7,7 @@ from slowapi.util import get_remote_address
 from datetime import datetime, UTC
 import logging
 from passlib.context import CryptContext
+from auth_utils import verify_password
 from auth_utils import hash_password
 from secrets import token_urlsafe
 
@@ -187,7 +188,7 @@ async def login(
     """Login with dual auth support + CSRF issuance for cookie mode."""
     try:
         user = db.query(User).filter(User.email == login_data.email).first()
-        if not user or not pwd_context.verify(login_data.password, user.hashed_password):
+        if not user or not verify_password(login_data.password, user.password):
             logger.warning(f"❌ Failed login attempt: {login_data.email}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
