@@ -130,7 +130,7 @@ async def create_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Create new enterprise user"""
     try:
@@ -202,7 +202,7 @@ async def update_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Update enterprise user"""
     try:
@@ -260,7 +260,7 @@ async def delete_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-      _=Depends(require_csrf)
+      
 ):
     """Deactivate user (soft delete)"""
     try:
@@ -355,7 +355,7 @@ async def create_role(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Create new enterprise role"""
     try:
@@ -821,7 +821,7 @@ async def generate_enterprise_report(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """🏢 Generate enterprise report using existing analytics system"""
     try:
@@ -1004,7 +1004,7 @@ async def download_enterprise_report(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """🏢 Download report with audit tracking"""
     try:
