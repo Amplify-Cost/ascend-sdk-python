@@ -1,11 +1,12 @@
-# auth_utils.py - FIXED JWT IMPORT
+# auth_utils.py 
 from fastapi import HTTPException
 from fastapi.security import HTTPBearer
 from passlib.context import CryptContext
-from jose import jwt  # ✅ FIXED: Use jose.jwt instead of jwt
+from jose import jwt  
 from datetime import datetime, timedelta
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 import logging
+import hashlib 
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +15,38 @@ security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt"""
-    return pwd_context.hash(password)
+    """
+    Hash password with SHA-256 + bcrypt (fixes 72-byte limit)
+    
+    Process:
+    1. SHA-256 converts any length password to fixed 64-char string
+    2. Bcrypt hashes that 64-char string (always under 72-byte limit)
+    
+    Why: Bcrypt limit is 72 bytes, SHA-256 output is always 64 chars
+    """
+    # Step 1: SHA-256 pre-hash (handles unlimited length)
+    sha_digest = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    
+    # Step 2: Bcrypt the digest (adds salt + adaptive cost)
+    hashed = pwd_context.hash(sha_digest)
+    
+    logger.info("✅ Password hashed successfully (SHA-256+bcrypt)")
+    return hashed
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """
+    Verify password against hash (applies same SHA-256 step)
+    
+    Why: Must convert plain password to SHA-256 first, then compare
+    """
+    # Apply same SHA-256 pre-hash
+    sha_digest = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
+    
+    # Verify against bcrypt hash
+    is_valid = pwd_context.verify(sha_digest, hashed_password)
+    
+    logger.info(f"🔐 Password verification: {'✅ SUCCESS' if is_valid else '❌ FAILED'}")
+    return is_valid
 
 def create_access_token(data: dict, expires_delta: timedelta = None):
     """Create a JWT access token"""
