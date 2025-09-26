@@ -41,3 +41,23 @@ PYTHON
 
 echo "🚀 Starting application server..."
 exec uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Fix admin password if needed
+python << 'PWDFIX'
+from passlib.context import CryptContext
+from sqlalchemy import create_engine, text
+from database import SQLALCHEMY_DATABASE_URL
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+hashed = pwd_context.hash("admin123")
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+with engine.connect() as conn:
+    conn.execute(text("""
+        UPDATE users 
+        SET password = :pwd, hashed_password = :pwd 
+        WHERE email = 'admin@owkai.com'
+    """), {"pwd": hashed})
+    conn.commit()
+    print("✅ Admin password fixed")
+PWDFIX
