@@ -535,7 +535,9 @@ async def get_user_analytics(
                 "active_users": stats_result.active_users if stats_result else 0,
                 "inactive_users": stats_result.inactive_users if stats_result else 0,
                 "mfa_enabled": stats_result.mfa_enabled_users if stats_result else 0,
-                "high_risk_users": stats_result.high_risk_users if stats_result else 0
+                "high_risk_users": stats_result.high_risk_users if stats_result else 0,
+                "mfa_percentage": round((stats_result.mfa_enabled_users / stats_result.total_users * 100), 1) if stats_result and stats_result.total_users > 0 else 0.0,
+                "risk_percentage": round((stats_result.high_risk_users / stats_result.total_users * 100), 1) if stats_result and stats_result.total_users > 0 else 0.0
             },
             "department_distribution": department_stats if department_stats else [],
             "role_distribution": role_stats if role_stats else [],
