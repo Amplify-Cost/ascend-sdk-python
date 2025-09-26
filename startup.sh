@@ -39,10 +39,7 @@ with engine.connect() as conn:
     print("✅ Database tables ready")
 PYTHON
 
-echo "🚀 Starting application server..."
-exec uvicorn main:app --host 0.0.0.0 --port 8000
-
-# Fix admin password if needed
+echo "📊 Fixing admin password..."
 python << 'PWDFIX'
 from passlib.context import CryptContext
 from sqlalchemy import create_engine, text
@@ -61,3 +58,6 @@ with engine.connect() as conn:
     conn.commit()
     print("✅ Admin password fixed")
 PWDFIX
+
+echo "🚀 Starting application server..."
+exec uvicorn main:app --host 0.0.0.0 --port 8000
