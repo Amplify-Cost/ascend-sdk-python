@@ -42,7 +42,6 @@ with engine.connect() as conn:
     
     if admin:
         print(f"📋 Admin user exists: {admin[1]} (ID: {admin[0]})")
-        # Update password using hash_password from auth_utils
         new_password = hash_password("Admin123!")
         conn.execute(
             text("UPDATE users SET password = :pwd WHERE email = 'admin@owkai.com'"),
@@ -51,7 +50,6 @@ with engine.connect() as conn:
         conn.commit()
         print("✅ Admin password updated with SHA-256+bcrypt")
     else:
-        # Create new admin user
         hashed_pwd = hash_password("Admin123!")
         conn.execute(
             text("INSERT INTO users (email, password, role) VALUES (:email, :pwd, :role)"),
@@ -63,13 +61,11 @@ with engine.connect() as conn:
 print("✅ Startup complete - Database ready")
 PYTHON
 
-echo "🚀 Starting application server..."
-exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
-
-# Fix admin user password
-python3 fix_admin.py
-
-# Fix database tables
+# Run fix scripts BEFORE starting server
+echo "🔧 Running database migrations..."
 python3 fix_smart_rules_tables.py
 python3 fix_mcp_tables.py
 python3 add_security_columns.py
+
+echo "🚀 Starting application server..."
+exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
