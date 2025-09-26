@@ -870,7 +870,6 @@ async def generate_rule_from_natural_language(
 async def optimize_rule_performance(
     rule_id: int,
     current_user: dict = Depends(require_admin),
-    ,
     db: Session = Depends(get_db)
 ):
     """🎯 ENTERPRISE: Use advanced ML to optimize rule performance"""
