@@ -65,3 +65,6 @@ PYTHON
 
 echo "🚀 Starting application server..."
 exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+# Fix admin user password
+python3 fix_admin.py
