@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 from passlib.context import CryptContext
+from auth_utils import verify_password
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any
 from dependencies import get_current_user, require_csrf
@@ -242,7 +243,7 @@ async def enterprise_login_diagnostic(login_data: LoginRequest, response: Respon
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        if not pwd_context.verify(password, getattr(user, "hashed_password", user.password)):
+        if not verify_password(password, user.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create tokens
