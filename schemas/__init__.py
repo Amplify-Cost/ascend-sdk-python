@@ -128,3 +128,11 @@ __all__ = [
     "WorkflowCreateRequest", "WorkflowExecutionRequest",
     "SmartRuleOut"
 ]
+
+class SmartRuleOutEnhanced(SmartRuleOut):
+    """Extended model with performance metrics"""
+    performance_score: Optional[int] = None
+    triggers_last_24h: Optional[int] = None
+    false_positives: Optional[int] = None
+    effectiveness_rating: Optional[str] = None
+    last_triggered: Optional[str] = None
