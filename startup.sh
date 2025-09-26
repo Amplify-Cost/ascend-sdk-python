@@ -69,3 +69,4 @@ python3 add_security_columns.py
 
 echo "🚀 Starting application server..."
 exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
+python3 add_audit_logs_table.py
