@@ -1,3 +1,12 @@
+from auth_utils import hash_password
+import secrets
+import string
+
+
+def generate_sso_temp_password():
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return "".join(secrets.choice(alphabet) for _ in range(12))
+
 """
 Enterprise SSO/OIDC Routes
 Handles authentication with Okta, Azure AD, Google Workspace
@@ -332,6 +341,8 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
                     last_login = :last_login
                 WHERE email = :email
             """), {
+                "password": hashed_password,
+
                 "email": email,
                 "first_name": enterprise_profile["first_name"],
                 "last_name": enterprise_profile["last_name"],
@@ -347,15 +358,20 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
             
         else:
             # Create new user
+            temp_password = generate_sso_temp_password()
+            hashed_password = hash_password(temp_password)
+
             result = db.execute(text("""
-                INSERT INTO users (
+                INSERT INTO users (password, 
                     email, first_name, last_name, access_level, department,
                     mfa_enabled, status, role, last_login, created_at
-                ) VALUES (
+                ) VALUES (:password, 
                     :email, :first_name, :last_name, :access_level, :department,
                     :mfa_enabled, :status, :role, :last_login, :created_at
                 ) RETURNING user_id
             """), {
+                "password": hashed_password,
+
                 "email": email,
                 "first_name": enterprise_profile["first_name"],
                 "last_name": enterprise_profile["last_name"],
@@ -375,6 +391,8 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
         
         return {
             "user_id": user_id,
+                "password": hashed_password,
+
             "email": email,
             "access_level": enterprise_profile["access_level"]
         }
@@ -399,7 +417,7 @@ async def log_sso_audit_event(
         db.execute(text("""
             INSERT INTO user_audit_logs (
                 user_email, action, target, details, ip_address, timestamp
-            ) VALUES (
+            ) VALUES (:password, 
                 :user_email, :action, :target, :details, :ip_address, :timestamp
             )
         """), {
