@@ -44,7 +44,7 @@ def create_refresh_token(data: dict):
 def decode_refresh_token(refresh_token: str):
     """Decode and validate refresh token"""
     try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
         
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token type")
@@ -52,50 +52,5 @@ def decode_refresh_token(refresh_token: str):
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired")
-    except jwt.InvalidTokenError:
+    except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-
-def decode_access_token(token: str):
-    """Decode access token - used internally only"""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        
-        if payload.get("type") and payload.get("type") != "access":
-            raise HTTPException(status_code=401, detail="Invalid token type")
-            
-        return payload
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Access token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid access token")
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password - supports both legacy and new hashes"""
-    logger.info(f"🔍 Verifying password against hash: {hashed_password[:30]}...")
-    logger.info(f"🔍 Hash length: {len(hashed_password)}")
-    
-    # Try new method first (SHA-256 + bcrypt)
-    sha_digest = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
-    logger.info(f"🔍 SHA-256 digest: {sha_digest[:30]}...")
-    
-    try:
-        if pwd_context.verify(sha_digest, hashed_password):
-            logger.info("✅ Password verification: SUCCESS (SHA-256+bcrypt)")
-            return True
-        else:
-            logger.info("❌ SHA-256+bcrypt method: Hash mismatch")
-    except Exception as e:
-        logger.error(f"❌ SHA-256+bcrypt method failed: {type(e).__name__}: {str(e)}")
-    
-    # Fallback: Try legacy method (direct bcrypt)
-    try:
-        if pwd_context.verify(plain_password, hashed_password):
-            logger.info("✅ Password verification: SUCCESS (legacy bcrypt)")
-            logger.warning("⚠️ User needs password rehash - using legacy bcrypt")
-            return True
-        else:
-            logger.info("❌ Legacy bcrypt method: Hash mismatch")
-    except Exception as e:
-        logger.error(f"❌ Legacy bcrypt method failed: {type(e).__name__}: {str(e)}")
-    
-    logger.error("❌ Password verification FAILED - both methods exhausted")
-    return False
