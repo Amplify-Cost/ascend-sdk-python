@@ -54,3 +54,42 @@ def decode_refresh_token(refresh_token: str):
         raise HTTPException(status_code=401, detail="Refresh token expired")
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password - supports both legacy and new hashes"""
+    import hashlib
+    
+    # Try new method first (SHA-256 + bcrypt)
+    sha_digest = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
+    try:
+        if pwd_context.verify(sha_digest, hashed_password):
+            logger.info("Password verification: SUCCESS (new method)")
+            return True
+    except:
+        pass
+    
+    # Fallback: Try legacy method (direct bcrypt) for old users
+    try:
+        if pwd_context.verify(plain_password, hashed_password):
+            logger.info("Password verification: SUCCESS (legacy method)")
+            logger.warning("User needs password rehash - using legacy bcrypt")
+            return True
+    except:
+        pass
+    
+    logger.info("Password verification: FAILED")
+    return False
+
+def decode_access_token(token: str):
+    """Decode access token - used internally only"""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
+        
+        if payload.get("type") and payload.get("type") != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+            
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Access token expired")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid access token")
