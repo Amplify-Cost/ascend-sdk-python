@@ -3516,3 +3516,48 @@ async def refresh_token_endpoint(request: Request):
     except Exception as e:
         print(f"Token refresh error: {e}")
         raise HTTPException(status_code=401, detail="Token refresh failed")
+
+@app.post("/admin/enterprise-user-notifications")
+async def notify_sso_users_temp_passwords(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """Enterprise SSO user notification system"""
+    try:
+        # The 5 users with temporary passwords from the authentication fix
+        sso_user_credentials = {
+            "user@owkai.com": "I2Hw8fY6jqUe",
+            "men@owkai.com": "NPBrDfRC8biI", 
+            "dk@gmail.com": "OB15ymmBGmw9",
+            "san@gmail.com": "xwdX5AuF6SZ!",
+            "saundra@gmail.com": "GjFrrK6dVq6Y"
+        }
+        
+        notifications = []
+        for email, temp_password in sso_user_credentials.items():
+            # Enterprise audit trail
+            notification_record = {
+                "recipient": email,
+                "notification_type": "temporary_password_issued",
+                "sent_by": current_user.get("email"),
+                "timestamp": datetime.now(UTC).isoformat(),
+                "enterprise_compliant": True,
+                "password_expires": "30_days_from_first_login"
+            }
+            notifications.append(notification_record)
+            
+            # Log for enterprise compliance
+            logger.info(f"Enterprise notification: Temporary password notification prepared for {email}")
+        
+        return {
+            "success": True,
+            "enterprise_action": "sso_user_notification",
+            "notifications_prepared": len(notifications),
+            "compliance_audit": notifications,
+            "next_action": "Deploy enterprise email integration or manual user communication"
+        }
+        
+    except Exception as e:
+        logger.error(f"Enterprise notification system error: {e}")
+        raise HTTPException(status_code=500, detail="Enterprise notification system unavailable")
