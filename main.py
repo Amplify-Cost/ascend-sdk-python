@@ -3561,3 +3561,33 @@ async def notify_sso_users_temp_passwords(
     except Exception as e:
         logger.error(f"Enterprise notification system error: {e}")
         raise HTTPException(status_code=500, detail="Enterprise notification system unavailable")
+
+@app.get("/admin/enterprise-auth-metrics")
+async def get_enterprise_auth_metrics(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """Enterprise authentication system metrics"""
+    try:
+        # Authentication health metrics
+        total_users = db.execute(text("SELECT COUNT(*) FROM users")).scalar()
+        users_with_passwords = db.execute(text("SELECT COUNT(*) FROM users WHERE password IS NOT NULL AND password != ''")).scalar()
+        recent_logins = db.execute(text("SELECT COUNT(*) FROM users WHERE last_login > NOW() - INTERVAL '24 hours'")).scalar()
+        
+        return {
+            "enterprise_auth_health": {
+                "total_users": total_users,
+                "users_with_passwords": users_with_passwords,
+                "passwordless_users": total_users - users_with_passwords,
+                "recent_24h_logins": recent_logins,
+                "authentication_coverage": f"{(users_with_passwords/total_users)*100:.1f}%"
+            },
+            "system_status": "operational",
+            "token_refresh_available": True,
+            "enterprise_compliance": "active"
+        }
+        
+    except Exception as e:
+        logger.error(f"Enterprise auth metrics error: {e}")
+        raise HTTPException(status_code=500, detail="Enterprise metrics unavailable")
