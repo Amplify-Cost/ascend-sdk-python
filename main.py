@@ -18,6 +18,8 @@ from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
 from routes.smart_rules_routes import router as smart_rules_router
+from contextlib import asynccontextmanager
+
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
 from routes.authorization_routes import api_router as authorization_api_router
@@ -230,10 +232,32 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("🔧 Running enterprise startup checks...")
+    try:
+        from auth_utils import hash_password
+        db = next(get_db())
+        correct_hash = hash_password("admin123")
+        result = db.execute(text("""
+            UPDATE users 
+            SET password = :hash
+            WHERE email = 'admin@owkai.com'
+        """), {"hash": correct_hash})
+        if result.rowcount > 0:
+            db.commit()
+            print("✅ Admin password synchronized")
+    except Exception as e:
+        print(f"⚠️ Startup admin fix failed: {e}")
+    yield
+    print("🔧 Enterprise shutdown complete")
+
+
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
-app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0")
+app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0", lifespan=lifespan)
 
 
 # CORS Configuration (unchanged)
