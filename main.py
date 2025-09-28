@@ -19,6 +19,7 @@ from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
 from routes.smart_rules_routes import router as smart_rules_router
 from contextlib import asynccontextmanager
+from auth_utils import hash_password, decode_refresh_token, create_access_token
 
 from routes.enterprise_user_management_routes import router as enterprise_user_router
 from routes.authorization_routes import router as authorization_router
@@ -237,7 +238,6 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🔧 Running enterprise startup checks...")
     try:
-        from auth_utils import hash_password
         db = next(get_db())
         correct_hash = hash_password("admin123")
         result = db.execute(text("""
