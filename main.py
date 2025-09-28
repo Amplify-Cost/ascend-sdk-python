@@ -3471,3 +3471,35 @@ async def create_first_admin():
         logger.error(f"SSO user fix failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/auth/refresh")
+async def refresh_token(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Enterprise token refresh endpoint"""
+    try:
+        data = await request.json()
+        refresh_token = data.get("refresh_token")
+        
+        if not refresh_token:
+            raise HTTPException(status_code=400, detail="Refresh token required")
+        
+        # Decode and validate refresh token
+        payload = decode_refresh_token(refresh_token)
+        user_id = payload.get("sub")
+        
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        # Generate new access token
+        new_access_token = create_access_token({"sub": user_id, "email": payload.get("email"), "role": payload.get("role")})
+        
+        return {
+            "access_token": new_access_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Token refresh failed")
