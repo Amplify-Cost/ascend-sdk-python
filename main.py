@@ -3443,3 +3443,59 @@ async def create_first_admin():
         return {"success": "First admin user created", "email": "admin@owkai.com"}
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/admin/fix-sso-users")
+async def fix_sso_users_endpoint(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """Enterprise fix for SSO users without passwords"""
+    try:
+        from auth_utils import hash_password
+        import secrets
+        import string
+        
+        def generate_temp_password():
+            alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+            return ''.join(secrets.choice(alphabet) for _ in range(12))
+        
+        # Find users without passwords
+        result = db.execute(text("""
+            SELECT id, email 
+            FROM users 
+            WHERE password IS NULL OR password = ''
+        """))
+        
+        sso_users = result.fetchall()
+        fixed_users = []
+        
+        for user in sso_users:
+            temp_password = generate_temp_password()
+            hashed_password = hash_password(temp_password)
+            
+            db.execute(text("""
+                UPDATE users 
+                SET password = :password 
+                WHERE id = :user_id
+            """), {
+                "password": hashed_password,
+                "user_id": user[0]
+            })
+            
+            fixed_users.append({
+                "email": user[1],
+                "temp_password": temp_password
+            })
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Fixed {len(fixed_users)} SSO users",
+            "fixed_users": fixed_users
+        }
+        
+    except Exception as e:
+        logger.error(f"SSO user fix failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
