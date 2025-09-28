@@ -3472,12 +3472,10 @@ async def create_first_admin():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
 @app.post("/auth/refresh")
-async def refresh_token(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    """Enterprise token refresh endpoint"""
+async def refresh_token_endpoint(request: Request):
+    """Enterprise token refresh - No authentication required"""
     try:
         data = await request.json()
         refresh_token = data.get("refresh_token")
@@ -3485,21 +3483,36 @@ async def refresh_token(
         if not refresh_token:
             raise HTTPException(status_code=400, detail="Refresh token required")
         
+        # Import here to avoid circular imports
+        from auth_utils import decode_refresh_token, create_access_token
+        
         # Decode and validate refresh token
         payload = decode_refresh_token(refresh_token)
         user_id = payload.get("sub")
+        email = payload.get("email")
+        role = payload.get("role")
         
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        if not user_id or not email:
+            raise HTTPException(status_code=401, detail="Invalid refresh token payload")
         
-        # Generate new access token
-        new_access_token = create_access_token({"sub": user_id, "email": payload.get("email"), "role": payload.get("role")})
+        # Generate new access token with same payload structure
+        new_token_data = {
+            "sub": user_id,
+            "email": email, 
+            "role": role,
+            "user_id": payload.get("user_id", user_id)
+        }
+        
+        new_access_token = create_access_token(new_token_data)
         
         return {
             "access_token": new_access_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+            "token_type": "bearer", 
+            "expires_in": 1800
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Token refresh error: {e}")
         raise HTTPException(status_code=401, detail="Token refresh failed")
