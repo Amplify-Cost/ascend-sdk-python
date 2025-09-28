@@ -1789,3 +1789,19 @@ async def test_policy_evaluation(
         logger.error(f"Policy evaluation test failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
+
+
+@router.get("/debug/policies")
+async def debug_list_policies(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """Debug: List all policies"""
+    from sqlalchemy import text
+    try:
+        result = db.execute(text("SELECT id, policy_name, is_active, action, created_at FROM mcp_policies ORDER BY created_at DESC"))
+        policies = [dict(row._mapping) for row in result]
+        return {"total": len(policies), "policies": policies}
+    except Exception as e:
+        return {"error": str(e)}
+

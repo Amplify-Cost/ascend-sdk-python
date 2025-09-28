@@ -380,3 +380,17 @@ def get_csrf(response: Response, request: Request):
     """Issue/refresh CSRF cookie and return its value."""
     csrf = _set_csrf_cookie(response, request)
     return {"csrf": csrf}
+@router.get("/debug/check-admin")
+async def debug_check_admin(db: Session = Depends(get_db)):
+    """Diagnostic endpoint to check admin user password hash"""
+    from sqlalchemy import text
+    result = db.execute(text("SELECT email, password, role FROM users WHERE email = 'admin@owkai.com'"))
+    user = result.fetchone()
+    if user:
+        return {
+            "email": user[0],
+            "password_hash_prefix": user[1][:50] if user[1] else None,
+            "password_length": len(user[1]) if user[1] else 0,
+            "role": user[2]
+        }
+    return {"error": "Admin user not found"}

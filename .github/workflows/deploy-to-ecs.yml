@@ -5,6 +5,7 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
+# CRITICAL: OIDC requires id-token permission
 permissions:
   id-token: write
   contents: read
@@ -21,7 +22,7 @@ jobs:
   deploy:
     name: Deploy Enterprise Backend
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    environment: production
 
     steps:
     - name: Checkout
@@ -43,8 +44,10 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker pull --platform linux/amd64 python:3.11-slim
+        docker build --no-cache --pull --platform linux/amd64 -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
     - name: Download current task definition
@@ -65,45 +68,4 @@ jobs:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
-        wait-for-service-stability: false
-
-    - name: Verify deployment started
-      run: |
-        echo "Deployment initiated. Service will stabilize shortly."
-        aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE --query 'services[0].deployments[0].status'
-
-
-    - name: Create CloudWatch Log Group for Migrations
-      run: |
-        aws logs create-log-group --log-group-name /ecs/owkai-pilot-migration --region ${{ env.AWS_REGION }} || echo "Log group already exists"
-
-    - name: Run Database Migration
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        # Update migration task definition with current image
-        sed "s|PLACEHOLDER_IMAGE|$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG|g" migration-task-definition.json > migration-task-def-updated.json
-        
-        # Register migration task definition
-        MIGRATION_TASK_DEF=$(aws ecs register-task-definition --cli-input-json file://migration-task-def-updated.json --query 'taskDefinition.taskDefinitionArn' --output text)
-        
-        # Execute migration
-        MIGRATION_TASK=$(aws ecs run-task \
-          --cluster owkai-pilot \
-          --task-definition "$MIGRATION_TASK_DEF" \
-          --launch-type FARGATE \
-          --network-configuration "awsvpcConfiguration={subnets=[subnet-0a13742578005734f,subnet-0bddeeb5ae9b6b856],securityGroups=[sg-0a9f384c088f3a9e9],assignPublicIp=ENABLED}" \
-          --query 'tasks[0].taskArn' --output text)
-        
-        # Wait for migration completion
-        aws ecs wait tasks-stopped --cluster owkai-pilot --tasks "$MIGRATION_TASK"
-        
-        # Check migration result
-        EXIT_CODE=$(aws ecs describe-tasks --cluster owkai-pilot --tasks "$MIGRATION_TASK" --query 'tasks[0].containers[0].exitCode' --output text)
-        if [ "$EXIT_CODE" != "0" ]; then
-          echo "Migration failed with exit code: $EXIT_CODE"
-          exit 1
-        fi
-        
-        echo "Database migration completed successfully"
+        wait-for-service-stability: true
