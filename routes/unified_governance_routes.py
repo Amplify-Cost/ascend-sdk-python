@@ -1,4 +1,5 @@
 # routes/unified_governance_routes.py
+from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
@@ -1184,3 +1185,146 @@ async def get_authorization_policy_metrics(
             },
             "message": "Authorization policy metrics retrieved (fallback mode)"
         }
+
+# ============================================================================
+# ENTERPRISE POLICY ENFORCEMENT ENDPOINTS
+# ============================================================================
+
+@router.post("/policies/compile")
+async def compile_policy(
+    policy_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Compile natural language policy to Cedar-style structured rules
+    """
+    try:
+        natural_language = policy_data.get("description", "")
+        risk_level = policy_data.get("risk_level", "medium")
+        
+        # Compile to structured rules
+        compiled_policy = policy_compiler.compile(natural_language, risk_level)
+        
+        return {
+            "success": True,
+            "compiled_policy": compiled_policy,
+            "natural_language": natural_language
+        }
+    except Exception as e:
+        logger.error(f"Policy compilation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/policies/enforce")
+async def enforce_policy(
+    action_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Evaluate an action against active policies - REAL ENFORCEMENT
+    """
+    try:
+        import time
+        start = time.time()
+        
+        # Load active policies from database
+        from models_mcp_governance import GovernancePolicy
+        active_policies = db.query(GovernancePolicy).filter(
+            GovernancePolicy.status == "active"
+        ).all()
+        
+        # Compile and load into engine
+        compiled_policies = []
+        for policy in active_policies:
+            compiled = policy_compiler.compile(
+                policy.description, 
+                policy.risk_level
+            )
+            compiled["id"] = policy.id
+            compiled_policies.append(compiled)
+            
+        enforcement_engine.load_policies(compiled_policies)
+        
+        # Evaluate action
+        result = enforcement_engine.evaluate(
+            principal=action_data.get("agent_id", "ai_agent:unknown"),
+            action=action_data.get("action_type", ""),
+            resource=action_data.get("target", ""),
+            context=action_data.get("context", {})
+        )
+        
+        result["evaluation_time_ms"] = round((time.time() - start) * 1000, 2)
+        result["policies_evaluated"] = len(compiled_policies)
+        
+        # Log enforcement decision
+        logger.info(f"Policy enforcement: {result['decision']} for {action_data.get('action_type')} on {action_data.get('target')}")
+        
+        return {
+            "success": True,
+            **result
+        }
+        
+    except Exception as e:
+        logger.error(f"Policy enforcement error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/policies/enforcement-stats")
+async def get_enforcement_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get policy engine performance metrics
+    """
+    try:
+        stats = enforcement_engine.get_stats()
+        return {
+            "success": True,
+            "stats": stats
+        }
+    except Exception as e:
+        logger.error(f"Stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/agent/actions/pre-execute-check")
+async def pre_execute_check(
+    action_request: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Pre-execution policy check - CRITICAL INTERCEPTION POINT
+    Call this before executing ANY agent action
+    """
+    try:
+        # This is the middleware interception point
+        enforcement_result = await enforce_policy(action_request, db, current_user)
+        
+        if not enforcement_result.get("allowed"):
+            return {
+                "success": False,
+                "blocked": True,
+                "reason": "Policy violation",
+                "enforcement": enforcement_result
+            }
+        
+        if enforcement_result.get("decision") == "REQUIRE_APPROVAL":
+            # Create approval request
+            return {
+                "success": True,
+                "requires_approval": True,
+                "enforcement": enforcement_result,
+                "message": "Action requires human approval before execution"
+            }
+        
+        return {
+            "success": True,
+            "allowed": True,
+            "enforcement": enforcement_result,
+            "message": "Action approved by policy engine"
+        }
+        
+    except Exception as e:
+        logger.error(f"Pre-execution check error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
