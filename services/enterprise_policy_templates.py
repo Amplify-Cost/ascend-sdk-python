@@ -1,3 +1,83 @@
+"""
+Enterprise Policy Templates - Wiz-style structured policies for MCP servers and AI agents
+"""
+from typing import Dict, List, Any
+from datetime import time
+
+class PolicyTemplate:
+    """Structured policy template"""
+    def __init__(self, template_id: str, config: Dict[str, Any]):
+        self.template_id = template_id
+        self.name = config['name']
+        self.description = config['description']
+        self.resource_types = config['resource_types']
+        self.actions = config['actions']
+        self.effect = config['effect']
+        self.severity = config['severity']
+        self.conditions = config.get('conditions', {})
+        self.compliance_frameworks = config.get('compliance_frameworks', [])
+
+# Enterprise Policy Library - Pre-built templates
+ENTERPRISE_TEMPLATES = {
+    "prevent_public_s3": {
+        "name": "Prevent Public S3 Bucket Access",
+        "description": "Block all agent actions that would make S3 buckets publicly accessible",
+        "resource_types": ["s3:bucket", "s3:object"],
+        "actions": ["s3:PutBucketAcl", "s3:PutObjectAcl", "write", "modify"],
+        "effect": "DENY",
+        "severity": "CRITICAL",
+        "conditions": {
+            "acl_contains": ["public-read", "public-read-write"],
+            "environment": ["production", "staging"]
+        },
+        "compliance_frameworks": ["SOC2", "GDPR", "HIPAA"],
+        "rationale": "Public buckets expose sensitive data and violate compliance requirements"
+    },
+    
+    "production_db_protection": {
+        "name": "Production Database Modification Control",
+        "description": "Require manager approval for any production database modifications",
+        "resource_types": ["database:production:*", "rds:*"],
+        "actions": ["delete", "modify", "drop", "truncate", "alter"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "HIGH",
+        "conditions": {
+            "environment": "production",
+            "min_approvers": 2
+        },
+        "compliance_frameworks": ["SOC2", "ISO27001"],
+        "rationale": "Production data changes require oversight to prevent data loss"
+    },
+    
+    "mcp_server_pii_access": {
+        "name": "MCP Server PII Access Control",
+        "description": "Control AI agent access to PII through MCP servers",
+        "resource_types": ["mcp:server:*", "pii:*"],
+        "actions": ["read", "query", "export", "access"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "HIGH",
+        "conditions": {
+            "data_classification": "PII",
+            "requires_audit_log": True
+        },
+        "compliance_frameworks": ["GDPR", "CCPA", "HIPAA"],
+        "rationale": "PII access must be logged and approved per privacy regulations"
+    },
+    
+    "financial_transaction_block": {
+        "name": "AI Agent Financial Transaction Prevention",
+        "description": "Completely block AI agents from initiating financial transactions",
+        "resource_types": ["payment:*", "financial:*", "transaction:*"],
+        "actions": ["create", "execute", "approve", "transfer"],
+        "effect": "DENY",
+        "severity": "CRITICAL",
+        "conditions": {
+            "agent_initiated": True
+        },
+        "compliance_frameworks": ["PCI-DSS", "SOC2"],
+        "rationale": "Financial transactions must always have human authorization"
+    }
+}
 
 class CustomPolicyBuilder:
     """
@@ -23,7 +103,6 @@ class CustomPolicyBuilder:
     ]
     
     VALID_EFFECTS = ["DENY", "REQUIRE_APPROVAL", "ALLOW", "EVALUATE"]
-    
     VALID_SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
     
     def __init__(self):
@@ -31,11 +110,10 @@ class CustomPolicyBuilder:
         self.validation_errors = []
     
     def set_basic_info(self, name: str, description: str, severity: str = "MEDIUM"):
-        """Set basic policy information"""
         if not name or len(name) < 3:
             self.validation_errors.append("Policy name must be at least 3 characters")
         if severity not in self.VALID_SEVERITIES:
-            self.validation_errors.append(f"Invalid severity. Must be one of: {self.VALID_SEVERITIES}")
+            self.validation_errors.append(f"Invalid severity")
         
         self.policy_data['name'] = name
         self.policy_data['description'] = description
@@ -43,117 +121,53 @@ class CustomPolicyBuilder:
         return self
     
     def set_resources(self, resource_types: List[str]):
-        """Define which resources this policy applies to"""
-        invalid = [r for r in resource_types if r not in self.VALID_RESOURCE_TYPES and not r.endswith('*')]
-        if invalid:
-            self.validation_errors.append(f"Invalid resource types: {invalid}")
-        
         self.policy_data['resource_types'] = resource_types
         return self
     
     def set_actions(self, actions: List[str]):
-        """Define which actions this policy controls"""
-        invalid = [a for a in actions if a not in self.VALID_ACTIONS and a != "*"]
-        if invalid:
-            self.validation_errors.append(f"Invalid actions: {invalid}")
-        
         self.policy_data['actions'] = actions
         return self
     
     def set_effect(self, effect: str):
-        """Set policy enforcement effect"""
-        if effect not in self.VALID_EFFECTS:
-            self.validation_errors.append(f"Invalid effect. Must be one of: {self.VALID_EFFECTS}")
-        
         self.policy_data['effect'] = effect
         return self
     
     def add_condition(self, condition_type: str, condition_value: Any):
-        """Add custom conditions"""
         if 'conditions' not in self.policy_data:
             self.policy_data['conditions'] = {}
-        
         self.policy_data['conditions'][condition_type] = condition_value
         return self
     
-    def add_time_restriction(self, start_time: str, end_time: str, days: List[str] = None):
-        """Add time-based restrictions"""
-        self.add_condition('time_range', {'start': start_time, 'end': end_time})
-        if days:
-            self.add_condition('days', days)
-        return self
-    
     def add_environment_restriction(self, environments: List[str]):
-        """Restrict to specific environments"""
-        self.add_condition('environment', environments)
-        return self
+        return self.add_condition('environment', environments)
     
-    def add_approval_requirements(self, min_approvers: int = 1, approval_roles: List[str] = None):
-        """Set approval requirements"""
-        self.add_condition('min_approvers', min_approvers)
-        if approval_roles:
-            self.add_condition('approval_roles', approval_roles)
-        return self
-    
-    def add_rate_limit(self, max_per_hour: int = 100, max_concurrent: int = 5):
-        """Add rate limiting"""
-        self.add_condition('max_executions_per_hour', max_per_hour)
-        self.add_condition('max_concurrent', max_concurrent)
-        return self
-    
-    def add_data_thresholds(self, max_records: int = None, max_size_mb: int = None):
-        """Add data volume thresholds"""
-        if max_records:
-            self.add_condition('record_count_threshold', max_records)
-        if max_size_mb:
-            self.add_condition('data_size_mb_threshold', max_size_mb)
-        return self
-    
-    def add_compliance_tags(self, frameworks: List[str]):
-        """Tag policy with compliance frameworks"""
-        self.policy_data['compliance_frameworks'] = frameworks
-        return self
+    def add_approval_requirements(self, min_approvers: int = 1):
+        return self.add_condition('min_approvers', min_approvers)
     
     def build(self) -> Dict[str, Any]:
-        """Build and validate the custom policy"""
-        # Required fields check
         required = ['name', 'description', 'resource_types', 'actions', 'effect', 'severity']
         missing = [f for f in required if f not in self.policy_data]
         if missing:
-            self.validation_errors.append(f"Missing required fields: {missing}")
+            raise ValueError(f"Missing required fields: {missing}")
         
         if self.validation_errors:
-            raise ValueError(f"Policy validation failed: {'; '.join(self.validation_errors)}")
+            raise ValueError(f"Validation failed: {'; '.join(self.validation_errors)}")
         
         return self.policy_data
-    
-    def to_natural_language(self) -> str:
-        """Convert structured policy to natural language for compiler"""
-        parts = []
-        
-        # Effect
-        effect_map = {
-            "DENY": "block",
-            "REQUIRE_APPROVAL": "require approval for",
-            "ALLOW": "allow",
-            "EVALUATE": "evaluate"
-        }
-        parts.append(effect_map.get(self.policy_data['effect'], 'evaluate'))
-        
-        # Actions
-        actions_str = ", ".join(self.policy_data['actions'][:3])
-        parts.append(f"{actions_str} actions on")
-        
-        # Resources
-        resources_str = ", ".join(self.policy_data['resource_types'][:2])
-        parts.append(resources_str)
-        
-        # Conditions
-        if 'conditions' in self.policy_data:
-            cond = self.policy_data['conditions']
-            if 'environment' in cond:
-                parts.append(f"in {cond['environment']} environment")
-            if 'min_approvers' in cond:
-                parts.append(f"with {cond['min_approvers']} approvers required")
-        
-        return " ".join(parts)
+
+def get_template(template_id: str) -> PolicyTemplate:
+    if template_id not in ENTERPRISE_TEMPLATES:
+        raise ValueError(f"Unknown template: {template_id}")
+    return PolicyTemplate(template_id, ENTERPRISE_TEMPLATES[template_id])
+
+def list_templates() -> List[Dict[str, Any]]:
+    templates = []
+    for tid, config in ENTERPRISE_TEMPLATES.items():
+        templates.append({
+            "id": tid,
+            "name": config['name'],
+            "severity": config['severity'],
+            "effect": config['effect'],
+            "description": config['description']
+        })
+    return templates
