@@ -1322,3 +1322,4 @@ async def pre_execute_check(
         logger.error(f"Pre-execution check error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Force rebuild Mon Sep 29 10:21:48 EDT 2025
