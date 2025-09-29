@@ -1,23 +1,23 @@
 """
 Enterprise Policy Enforcement using Cedar-like structured rules
-Since py-cedar doesn't exist, we'll implement Cedar-style evaluation
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import json
 import re
+from services.action_taxonomy import actions_match, resource_matches
 
 class CedarStylePolicy:
     """Cedar-style policy structure"""
     def __init__(self, policy_data: Dict[str, Any]):
         self.id = policy_data.get("id")
-        self.effect = policy_data.get("effect", "deny")  # permit or deny
+        self.effect = policy_data.get("effect", "deny")
         self.principal = policy_data.get("principal", "ai_agent:*")
         self.actions = policy_data.get("actions", [])
         self.resources = policy_data.get("resources", [])
         self.conditions = policy_data.get("conditions", {})
-        self.natural_language = policy_data.get("description", "")
-        
+        self.natural_language = policy_data.get("natural_language", "")
+
 class PolicyCompiler:
     """Compile natural language policies to Cedar-style structured rules"""
     
@@ -43,7 +43,8 @@ class PolicyCompiler:
             "read": ["read", "access", "view", "query"],
             "create": ["create", "add", "insert"],
             "execute": ["execute", "run", "trigger"],
-            "export": ["export", "download", "extract"]
+            "export": ["export", "download", "extract"],
+            "write": ["write", "put"]
         }
         
         for action_type, keywords in action_map.items():
@@ -143,7 +144,7 @@ class EnforcementEngine:
             "decision": final_decision,
             "allowed": final_decision == "ALLOW",
             "policies_triggered": triggered_policies,
-            "evaluation_time_ms": 0,  # Will be calculated by caller
+            "evaluation_time_ms": 0,
             "timestamp": datetime.utcnow().isoformat()
         }
         
@@ -157,39 +158,40 @@ class EnforcementEngine:
                        action: str,
                        resource: str,
                        context: Dict) -> bool:
-        """Check if action matches policy conditions"""
+        """Check if action matches policy conditions - ENTERPRISE VERSION"""
         
-        # Match principal (simplified - in production use proper pattern matching)
+        # Match principal
         if policy.principal != "ai_agent:*" and policy.principal != principal:
             return False
             
-        # Match action
-        action_matches = False
+        # Match action using semantic taxonomy
+        action_matches_found = False
         for policy_action in policy.actions:
-            if policy_action == "*" or policy_action in action.lower():
-                action_matches = True
+            if actions_match(policy_action, action):
+                action_matches_found = True
                 break
-        if not action_matches:
+        if not action_matches_found:
             return False
             
-        # Match resource
-        resource_matches = False
+        # Match resource using hierarchy
+        resource_matches_found = False
         for policy_resource in policy.resources:
-            if policy_resource == "*":
-                resource_matches = True
+            if resource_matches(policy_resource, resource):
+                resource_matches_found = True
                 break
-            # Pattern matching: "database:production:*" matches "database:production:users"
-            pattern = policy_resource.replace("*", ".*")
-            if re.match(pattern, resource.lower()):
-                resource_matches = True
-                break
-        if not resource_matches:
+        if not resource_matches_found:
             return False
             
         # Match conditions
         for condition_key, condition_value in policy.conditions.items():
-            if context.get(condition_key) != condition_value:
-                return False
+            context_val = context.get(condition_key)
+            # Handle list conditions (e.g., environment: ["production", "staging"])
+            if isinstance(condition_value, list):
+                if context_val not in condition_value:
+                    return False
+            else:
+                if context_val != condition_value:
+                    return False
                 
         return True
         
