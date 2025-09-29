@@ -160,8 +160,18 @@ class EnforcementEngine:
                        context: Dict) -> bool:
         """Check if action matches policy conditions - ENTERPRISE VERSION"""
         
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"🔍 Checking policy {policy.id}: effect={policy.effect}")
+        logger.info(f"   Policy actions: {policy.actions}")
+        logger.info(f"   Policy resources: {policy.resources}")
+        logger.info(f"   Actual action: {action}")
+        logger.info(f"   Actual resource: {resource}")
+        
         # Match principal
         if policy.principal != "ai_agent:*" and policy.principal != principal:
+            logger.info(f"   ❌ Principal mismatch")
             return False
             
         # Match action using semantic taxonomy
@@ -169,8 +179,10 @@ class EnforcementEngine:
         for policy_action in policy.actions:
             if actions_match(policy_action, action):
                 action_matches_found = True
+                logger.info(f"   ✅ Action matched: {policy_action}")
                 break
         if not action_matches_found:
+            logger.info(f"   ❌ No action match")
             return False
             
         # Match resource using hierarchy
@@ -178,23 +190,27 @@ class EnforcementEngine:
         for policy_resource in policy.resources:
             if resource_matches(policy_resource, resource):
                 resource_matches_found = True
+                logger.info(f"   ✅ Resource matched: {policy_resource}")
                 break
         if not resource_matches_found:
+            logger.info(f"   ❌ No resource match")
             return False
             
         # Match conditions
         for condition_key, condition_value in policy.conditions.items():
             context_val = context.get(condition_key)
-            # Handle list conditions (e.g., environment: ["production", "staging"])
+            # Handle list conditions
             if isinstance(condition_value, list):
                 if context_val not in condition_value:
+                    logger.info(f"   ❌ Condition mismatch: {condition_key}")
                     return False
             else:
                 if context_val != condition_value:
+                    logger.info(f"   ❌ Condition mismatch: {condition_key}")
                     return False
-                
-        return True
         
+        logger.info(f"   ✅✅✅ POLICY MATCHED - Effect: {policy.effect}")
+        return True
     def get_stats(self) -> Dict[str, Any]:
         """Get engine performance statistics"""
         cache_hit_rate = (self.stats["cache_hits"] / max(self.stats["total_evaluations"], 1)) * 100
