@@ -3198,11 +3198,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           </div>
         </div>
       )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
       {/* 🚀 NEW: Execution Center Tab */}
       {activeTab === "execution" && (
         <div className="space-y-6">
