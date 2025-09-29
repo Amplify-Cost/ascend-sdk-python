@@ -1,4 +1,5 @@
 # routes/unified_governance_routes.py
+from services.security_bridge_service import security_bridge
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
@@ -1210,7 +1211,6 @@ async def compile_policy(
     except Exception as e:
         logger.error(f"Policy compilation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/policies/enforce")
 async def enforce_policy(
     action_data: Dict[str, Any],
@@ -1218,7 +1218,8 @@ async def enforce_policy(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Evaluate an action against active policies - REAL ENFORCEMENT
+    Evaluate an action against active policies - REAL ENFORCEMENT WITH SECURITY BRIDGE
+    Enterprise integration: Policy decisions flow to smart rules for pattern analysis
     """
     try:
         import time
@@ -1280,12 +1281,25 @@ async def enforce_policy(
         result["evaluation_time_ms"] = round((time.time() - start) * 1000, 2)
         result["policies_evaluated"] = len(compiled_policies)
         
+        # 🔥 ENTERPRISE INTEGRATION: Route decision through security bridge
+        bridge_result = await security_bridge.handle_policy_decision(
+            agent_id=action_data.get("agent_id", "ai_agent:unknown"),
+            action_type=action_data.get("action_type", ""),
+            target=action_data.get("target", ""),
+            context=action_data.get("context", {}),
+            decision=result["decision"],
+            policies_triggered=result.get("policies_triggered", []),
+            db=db
+        )
+        
         # Log enforcement decision
         logger.info(f"Policy enforcement: {result['decision']} for {action_data.get('action_type')} on {action_data.get('target')}")
+        logger.info(f"Security bridge: audit_id={bridge_result.get('audit_id')}, smart_rule_triggered={bridge_result.get('smart_rule_triggered', False)}")
         
         return {
             "success": True,
-            **result
+            **result,
+            "security_bridge": bridge_result  # Include bridge data in response
         }
         
     except Exception as e:
@@ -1599,4 +1613,67 @@ async def get_action_types(
         "success": True,
         "actions": CustomPolicyBuilder.VALID_ACTIONS
     }
+
+
+# ============================================================================
+# UNIFIED SECURITY POSTURE - Combines Policy + Smart Rules
+# ============================================================================
+
+@router.get("/security/posture")
+async def get_unified_security_posture(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Enterprise Security Dashboard - Combined metrics from both security layers
+    
+    Returns:
+    - Preventive layer (policy enforcement) metrics
+    - Detective layer (smart rules) metrics  
+    - Violation patterns requiring attention
+    - Security recommendations
+    """
+    try:
+        posture = security_bridge.get_unified_security_posture(db)
+        
+        return {
+            "success": True,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "user": current_user.get("username", "unknown"),
+            **posture
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get security posture: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/security/smart-rule-trigger")
+async def handle_smart_rule_trigger(
+    trigger_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Handle smart rule trigger and check if policy should be created
+    
+    Called by smart rules engine when a rule fires
+    """
+    try:
+        result = await security_bridge.handle_smart_rule_trigger(
+            rule_id=trigger_data.get("rule_id"),
+            agent_id=trigger_data.get("agent_id"),
+            action_type=trigger_data.get("action_type"),
+            target=trigger_data.get("target"),
+            context=trigger_data.get("context", {}),
+            db=db
+        )
+        
+        return {
+            "success": True,
+            **result
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to handle smart rule trigger: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
