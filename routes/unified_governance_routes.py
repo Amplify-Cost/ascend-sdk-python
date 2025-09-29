@@ -465,200 +465,81 @@ async def create_governance_policy(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_manager_or_admin)
 ):
-    """
-    🏢 ENTERPRISE: Policy creation endpoint - Full implementation
-    Required by frontend Policy Management tab
-    """
+    """Enterprise Policy Creation - Uses agent_actions table"""
     try:
-        logger.info(f"Policy creation requested by {current_user.get('email', 'unknown')}")
-        
-        # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
-        from uuid import uuid4
-        from datetime import datetime, UTC
-        import hashlib
-        import json
+        logger.info(f"Policy creation by {current_user.get('email')}")
         
         # Validate required fields
-        if not policy_data.get("name"):
-            raise HTTPException(status_code=400, detail="Policy name is required")
+        policy_name = policy_data.get("policy_name") or policy_data.get("name")
+        if not policy_name:
+            raise HTTPException(status_code=400, detail="Policy name required")
         
-        # Create new policy instance
-        new_policy = MCPPolicy(
-            id=uuid4(),
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
-            
-            # Policy Identity
-            policy_name=policy_data.get("name"),
-            policy_description=policy_data.get("description", ""),
-            policy_version="1.0.0",
-            policy_status="draft",
-            
-            # Enterprise Versioning
-            major_version=1,
-            minor_version=0,
-            patch_version=0,
-            
-            # Natural Language Support
-            natural_language_description=policy_data.get("natural_language_rule", policy_data.get("description", "")),
-            
-            # Authorization
-            created_by=current_user.get('email', 'admin'),
-            
-            # Risk and Compliance
-            compliance_framework=policy_data.get("compliance_frameworks", [None])[0] if policy_data.get("compliance_frameworks") else None,
-            
-            # Default settings
-            is_active=True,
-            priority=policy_data.get("priority", 100),
-            requires_approval=True,
-            required_approval_level=1
+        # Create policy as AgentAction record
+        new_policy = AgentAction(
+            agent_id="policy-engine",
+            action_type="governance_policy",
+            description=policy_data.get("description", ""),
+            risk_level=policy_data.get("risk_threshold", "medium"),
+            status="active",
+            extra_data={
+                "policy_name": policy_name,
+                "requires_approval": policy_data.get("requires_approval", False),
+                "created_by": current_user.get("email"),
+                "policy_type": "governance",
+                "compliance_framework": policy_data.get("compliance_framework"),
+                "version": 1
+            }
         )
         
-        # Handle risk thresholds
-        if "risk_thresholds" in policy_data and isinstance(policy_data["risk_thresholds"], dict):
-            risk_thresholds = policy_data["risk_thresholds"]
-            # Use the highest risk threshold as the main risk threshold
-            max_risk = max(
-                risk_thresholds.get("financial", 50),
-                risk_thresholds.get("data", 50),
-                risk_thresholds.get("security", 50),
-                risk_thresholds.get("compliance", 50)
-            )
-            new_policy.risk_threshold = max_risk
-        
-        # Handle authorization boundaries
-        if "authorization_boundaries" in policy_data and isinstance(policy_data["authorization_boundaries"], dict):
-            boundaries = policy_data["authorization_boundaries"]
-            new_policy.namespace_patterns = boundaries.get("capabilities", [])
-            new_policy.resource_patterns = boundaries.get("resources", [])
-        
-        # Handle compliance frameworks
-        if "compliance_frameworks" in policy_data and policy_data["compliance_frameworks"]:
-            new_policy.compliance_framework = policy_data["compliance_frameworks"][0]
-        
-        # Generate version hash
-        policy_content = {
-            "name": new_policy.policy_name,
-            "description": new_policy.policy_description,
-            "natural_language": new_policy.natural_language_description,
-            "risk_threshold": new_policy.risk_threshold,
-            "compliance_framework": new_policy.compliance_framework
-        }
-        policy_hash = hashlib.sha256(json.dumps(policy_content, sort_keys=True).encode()).hexdigest()
-        new_policy.version_hash = policy_hash
-        
-        # Save to database
         db.add(new_policy)
         db.commit()
         db.refresh(new_policy)
         
-        # Create audit trail
-        try:
-            from models import LogAuditTrail
-            audit_entry = LogAuditTrail(
-                user_id=current_user.get("user_id"),
-                user_email=current_user.get("email", "admin"),
-                action="create_policy",
-                resource_type="governance_policy",
-                resource_id=str(new_policy.id),
-                details=f"Policy '{new_policy.policy_name}' created",
-                timestamp=datetime.now(UTC)
-            )
-            db.add(audit_entry)
-            db.commit()
-        except Exception as audit_error:
-            logger.warning(f"Failed to create audit trail for policy creation: {audit_error}")
+        logger.info(f"✅ Policy created: {policy_name} (ID: {new_policy.id})")
         
         return {
             "success": True,
-            "message": "Policy created successfully",
-            "policy": {
-                "id": str(new_policy.id),
-                "name": new_policy.policy_name,
-                "description": new_policy.policy_description,
-                "natural_language_rule": new_policy.natural_language_description,
-                "status": new_policy.policy_status,
-                "version": f"{new_policy.major_version}.{new_policy.minor_version}.{new_policy.patch_version}",
-                "created_at": new_policy.created_at.isoformat(),
-                "created_by": new_policy.created_by,
-                "compliance_framework": new_policy.compliance_framework,
-                "risk_threshold": new_policy.risk_threshold,
-                "is_active": new_policy.is_active
-            }
+            "policy_id": new_policy.id,
+            "policy_name": policy_name,
+            "message": "Policy created successfully"
         }
         
-    except HTTPException:
-        db.rollback()
-        raise
     except Exception as e:
-        db.rollback()
         logger.error(f"Policy creation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Policy creation failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
-# 🏢 ENTERPRISE: Missing Critical Policy Management Endpoints
 
 @router.get("/policies")
-async def get_governance_policies(
+async def get_policies(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    🏢 ENTERPRISE: Get all governance policies
-    Required by frontend Policy Management tab
-    """
+    """Get all governance policies"""
     try:
-        logger.info(f"Fetching governance policies for user {current_user.get('email', 'unknown')}")
-        
-        # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
-        from sqlalchemy import desc
-        
-        # Get policies from database with pagination
-        policies = db.query(MCPPolicy).order_by(desc(MCPPolicy.created_at)).limit(100).all()
-        
-        policy_list = []
-        for policy in policies:
-            policy_dict = {
-                "id": str(policy.id),
-                "name": policy.policy_name,
-                "description": policy.policy_description or policy.natural_language_description,
-                "natural_language_rule": policy.natural_language_description or policy.policy_description,
-                "status": policy.policy_status or "active",
-                "version": f"{policy.major_version}.{policy.minor_version}.{policy.patch_version}",
-                "created_at": policy.created_at.isoformat() if policy.created_at else None,
-                "updated_at": policy.updated_at.isoformat() if policy.updated_at else None,
-                "created_by": policy.created_by,
-                "approved_by": policy.approved_by,
-                "approved_at": policy.approved_at.isoformat() if policy.approved_at else None,
-                "compliance_framework": policy.compliance_framework,
-                "risk_thresholds": {
-                    "financial": policy.risk_threshold or 50,
-                    "data": policy.risk_threshold or 50,
-                    "security": policy.risk_threshold or 50,
-                    "compliance": policy.risk_threshold or 50
-                },
-                "compliance_frameworks": [policy.compliance_framework] if policy.compliance_framework else [],
-                "authorization_boundaries": {
-                    "capabilities": policy.namespace_patterns or [],
-                    "resources": policy.resource_patterns or []
-                },
-                "is_active": policy.is_active,
-                "priority": policy.priority or 100
-            }
-            policy_list.append(policy_dict)
+        policies = db.query(AgentAction).filter(
+            AgentAction.action_type == "governance_policy",
+            AgentAction.status == "active"
+        ).all()
         
         return {
             "success": True,
-            "policies": policy_list,
-            "total_count": len(policy_list),
-            "message": f"Retrieved {len(policy_list)} policies successfully"
+            "policies": [{
+                "id": p.id,
+                "policy_name": p.extra_data.get("policy_name"),
+                "description": p.description,
+                "risk_level": p.risk_level,
+                "requires_approval": p.extra_data.get("requires_approval"),
+                "created_at": p.created_at.isoformat(),
+                "created_by": p.extra_data.get("created_by"),
+                "compliance_framework": p.extra_data.get("compliance_framework")
+            } for p in policies],
+            "total_count": len(policies)
         }
         
     except Exception as e:
-        logger.error(f"Failed to fetch governance policies: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch policies: {str(e)}")
+        logger.error(f"Failed to fetch policies: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/policies/{policy_id}")
 async def update_governance_policy(
