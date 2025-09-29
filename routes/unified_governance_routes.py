@@ -1232,8 +1232,8 @@ async def enforce_policy(
         compiled_policies = []
         for policy in active_policies:
             compiled = policy_compiler.compile(
-                policy.policy_description or policy.natural_language_description, 
-                "high" if policy.risk_threshold >= 70 else "medium" if policy.risk_threshold >= 40 else "low"
+                (policy.policy_description or policy.natural_language_description or ""), 
+                "high" if (policy.risk_threshold or 50) >= 70 else "medium" if (policy.risk_threshold or 50) >= 40 else "low"
             )
             compiled["id"] = policy.id
             compiled_policies.append(compiled)
