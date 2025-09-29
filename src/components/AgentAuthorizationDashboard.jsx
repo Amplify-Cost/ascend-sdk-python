@@ -412,6 +412,43 @@ useEffect(() => {
     }
   };
 
+  const handleDeletePolicy = async (policyId) => {
+    if (!window.confirm("Are you sure you want to delete this policy? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/governance/policies/${policyId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        console.log("✅ Policy deleted successfully");
+        fetchPolicies();
+        alert("Policy deleted successfully");
+      } else {
+        const error = await response.json();
+        alert(`Failed to delete policy: ${error.detail || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("❌ Delete failed:", error);
+      alert("Failed to delete policy. Please try again.");
+    }
+  };
+
+  const handleEditPolicy = (policy) => {
+    setNewPolicy({
+      policy_name: policy.policy_name,
+      description: policy.description
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    alert("Policy loaded into form above. Modify and click Create Policy to update.");
+  };
+
+  const handleViewDetails = (policy) => {
+    const details = `Policy Details:nnName: ${policy.policy_name}nRisk Level: ${policy.risk_level?.toUpperCase()}nDescription: ${policy.description}nnCreated: ${new Date(policy.created_at).toLocaleString()}nCreated By: ${policy.created_by}nLast Updated: ${new Date(policy.updated_at || policy.created_at).toLocaleString()}nStatus: ActivenRequires Approval: ${policy.requires_approval ? "Yes" : "No"}`;
+    alert(details);
+  };
+
   const fetchApprovalMetrics = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
@@ -3181,13 +3218,13 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                       </div>
                     </div>
                     <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex justify-end gap-2">
-                      <button className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 rounded-md transition-colors">
+                      <button onClick={() => handleViewDetails(policy)} className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 rounded-md transition-colors">
                         📊 View Details
                       </button>
-                      <button className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-md transition-colors">
+                      <button onClick={() => handleEditPolicy(policy)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-md transition-colors">
                         ✏️ Edit
                       </button>
-                      <button className="px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 rounded-md transition-colors">
+                      <button onClick={() => handleDeletePolicy(policy.id)} className="px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 rounded-md transition-colors">
                         🗑️ Delete
                       </button>
                     </div>
