@@ -998,7 +998,7 @@ const fetchWorkflowOrchestrations = async () => {
     }
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/authorization/policies/create-from-natural-language`, {
+      const response = await fetch(`${API_BASE_URL}/api/governance/create-policy`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
