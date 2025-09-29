@@ -171,3 +171,21 @@ def list_templates() -> List[Dict[str, Any]]:
             "description": config['description']
         })
     return templates
+
+    def to_natural_language(self) -> str:
+        """Convert structured policy to natural language"""
+        parts = []
+        effect_map = {"DENY": "block", "REQUIRE_APPROVAL": "require approval for", "ALLOW": "allow", "EVALUATE": "evaluate"}
+        parts.append(effect_map.get(self.policy_data['effect'], 'evaluate'))
+        actions_str = ", ".join(self.policy_data['actions'][:3])
+        parts.append(f"{actions_str} actions on")
+        resources_str = ", ".join(self.policy_data['resource_types'][:2])
+        parts.append(resources_str)
+        if 'conditions' in self.policy_data:
+            cond = self.policy_data['conditions']
+            if 'environment' in cond:
+                env = cond['environment'] if isinstance(cond['environment'], str) else ', '.join(cond['environment'])
+                parts.append(f"in {env} environment")
+            if 'min_approvers' in cond:
+                parts.append(f"with {cond['min_approvers']} approvers required")
+        return " ".join(parts)
