@@ -4,7 +4,6 @@ Integrates policy enforcement (preventive) with smart rules (detective)
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime, UTC
-from datetime import datetime, UTC
 from sqlalchemy.orm import Session
 import logging
 
@@ -249,7 +248,7 @@ class SecurityBridge:
         suggest converting it to a preventive policy
         """
         from models import AgentAction
-        from sqlalchemy import func
+        from sqlalchemy import func, and_
         
         # Check frequency of this action pattern
         pattern_count = db.query(func.count(AgentAction.id)).filter(
