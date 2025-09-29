@@ -22,21 +22,41 @@ class PolicyTemplate:
 ENTERPRISE_TEMPLATES = {
     "prevent_public_s3": {
         "name": "Prevent Public S3 Bucket Access",
-        "description": "Block all agent actions that would make S3 buckets publicly accessible",
+        "description": "Block all agent actions that would make S3 buckets publicly accessible. Deny by default in production unless explicitly safe.",
         "resource_types": ["s3:bucket", "s3:object"],
         "actions": ["s3:PutBucketAcl", "s3:PutObjectAcl", "write", "modify"],
         "effect": "DENY",
         "severity": "CRITICAL",
         "conditions": {
-            "all_of": [
+            "any_of": [  # Block if ANY of these dangerous conditions
                 {
-                    "field": "environment",
-                    "operator": "in",
-                    "value": ["production", "staging"],
-                    "required": False  # Works in any environment, but stricter in prod/staging
+                    "all_of": [  # Production write without safety confirmation
+                        {
+                            "field": "environment",
+                            "operator": "in",
+                            "value": ["production", "staging"],
+                            "required": False
+                        },
+                        {
+                            "none_of": [  # NOT explicitly marked as safe
+                                {
+                                    "field": "acl_confirmed_private",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "required": False
+                                },
+                                {
+                                    "field": "security_approved",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "required": False
+                                }
+                            ]
+                        }
+                    ]
                 },
                 {
-                    "any_of": [  # Match ANY of these dangerous ACL patterns
+                    "any_of": [  # OR any of these explicit danger signals
                         {
                             "field": "acl_contains",
                             "operator": "contains",
