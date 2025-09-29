@@ -1323,3 +1323,251 @@ async def pre_execute_check(
         raise HTTPException(status_code=500, detail=str(e))
 
 # Force rebuild Mon Sep 29 10:21:48 EDT 2025
+
+# ============================================================================
+# ENTERPRISE POLICY TEMPLATES & CUSTOM BUILDER ENDPOINTS
+# ============================================================================
+
+from services.enterprise_policy_templates import (
+    get_template, 
+    list_templates, 
+    CustomPolicyBuilder,
+    ENTERPRISE_TEMPLATES
+)
+
+@router.get("/policies/templates")
+async def get_policy_templates(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all available enterprise policy templates (Wiz-style)
+    """
+    try:
+        templates = list_templates()
+        return {
+            "success": True,
+            "templates": templates,
+            "total": len(templates)
+        }
+    except Exception as e:
+        logger.error(f"Failed to load templates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/policies/templates/{template_id}")
+async def get_policy_template_detail(
+    template_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get detailed information about a specific template
+    """
+    try:
+        if template_id not in ENTERPRISE_TEMPLATES:
+            raise HTTPException(status_code=404, detail="Template not found")
+        
+        template_config = ENTERPRISE_TEMPLATES[template_id]
+        return {
+            "success": True,
+            "template_id": template_id,
+            "template": template_config
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to load template: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/policies/from-template")
+async def create_policy_from_template(
+    request_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager_or_admin)
+):
+    """
+    Create a policy from a pre-built template
+    """
+    try:
+        template_id = request_data.get("template_id")
+        customizations = request_data.get("customizations", {})
+        
+        if template_id not in ENTERPRISE_TEMPLATES:
+            raise HTTPException(status_code=404, detail="Template not found")
+        
+        # Get template config
+        template_config = ENTERPRISE_TEMPLATES[template_id].copy()
+        
+        # Apply customizations if provided
+        if customizations:
+            template_config.update(customizations)
+        
+        # Create policy in database
+        new_policy = AgentAction(
+            agent_id="policy-engine",
+            action_type="governance_policy",
+            description=template_config['description'],
+            risk_level=template_config['severity'].lower(),
+            status="active",
+            extra_data={
+                "policy_name": template_config['name'],
+                "template_id": template_id,
+                "resource_types": template_config['resource_types'],
+                "actions": template_config['actions'],
+                "effect": template_config['effect'],
+                "conditions": template_config.get('conditions', {}),
+                "compliance_frameworks": template_config.get('compliance_frameworks', []),
+                "created_by": current_user.get("email"),
+                "policy_type": "enterprise_template",
+                "version": 1
+            }
+        )
+        
+        db.add(new_policy)
+        db.commit()
+        db.refresh(new_policy)
+        
+        logger.info(f"✅ Policy created from template {template_id}: {new_policy.id}")
+        
+        return {
+            "success": True,
+            "policy_id": new_policy.id,
+            "policy_name": template_config['name'],
+            "template_id": template_id,
+            "message": "Enterprise policy created successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create policy from template: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/policies/custom/build")
+async def build_custom_policy(
+    policy_spec: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager_or_admin)
+):
+    """
+    Build a custom policy using the structured builder
+    Customers can create policies beyond the template library
+    """
+    try:
+        builder = CustomPolicyBuilder()
+        
+        # Set basic info
+        builder.set_basic_info(
+            name=policy_spec.get("name"),
+            description=policy_spec.get("description"),
+            severity=policy_spec.get("severity", "MEDIUM")
+        )
+        
+        # Set resources and actions
+        builder.set_resources(policy_spec.get("resource_types", []))
+        builder.set_actions(policy_spec.get("actions", []))
+        builder.set_effect(policy_spec.get("effect", "EVALUATE"))
+        
+        # Add optional conditions
+        if "environment" in policy_spec:
+            builder.add_environment_restriction(policy_spec["environment"])
+        
+        if "time_restriction" in policy_spec:
+            tr = policy_spec["time_restriction"]
+            builder.add_time_restriction(
+                tr.get("start_time"),
+                tr.get("end_time"),
+                tr.get("days")
+            )
+        
+        if "approval_requirements" in policy_spec:
+            ar = policy_spec["approval_requirements"]
+            builder.add_approval_requirements(
+                min_approvers=ar.get("min_approvers", 1),
+                approval_roles=ar.get("approval_roles")
+            )
+        
+        if "rate_limit" in policy_spec:
+            rl = policy_spec["rate_limit"]
+            builder.add_rate_limit(
+                max_per_hour=rl.get("max_per_hour", 100),
+                max_concurrent=rl.get("max_concurrent", 5)
+            )
+        
+        if "data_thresholds" in policy_spec:
+            dt = policy_spec["data_thresholds"]
+            builder.add_data_thresholds(
+                max_records=dt.get("max_records"),
+                max_size_mb=dt.get("max_size_mb")
+            )
+        
+        if "compliance_frameworks" in policy_spec:
+            builder.add_compliance_tags(policy_spec["compliance_frameworks"])
+        
+        # Build and validate
+        policy_data = builder.build()
+        natural_language = builder.to_natural_language()
+        
+        # Create policy in database
+        new_policy = AgentAction(
+            agent_id="policy-engine",
+            action_type="governance_policy",
+            description=natural_language,
+            risk_level=policy_data['severity'].lower(),
+            status="active",
+            extra_data={
+                "policy_name": policy_data['name'],
+                "resource_types": policy_data['resource_types'],
+                "actions": policy_data['actions'],
+                "effect": policy_data['effect'],
+                "conditions": policy_data.get('conditions', {}),
+                "compliance_frameworks": policy_data.get('compliance_frameworks', []),
+                "created_by": current_user.get("email"),
+                "policy_type": "custom",
+                "structured_policy": policy_data,
+                "version": 1
+            }
+        )
+        
+        db.add(new_policy)
+        db.commit()
+        db.refresh(new_policy)
+        
+        logger.info(f"✅ Custom policy created: {policy_data['name']} (ID: {new_policy.id})")
+        
+        return {
+            "success": True,
+            "policy_id": new_policy.id,
+            "policy_name": policy_data['name'],
+            "natural_language": natural_language,
+            "structured_policy": policy_data,
+            "message": "Custom policy created successfully"
+        }
+        
+    except ValueError as e:
+        logger.error(f"Policy validation failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to create custom policy: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/policies/resources/types")
+async def get_resource_types(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get valid resource types for custom policies"""
+    return {
+        "success": True,
+        "resource_types": CustomPolicyBuilder.VALID_RESOURCE_TYPES
+    }
+
+@router.get("/policies/actions/types")
+async def get_action_types(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get valid action types for custom policies"""
+    return {
+        "success": True,
+        "actions": CustomPolicyBuilder.VALID_ACTIONS
+    }
+
