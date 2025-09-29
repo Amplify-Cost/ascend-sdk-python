@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
 from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
+from models_mcp_governance import GovernancePolicy
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
@@ -1228,7 +1229,6 @@ async def enforce_policy(
         import time
         start = time.time()
         
-        # Load active policies from database
         from models_mcp_governance import GovernancePolicy
         active_policies = db.query(GovernancePolicy).filter(
             GovernancePolicy.status == "active"
