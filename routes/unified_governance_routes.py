@@ -1224,16 +1224,16 @@ async def enforce_policy(
         import time
         start = time.time()
         
-        active_policies = db.query(MCPPolicy).filter(
-            MCPPolicy.is_active == True
+        active_policies = db.query(AgentAction).filter(
+            and_(AgentAction.action_type == "governance_policy", AgentAction.status == "active")
         ).all()
         
         # Compile and load into engine
         compiled_policies = []
         for policy in active_policies:
             compiled = policy_compiler.compile(
-                (policy.policy_description or policy.natural_language_description or ""), 
-                "high" if (policy.risk_threshold or 50) >= 70 else "medium" if (policy.risk_threshold or 50) >= 40 else "low"
+                (policy.description or ""), 
+                policy.risk_level or "medium"
             )
             compiled["id"] = policy.id
             compiled_policies.append(compiled)
