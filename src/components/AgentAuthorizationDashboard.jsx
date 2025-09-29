@@ -3113,9 +3113,13 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">Ready</div>
+                <div className="text-sm text-gray-600">Deployment</div>
+              </div>
+            </div>
+          </div>
 
-          {/* Enterprise Policy Display */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 mt-6 border border-blue-200">
+          {/* Enterprise Policy Display - Separate Section */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 border border-blue-200">
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-2xl font-bold text-gray-900">Active Policies</h3>
@@ -3134,7 +3138,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             ) : (
               <div className="space-y-4">
                 {policies.map((policy) => (
-                  <div key={policy.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-xl transition-all duration-200 overflow-hidden">
+                  <div key={policy.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-xl transition-all duration-200">
                     <div className="p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
@@ -3192,7 +3196,8 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               </div>
             )}
           </div>
-                <div className="text-sm text-gray-600">Deployment</div>
+        </div>
+      )}
               </div>
             </div>
           </div>
