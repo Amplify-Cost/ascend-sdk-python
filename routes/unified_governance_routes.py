@@ -1,12 +1,11 @@
 # routes/unified_governance_routes.py
-from sqlalchemy.orm import attributes
 from services.security_bridge_service import security_bridge
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, attributes
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
 from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
@@ -1747,9 +1746,6 @@ async def migrate_policy_to_dsl(
         policy.extra_data['template_used'] = template_key
         
         # Mark as modified
-        from sqlalchemy import column
-        from sqlalchemy.orm import attributes
-        attributes.flag_modified(policy, "extra_data")
         
         db.commit()
         db.refresh(policy)
