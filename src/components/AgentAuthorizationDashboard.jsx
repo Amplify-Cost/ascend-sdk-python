@@ -10,6 +10,7 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [activeTab, setActiveTab] = useState("pending");
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [emergencyJustification, setEmergencyJustification] = useState("");
+  const [policies, setPolicies] = useState([]);
   const [compatibilityApplied, setCompatibilityApplied] = useState(false);
   const [newWorkflow, setNewWorkflow] = useState({
   name: '',
@@ -71,6 +72,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
     }
 
     // 🚀 NEW: Fetch execution data when on execution tab
+    if (activeTab === "policies") { fetchPolicies(); }
+
     if (activeTab === "execution") {
       fetchExecutionHistory();
     }
@@ -94,10 +97,12 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       }
 
       // 🚀 NEW: Update execution data in real-time
+    if (activeTab === "policies") { fetchPolicies(); }
+
       if (activeTab === "execution") {
         fetchExecutionHistory();
       }
-    }, 15000); // Reduced from 30 seconds to 15 seconds
+    }, 60000); // Changed to 60 seconds to prevent UI flashing
         
     return () => clearInterval(interval);
   }, [activeTab]);
@@ -389,6 +394,21 @@ useEffect(() => {
       }
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
+    }
+  };
+
+  const fetchPolicies = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/governance/policies`, {
+        headers: getAuthHeaders()
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPolicies(data.policies || []);
+        console.log("✅ Policies loaded:", data.policies?.length || 0);
+      }
+    } catch (error) {
+      console.error("❌ Failed to fetch policies:", error);
     }
   };
 
@@ -3093,6 +3113,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-orange-600">Ready</div>
+          <div className="bg-white rounded-lg shadow p-6 mt-6"><h3 className="text-lg font-semibold mb-4">Active Policies ({policies.length})</h3>{policies.length === 0 ? <p className="text-gray-500 text-center py-8">No policies yet</p> : <div className="space-y-4">{policies.map(p => <div key={p.id} className="border rounded p-4"><h4 className="font-semibold">{p.policy_name}</h4><p className="text-sm text-gray-600">{p.description}</p><div className="flex gap-3 mt-2 text-xs"><span className={p.risk_level === "high" ? "bg-red-100 text-red-800 px-2 py-1 rounded" : "bg-green-100 text-green-800 px-2 py-1 rounded"}>{p.risk_level?.toUpperCase()}</span><span>By: {p.created_by}</span></div></div>)}</div>}</div>
                 <div className="text-sm text-gray-600">Deployment</div>
               </div>
             </div>
