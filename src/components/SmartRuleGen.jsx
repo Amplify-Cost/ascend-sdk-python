@@ -51,21 +51,27 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
   const fetchRules = async () => {
     try {
+      console.log("🔍 ENTERPRISE: Fetching smart rules from:", `${API_BASE_URL}/api/smart-rules`);
       const response = await fetch(`${API_BASE_URL}/api/smart-rules`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
+      console.log("📡 ENTERPRISE: Rules API response status:", response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log("✅ ENTERPRISE: Rules fetched successfully:", data.length, "rules");
+        console.log("📋 ENTERPRISE: First rule:", data[0]);
         setRules(data);
         setError(null);
       } else {
-        console.error("Failed to fetch rules:", response.status);
-        setRules([]); // ENTERPRISE: No demo data
+        const errorText = await response.text();
+        console.error("❌ ENTERPRISE: Failed to fetch rules:", response.status, errorText);
+        setRules([]);
         setError("Failed to fetch rules from server");
       }
     } catch (err) {
-      console.error("Error fetching rules:", err);
-      setRules([]); // ENTERPRISE: No demo data
+      console.error("❌ ENTERPRISE: Network error fetching rules:", err);
+      setRules([]);
       setError("Network error fetching rules");
     }
   };
