@@ -1,4 +1,5 @@
 # routes/unified_governance_routes.py
+from sqlalchemy.orm import attributes
 from services.security_bridge_service import security_bridge
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
@@ -1677,3 +1678,174 @@ async def handle_smart_rule_trigger(
         logger.error(f"Failed to handle smart rule trigger: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============================================================================
+# POLICY MIGRATION - Upgrade Legacy to DSL Format
+# ============================================================================
+
+@router.post("/policies/{policy_id}/migrate-to-dsl")
+async def migrate_policy_to_dsl(
+    policy_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Migrate a legacy policy to new DSL format
+    
+    Enterprise use case: When templates are updated, existing policies need migration
+    """
+    try:
+        # Get the policy
+        policy = db.query(AgentAction).filter(
+            and_(
+                AgentAction.id == policy_id,
+                AgentAction.action_type == "governance_policy"
+            )
+        ).first()
+        
+        if not policy:
+            raise HTTPException(status_code=404, detail=f"Policy {policy_id} not found")
+        
+        # Check if already DSL format
+        if policy.extra_data and isinstance(policy.extra_data, dict):
+            conditions = policy.extra_data.get('conditions', {})
+            if isinstance(conditions, dict) and any(k in conditions for k in ["all_of", "any_of", "none_of", "field", "operator"]):
+                return {
+                    "success": True,
+                    "message": f"Policy {policy_id} already in DSL format",
+                    "policy_id": policy_id
+                }
+        
+        # Find matching template based on policy description
+        template_key = None
+        from services.enterprise_policy_templates import ENTERPRISE_TEMPLATES
+        
+        for key, template in ENTERPRISE_TEMPLATES.items():
+            if template['name'] in policy.description or template['description'] in policy.description:
+                template_key = key
+                break
+        
+        if not template_key:
+            raise HTTPException(
+                status_code=400, 
+                detail="Could not find matching template for migration. Please specify template manually."
+            )
+        
+        # Get the new template
+        new_template = ENTERPRISE_TEMPLATES[template_key]
+        
+        # Update policy with new DSL conditions
+        if not policy.extra_data:
+            policy.extra_data = {}
+        
+        policy.extra_data['conditions'] = new_template['conditions']
+        policy.extra_data['resource_types'] = new_template['resource_types']
+        policy.extra_data['actions'] = new_template['actions']
+        policy.extra_data['effect'] = new_template['effect']
+        policy.extra_data['migrated_to_dsl'] = True
+        policy.extra_data['migration_date'] = datetime.utcnow().isoformat()
+        policy.extra_data['template_used'] = template_key
+        
+        # Mark as modified
+        from sqlalchemy import column
+        from sqlalchemy.orm import attributes
+        attributes.flag_modified(policy, "extra_data")
+        
+        db.commit()
+        db.refresh(policy)
+        
+        logger.info(f"✅ Migrated policy {policy_id} to DSL format using template '{template_key}'")
+        
+        return {
+            "success": True,
+            "message": f"Policy {policy_id} migrated to DSL format",
+            "policy_id": policy_id,
+            "template_used": template_key,
+            "new_conditions": new_template['conditions']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to migrate policy {policy_id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/policies/migrate-all-to-dsl")
+async def migrate_all_policies_to_dsl(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Migrate all legacy policies to DSL format
+    
+    Enterprise batch migration for production deployments
+    """
+    try:
+        # Get all governance policies
+        policies = db.query(AgentAction).filter(
+            AgentAction.action_type == "governance_policy"
+        ).all()
+        
+        migrated = []
+        already_dsl = []
+        failed = []
+        
+        from services.enterprise_policy_templates import ENTERPRISE_TEMPLATES
+        
+        for policy in policies:
+            try:
+                # Check if already DSL
+                if policy.extra_data and isinstance(policy.extra_data, dict):
+                    conditions = policy.extra_data.get('conditions', {})
+                    if isinstance(conditions, dict) and any(k in conditions for k in ["all_of", "any_of", "none_of"]):
+                        already_dsl.append(policy.id)
+                        continue
+                
+                # Find matching template
+                template_key = None
+                for key, template in ENTERPRISE_TEMPLATES.items():
+                    if template['name'] in policy.description:
+                        template_key = key
+                        break
+                
+                if template_key:
+                    new_template = ENTERPRISE_TEMPLATES[template_key]
+                    
+                    if not policy.extra_data:
+                        policy.extra_data = {}
+                    
+                    policy.extra_data['conditions'] = new_template['conditions']
+                    policy.extra_data['resource_types'] = new_template['resource_types']
+                    policy.extra_data['actions'] = new_template['actions']
+                    policy.extra_data['effect'] = new_template['effect']
+                    policy.extra_data['migrated_to_dsl'] = True
+                    policy.extra_data['migration_date'] = datetime.utcnow().isoformat()
+                    
+                    attributes.flag_modified(policy, "extra_data")
+                    migrated.append({"id": policy.id, "template": template_key})
+                else:
+                    failed.append({"id": policy.id, "reason": "No matching template found"})
+                    
+            except Exception as e:
+                failed.append({"id": policy.id, "reason": str(e)})
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "total_policies": len(policies),
+            "migrated": len(migrated),
+            "already_dsl": len(already_dsl),
+            "failed": len(failed),
+            "details": {
+                "migrated": migrated,
+                "already_dsl": already_dsl,
+                "failed": failed
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Batch migration failed: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
