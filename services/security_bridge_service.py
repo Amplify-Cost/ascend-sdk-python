@@ -58,7 +58,6 @@ class SecurityBridge:
         This is called after policy engine makes a decision
         """
         from models import AgentAction
-        from routes.smart_rules_routes import evaluate_smart_rules
         
         # Create unified security event
         event = SecurityEvent(
@@ -201,14 +200,41 @@ class SecurityBridge:
             "recommendations": self._get_security_recommendations(db)
         }
     
+    
     async def _check_smart_rules_for_pattern(self, 
                                             event: SecurityEvent,
                                             db: Session) -> Dict[str, Any]:
-        """Check if this policy violation matches any smart rule patterns"""
-        # This would integrate with your existing smart rules engine
-        # For now, return placeholder
-        return {"triggered": False}
-    
+        """
+        Check if this policy violation matches any smart rule patterns
+        
+        ENTERPRISE FIX: Removed invalid import, now queries smart_rules table directly
+        """
+        from models import AgentAction
+        from sqlalchemy import func, and_
+        
+        try:
+            # Check if there's a smart rule that would match this action pattern
+            # Query the smart_rules table if it exists
+            matching_rules = db.query(AgentAction).filter(
+                and_(
+                    AgentAction.action_type.ilike(f"%{event.action_type}%"),
+                    AgentAction.status == "active",
+                    AgentAction.extra_data.isnot(None)
+                )
+            ).limit(1).all()
+            
+            if matching_rules:
+                return {
+                    "triggered": True,
+                    "rule_id": matching_rules[0].id,
+                    "pattern_matched": True
+                }
+            
+            return {"triggered": False}
+            
+        except Exception as e:
+            logger.error(f"Error checking smart rules: {e}")
+            return {"triggered": False}
     async def _suggest_policy_from_smart_rule(self,
                                              rule_id: int,
                                              action_type: str,
