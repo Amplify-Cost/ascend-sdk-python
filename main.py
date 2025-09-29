@@ -3591,3 +3591,4 @@ async def get_enterprise_auth_metrics(
     except Exception as e:
         logger.error(f"Enterprise auth metrics error: {e}")
         raise HTTPException(status_code=500, detail="Enterprise metrics unavailable")
+# Deployment 1759160003
