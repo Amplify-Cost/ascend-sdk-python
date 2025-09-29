@@ -18,6 +18,7 @@ class PolicyTemplate:
         self.compliance_frameworks = config.get('compliance_frameworks', [])
 
 # Enterprise Policy Library - Pre-built templates
+# Enterprise Policy Library - Updated with DSL conditions
 ENTERPRISE_TEMPLATES = {
     "prevent_public_s3": {
         "name": "Prevent Public S3 Bucket Access",
@@ -27,55 +28,248 @@ ENTERPRISE_TEMPLATES = {
         "effect": "DENY",
         "severity": "CRITICAL",
         "conditions": {
-            "acl_contains": ["public-read", "public-read-write"],
-            "environment": ["production", "staging"]
+            "all_of": [
+                {
+                    "field": "environment",
+                    "operator": "in",
+                    "value": ["production", "staging"],
+                    "required": False  # Works in any environment, but stricter in prod/staging
+                },
+                {
+                    "any_of": [  # Match ANY of these dangerous ACL patterns
+                        {
+                            "field": "acl_contains",
+                            "operator": "contains",
+                            "value": "public-read",
+                            "required": False
+                        },
+                        {
+                            "field": "acl_contains",
+                            "operator": "contains",
+                            "value": "public-write",
+                            "required": False
+                        },
+                        {
+                            "field": "permissions",
+                            "operator": "contains",
+                            "value": "AllUsers",
+                            "required": False
+                        }
+                    ]
+                }
+            ]
         },
-        "compliance_frameworks": ["SOC2", "GDPR", "HIPAA"],
-        "rationale": "Public buckets expose sensitive data and violate compliance requirements"
+        "compliance_frameworks": ["SOC2", "GDPR", "HIPAA"]
     },
     
-    "production_db_protection": {
-        "name": "Production Database Modification Control",
-        "description": "Require manager approval for any production database modifications",
-        "resource_types": ["database:production:*", "rds:*"],
-        "actions": ["delete", "modify", "drop", "truncate", "alter"],
-        "effect": "REQUIRE_APPROVAL",
-        "severity": "HIGH",
-        "conditions": {
-            "environment": "production",
-            "min_approvers": 2
-        },
-        "compliance_frameworks": ["SOC2", "ISO27001"],
-        "rationale": "Production data changes require oversight to prevent data loss"
-    },
-    
-    "mcp_server_pii_access": {
-        "name": "MCP Server PII Access Control",
-        "description": "Control AI agent access to PII through MCP servers",
-        "resource_types": ["mcp:server:*", "pii:*"],
-        "actions": ["read", "query", "export", "access"],
-        "effect": "REQUIRE_APPROVAL",
-        "severity": "HIGH",
-        "conditions": {
-            "data_classification": "PII",
-            "requires_audit_log": True
-        },
-        "compliance_frameworks": ["GDPR", "CCPA", "HIPAA"],
-        "rationale": "PII access must be logged and approved per privacy regulations"
-    },
-    
-    "financial_transaction_block": {
-        "name": "AI Agent Financial Transaction Prevention",
-        "description": "Completely block AI agents from initiating financial transactions",
-        "resource_types": ["payment:*", "financial:*", "transaction:*"],
-        "actions": ["create", "execute", "approve", "transfer"],
+    "database_protection": {
+        "name": "Database Deletion Protection",
+        "description": "Prevent destructive database operations on production databases",
+        "resource_types": ["database:*", "rds:*", "dynamodb:*"],
+        "actions": ["DROP", "TRUNCATE", "DELETE", "database:delete"],
         "effect": "DENY",
         "severity": "CRITICAL",
         "conditions": {
-            "agent_initiated": True
+            "any_of": [
+                {
+                    "field": "environment",
+                    "operator": "equals",
+                    "value": "production",
+                    "required": True  # Must know environment
+                },
+                {
+                    "field": "database_name",
+                    "operator": "contains",
+                    "value": "prod",
+                    "required": False
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "row_count",
+                            "operator": "greater_than",
+                            "value": 1000,
+                            "required": False
+                        },
+                        {
+                            "field": "has_backup",
+                            "operator": "equals",
+                            "value": False,
+                            "required": False
+                        }
+                    ]
+                }
+            ]
         },
-        "compliance_frameworks": ["PCI-DSS", "SOC2"],
-        "rationale": "Financial transactions must always have human authorization"
+        "compliance_frameworks": ["SOC2", "ISO27001"]
+    },
+    
+    "cross_region_transfer": {
+        "name": "Cross-Region Data Transfer Control",
+        "description": "Require approval for data transfers outside approved regions",
+        "resource_types": ["s3:bucket", "database:*", "data:*"],
+        "actions": ["transfer", "replicate", "copy", "sync"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "HIGH",
+        "conditions": {
+            "all_of": [
+                {
+                    "field": "source_region",
+                    "operator": "in",
+                    "value": ["us-east-1", "us-west-2", "eu-west-1"],
+                    "required": True
+                },
+                {
+                    "field": "destination_region",
+                    "operator": "not_in",
+                    "value": ["us-east-1", "us-west-2", "eu-west-1"],
+                    "required": True
+                },
+                {
+                    "any_of": [
+                        {
+                            "field": "data_classification",
+                            "operator": "in",
+                            "value": ["confidential", "restricted"],
+                            "required": False
+                        },
+                        {
+                            "field": "contains_pii",
+                            "operator": "equals",
+                            "value": True,
+                            "required": False
+                        },
+                        {
+                            "field": "data_size_gb",
+                            "operator": "greater_than",
+                            "value": 100,
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["GDPR", "CCPA"]
+    },
+    
+    "credential_access": {
+        "name": "Credential and Secret Access Control",
+        "description": "Require approval for accessing credentials, API keys, and secrets",
+        "resource_types": ["secrets:*", "credentials:*", "keys:*"],
+        "actions": ["read", "access", "retrieve", "decrypt"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "HIGH",
+        "conditions": {
+            "any_of": [
+                {
+                    "field": "secret_type",
+                    "operator": "in",
+                    "value": ["api_key", "database_password", "private_key", "oauth_token"],
+                    "required": False
+                },
+                {
+                    "field": "resource_name",
+                    "operator": "regex",
+                    "value": ".*(password|secret|key|token).*",
+                    "required": False
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "environment",
+                            "operator": "equals",
+                            "value": "production",
+                            "required": False
+                        },
+                        {
+                            "field": "access_count_today",
+                            "operator": "greater_than",
+                            "value": 5,
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["SOC2", "ISO27001", "PCI-DSS"]
+    },
+    
+    "api_rate_limiting": {
+        "name": "API Rate Limiting Protection",
+        "description": "Prevent API abuse by limiting high-frequency requests",
+        "resource_types": ["api:*", "endpoint:*"],
+        "actions": ["call", "request", "invoke"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "MEDIUM",
+        "conditions": {
+            "any_of": [
+                {
+                    "field": "requests_per_minute",
+                    "operator": "greater_than",
+                    "value": 100,
+                    "required": False
+                },
+                {
+                    "field": "requests_per_hour",
+                    "operator": "greater_than",
+                    "value": 1000,
+                    "required": False
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "cost_per_request",
+                            "operator": "greater_than",
+                            "value": 0.01,
+                            "required": False
+                        },
+                        {
+                            "field": "total_requests",
+                            "operator": "greater_than",
+                            "value": 10000,
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["SOC2"]
+    },
+    
+    "financial_transaction": {
+        "name": "Financial Transaction Control",
+        "description": "Require approval for high-value financial transactions",
+        "resource_types": ["payment:*", "transaction:*", "financial:*"],
+        "actions": ["transfer", "payment", "charge", "refund"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "CRITICAL",
+        "conditions": {
+            "any_of": [
+                {
+                    "field": "amount",
+                    "operator": "greater_than",
+                    "value": 1000,
+                    "required": True  # Must know amount
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "environment",
+                            "operator": "not_equals",
+                            "value": "sandbox",
+                            "required": True
+                        },
+                        {
+                            "field": "currency",
+                            "operator": "not_in",
+                            "value": ["USD", "EUR", "GBP"],
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["PCI-DSS", "SOX", "SOC2"]
     }
 }
 

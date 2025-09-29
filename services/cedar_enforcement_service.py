@@ -3,6 +3,7 @@ Enterprise Policy Enforcement using Cedar-like structured rules
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from services.condition_engine import condition_engine
 import json
 import re
 from services.action_taxonomy import actions_match, resource_matches
@@ -152,26 +153,26 @@ class EnforcementEngine:
         self.evaluation_cache[cache_key] = result
         return result
         
+# Add import at the top (after existing imports)
+
     def _matches_policy(self, 
                        policy: CedarStylePolicy,
                        principal: str,
                        action: str,
                        resource: str,
                        context: Dict) -> bool:
-        """Check if action matches policy conditions - ENTERPRISE VERSION"""
+        """
+        Check if action matches policy conditions - ENTERPRISE VERSION with DSL
         
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        logger.info(f"🔍 Checking policy {policy.id}: effect={policy.effect}")
-        logger.info(f"   Policy actions: {policy.actions}")
-        logger.info(f"   Policy resources: {policy.resources}")
-        logger.info(f"   Actual action: {action}")
-        logger.info(f"   Actual resource: {resource}")
+        Now supports:
+        - Rich operators (in, contains, regex, numeric comparisons)
+        - Boolean logic (all_of, any_of, none_of)
+        - Required vs optional fields
+        - Backwards compatibility with simple conditions
+        """
         
         # Match principal
         if policy.principal != "ai_agent:*" and policy.principal != principal:
-            logger.info(f"   ❌ Principal mismatch")
             return False
             
         # Match action using semantic taxonomy
@@ -179,10 +180,8 @@ class EnforcementEngine:
         for policy_action in policy.actions:
             if actions_match(policy_action, action):
                 action_matches_found = True
-                logger.info(f"   ✅ Action matched: {policy_action}")
                 break
         if not action_matches_found:
-            logger.info(f"   ❌ No action match")
             return False
             
         # Match resource using hierarchy
@@ -190,26 +189,52 @@ class EnforcementEngine:
         for policy_resource in policy.resources:
             if resource_matches(policy_resource, resource):
                 resource_matches_found = True
-                logger.info(f"   ✅ Resource matched: {policy_resource}")
                 break
         if not resource_matches_found:
-            logger.info(f"   ❌ No resource match")
             return False
             
-        # Match conditions
-        for condition_key, condition_value in policy.conditions.items():
+        # Match conditions using enterprise condition engine
+        if not policy.conditions:
+            return True  # No conditions = always match
+        
+        # Check if conditions use new DSL format or legacy format
+        if self._is_legacy_conditions(policy.conditions):
+            # Legacy format: simple key-value matching
+            return self._match_legacy_conditions(policy.conditions, context)
+        else:
+            # New DSL format: use condition engine
+            return condition_engine.evaluate(policy.conditions, context)
+    
+    def _is_legacy_conditions(self, conditions: Dict) -> bool:
+        """Check if conditions use legacy simple format"""
+        if not isinstance(conditions, dict):
+            return True
+        
+        # If has DSL keywords, it's not legacy
+        if any(key in conditions for key in ["all_of", "any_of", "none_of", "field", "operator"]):
+            return False
+        
+        return True
+    
+    def _match_legacy_conditions(self, conditions: Dict, context: Dict) -> bool:
+        """
+        Match legacy simple conditions (backwards compatibility)
+        
+        Format: {"environment": "production", "acl_contains": "public-read"}
+        All conditions must match (AND logic)
+        """
+        for condition_key, condition_value in conditions.items():
             context_val = context.get(condition_key)
-            # Handle list conditions
+            
+            # Handle list conditions (OR logic for legacy compatibility)
             if isinstance(condition_value, list):
                 if context_val not in condition_value:
-                    logger.info(f"   ❌ Condition mismatch: {condition_key}")
                     return False
             else:
                 if context_val != condition_value:
-                    logger.info(f"   ❌ Condition mismatch: {condition_key}")
                     return False
-        
-        logger.info(f"   ✅✅✅ POLICY MATCHED - Effect: {policy.effect}")
+                    
+        return True
         return True
     def get_stats(self) -> Dict[str, Any]:
         """Get engine performance statistics"""
