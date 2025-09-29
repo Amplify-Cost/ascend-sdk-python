@@ -1638,7 +1638,7 @@ async def get_unified_security_posture(
         
         return {
             "success": True,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             "user": current_user.get("username", "unknown"),
             **posture
         }
