@@ -103,6 +103,59 @@ def resource_matches(policy_resource: str, actual_resource: str) -> bool:
     if policy_normalized == actual_normalized:
         return True
     
+    # FIXED: Check if policy resource type matches actual resource prefix
+    # s3:bucket should match s3://anything
+    # database:production:* should match database:production:users
+    
+    # Extract resource type from policy (e.g., "s3:bucket" -> "s3")
+    if ":" in policy_normalized:
+        policy_type = policy_normalized.split(":")[0]
+        # Check if actual resource starts with this type
+        if actual_normalized.startswith(policy_type):
+            # Now check the pattern more specifically
+            if policy_normalized.endswith("*"):
+                # Wildcard pattern like s3:* or database:*
+                prefix = policy_normalized[:-1]
+                if actual_normalized.startswith(prefix.rstrip(":")):
+                    return True
+            elif policy_type in actual_normalized:
+                # Type match: s3:bucket matches s3://bucket-name
+                return True
+    
+    # Pattern matching with wildcards
+    import re
+    pattern = policy_normalized.replace("*", ".*").replace(":", r"\:?")
+    pattern = f"^{pattern}"
+    
+    try:
+        if re.match(pattern, actual_normalized, re.IGNORECASE):
+            return True
+    except re.error:
+        pass
+    
+    # Prefix matching for paths
+    if policy_normalized.endswith("*"):
+        prefix = policy_normalized[:-1]
+        if actual_normalized.startswith(prefix):
+            return True
+    
+    return False
+def resource_matches(policy_resource: str, actual_resource: str) -> bool:
+    """
+    Check if policy resource pattern matches actual resource
+    Handles wildcards and hierarchy properly
+    """
+    policy_normalized = normalize_resource(policy_resource)
+    actual_normalized = normalize_resource(actual_resource)
+    
+    # Wildcard match
+    if policy_normalized == "*":
+        return True
+    
+    # Direct match
+    if policy_normalized == actual_normalized:
+        return True
+    
     # Pattern matching with wildcards
     import re
     pattern = policy_normalized.replace("*", ".*").replace(":", r"\:")
