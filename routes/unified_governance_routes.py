@@ -1231,13 +1231,42 @@ async def enforce_policy(
         # Compile and load into engine
         compiled_policies = []
         for policy in active_policies:
+            # Check if policy has structured data (from templates/custom builder)
+            if policy.extra_data and isinstance(policy.extra_data, dict):
+                structured = policy.extra_data.get('structured_policy')
+                if structured:
+                    # Use structured policy directly - no compilation needed
+                    compiled = {
+                        "id": policy.id,
+                        "effect": structured['effect'].lower(),
+                        "actions": structured['actions'],
+                        "resources": structured['resource_types'],
+                        "conditions": structured.get('conditions', {}),
+                        "natural_language": policy.description
+                    }
+                    compiled_policies.append(compiled)
+                    continue
+                
+                # Check for template-based policy
+                if 'resource_types' in policy.extra_data:
+                    compiled = {
+                        "id": policy.id,
+                        "effect": policy.extra_data.get('effect', 'deny').lower(),
+                        "actions": policy.extra_data.get('actions', []),
+                        "resources": policy.extra_data.get('resource_types', []),
+                        "conditions": policy.extra_data.get('conditions', {}),
+                        "natural_language": policy.description
+                    }
+                    compiled_policies.append(compiled)
+                    continue
+            
+            # Fallback: text-based policy using compiler
             compiled = policy_compiler.compile(
                 (policy.description or ""), 
                 policy.risk_level or "medium"
             )
             compiled["id"] = policy.id
             compiled_policies.append(compiled)
-            
         enforcement_engine.load_policies(compiled_policies)
         
         # Evaluate action
