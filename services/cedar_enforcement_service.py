@@ -54,7 +54,7 @@ class PolicyCompiler:
         resources = []
         resource_map = {
             "database:production:*": ["production database", "prod db", "production data"],
-            "s3:*": ["s3", "s3 bucket", "storage bucket"],
+            "s3://*": ["s3", "s3 bucket", "storage bucket"],
             "database:*": ["database", "db"],
             "financial:*": ["financial", "payment", "transaction", "money"],
             "pii:*": ["pii", "personal data", "user data", "customer data"]
