@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
 from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
-from models_mcp_governance import GovernancePolicy
+from models_mcp_governance import MCPPolicy
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
@@ -558,7 +558,6 @@ async def update_governance_policy(
         logger.info(f"Updating policy {policy_id} by user {current_user.get('email', 'unknown')}")
         
         # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
         from uuid import UUID
         from datetime import datetime, UTC
         
@@ -639,7 +638,6 @@ async def delete_governance_policy(
         logger.info(f"Deleting policy {policy_id} by admin user {current_user.get('email', 'unknown')}")
         
         # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
         from uuid import UUID
         
         # Find the policy
@@ -794,7 +792,6 @@ async def get_policy_engine_metrics(
         logger.info(f"Policy engine metrics requested by {current_user.get('email', 'unknown')}")
         
         # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
         
         # Get actual policy count
         active_policies = db.query(MCPPolicy).filter(MCPPolicy.is_active == True).count()
@@ -892,7 +889,6 @@ async def deploy_policy(
         logger.info(f"Policy deployment requested for {policy_id} by {current_user.get('email', 'unknown')}")
         
         # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
         from uuid import UUID
         from datetime import datetime, UTC
         
@@ -954,7 +950,6 @@ async def evaluate_action_with_policies(
         logger.info(f"Action policy evaluation requested by {current_user.get('email', 'unknown')}")
         
         # Import here to avoid circular imports
-        from models_mcp_governance import MCPPolicy
         import time
         
         start_time = time.time()
@@ -1229,9 +1224,8 @@ async def enforce_policy(
         import time
         start = time.time()
         
-        from models_mcp_governance import GovernancePolicy
-        active_policies = db.query(GovernancePolicy).filter(
-            GovernancePolicy.status == "active"
+        active_policies = db.query(MCPPolicy).filter(
+            MCPPolicy.status == "active"
         ).all()
         
         # Compile and load into engine
