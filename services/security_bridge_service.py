@@ -158,13 +158,13 @@ class SecurityBridge:
             func.count(AgentAction.id).filter(
                 and_(
                     AgentAction.extra_data.isnot(None),
-                    AgentAction.extra_data['policy_type'].astext == 'governance_policy'
+                    AgentAction.action_type == 'governance_policy'
                 )
             ).label('total_policies'),
             func.count(AgentAction.id).filter(
                 and_(
                     AgentAction.status == 'denied',
-                    AgentAction.extra_data['blocked_by_policy'].astext.isnot(None)
+                    AgentAction.status == 'denied'
                 )
             ).label('actions_blocked_by_policy')
         ).first()
@@ -172,7 +172,7 @@ class SecurityBridge:
         # Smart rules metrics (detective)
         smart_rule_stats = db.query(
             func.count(AgentAction.id).filter(
-                AgentAction.extra_data['smart_rule_triggered'].astext == 'true'
+                AgentAction.extra_data.isnot(None)
             ).label('smart_rule_triggers')
         ).first()
         
@@ -254,7 +254,7 @@ class SecurityBridge:
         pattern_count = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.action_type == action_type,
-                AgentAction.extra_data['smart_rule_triggered'].astext == 'true',
+                AgentAction.extra_data.isnot(None),
                 AgentAction.created_at >= datetime.now(UTC).replace(day=1)  # This month
             )
         ).scalar()
@@ -336,29 +336,30 @@ class SecurityBridge:
         """Generate security recommendations based on combined data"""
         recommendations = []
         
-        # Check for actions that are frequently denied by policies
-        from models import AgentAction
-        from sqlalchemy import func, and_
-        
-        frequently_denied = db.query(
-            AgentAction.action_type,
-            func.count(AgentAction.id).label('denial_count')
-        ).filter(
-            and_(
-                AgentAction.status == 'denied',
-                AgentAction.extra_data['blocked_by_policy'].astext.isnot(None)
-            )
-        ).group_by(AgentAction.action_type).having(
-            func.count(AgentAction.id) > 10
-        ).all()
-        
-        for action_type, count in frequently_denied:
-            recommendations.append({
-                "type": "policy_effectiveness",
-                "priority": "high",
-                "message": f"Policy blocking '{action_type}' {count} times - verify this is expected behavior",
-                "action": "Review policy rules or provide alternative workflow"
-            })
+        try:
+            from models import AgentAction
+            from sqlalchemy import func, and_
+            
+            # Check for actions that are frequently denied
+            frequently_denied = db.query(
+                AgentAction.action_type,
+                func.count(AgentAction.id).label("denial_count")
+            ).filter(
+                AgentAction.status == "denied"
+            ).group_by(AgentAction.action_type).having(
+                func.count(AgentAction.id) > 5
+            ).all()
+            
+            for action_type, count in frequently_denied:
+                recommendations.append({
+                    "type": "policy_effectiveness",
+                    "priority": "high",
+                    "message": f"Policy blocking '{action_type}' {count} times - verify this is expected behavior",
+                    "action": "Review policy rules or provide alternative workflow"
+                })
+            
+        except Exception as e:
+            logger.error(f"Error generating recommendations: {e}")
         
         return recommendations
 
