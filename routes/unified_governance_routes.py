@@ -1,11 +1,10 @@
 # routes/unified_governance_routes.py
-from services.security_bridge_service import security_bridge
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, attributes
+from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
 from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
@@ -1211,6 +1210,7 @@ async def compile_policy(
     except Exception as e:
         logger.error(f"Policy compilation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/policies/enforce")
 async def enforce_policy(
     action_data: Dict[str, Any],
@@ -1218,8 +1218,7 @@ async def enforce_policy(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Evaluate an action against active policies - REAL ENFORCEMENT WITH SECURITY BRIDGE
-    Enterprise integration: Policy decisions flow to smart rules for pattern analysis
+    Evaluate an action against active policies - REAL ENFORCEMENT
     """
     try:
         import time
@@ -1230,45 +1229,45 @@ async def enforce_policy(
         ).all()
         
         # Compile and load into engine
+        # Compile and load into engine
         compiled_policies = []
         for policy in active_policies:
-            # Check if policy has structured data (from templates/custom builder)
-            if policy.extra_data and isinstance(policy.extra_data, dict):
-                structured = policy.extra_data.get('structured_policy')
-                if structured:
-                    # Use structured policy directly - no compilation needed
-                    compiled = {
-                        "id": policy.id,
-                        "effect": structured['effect'].lower(),
-                        "id": policy.id,
-                        "effect": structured['effect'].lower(),
-                        "actions": structured['actions'],
-                        "resource_types": structured['resource_types'],
-                        "conditions": structured.get('conditions', {}),
-                        "natural_language": policy.description
-                    }
-                    compiled_policies.append(compiled)
-                    logger.info(f"✅ Loaded structured policy {policy.id}: {policy.description[:50]}")
-                    continue
+            try:
+                # ENTERPRISE FIX: Check if policy has structured format in extra_data
+                if policy.extra_data and isinstance(policy.extra_data, dict):
+                    
+                    # Check for structured policy format
+                    structured = policy.extra_data.get('structured_policy')
+                    if structured:
+                        compiled = {
+                            "id": policy.id,
+                            "effect": structured['effect'].lower(),
+                            "actions": structured['actions'],
+                            "resource_types": structured['resource_types'],
+                            "conditions": structured.get('conditions', {}),
+                            "natural_language": policy.description
+                        }
+                        compiled_policies.append(compiled)
+                        logger.info(f"✅ Loaded structured policy {policy.id}: {policy.description[:50]}")
+                        continue
+                    
+                    # Check for enterprise template-based policy
+                    if 'resource_types' in policy.extra_data and 'actions' in policy.extra_data:
+                        compiled = {
+                            "id": policy.id,
+                            "effect": policy.extra_data.get('effect', 'deny').lower(),
+                            "actions": policy.extra_data.get('actions', []),
+                            "resource_types": policy.extra_data.get('resource_types', []),
+                            "conditions": policy.extra_data.get('conditions', {}),
+                            "natural_language": policy.description
+                        }
+                        compiled_policies.append(compiled)
+                        logger.info(f"✅ Loaded enterprise template policy {policy.id}: {policy.description[:50]}")
+                        continue
                 
-                # Check for template-based policy (enterprise templates)
-                if 'resource_types' in policy.extra_data and 'actions' in policy.extra_data:
-                    compiled = {
-                        "id": policy.id,
-                        "effect": policy.extra_data.get('effect', 'deny').lower(),
-                        "actions": policy.extra_data.get('actions', []),
-                        "resource_types": policy.extra_data.get('resource_types', []),
-                        "conditions": policy.extra_data.get('conditions', {}),
-                        "natural_language": policy.description
-                    }
-                    compiled_policies.append(compiled)
-                    logger.info(f"✅ Loaded enterprise template policy {policy.id}: {policy.description[:50]}")
-                    continue
-            
-            # Fallback: text-based DSL policy (only if description looks like DSL)
-            if policy.description and any(op in policy.description for op in ['==', '!=', '>', '<', 'AND', 'OR', 'contains']):
-                logger.info(f"🔍 Compiling DSL policy {policy.id}: description=\"{policy.description}\", risk_level={policy.risk_level}")
-                try:
+                # Fallback: text-based DSL policy (only if description looks like DSL)
+                if policy.description and any(op in policy.description for op in ['==', '!=', '>', '<', 'AND', 'OR', 'contains']):
+                    logger.info(f"🔍 Compiling DSL policy {policy.id}: description=\"{policy.description}\", risk_level={policy.risk_level}")
                     compiled = policy_compiler.compile(
                         (policy.description or ""), 
                         policy.risk_level or "medium"
@@ -1276,10 +1275,14 @@ async def enforce_policy(
                     compiled["id"] = policy.id
                     compiled_policies.append(compiled)
                     logger.info(f"✅ Compiled DSL policy {policy.id}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to compile policy {policy.id} as DSL: {e}")
-            else:
-                logger.warning(f"⚠️ Policy {policy.id} has natural language description without structured data - skipping")
+                else:
+                    logger.warning(f"⚠️ Policy {policy.id} has natural language description without structured data - skipping")
+                    
+            except Exception as e:
+                logger.error(f"❌ Failed to compile policy {policy.id}: {e}")
+                continue
+            compiled_policies.append(compiled)
+            
         enforcement_engine.load_policies(compiled_policies)
         
         # Evaluate action
@@ -1293,25 +1296,12 @@ async def enforce_policy(
         result["evaluation_time_ms"] = round((time.time() - start) * 1000, 2)
         result["policies_evaluated"] = len(compiled_policies)
         
-        # 🔥 ENTERPRISE INTEGRATION: Route decision through security bridge
-        bridge_result = await security_bridge.handle_policy_decision(
-            agent_id=action_data.get("agent_id", "ai_agent:unknown"),
-            action_type=action_data.get("action_type", ""),
-            target=action_data.get("target", ""),
-            context=action_data.get("context", {}),
-            decision=result["decision"],
-            policies_triggered=result.get("policies_triggered", []),
-            db=db
-        )
-        
         # Log enforcement decision
         logger.info(f"Policy enforcement: {result['decision']} for {action_data.get('action_type')} on {action_data.get('target')}")
-        logger.info(f"Security bridge: audit_id={bridge_result.get('audit_id')}, smart_rule_triggered={bridge_result.get('smart_rule_triggered', False)}")
         
         return {
             "success": True,
-            **result,
-            "security_bridge": bridge_result  # Include bridge data in response
+            **result
         }
         
     except Exception as e:
@@ -1626,234 +1616,3 @@ async def get_action_types(
         "actions": CustomPolicyBuilder.VALID_ACTIONS
     }
 
-
-# ============================================================================
-# UNIFIED SECURITY POSTURE - Combines Policy + Smart Rules
-# ============================================================================
-
-@router.get("/security/posture")
-async def get_unified_security_posture(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Enterprise Security Dashboard - Combined metrics from both security layers
-    
-    Returns:
-    - Preventive layer (policy enforcement) metrics
-    - Detective layer (smart rules) metrics  
-    - Violation patterns requiring attention
-    - Security recommendations
-    """
-    try:
-        posture = security_bridge.get_unified_security_posture(db)
-        
-        return {
-            "success": True,
-            "timestamp": datetime.utcnow().isoformat(),
-            "user": current_user.get("username", "unknown"),
-            **posture
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get security posture: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/security/smart-rule-trigger")
-async def handle_smart_rule_trigger(
-    trigger_data: Dict[str, Any],
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Handle smart rule trigger and check if policy should be created
-    
-    Called by smart rules engine when a rule fires
-    """
-    try:
-        result = await security_bridge.handle_smart_rule_trigger(
-            rule_id=trigger_data.get("rule_id"),
-            agent_id=trigger_data.get("agent_id"),
-            action_type=trigger_data.get("action_type"),
-            target=trigger_data.get("target"),
-            context=trigger_data.get("context", {}),
-            db=db
-        )
-        
-        return {
-            "success": True,
-            **result
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to handle smart rule trigger: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
-# POLICY MIGRATION - Upgrade Legacy to DSL Format
-# ============================================================================
-
-@router.post("/policies/{policy_id}/migrate-to-dsl")
-async def migrate_policy_to_dsl(
-    policy_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Migrate a legacy policy to new DSL format
-    
-    Enterprise use case: When templates are updated, existing policies need migration
-    """
-    try:
-        # Get the policy
-        policy = db.query(AgentAction).filter(
-            and_(
-                AgentAction.id == policy_id,
-                AgentAction.action_type == "governance_policy"
-            )
-        ).first()
-        
-        if not policy:
-            raise HTTPException(status_code=404, detail=f"Policy {policy_id} not found")
-        
-        # Check if already DSL format
-        if policy.extra_data and isinstance(policy.extra_data, dict):
-            conditions = policy.extra_data.get('conditions', {})
-            if isinstance(conditions, dict) and any(k in conditions for k in ["all_of", "any_of", "none_of", "field", "operator"]):
-                return {
-                    "success": True,
-                    "message": f"Policy {policy_id} already in DSL format",
-                    "policy_id": policy_id
-                }
-        
-        # Find matching template based on policy description
-        template_key = None
-        from services.enterprise_policy_templates import ENTERPRISE_TEMPLATES
-        
-        for key, template in ENTERPRISE_TEMPLATES.items():
-            if template['name'] in policy.description or template['description'] in policy.description:
-                template_key = key
-                break
-        
-        if not template_key:
-            raise HTTPException(
-                status_code=400, 
-                detail="Could not find matching template for migration. Please specify template manually."
-            )
-        
-        # Get the new template
-        new_template = ENTERPRISE_TEMPLATES[template_key]
-        
-        # Update policy with new DSL conditions
-        if not policy.extra_data:
-            policy.extra_data = {}
-        
-        policy.extra_data['conditions'] = new_template['conditions']
-        policy.extra_data['resource_types'] = new_template['resource_types']
-        policy.extra_data['actions'] = new_template['actions']
-        policy.extra_data['effect'] = new_template['effect']
-        policy.extra_data['migrated_to_dsl'] = True
-        policy.extra_data['migration_date'] = datetime.utcnow().isoformat()
-        policy.extra_data['template_used'] = template_key
-        
-        # Mark as modified
-        
-        db.commit()
-        db.refresh(policy)
-        
-        logger.info(f"✅ Migrated policy {policy_id} to DSL format using template '{template_key}'")
-        
-        return {
-            "success": True,
-            "message": f"Policy {policy_id} migrated to DSL format",
-            "policy_id": policy_id,
-            "template_used": template_key,
-            "new_conditions": new_template['conditions']
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to migrate policy {policy_id}: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/policies/migrate-all-to-dsl")
-async def migrate_all_policies_to_dsl(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Migrate all legacy policies to DSL format
-    
-    Enterprise batch migration for production deployments
-    """
-    try:
-        # Get all governance policies
-        policies = db.query(AgentAction).filter(
-            AgentAction.action_type == "governance_policy"
-        ).all()
-        
-        migrated = []
-        already_dsl = []
-        failed = []
-        
-        from services.enterprise_policy_templates import ENTERPRISE_TEMPLATES
-        
-        for policy in policies:
-            try:
-                # Check if already DSL
-                if policy.extra_data and isinstance(policy.extra_data, dict):
-                    conditions = policy.extra_data.get('conditions', {})
-                    if isinstance(conditions, dict) and any(k in conditions for k in ["all_of", "any_of", "none_of"]):
-                        already_dsl.append(policy.id)
-                        continue
-                
-                # Find matching template
-                template_key = None
-                for key, template in ENTERPRISE_TEMPLATES.items():
-                    if template['name'] in policy.description:
-                        template_key = key
-                        break
-                
-                if template_key:
-                    new_template = ENTERPRISE_TEMPLATES[template_key]
-                    
-                    if not policy.extra_data:
-                        policy.extra_data = {}
-                    
-                    policy.extra_data['conditions'] = new_template['conditions']
-                    policy.extra_data['resource_types'] = new_template['resource_types']
-                    policy.extra_data['actions'] = new_template['actions']
-                    policy.extra_data['effect'] = new_template['effect']
-                    policy.extra_data['migrated_to_dsl'] = True
-                    policy.extra_data['migration_date'] = datetime.utcnow().isoformat()
-                    
-                    attributes.flag_modified(policy, "extra_data")
-                    migrated.append({"id": policy.id, "template": template_key})
-                else:
-                    failed.append({"id": policy.id, "reason": "No matching template found"})
-                    
-            except Exception as e:
-                failed.append({"id": policy.id, "reason": str(e)})
-        
-        db.commit()
-        
-        return {
-            "success": True,
-            "total_policies": len(policies),
-            "migrated": len(migrated),
-            "already_dsl": len(already_dsl),
-            "failed": len(failed),
-            "details": {
-                "migrated": migrated,
-                "already_dsl": already_dsl,
-                "failed": failed
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Batch migration failed: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
