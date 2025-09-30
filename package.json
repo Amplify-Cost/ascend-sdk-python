@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.26.0",
+    "axios": "^1.12.2",
     "chart.js": "^4.4.9",
     "date-fns": "^4.1.0",
     "jwt-decode": "^4.0.0",

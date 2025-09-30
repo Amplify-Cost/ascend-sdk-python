@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -1833,6 +1834,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeColor(action.ai_risk_score)}`}>
                             RISK {action.ai_risk_score}/100
                           </span>
+                          <PolicyEnforcementBadge action={action} />
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                             {getWorkflowStageLabel(action.workflow_stage)}
                           </span>
