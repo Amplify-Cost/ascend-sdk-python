@@ -1281,7 +1281,6 @@ async def enforce_policy(
             except Exception as e:
                 logger.error(f"❌ Failed to compile policy {policy.id}: {e}")
                 continue
-            compiled_policies.append(compiled)
             
         enforcement_engine.load_policies(compiled_policies)
         
