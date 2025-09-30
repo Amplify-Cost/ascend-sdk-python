@@ -1240,35 +1240,46 @@ async def enforce_policy(
                     compiled = {
                         "id": policy.id,
                         "effect": structured['effect'].lower(),
+                        "id": policy.id,
+                        "effect": structured['effect'].lower(),
                         "actions": structured['actions'],
-                        "resources": structured['resource_types'],
+                        "resource_types": structured['resource_types'],
                         "conditions": structured.get('conditions', {}),
                         "natural_language": policy.description
                     }
                     compiled_policies.append(compiled)
+                    logger.info(f"✅ Loaded structured policy {policy.id}: {policy.description[:50]}")
                     continue
                 
-                # Check for template-based policy
-                if 'resource_types' in policy.extra_data:
+                # Check for template-based policy (enterprise templates)
+                if 'resource_types' in policy.extra_data and 'actions' in policy.extra_data:
                     compiled = {
                         "id": policy.id,
                         "effect": policy.extra_data.get('effect', 'deny').lower(),
                         "actions": policy.extra_data.get('actions', []),
-                        "resources": policy.extra_data.get('resource_types', []),
+                        "resource_types": policy.extra_data.get('resource_types', []),
                         "conditions": policy.extra_data.get('conditions', {}),
                         "natural_language": policy.description
                     }
                     compiled_policies.append(compiled)
+                    logger.info(f"✅ Loaded enterprise template policy {policy.id}: {policy.description[:50]}")
                     continue
             
-            # Fallback: text-based policy using compiler
-            logger.info(f"🔍 Compiling DSL policy {policy.id}: description="{policy.description}", risk_level={policy.risk_level}")
-            compiled = policy_compiler.compile(
-                (policy.description or ""), 
-                policy.risk_level or "medium"
-            )
-            compiled["id"] = policy.id
-            compiled_policies.append(compiled)
+            # Fallback: text-based DSL policy (only if description looks like DSL)
+            if policy.description and any(op in policy.description for op in ['==', '!=', '>', '<', 'AND', 'OR', 'contains']):
+                logger.info(f"🔍 Compiling DSL policy {policy.id}: description=\"{policy.description}\", risk_level={policy.risk_level}")
+                try:
+                    compiled = policy_compiler.compile(
+                        (policy.description or ""), 
+                        policy.risk_level or "medium"
+                    )
+                    compiled["id"] = policy.id
+                    compiled_policies.append(compiled)
+                    logger.info(f"✅ Compiled DSL policy {policy.id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to compile policy {policy.id} as DSL: {e}")
+            else:
+                logger.warning(f"⚠️ Policy {policy.id} has natural language description without structured data - skipping")
         enforcement_engine.load_policies(compiled_policies)
         
         # Evaluate action
