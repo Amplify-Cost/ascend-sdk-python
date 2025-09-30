@@ -1243,7 +1243,7 @@ async def enforce_policy(
                             "id": policy.id,
                             "effect": structured['effect'].lower(),
                             "actions": structured['actions'],
-                            "resource_types": structured['resource_types'],
+                            "resources": structured['resource_types'],
                             "conditions": structured.get('conditions', {}),
                             "natural_language": policy.description
                         }
@@ -1257,7 +1257,7 @@ async def enforce_policy(
                             "id": policy.id,
                             "effect": policy.extra_data.get('effect', 'deny').lower(),
                             "actions": policy.extra_data.get('actions', []),
-                            "resource_types": policy.extra_data.get('resource_types', []),
+                            "resources": policy.extra_data.get('resource_types', []),
                             "conditions": policy.extra_data.get('conditions', {}),
                             "natural_language": policy.description
                         }
