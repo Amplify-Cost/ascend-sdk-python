@@ -60,7 +60,10 @@ with engine.connect() as conn:
 print("✅ Startup complete - Database ready")
 PYTHON
 
-echo "🔧 Running database migrations..."
+echo "🔧 Running Alembic migrations..."
+alembic upgrade head || echo "⚠️ Migration failed or already applied"
+
+echo "🔧 Running additional database fixes..."
 python3 fix_smart_rules_tables.py
 python3 fix_mcp_tables.py
 python3 add_security_columns.py
