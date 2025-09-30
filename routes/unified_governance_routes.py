@@ -1215,9 +1215,7 @@ async def compile_policy(
 async def enforce_policy(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-    compiled_policies.insert(0, test_policy)
-    logger.info("🧪 TEST: Added hardcoded REQUIRE_APPROVAL policy for database_modification")
+    current_user: dict = Depends(get_current_user):
     
     """
     Evaluate an action against active policies - REAL ENFORCEMENT
