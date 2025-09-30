@@ -228,13 +228,19 @@ class EnforcementEngine:
             
             # Handle list conditions (OR logic for legacy compatibility)
             if isinstance(condition_value, list):
-                if context_val not in condition_value:
-                    return False
+                # Special handling for "*_contains" keys - do substring matching
+                if condition_key.endswith("_contains") and isinstance(context_val, str):
+                    # Check if any policy value is contained in the context value
+                    if not any(policy_val in context_val for policy_val in condition_value):
+                        return False
+                else:
+                    # Exact match for non-contains keys
+                    if context_val not in condition_value:
+                        return False
             else:
                 if context_val != condition_value:
                     return False
                     
-        return True
         return True
     def get_stats(self) -> Dict[str, Any]:
         """Get engine performance statistics"""
