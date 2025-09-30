@@ -1262,6 +1262,7 @@ async def enforce_policy(
                     continue
             
             # Fallback: text-based policy using compiler
+            logger.info(f"🔍 Compiling DSL policy {policy.id}: description="{policy.description}", risk_level={policy.risk_level}")
             compiled = policy_compiler.compile(
                 (policy.description or ""), 
                 policy.risk_level or "medium"
