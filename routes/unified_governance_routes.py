@@ -1294,6 +1294,34 @@ async def enforce_policy(
         
         result["evaluation_time_ms"] = round((time.time() - start) * 1000, 2)
         result["policies_evaluated"] = len(compiled_policies)
+
+        # PHASE 3 WEEK 1: Workflow Bridge Integration
+        if result["decision"] == "REQUIRE_APPROVAL":
+            from services.workflow_bridge import WorkflowBridge, WorkflowBridgeError
+            
+            try:
+                risk_score = action_data.get("risk_score", 50)
+                if not risk_score:
+                    risk_score = 70 if len(result["policies_triggered"]) > 1 else 50
+                
+                bridge = WorkflowBridge(db)
+                workflow_exec = bridge.create_workflow_execution(
+                    action_data=action_data,
+                    risk_score=risk_score,
+                    policies_triggered=result["policies_triggered"]
+                )
+                
+                result["workflow_id"] = workflow_exec.workflow_id
+                result["workflow_execution_id"] = workflow_exec.id
+                
+                logger.info(f"Created workflow {workflow_exec.workflow_id} (execution #{workflow_exec.id})")
+                
+            except WorkflowBridgeError as e:
+                logger.error(f"Workflow creation failed: {str(e)}")
+                result["workflow_error"] = str(e)
+            except Exception as e:
+                logger.error(f"Unexpected workflow error: {str(e)}")
+                result["workflow_error"] = "Internal workflow system error"
         
         # Log enforcement decision
         logger.info(f"Policy enforcement: {result['decision']} for {action_data.get('action_type')} on {action_data.get('target')}")
