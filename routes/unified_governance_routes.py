@@ -1216,16 +1216,6 @@ async def enforce_policy(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
-):
-    # PHASE 3 TEST: Hardcoded policy for workflow testing
-    test_policy = {
-        "id": 9999,
-        "effect": "require_approval",
-        "actions": ["database_modification"],
-        "resources": ["*"],
-        "conditions": {"environment": "production"},
-        "natural_language": "TEST: Require approval for production database modifications"
-    }
     compiled_policies.insert(0, test_policy)
     logger.info("🧪 TEST: Added hardcoded REQUIRE_APPROVAL policy for database_modification")
     
@@ -1243,6 +1233,18 @@ async def enforce_policy(
         # Compile and load into engine
         # Compile and load into engine
         compiled_policies = []
+        
+        # PHASE 3 TEST: Hardcoded policy for workflow testing
+        test_policy = {
+            "id": 9999,
+            "effect": "require_approval",
+            "actions": ["database_modification"],
+            "resources": ["*"],
+            "conditions": {"environment": "production"},
+            "natural_language": "TEST: Require approval for production database modifications"
+        }
+        compiled_policies.insert(0, test_policy)
+        logger.info("🧪 TEST: Added hardcoded REQUIRE_APPROVAL policy for database_modification")
         for policy in active_policies:
             try:
                 # ENTERPRISE FIX: Check if policy has structured format in extra_data
