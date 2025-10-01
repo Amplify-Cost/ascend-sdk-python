@@ -97,6 +97,16 @@ class AgentAction(Base):
     target_resource = Column(String, nullable=True)
     
     # Approval workflow (enterprise authorization features)
+    pending_approvers = Column(String, nullable=True)
+    
+    # Phase 3 Workflow Integration
+    workflow_id = Column(String, nullable=True)
+    workflow_execution_id = Column(Integer, ForeignKey("workflow_executions.id"), nullable=True)
+    workflow_stage = Column(String, nullable=True)
+    current_approval_level = Column(Integer, default=0)
+    required_approval_level = Column(Integer, nullable=True)
+    sla_deadline = Column(DateTime, nullable=True)
+
     requires_approval = Column(Boolean, default=True)
     approval_level = Column(Integer, default=1)  # 1, 2, or 3 level approval
     
