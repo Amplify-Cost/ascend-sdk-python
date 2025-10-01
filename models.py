@@ -403,3 +403,18 @@ class WorkflowStep(Base):
     timeout_hours = Column(Integer, default=24)
     conditions = Column(JSON)
     created_at = Column(DateTime, default=datetime.now(UTC))    
+class EnterprisePolicy(Base):
+    __tablename__ = "enterprise_policies"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    policy_name = Column(String, nullable=False)
+    description = Column(Text)
+    effect = Column(String, nullable=False)
+    actions = Column(JSON)
+    resources = Column(JSON)
+    conditions = Column(JSON)
+    priority = Column(Integer, default=100)
+    status = Column(String, default='active')
+    created_by = Column(String)
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))

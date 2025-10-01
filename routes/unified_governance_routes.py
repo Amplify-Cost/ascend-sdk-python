@@ -1234,16 +1234,22 @@ async def enforce_policy(
         compiled_policies = []
         
         # PHASE 3 TEST: Hardcoded policy for workflow testing
-        test_policy = {
-            "id": 9999,
-            "effect": "require_approval",
-            "actions": ["database_modification"],
-            "resources": ["*"],
-            "conditions": {"environment": "production"},
-            "natural_language": "TEST: Require approval for production database modifications"
-        }
-        compiled_policies.insert(0, test_policy)
-        logger.info("🧪 TEST: Added hardcoded REQUIRE_APPROVAL policy for database_modification")
+        
+        # Load enterprise policies from database
+        from models import EnterprisePolicy
+        enterprise_policies = db.query(EnterprisePolicy).filter(EnterprisePolicy.status == "active").all()
+        for policy in enterprise_policies:
+            compiled = {
+                "id": policy.id,
+                "effect": policy.effect.lower(),
+                "actions": policy.actions or [],
+                "resources": policy.resources or [],
+                "conditions": policy.conditions or {},
+                "natural_language": policy.description
+            }
+            compiled_policies.append(compiled)
+            logger.info(f"✅ Loaded enterprise policy {policy.id}: {policy.policy_name}")
+
         for policy in active_policies:
             try:
                 # ENTERPRISE FIX: Check if policy has structured format in extra_data
