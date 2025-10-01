@@ -1717,8 +1717,12 @@ async def approve_workflow_stage(
         approval_chain.append(approval_record)
         workflow_execution.approval_chain = approval_chain
         
+        from sqlalchemy.orm import attributes
+        attributes.flag_modified(workflow_execution, "approval_chain")
+
         if decision == "reject":
             # Rejection - mark as denied
+
             workflow_execution.execution_status = "rejected"
             workflow_execution.completed_at = datetime.now(UTC)
             agent_action.status = "denied"
