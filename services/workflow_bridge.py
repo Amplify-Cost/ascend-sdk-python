@@ -70,6 +70,8 @@ class WorkflowBridge:
         
         logger.info(f"SLA deadline for workflow {workflow_id}: {deadline} ({sla_hours}h)")
         return deadline
+from sqlalchemy.orm import attributes
+
     
     def create_workflow_execution(
         self,
@@ -124,8 +126,14 @@ class WorkflowBridge:
             agent_action.status = "pending_approval"
             
             workflow = self.db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            
+            # Mark workflow fields as modified to ensure they are saved
+            attributes.flag_modified(agent_action, "workflow_id")
+            attributes.flag_modified(agent_action, "workflow_stage")
+
             if workflow and workflow.steps:
                 first_step = workflow.steps[0] if isinstance(workflow.steps, list) else {}
+
                 approver_role = first_step.get("approver_role", "security")
                 agent_action.pending_approvers = approver_role
             
