@@ -11,7 +11,7 @@ from dependencies import get_db, get_current_user, require_admin, require_manage
 from models import User, AgentAction, AuditLog, EnterprisePolicy  # REMOVED WorkflowConfig - doesn't exist
 from models_mcp_governance import MCPPolicy
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import logging
 import json
 
@@ -560,7 +560,6 @@ async def update_governance_policy(
         
         # Import here to avoid circular imports
         from uuid import UUID
-        from datetime import datetime, UTC
         
         # Find the policy
         try:
@@ -891,7 +890,6 @@ async def deploy_policy(
         
         # Import here to avoid circular imports
         from uuid import UUID
-        from datetime import datetime, UTC
         
         # Find the policy
         try:
@@ -1619,7 +1617,6 @@ async def get_pending_approvals(
     db: Session = Depends(get_db)
 ):
     """Get workflows pending approval for current user"""
-    from datetime import datetime, timedelta
     from models import WorkflowExecution
     
     user_role = current_user.get("role", "user")
