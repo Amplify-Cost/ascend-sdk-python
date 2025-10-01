@@ -88,11 +88,14 @@ class WorkflowBridge:
             if not action_id:
                 agent_action = self._create_pending_action(action_data, risk_score)
                 action_id = agent_action.id
+                self.db.refresh(agent_action)  # Ensure attached to session
             else:
                 agent_action = self.db.query(AgentAction).filter(AgentAction.id == action_id).first()
                 if not agent_action:
                     raise WorkflowBridgeError(f"Action {action_id} not found")
             
+            
+
             workflow_execution = WorkflowExecution(
                 workflow_id=workflow_id,
                 action_id=action_id,
