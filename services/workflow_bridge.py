@@ -111,7 +111,7 @@ class WorkflowBridge:
                     "risk_score": risk_score,
                     "policies_triggered": policies_triggered
                 },
-                current_stage="stage_1",
+                current_stage="pending_stage_1",
                 approval_chain=[]
             )
             
