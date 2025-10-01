@@ -4,6 +4,8 @@ Enterprise Workflow Bridge - Policy to Workflow Integration
 Connects policy enforcement decisions (REQUIRE_APPROVAL) to workflow execution system.
 Maps risk scores to appropriate multi-stage approval workflows.
 """
+from sqlalchemy.orm import attributes
+
 
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, UTC
@@ -70,7 +72,6 @@ class WorkflowBridge:
         
         logger.info(f"SLA deadline for workflow {workflow_id}: {deadline} ({sla_hours}h)")
         return deadline
-from sqlalchemy.orm import attributes
 
     
     def create_workflow_execution(
