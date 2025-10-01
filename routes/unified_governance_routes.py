@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
-from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
+from models import User, AgentAction, AuditLog, EnterprisePolicy  # REMOVED WorkflowConfig - doesn't exist
 from models_mcp_governance import MCPPolicy
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -1224,9 +1224,7 @@ async def enforce_policy(
         import time
         start = time.time()
         
-        active_policies = db.query(AgentAction).filter(
-            and_(AgentAction.action_type == "governance_policy", AgentAction.status == "active")
-        ).all()
+        active_policies = db.query(EnterprisePolicy).all()
         
         # Compile and load into engine
         # Compile and load into engine
