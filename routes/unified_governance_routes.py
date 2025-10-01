@@ -1781,3 +1781,51 @@ async def approve_workflow_stage(
     except Exception as e:
         logger.error(f"Approval processing error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Approval failed: {str(e)}")
+
+@router.get("/dashboard/pending-approvals")
+async def get_pending_approvals(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get workflows pending approval for current user"""
+    from datetime import datetime
+    from models import WorkflowExecution
+    
+    user_role = current_user.get("role", "user")
+    
+    query = db.query(WorkflowExecution).filter(
+        WorkflowExecution.status.in_(["pending_stage_1", "pending_stage_2", "pending_stage_3"])
+    )
+    
+    if user_role == "security":
+        query = query.filter(WorkflowExecution.status == "pending_stage_1")
+    elif user_role == "operations":
+        query = query.filter(WorkflowExecution.status.in_(["pending_stage_1", "pending_stage_2"]))
+    
+    workflows = query.order_by(WorkflowExecution.created_at.desc()).all()
+    
+    result = []
+    for wf in workflows:
+        sla_hours_remaining = None
+        if wf.sla_deadline:
+            sla_hours_remaining = (wf.sla_deadline - datetime.utcnow()).total_seconds() / 3600
+        
+        result.append({
+            "workflow_id": wf.id,
+            "workflow_execution_id": wf.id,
+            "action_type": wf.action_type,
+            "risk_score": wf.risk_score,
+            "current_stage": wf.status,
+            "required_role": "security" if wf.status == "pending_stage_1" else "operations" if wf.status == "pending_stage_2" else "executive",
+            "sla_hours_remaining": sla_hours_remaining,
+            "sla_status": "critical" if sla_hours_remaining and sla_hours_remaining < 1 else "warning" if sla_hours_remaining and sla_hours_remaining < 4 else "normal",
+            "can_approve": user_role in ["admin", "operations", "executive"] if wf.status == "pending_stage_2" else user_role in ["admin", "security"] if wf.status == "pending_stage_1" else user_role == "admin",
+            "created_at": wf.created_at.isoformat(),
+            "agent_id": wf.agent_id or "unknown"
+        })
+    
+    return {
+        "my_queue": result,
+        "total_pending": len(result),
+        "role": user_role
+    }
