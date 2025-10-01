@@ -1,3 +1,5 @@
+ARG CACHE_BUST=1759277367
+
 FROM python:3.11-slim
 
 WORKDIR /app
