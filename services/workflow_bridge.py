@@ -126,6 +126,8 @@ class WorkflowBridge:
                 approver_role = first_step.get("approver_role", "security")
                 agent_action.pending_approvers = approver_role
             
+            self.db.add(agent_action)  # Ensure updated fields are tracked
+
             self.db.commit()
             self.db.refresh(workflow_execution)
             
