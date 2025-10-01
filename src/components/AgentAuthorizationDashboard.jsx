@@ -1174,8 +1174,11 @@ const createWorkflow = async (workflowData) => {
     let endpoint;
     if (action?.action_type === 'mcp_server_action') {
       endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
+    } else if (action?.workflow_execution_id) {
+      // Phase 3: Use workflow approval endpoint
+      endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
     } else {
-      // PRESERVE: Use existing agent approval endpoint
+      // Fallback: Use existing agent approval endpoint
       endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
     
