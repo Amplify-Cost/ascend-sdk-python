@@ -1659,3 +1659,56 @@ async def get_pending_approvals(
         "total_pending": len(result),
         "role": user_role
     }
+
+@router.post("/workflows/{workflow_execution_id}/approve")
+async def approve_workflow(
+    workflow_execution_id: int,
+    approval_data: Dict[str, Any],
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Approve or deny a workflow execution"""
+    from models import WorkflowExecution, AgentAction
+    
+    workflow = db.query(WorkflowExecution).filter(
+        WorkflowExecution.id == workflow_execution_id
+    ).first()
+    
+    if not workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    decision = approval_data.get("decision")  # "approved" or "denied"
+    notes = approval_data.get("notes", "")
+    
+    # Update workflow execution
+    if decision == "approved":
+        workflow.execution_status = "approved"
+        workflow.current_stage = "completed"
+    else:
+        workflow.execution_status = "denied"
+        workflow.current_stage = "denied"
+    
+    # Add to approval chain
+    if not workflow.approval_chain:
+        workflow.approval_chain = []
+    
+    workflow.approval_chain.append({
+        "approver": current_user.get("email"),
+        "decision": decision,
+        "notes": notes,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "stage": workflow.current_stage
+    })
+    
+    workflow.completed_at = datetime.now(UTC)
+    
+    db.commit()
+    db.refresh(workflow)
+    
+    return {
+        "success": True,
+        "message": f"Workflow {decision}",
+        "workflow_execution_id": workflow.id,
+        "decision": decision,
+        "current_stage": workflow.current_stage
+    }
