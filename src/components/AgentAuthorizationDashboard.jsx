@@ -1168,7 +1168,11 @@ const createWorkflow = async (workflowData) => {
   // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
   try {
-    const action = pendingActions.find(a => a.id === actionId);
+    const action = pendingActions.find(a => 
+      a.id === actionId || 
+      a.workflow_execution_id === actionId || 
+      a.workflow_id === actionId
+    );
     
     // 🔌 ENHANCED: Route to appropriate endpoint based on action type
     let endpoint;
@@ -1208,7 +1212,11 @@ const createWorkflow = async (workflowData) => {
               
       // PRESERVE: Your existing UI update logic
       setPendingActions(prev => {
-        const updated = prev.filter(action => action.id !== actionId);
+        const updated = prev.filter(action => 
+          action.id !== actionId && 
+          action.workflow_execution_id !== actionId && 
+          action.workflow_id !== actionId
+        );
         console.log(`📊 Enhanced pending actions updated: ${prev.length} → ${updated.length}`);
         return updated;
       });
@@ -1269,7 +1277,11 @@ const createWorkflow = async (workflowData) => {
                 
         // Immediate UI updates for real-time feedback
         setPendingActions(prev => {
-          const updated = prev.filter(action => action.id !== actionId);
+          const updated = prev.filter(action => 
+          action.id !== actionId && 
+          action.workflow_execution_id !== actionId && 
+          action.workflow_id !== actionId
+        );
           console.log(`🚨 Emergency override: ${prev.length} → ${updated.length} pending actions`);
           return updated;
         });
