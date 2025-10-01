@@ -1215,7 +1215,7 @@ async def compile_policy(
 async def enforce_policy(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user
+    current_user: dict = Depends(get_current_user)
 ):
     
     """
