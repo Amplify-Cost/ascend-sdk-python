@@ -10,7 +10,7 @@ from dependencies import get_db, get_current_user, require_admin, require_manage
 from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
 from models_mcp_governance import MCPPolicy
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import logging
 import json
 
@@ -1662,3 +1662,118 @@ async def get_action_types(
         "actions": CustomPolicyBuilder.VALID_ACTIONS
     }
 
+
+
+@router.post("/workflows/{execution_id}/approve")
+async def approve_workflow_stage(
+    execution_id: int,
+    approval_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Approve or reject a workflow stage
+    
+    Request body:
+    {
+        "decision": "approve" | "reject",
+        "comments": "optional comments",
+        "approver_role": "security" | "operations" | "executive"
+    }
+    """
+    try:
+        # Load workflow execution
+        workflow_execution = db.query(WorkflowExecution).filter(
+            WorkflowExecution.id == execution_id
+        ).first()
+        
+        if not workflow_execution:
+            raise HTTPException(status_code=404, detail="Workflow execution not found")
+        
+        # Load linked agent action
+        agent_action = db.query(AgentAction).filter(
+            AgentAction.id == workflow_execution.action_id
+        ).first()
+        
+        if not agent_action:
+            raise HTTPException(status_code=404, detail="Linked agent action not found")
+        
+        decision = approval_data.get("decision", "").lower()
+        if decision not in ["approve", "reject"]:
+            raise HTTPException(status_code=400, detail="Decision must be 'approve' or 'reject'")
+        
+        # Record approval in chain
+        approval_record = {
+            "stage": workflow_execution.current_stage,
+            "approver": current_user.get("email"),
+            "approver_role": approval_data.get("approver_role"),
+            "decision": decision,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "comments": approval_data.get("comments", "")
+        }
+        
+        # Update approval chain
+        approval_chain = workflow_execution.approval_chain or []
+        approval_chain.append(approval_record)
+        workflow_execution.approval_chain = approval_chain
+        
+        if decision == "reject":
+            # Rejection - mark as denied
+            workflow_execution.execution_status = "rejected"
+            workflow_execution.completed_at = datetime.now(UTC)
+            agent_action.status = "denied"
+            agent_action.workflow_stage = "rejected"
+            
+            db.commit()
+            
+            return {
+                "success": True,
+                "decision": "rejected",
+                "workflow_execution_id": execution_id,
+                "message": "Workflow rejected"
+            }
+        
+        # Approval - check if we need to progress to next stage
+        agent_action.current_approval_level += 1
+        
+        if agent_action.current_approval_level >= agent_action.required_approval_level:
+            # All approvals received - mark as approved
+            workflow_execution.execution_status = "approved"
+            workflow_execution.completed_at = datetime.now(UTC)
+            agent_action.status = "approved"
+            agent_action.workflow_stage = "approved"
+            
+            db.commit()
+            
+            return {
+                "success": True,
+                "decision": "approved",
+                "workflow_execution_id": execution_id,
+                "message": "Workflow fully approved - all stages complete"
+            }
+        else:
+            # Progress to next stage
+            current_stage_num = int(workflow_execution.current_stage.split("_")[1])
+            next_stage = f"stage_{current_stage_num + 1}"
+            
+            workflow_execution.current_stage = next_stage
+            workflow_execution.execution_status = f"pending_{next_stage}"
+            agent_action.workflow_stage = next_stage
+            
+            db.commit()
+            
+            return {
+                "success": True,
+                "decision": "stage_approved",
+                "workflow_execution_id": execution_id,
+                "current_stage": next_stage,
+                "approvals_received": agent_action.current_approval_level,
+                "approvals_required": agent_action.required_approval_level,
+                "message": f"Stage approved - progressed to {next_stage}"
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Approval processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Approval failed: {str(e)}")
