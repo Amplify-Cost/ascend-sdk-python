@@ -1640,7 +1640,8 @@ async def get_pending_approvals(
         sla_hours_remaining = None
         if wf.started_at:
             deadline = wf.started_at + timedelta(hours=24)
-            sla_hours_remaining = (deadline - datetime.utcnow()).total_seconds() / 3600
+            now = datetime.now(UTC) if wf.started_at.tzinfo else datetime.utcnow()
+            sla_hours_remaining = (deadline - now).total_seconds() / 3600
         
         result.append({
             "workflow_id": wf.id,
