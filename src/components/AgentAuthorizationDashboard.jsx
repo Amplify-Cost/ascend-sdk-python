@@ -181,6 +181,7 @@ useEffect(() => {
           // Transform Phase 3 workflow format to frontend action format
           const actions = workflows.map(workflow => ({
             id: workflow.workflow_id,
+            workflow_execution_id: workflow.workflow_execution_id,
             agent_id: `Workflow-${workflow.workflow_id}`,
             action_type: workflow.action_type || 'workflow_action',
             ai_risk_score: workflow.risk_score || 50,
