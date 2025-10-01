@@ -16,38 +16,50 @@ jobs:
     name: Deploy to Production
     runs-on: ubuntu-latest
     environment: production
-    
     permissions:
       id-token: write
       contents: read
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+    
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::110948415588:role/GitHubActionsRole
         aws-region: ${{ env.AWS_REGION }}
+    
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
-    - name: Build Docker image
+    
+    - name: Build and push Docker image
       id: build-image
       run: |
         IMAGE_TAG=${{ github.sha }}
-        docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        echo "Building image with tag: $IMAGE_TAG"
+        docker build --no-cache --pull \
+          --build-arg VITE_API_URL=https://pilot.owkai.app \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-    - name: Download task definition
+    
+    - name: Download current task definition
       run: |
-        aws ecs describe-task-definition --task-definition $ECS_TASK_DEFINITION --query taskDefinition > task-definition.json
-    - name: Update task definition
+        aws ecs describe-task-definition \
+          --task-definition $ECS_TASK_DEFINITION \
+          --query taskDefinition > task-definition.json
+    
+    - name: Fill in new image in task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
         task-definition: task-definition.json
         container-name: ${{ env.CONTAINER_NAME }}
         image: ${{ steps.build-image.outputs.image }}
+    
     - name: Deploy to Amazon ECS
       uses: aws-actions/amazon-ecs-deploy-task-definition@v1
       with:
@@ -55,3 +67,13 @@ jobs:
         service: ${{ env.ECS_SERVICE }}
         cluster: ${{ env.ECS_CLUSTER }}
         wait-for-service-stability: true
+    
+    - name: Force service refresh
+      run: |
+        echo "Forcing service to pull new image..."
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.ECS_SERVICE }} \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+        echo "Deployment forced. New image: ${{ steps.build-image.outputs.image }}"
