@@ -146,204 +146,82 @@ useEffect(() => {
  
       // ENTERPRISE FIX: fetchPendingActions - Replace hardcoded demo data with real backend calls
     
-  const fetchPendingActions = async () => {
-    console.log("🚀 ENTERPRISE: Starting real backend data fetch...");
-    
-    try {
-      setLoading(true);
-      setError("");
-      
-      // ENTERPRISE: Try real backend endpoints first - no demo data loading
-      console.log("📊 ENTERPRISE: Attempting real API calls...");
-      const startTime = Date.now();
-      
-      let realData = null;
-      let apiWorked = false;
-      
-      // Try the main dashboard endpoint that we know works from chat history
-      try {
-        console.log("🔍 ENTERPRISE: Calling /api/authorization/dashboard...");
-        const dashboardResponse = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
-          headers: { 
-            ...getAuthHeaders(), 
-            "Content-Type": "application/json",
-            "X-API-Version": "v1.0"
-          }
-        });
+      const fetchPendingActions = async () => {
+        console.log("PHASE 3: Fetching pending workflows from governance API...");
         
-        if (dashboardResponse.ok) {
-          const dashboardData = await dashboardResponse.json();
-          console.log("✅ ENTERPRISE: Dashboard data received:", dashboardData);
-          
-          // Set dashboard data immediately
-          setDashboardData(dashboardData);
-          apiWorked = true;
-        }
-      } catch (err) {
-        console.log("⚠️ ENTERPRISE: Dashboard endpoint failed:", err.message);
-      }
-      
-      // Try the pending actions endpoint
-      try {
-        console.log("🔍 ENTERPRISE: Calling /agent-control/pending-actions...");
-        const actionsResponse = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
-          headers: { 
-            ...getAuthHeaders(), 
-            "Content-Type": "application/json",
-            "X-API-Version": "v1.0"
-          }
-        });
-        
-        if (actionsResponse.ok) {
-          const actionsData = await actionsResponse.json();
-          console.log("✅ ENTERPRISE: Actions data received:", actionsData);
-          
-          // Handle different response formats
-          const actions = actionsData.actions || actionsData || [];
-          
-          if (Array.isArray(actions) && actions.length > 0) {
-            console.log(`🔄 ENTERPRISE: Setting ${actions.length} real actions`);
-            setPendingActions(actions);
-            realData = actions;
-            apiWorked = true;
-          } else {
-            console.log("📊 ENTERPRISE: No actions in response, checking other endpoints...");
-          }
-        }
-      } catch (err) {
-        console.log("⚠️ ENTERPRISE: Pending actions endpoint failed:", err.message);
-      }
-      
-      // If no actions found, try the agent-actions endpoint
-      if (!realData) {
         try {
-          console.log("🔍 ENTERPRISE: Calling /agent-actions...");
-          const agentActionsResponse = await fetch(`${API_BASE_URL}/agent-actions`, {
+          setLoading(true);
+          setError("");
+          
+          // Call Phase 3 governance dashboard endpoint
+          const response = await fetch(`${API_BASE_URL}/api/governance/dashboard/pending-approvals`, {
             headers: { 
               ...getAuthHeaders(), 
-              "Content-Type": "application/json",
-              "X-API-Version": "v1.0"
+              "Content-Type": "application/json"
             }
           });
           
-          if (agentActionsResponse.ok) {
-            const agentActionsData = await agentActionsResponse.json();
-            console.log("✅ ENTERPRISE: Agent actions data received:", agentActionsData);
-            
-            const actions = agentActionsData.actions || agentActionsData || [];
-            if (Array.isArray(actions) && actions.length > 0) {
-              console.log(`🔄 ENTERPRISE: Setting ${actions.length} real agent actions`);
-              setPendingActions(actions);
-              realData = actions;
-              apiWorked = true;
-            }
+          if (!response.ok) {
+            throw new Error(`API returned ${response.status}: ${response.statusText}`);
           }
-        } catch (err) {
-          console.log("⚠️ ENTERPRISE: Agent actions endpoint failed:", err.message);
-        }
-      }
-      
-      // Try MCP governance endpoint as fallback
-      if (!realData) {
-        try {
-          console.log("🔍 ENTERPRISE: Calling /api/mcp-governance/actions...");
-          const mcpResponse = await fetch(`${API_BASE_URL}/api/mcp-governance/actions`, {
-            headers: { 
-              ...getAuthHeaders(), 
-              "Content-Type": "application/json",
-              "X-API-Version": "v1.0"
-            }
-          });
           
-          if (mcpResponse.ok) {
-            const mcpData = await mcpResponse.json();
-            console.log("✅ ENTERPRISE: MCP data received:", mcpData);
-            
-            const actions = mcpData.actions || mcpData || [];
-            if (Array.isArray(actions) && actions.length > 0) {
-              console.log(`🔄 ENTERPRISE: Setting ${actions.length} real MCP actions`);
-              setPendingActions(actions);
-              realData = actions;
-              apiWorked = true;
-            }
+          const data = await response.json();
+          console.log("Phase 3 API response:", data);
+          
+          // Extract workflows from response
+          const workflows = data.my_queue || [];
+          
+          if (workflows.length === 0) {
+            console.log("No pending workflows found");
+            setPendingActions([]);
+            setError(null);
+            return;
           }
+          
+          // Transform Phase 3 workflow format to frontend action format
+          const actions = workflows.map(workflow => ({
+            id: workflow.workflow_id,
+            agent_id: `Workflow-${workflow.workflow_id}`,
+            action_type: workflow.action_type || 'workflow_action',
+            ai_risk_score: workflow.risk_score || 50,
+            description: `${workflow.action_type || 'Action'} requiring approval - Stage: ${workflow.current_stage}`,
+            workflow_stage: workflow.current_stage || 'pending_stage_1',
+            current_approval_level: workflow.current_stage === 'pending_stage_1' ? 0 : 
+                                     workflow.current_stage === 'pending_stage_2' ? 1 : 2,
+            required_approval_level: workflow.required_role === 'executive' ? 3 :
+                                      workflow.required_role === 'operations' ? 2 : 1,
+            is_emergency: workflow.sla_status === 'critical',
+            authorization_status: 'pending_approval',
+            execution_status: 'pending_approval',
+            contextual_risk_factors: workflow.sla_status === 'critical' 
+              ? ['SLA Critical', 'Immediate Action Required'] 
+              : workflow.sla_status === 'warning'
+              ? ['SLA Warning', 'Action Needed Soon']
+              : [],
+            time_remaining: workflow.sla_hours_remaining 
+              ? `${workflow.sla_hours_remaining.toFixed(1)}h remaining` 
+              : "No deadline",
+            requested_at: workflow.created_at || new Date().toISOString(),
+            can_approve: workflow.can_approve || false,
+            sla_status: workflow.sla_status || 'normal',
+            target_system: 'Governance Workflow',
+            required_role: workflow.required_role
+          }));
+          
+          console.log(`Loaded ${actions.length} pending workflows:`, actions);
+          setPendingActions(actions);
+          setError(null);
+          
         } catch (err) {
-          console.log("⚠️ ENTERPRISE: MCP endpoint failed:", err.message);
-        }
-      }
-      
-      const apiTime = Date.now() - startTime;
-      console.log(`⏱️ ENTERPRISE: API calls took ${apiTime}ms`);
-      
-      // ENTERPRISE: Only show demo data if NO backend endpoints worked
-      if (!apiWorked) {
-        console.log("🚨 ENTERPRISE: All backend endpoints failed, using minimal demo data");
-        
-        const fallbackActions = [
-          {
-            id: 999,
-            agent_id: "Agent-BACKEND-DOWN",
-            action_type: "system_status",
-            ai_risk_score: 30,
-            description: "Backend connectivity issue - showing fallback data",
-            workflow_stage: "level_1",
-            current_approval_level: 1,
-            required_approval_level: 1,
-            is_emergency: false,
-            authorization_status: "pending_approval",
-            execution_status: "pending_approval",
-            contextual_risk_factors: ["Backend connectivity"],
-            time_remaining: "No deadline",
-            requested_at: new Date().toISOString(),
-            backend_status: "disconnected"
-          }
-        ];
-        
-        setPendingActions(fallbackActions);
-        setError("⚠️ ENTERPRISE: Backend endpoints not responding - check network connectivity");
-      } else {
-        console.log("✅ ENTERPRISE: Real backend data loaded successfully");
-        
-        // If we have real data but no actions, show empty state
-        if (!realData || realData.length === 0) {
-          console.log("📋 ENTERPRISE: No pending actions found in backend");
+          console.error("Failed to fetch pending workflows:", err);
+          console.error("Error details:", err.message);
+          
           setPendingActions([]);
+          setError(`Unable to connect to governance API: ${err.message}`);
+        } finally {
+          setLoading(false);
         }
-        
-        setError(null);
-      }
-      
-    } catch (err) {
-      console.error("❌ ENTERPRISE: Critical error in fetchPendingActions:", err);
-      
-      // ENTERPRISE: Even on critical error, show connection issue instead of fake demo data
-      const errorActions = [
-        {
-          id: 998,
-          agent_id: "System-Error",
-          action_type: "error_state",
-          ai_risk_score: 20,
-          description: `Enterprise backend error: ${err.message}`,
-          workflow_stage: "level_1",
-          current_approval_level: 1,
-          required_approval_level: 1,
-          is_emergency: false,
-          authorization_status: "pending_approval",
-          execution_status: "pending_approval",
-          contextual_risk_factors: ["System Error"],
-          time_remaining: "No deadline",
-          requested_at: new Date().toISOString(),
-          error_details: err.message
-        }
-      ];
-      
-      setPendingActions(errorActions);
-      setError(`ENTERPRISE ERROR: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+      };
   const fetchDashboardData = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
