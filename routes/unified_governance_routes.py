@@ -1,5 +1,6 @@
 # routes/unified_governance_routes.py
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
+from services.workflow_bridge import WorkflowBridge
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
@@ -1277,6 +1278,22 @@ async def enforce_policy(
         
         # Log enforcement decision
         logger.info(f"Policy enforcement: {result['decision']} for {action_data.get('action_type')} on {action_data.get('target')}")
+        
+        # Create workflow if approval required
+        if result.get("decision") == "REQUIRE_APPROVAL":
+            try:
+                bridge = WorkflowBridge(db)
+                workflow_execution = bridge.create_workflow_execution(
+                    action_data=action_data,
+                    risk_score=action_data.get("risk_score", 50),
+                    policies_triggered=result.get("policies_triggered", [])
+                )
+                result["workflow_execution_id"] = workflow_execution.id
+                result["workflow_id"] = workflow_execution.workflow_id
+                logger.info(f"✅ Created workflow execution {workflow_execution.id}")
+            except Exception as e:
+                logger.error(f"❌ Workflow creation failed: {e}")
+                # Don't fail the whole request if workflow creation fails
         
         return {
             "success": True,
