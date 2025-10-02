@@ -41,3 +41,6 @@ LABEL build_date="${BUILD_DATE}"
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
+
+# HACK: Touch source file to break Vite's internal cache
+RUN touch src/components/AgentAuthorizationDashboard.jsx
