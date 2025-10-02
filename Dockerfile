@@ -1,3 +1,4 @@
+ARG CACHE_BUST=unknown
 # Multi-stage build for production optimization
 FROM node:22-alpine AS build
 
