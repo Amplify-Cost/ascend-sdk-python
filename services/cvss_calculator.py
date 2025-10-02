@@ -104,8 +104,11 @@ class CVSSCalculator:
             raise ValueError(f"Invalid CVSS metrics: {e}")
     
     def _round_up(self, score: float) -> float:
-        """Round up to 1 decimal place (CVSS specification)"""
-        return round(score + 0.05, 1) if score > 0 else 0.0
+        """Round up to 1 decimal place, capped at 10.0"""
+        if score <= 0:
+            return 0.0
+        rounded = round(score + 0.05, 1)
+        return min(rounded, 10.0)
     
     def _get_severity(self, score: float) -> str:
         """Map score to severity rating"""
