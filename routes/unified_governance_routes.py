@@ -1,6 +1,7 @@
 # routes/unified_governance_routes.py
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 from services.workflow_bridge import WorkflowBridge
+from services.workflow_approver_service import workflow_approver_service
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
@@ -1289,6 +1290,21 @@ async def enforce_policy(
                 result["workflow_execution_id"] = workflow_execution.id
                 result["workflow_id"] = workflow_execution.workflow_id
                 logger.info(f"✅ Created workflow execution {workflow_execution.id}")
+                
+                # AUTO-ASSIGN APPROVERS
+                try:
+                    approver_result = workflow_approver_service.assign_approvers_to_workflow(
+                        db=db,
+                        workflow_execution_id=workflow_execution.id,
+                        action_id=action_data.get("id"),
+                        risk_score=action_data.get("risk_score", 50),
+                        required_approval_level=workflow_execution.workflow.required_approval_levels,
+                        department=action_data.get("department", "Engineering")
+                    )
+                    result["assigned_approver"] = approver_result["primary"]["email"]
+                    logger.info(f"✅ Assigned approver: {approver_result['primary']['email']}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Approver assignment failed: {e}")
             except Exception as e:
                 logger.error(f"❌ Workflow creation failed: {e}")
                 # Don't fail the whole request if workflow creation fails
