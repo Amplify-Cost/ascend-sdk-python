@@ -249,7 +249,7 @@ class PendingAgentAction(Base):
     current_approval_level = Column(Integer, default=0)
     workflow_stage = Column(String, default="initial")
     auto_approve_at = Column(DateTime, nullable=True)
-    approval_chain = Column(Text, nullable=True)
+    approval_chain = Column(JSONB, nullable=True)
     required_approvers = Column(Text, nullable=True)
     pending_approvers = Column(Text, nullable=True)
     primary_approver_id = Column(Integer, nullable=True)
