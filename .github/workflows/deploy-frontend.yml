@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
 env:
   AWS_REGION: us-east-2
   ECR_REGISTRY: 110948415588.dkr.ecr.us-east-2.amazonaws.com
@@ -11,6 +12,7 @@ env:
   ECS_CLUSTER: owkai-pilot
   ECS_TASK_DEFINITION: owkai-pilot-frontend
   CONTAINER_NAME: frontend
+
 jobs:
   deploy:
     name: Deploy to Production
@@ -19,9 +21,12 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Full history for verification
     
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -30,29 +35,42 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
     
     - name: Login to Amazon ECR
-      id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
     
-    - name: Build and push Docker image
+    - name: Build Docker image
       id: build-image
       run: |
         IMAGE_TAG=${{ github.sha }}
         echo "Building image with tag: $IMAGE_TAG"
-        docker build --no-cache --pull \
+        
+        # Build with explicit cache busting
+        docker build \
+          --no-cache \
+          --pull \
           --build-arg VITE_API_URL=https://pilot.owkai.app \
+          --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+          --build-arg COMMIT_SHA=$IMAGE_TAG \
           -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
           -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        
+        # Push both tags
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
     
-    - name: Download current task definition
+    - name: Verify build contents
+      run: |
+        chmod +x .github/workflows/verify-build.sh
+        ./.github/workflows/verify-build.sh "${{ github.sha }}" "${{ steps.build-image.outputs.image }}"
+    
+    - name: Download task definition
       run: |
         aws ecs describe-task-definition \
           --task-definition $ECS_TASK_DEFINITION \
           --query taskDefinition > task-definition.json
     
-    - name: Fill in new image in task definition
+    - name: Update task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
@@ -70,10 +88,30 @@ jobs:
     
     - name: Force service refresh
       run: |
-        echo "Forcing service to pull new image..."
+        echo "Forcing ECS to pull new image..."
         aws ecs update-service \
           --cluster ${{ env.ECS_CLUSTER }} \
           --service ${{ env.ECS_SERVICE }} \
           --force-new-deployment \
           --region ${{ env.AWS_REGION }}
-        echo "Deployment forced. New image: ${{ steps.build-image.outputs.image }}"
+    
+    - name: Post-deployment smoke test
+      run: |
+        echo "Waiting 60s for deployment to stabilize..."
+        sleep 60
+        
+        echo "Testing production endpoint..."
+        RESPONSE=$(curl -s https://pilot.owkai.app)
+        
+        # Extract bundle hash
+        BUNDLE=$(echo "$RESPONSE" | grep -o 'index-[A-Za-z0-9]*.js' | head -1)
+        echo "Deployed bundle: $BUNDLE"
+        
+        # This will fail if old bundle detected - GOOD, we want to know
+        if [ "$BUNDLE" == "index-B46gRyfs.js" ]; then
+          echo "ERROR: Old bundle still deployed after successful deployment"
+          echo "This indicates a caching or deployment issue"
+          exit 1
+        fi
+        
+        echo "Smoke test PASSED - new bundle deployed"
