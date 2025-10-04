@@ -1,7 +1,7 @@
 import jwt
 import time
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from fastapi import HTTPException, status
 from typing import Dict, List, Optional
 from enterprise_config import config
@@ -96,7 +96,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
         Returns:
             Signed JWT token
         """
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         
         # Enterprise-standard claims (RFC 7519 + custom)
         payload = {
@@ -239,7 +239,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
     
     def create_refresh_token(self, user_id: str, session_id: str) -> str:
         """Create refresh token (longer lived for token renewal)"""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         
         payload = {
             "iss": self.issuer,

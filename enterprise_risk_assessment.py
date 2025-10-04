@@ -1,7 +1,7 @@
 # enterprise_risk_assessment.py - OW-KAI Enterprise Framework
 import math
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, Optional, Tuple
 from enum import Enum
 from dataclasses import dataclass
@@ -11,7 +11,7 @@ class EnterpriseRiskAssessment:
         self.framework_version = "enterprise_v1.0"
     
     def assess_action_risk(self, action_data: Dict[str, Any]) -> Dict[str, Any]:
-        assessment_start = datetime.utcnow()
+        assessment_start = datetime.now(UTC)
         action_type = action_data.get("action_type", "").lower()
         
         # Enterprise scoring logic
@@ -22,13 +22,13 @@ class EnterpriseRiskAssessment:
             enterprise_score += 30
         enterprise_score = min(100, enterprise_score)
         
-        processing_time = (datetime.utcnow() - assessment_start).total_seconds()
+        processing_time = (datetime.now(UTC) - assessment_start).total_seconds()
         
         return {
             "risk_score": enterprise_score,
             "methodology": "CVSS v3.1 + NIST 800-30 + MITRE ATT&CK",
             "framework_version": self.framework_version,
-            "assessment_timestamp": datetime.utcnow().isoformat(),
+            "assessment_timestamp": datetime.now(UTC).isoformat(),
             "processing_time_seconds": processing_time,
             "cvss_base_score": 5.0,
             "nist_risk_level": "MODERATE",

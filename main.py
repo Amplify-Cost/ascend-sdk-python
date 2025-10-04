@@ -287,7 +287,7 @@ demo_actions_storage = {
         "risk_level": "high",
         "ai_risk_score": 85,
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "reviewed_by": None,
         "reviewed_at": None
     },
@@ -299,7 +299,7 @@ demo_actions_storage = {
         "risk_level": "medium",
         "ai_risk_score": 65,
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "reviewed_by": None,
         "reviewed_at": None
     },
@@ -311,7 +311,7 @@ demo_actions_storage = {
         "risk_level": "high",
         "ai_risk_score": 90,
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "reviewed_by": None,
         "reviewed_at": None
     }
@@ -1963,7 +1963,7 @@ async def get_pending_actions_persistent(
                 "workflow_stage": "initial_review",
                 "current_approval_level": 0,
                 "required_approval_level": 1 if risk_score < 70 else 2 if risk_score < 90 else 3,
-                "requested_at": row[7].isoformat() if row[7] else datetime.utcnow().isoformat(),
+                "requested_at": row[7].isoformat() if row[7] else datetime.now(UTC).isoformat(),
                 "time_remaining": "4:00:00",
                 "is_emergency": (row[4] or "medium") == "high",
                 "contextual_risk_factors": get_risk_factors(row[2] or "unknown", row[4] or "medium"),
@@ -2088,7 +2088,7 @@ async def authorize_action_with_audit(
             # Update action status
             action["status"] = decision
             action["reviewed_by"] = current_user["email"]
-            action["reviewed_at"] = datetime.utcnow().isoformat()
+            action["reviewed_at"] = datetime.now(UTC).isoformat()
             action["notes"] = notes
             
             # Create enterprise audit trail entry
@@ -2099,7 +2099,7 @@ async def authorize_action_with_audit(
                 "action_type": action["action_type"],
                 "decision": decision,
                 "reviewed_by": current_user["email"],
-                "reviewed_at": datetime.utcnow().isoformat(),
+                "reviewed_at": datetime.now(UTC).isoformat(),
                 "notes": notes,
                 "risk_score": action["ai_risk_score"],
                 "user_role": current_user["role"],
@@ -2127,7 +2127,7 @@ async def authorize_action_with_audit(
                     'action_id': action_id,
                     'decision': decision,
                     'reviewed_by': current_user["email"],
-                    'timestamp': datetime.utcnow()
+                    'timestamp': datetime.now(UTC)
                 })
                 db.commit()
                 logger.info(f"✅ Audit trail saved to database for action {action_id}")
@@ -2199,7 +2199,7 @@ async def get_approval_metrics(
     """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
     try:
         # Use raw SQL to get metrics from existing columns only
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
         
         result = db.execute(text("""
             SELECT status, risk_level, approved
@@ -2380,7 +2380,7 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
         factors.append(high_risk_types[action_type.lower()])
     
     # Add time-based risk
-    current_hour = datetime.utcnow().hour
+    current_hour = datetime.now(UTC).hour
     if current_hour < 8 or current_hour > 18:
         factors.append("After-hours execution")
     
@@ -2431,7 +2431,7 @@ async def get_audit_trail(
                 "database_decisions": db_audit_entries
             },
             "compliance_status": "enterprise_compliant",
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(UTC).isoformat()
         }
         
     except Exception as e:
@@ -2501,7 +2501,7 @@ async def get_approved_actions(
             "demo_actions": len(approved_demo),
             "database_actions": len(approved_real),
             "approved_actions": all_approved[:limit],
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(UTC).isoformat()
         }
         
     except Exception as e:
@@ -2514,7 +2514,7 @@ async def get_workflow_config(current_user: dict = Depends(get_current_user)):
     try:
         return {
             "workflows": workflow_config,
-            "last_modified": datetime.utcnow().isoformat(),
+            "last_modified": datetime.now(UTC).isoformat(),
             "modified_by": "system",
             "total_workflows": len(workflow_config),
             "emergency_override_enabled": any(w["emergency_override"] for w in workflow_config.values())
@@ -2550,7 +2550,7 @@ async def update_workflow_config(
             "workflow_id": workflow_id,
             "updated_fields": list(updates.keys()),
             "modified_by": current_user["email"],
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
         
     except HTTPException:
@@ -2566,7 +2566,7 @@ metrics_storage = {
     "denied_count": 0,
     "emergency_overrides": 0,
     "average_processing_time": 45,
-    "last_updated": datetime.utcnow().isoformat()
+    "last_updated": datetime.now(UTC).isoformat()
 }
 
 @app.get("/agent-control/metrics/approval-performance")
@@ -2584,7 +2584,7 @@ async def get_approval_metrics_live(
         
         # Get real database metrics
         try:
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+            thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
             result = db.execute(text("""
                 SELECT status, risk_level, approved
                 FROM agent_actions 
@@ -2615,7 +2615,7 @@ async def get_approval_metrics_live(
             "approved_count": total_approved,
             "denied_count": total_denied,
             "emergency_overrides": total_emergency,
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(UTC).isoformat()
         })
         
         return {

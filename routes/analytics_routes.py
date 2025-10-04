@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, text, and_, or_
 from database import get_db
 from models import AgentAction, User, AuditLog  # Added AuditLog for enhanced analytics
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from collections import defaultdict, Counter
 from dependencies import get_current_user, require_admin
 from typing import List, Dict, Any, Optional
@@ -102,7 +102,7 @@ def get_realtime_metrics(
         logger.info(f"📊 Real-time metrics requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
         
         # Get current time for real-time calculations
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
         
@@ -178,7 +178,7 @@ def get_predictive_trends(
         logger.info(f"🔮 Predictive analytics requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
         
         # Historical data analysis for predictions
-        last_30_days = datetime.utcnow() - timedelta(days=30)
+        last_30_days = datetime.now(UTC) - timedelta(days=30)
         
         # Risk trend prediction (simulated AI analysis)
         risk_forecast = [
@@ -220,7 +220,7 @@ def get_predictive_trends(
         }
         
         return {
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "prediction_horizon": "7_days",
             "risk_forecast": risk_forecast,
             "agent_workload_forecast": agent_workload_forecast,
@@ -244,7 +244,7 @@ def get_executive_dashboard(
         logger.info(f"📈 Executive dashboard requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
         
         # High-level KPIs for executives
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         last_week = now - timedelta(days=7)
         last_month = now - timedelta(days=30)
         
@@ -348,7 +348,7 @@ def get_system_performance(
         logger.info(f"⚡ System performance requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
         
         # Real-time performance data (simulated)
-        current_time = datetime.utcnow()
+        current_time = datetime.now(UTC)
         
         # Generate realistic performance metrics
         performance_data = {
@@ -461,7 +461,7 @@ async def websocket_endpoint(websocket: WebSocket, user_email: str):
             "type": "connection",
             "status": "connected",
             "message": f"Real-time analytics connected for {user_email}",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }))
         
         # Start real-time data streaming
@@ -469,12 +469,12 @@ async def websocket_endpoint(websocket: WebSocket, user_email: str):
             # Send real-time metrics every 10 seconds
             realtime_data = {
                 "type": "metrics_update",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "metrics": {
                     "active_users": len(manager.active_connections),
-                    "cpu_usage": 42.3 + (hash(str(datetime.utcnow())) % 20 - 10),
-                    "memory_usage": 67.8 + (hash(str(datetime.utcnow())) % 10 - 5),
-                    "response_time": 145.2 + (hash(str(datetime.utcnow())) % 50 - 25)
+                    "cpu_usage": 42.3 + (hash(str(datetime.now(UTC))) % 20 - 10),
+                    "memory_usage": 67.8 + (hash(str(datetime.now(UTC))) % 10 - 5),
+                    "response_time": 145.2 + (hash(str(datetime.now(UTC))) % 50 - 25)
                 }
             }
             

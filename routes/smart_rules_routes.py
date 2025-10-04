@@ -52,13 +52,13 @@ def list_smart_rules(
                 "risk_level": row[6] or "medium",
                 "recommendation": row[7] or "Review rule effectiveness",
                 "justification": row[8] or "Security enhancement",
-                "created_at": row[9] if row[9] else datetime.utcnow(),
+                "created_at": row[9] if row[9] else datetime.now(UTC),
                 # Enterprise performance metrics
                 "performance_score": random.randint(75, 95),
                 "triggers_last_24h": random.randint(0, 25),
                 "false_positives": random.randint(0, 3),
                 "effectiveness_rating": "high" if random.randint(85, 100) > 90 else "medium",
-                "last_triggered": (datetime.utcnow() - timedelta(hours=random.randint(1, 48))).isoformat()
+                "last_triggered": (datetime.now(UTC) - timedelta(hours=random.randint(1, 48))).isoformat()
             }
             enhanced_rules.append(enhanced_rule)
         
@@ -812,7 +812,7 @@ async def generate_rule_from_natural_language(
                 "risk_level": rule_data["risk_level"],
                 "recommendation": rule_data.get("recommendation", "Enterprise security review required"),
                 "justification": rule_data["justification"],
-                "created_at": datetime.utcnow()
+                "created_at": datetime.now(UTC)
             })
 
             new_rule_id = result.fetchone()[0]
@@ -834,13 +834,13 @@ async def generate_rule_from_natural_language(
             "performance_score": 85,
             "triggers_last_24h": 0,
             "false_positives": 0,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "agent_id": "enterprise-ai-generated",
             "action_type": "natural_language_enterprise_rule",
             "description": natural_language,
             "recommendation": rule_data.get("recommendation", "Enterprise security review required"),
             "effectiveness_rating": "high",
-            "last_triggered": datetime.utcnow().isoformat(),
+            "last_triggered": datetime.now(UTC).isoformat(),
             "natural_language_source": natural_language,
             "enterprise_features": {
                 "compliance_impact": rule_data.get("compliance_impact", "General compliance"),
@@ -932,7 +932,7 @@ def delete_smart_rule(
             "rule_id": rule_id,
             "rule_condition": rule.condition,
             "deleted_by": admin_user['email'],
-            "deletion_timestamp": datetime.utcnow().isoformat(),
+            "deletion_timestamp": datetime.now(UTC).isoformat(),
             "impact_assessment": "Rule deactivated - monitoring for security gaps"
         }
         
@@ -1017,7 +1017,7 @@ def seed_smart_rules(
                 risk_level="high",
                 recommendation="Immediately investigate and block network access",
                 justification="Data exfiltration attempts pose high security risk",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(UTC)
             ),
             SmartRule(
                 agent_id="demo-agent-002",
@@ -1028,7 +1028,7 @@ def seed_smart_rules(
                 risk_level="high",
                 recommendation="Quarantine agent and review permissions",
                 justification="Unauthorized privilege escalation must be prevented",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(UTC)
             ),
             SmartRule(
                 agent_id="demo-agent-003",
@@ -1039,7 +1039,7 @@ def seed_smart_rules(
                 risk_level="medium",
                 recommendation="Monitor network traffic and log activities",
                 justification="Internal network scanning may indicate reconnaissance",
-                created_at=datetime.utcnow()
+                created_at=datetime.now(UTC)
             )
         ]
 

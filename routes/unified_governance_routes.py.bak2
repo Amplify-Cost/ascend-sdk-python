@@ -1,7 +1,5 @@
 # routes/unified_governance_routes.py
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
-from services.workflow_bridge import WorkflowBridge
-from services.workflow_approver_service import workflow_approver_service
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
@@ -9,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
-from models import User, AgentAction, AuditLog, EnterprisePolicy  # REMOVED WorkflowConfig - doesn't exist
+from models import User, AgentAction, AuditLog  # REMOVED WorkflowConfig - doesn't exist
 from models_mcp_governance import MCPPolicy
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta
 import logging
 import json
 
@@ -83,7 +81,7 @@ async def get_unified_governance_stats(
             "approved_today": approved_today,
             "emergency_actions": emergency_actions,
             "governance_health": "healthy" if pending_actions < 50 else "attention_needed",
-            "last_updated": datetime.now(UTC).isoformat(),
+            "last_updated": datetime.utcnow().isoformat(),
             "user_info": {
                 "email": current_user.get("email"),
                 "role": current_user.get("role"),
@@ -107,7 +105,7 @@ async def get_unified_governance_stats(
             "approved_today": 15,
             "emergency_actions": 2,
             "governance_health": "demo_mode",
-            "last_updated": datetime.now(UTC).isoformat(),
+            "last_updated": datetime.utcnow().isoformat(),
             "user_info": {
                 "email": current_user.get("email") if current_user else "demo@company.com",
                 "role": current_user.get("role") if current_user else "manager",
@@ -237,7 +235,7 @@ async def get_unified_pending_actions(
                 "execution_status": "pending_approval",
                 "contextual_risk_factors": ["Sensitive data access", "External MCP server"],
                 "time_remaining": "1:45:00",
-                "requested_at": (datetime.now(UTC) - timedelta(minutes=15)).isoformat(),
+                "requested_at": (datetime.utcnow() - timedelta(minutes=15)).isoformat(),
                 "user_email": "developer@company.com"
             },
             {
@@ -254,7 +252,7 @@ async def get_unified_pending_actions(
                 "execution_status": "pending_approval",
                 "contextual_risk_factors": ["Production environment"],
                 "time_remaining": "3:15:00",
-                "requested_at": (datetime.now(UTC) - timedelta(minutes=8)).isoformat(),
+                "requested_at": (datetime.utcnow() - timedelta(minutes=8)).isoformat(),
                 "user_email": "security@company.com"
             }
         ]
@@ -287,7 +285,7 @@ async def evaluate_mcp_action(
         action.status = "approved" if decision == "approved" else "denied"
         action.approved = True if decision == "approved" else False
         action.reviewed_by = current_user.get("email")
-        action.reviewed_at = datetime.now(UTC)
+        action.reviewed_at = datetime.utcnow()
         
         # 🏢 ENTERPRISE: Create audit log entry using your existing AuditLog model
         audit_entry = AuditLog(
@@ -347,7 +345,7 @@ async def governance_health_check(
             "user_table_accessible": True,
             "total_actions": action_count,
             "total_users": user_count,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": datetime.utcnow().isoformat(),
             "version": "1.0.0"
         }
         
@@ -359,7 +357,7 @@ async def governance_health_check(
             "status": "degraded",
             "database_connected": False,
             "error": str(e),
-            "timestamp": datetime.now(UTC).isoformat()
+            "timestamp": datetime.utcnow().isoformat()
         }
 
 # 🏢 ENTERPRISE: Admin-only unified reporting (uses your existing require_admin)
@@ -387,7 +385,7 @@ async def get_unified_admin_report(
         
         admin_report = {
             "report_type": "unified_governance_admin",
-            "generated_at": datetime.now(UTC).isoformat(),
+            "generated_at": datetime.utcnow().isoformat(),
             "generated_by": current_user.get("email"),
             "summary": {
                 "total_actions": total_actions,
@@ -422,7 +420,7 @@ def calculate_time_remaining(created_at: datetime) -> str:
     
     # Default 4-hour approval window
     deadline = created_at + timedelta(hours=4)
-    remaining = deadline - datetime.now(UTC)
+    remaining = deadline - datetime.utcnow()
     
     if remaining.total_seconds() <= 0:
         return "OVERDUE"
@@ -561,6 +559,7 @@ async def update_governance_policy(
         
         # Import here to avoid circular imports
         from uuid import UUID
+        from datetime import datetime, UTC
         
         # Find the policy
         try:
@@ -758,7 +757,7 @@ async def evaluate_policy_realtime(
             "policy_name": policy_name,
             "triggered_rules": triggered_rules,
             "response_time_ms": round(response_time, 2),
-            "evaluation_timestamp": datetime.now(UTC).isoformat(),
+            "evaluation_timestamp": datetime.utcnow().isoformat(),
             "status": "completed",
             "details": {
                 "action_type": action_type,
@@ -810,7 +809,7 @@ async def get_policy_engine_metrics(
             "evaluation_throughput": random.randint(800, 1200),
             "cache_hit_rate": round(85.0 + random.uniform(0.0, 10.0), 1),
             "policy_engine_uptime": "99.9%",
-            "last_updated": datetime.now(UTC).isoformat()
+            "last_updated": datetime.utcnow().isoformat()
         }
         
         # Get individual policy performance
@@ -824,7 +823,7 @@ async def get_policy_engine_metrics(
                 "evaluations": random.randint(50, 500),
                 "success_rate": round(95.0 + random.uniform(0.0, 5.0), 1),
                 "avg_response_time": round(0.1 + random.uniform(0.1, 0.5), 1),
-                "last_evaluation": datetime.now(UTC).isoformat(),
+                "last_evaluation": datetime.utcnow().isoformat(),
                 "status": "active" if policy.is_active else "inactive"
             }
             policy_performance.append(perf)
@@ -838,7 +837,7 @@ async def get_policy_engine_metrics(
                     "evaluations": 247,
                     "success_rate": 99.2,
                     "avg_response_time": 0.3,
-                    "last_evaluation": datetime.now(UTC).isoformat(),
+                    "last_evaluation": datetime.utcnow().isoformat(),
                     "status": "active"
                 },
                 {
@@ -847,7 +846,7 @@ async def get_policy_engine_metrics(
                     "evaluations": 156,
                     "success_rate": 98.7,
                     "avg_response_time": 0.2,
-                    "last_evaluation": datetime.now(UTC).isoformat(),
+                    "last_evaluation": datetime.utcnow().isoformat(),
                     "status": "active"
                 }
             ]
@@ -891,6 +890,7 @@ async def deploy_policy(
         
         # Import here to avoid circular imports
         from uuid import UUID
+        from datetime import datetime, UTC
         
         # Find the policy
         try:
@@ -1061,7 +1061,7 @@ async def evaluate_action_with_policies(
                 "policies_evaluated": len(evaluated_policies),
                 "policies_triggered": len([p for p in evaluated_policies if p["triggered_rules"]]),
                 "highest_confidence": max([p["confidence"] for p in evaluated_policies], default=0),
-                "evaluation_timestamp": datetime.now(UTC).isoformat()
+                "evaluation_timestamp": datetime.utcnow().isoformat()
             }
         }
         
@@ -1177,7 +1177,7 @@ async def get_authorization_policy_metrics(
                         "avg_response_time": 0.2
                     }
                 ],
-                "last_updated": datetime.now(UTC).isoformat()
+                "last_updated": datetime.utcnow().isoformat()
             },
             "message": "Authorization policy metrics retrieved (fallback mode)"
         }
@@ -1224,43 +1224,19 @@ async def enforce_policy(
         import time
         start = time.time()
         
-        active_policies = db.query(EnterprisePolicy).all()
+        active_policies = db.query(AgentAction).filter(
+            and_(AgentAction.action_type == "governance_policy", AgentAction.status == "active")
+        ).all()
         
-        # Compile and load into engine
         # Compile and load into engine
         compiled_policies = []
         for policy in active_policies:
-            try:
-                # Use EnterprisePolicy columns directly (no extra_data)
-                compiled = {
-                    "id": policy.id,
-                    "effect": policy.effect.lower() if policy.effect else "deny",
-                    "actions": policy.actions if policy.actions else [],
-                    "resources": policy.resources if policy.resources else [],
-                    "conditions": policy.conditions if policy.conditions else {},
-                    "natural_language": policy.description,
-                    "policy_name": policy.policy_name
-                }
-                compiled_policies.append(compiled)
-                logger.info(f"✅ Loaded policy {policy.id}: {policy.policy_name}")
-                continue
-                
-                # Fallback: text-based DSL policy (only if description looks like DSL)
-                if policy.description and any(op in policy.description for op in ['==', '!=', '>', '<', 'AND', 'OR', 'contains']):
-                    logger.info(f"🔍 Compiling DSL policy {policy.id}: description=\"{policy.description}\", risk_level={policy.risk_level}")
-                    compiled = policy_compiler.compile(
-                        (policy.description or ""), 
-                        policy.risk_level or "medium"
-                    )
-                    compiled["id"] = policy.id
-                    compiled_policies.append(compiled)
-                    logger.info(f"✅ Compiled DSL policy {policy.id}")
-                else:
-                    logger.warning(f"⚠️ Policy {policy.id} has natural language description without structured data - skipping")
-                    
-            except Exception as e:
-                logger.error(f"❌ Failed to compile policy {policy.id}: {e}")
-                continue
+            compiled = policy_compiler.compile(
+                (policy.description or ""), 
+                policy.risk_level or "medium"
+            )
+            compiled["id"] = policy.id
+            compiled_policies.append(compiled)
             
         enforcement_engine.load_policies(compiled_policies)
         
@@ -1277,37 +1253,6 @@ async def enforce_policy(
         
         # Log enforcement decision
         logger.info(f"Policy enforcement: {result['decision']} for {action_data.get('action_type')} on {action_data.get('target')}")
-        
-        # Create workflow if approval required
-        if result.get("decision") == "REQUIRE_APPROVAL":
-            try:
-                bridge = WorkflowBridge(db)
-                workflow_execution = bridge.create_workflow_execution(
-                    action_data=action_data,
-                    risk_score=action_data.get("risk_score", 50),
-                    policies_triggered=result.get("policies_triggered", [])
-                )
-                result["workflow_execution_id"] = workflow_execution.id
-                result["workflow_id"] = workflow_execution.workflow_id
-                logger.info(f"✅ Created workflow execution {workflow_execution.id}")
-                
-                # AUTO-ASSIGN APPROVERS
-                try:
-                    approver_result = workflow_approver_service.assign_approvers_to_workflow(
-                        db=db,
-                        workflow_execution_id=workflow_execution.id,
-                        action_id=action_data.get("id"),
-                        risk_score=action_data.get("risk_score", 50),
-                        required_approval_level=workflow_execution.workflow.required_approval_levels,
-                        department=action_data.get("department", "Engineering")
-                    )
-                    result["assigned_approver"] = approver_result["primary"]["email"]
-                    logger.info(f"✅ Assigned approver: {approver_result['primary']['email']}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Approver assignment failed: {e}")
-            except Exception as e:
-                logger.error(f"❌ Workflow creation failed: {e}")
-                # Don't fail the whole request if workflow creation fails
         
         return {
             "success": True,
@@ -1626,105 +1571,3 @@ async def get_action_types(
         "actions": CustomPolicyBuilder.VALID_ACTIONS
     }
 
-
-@router.get("/dashboard/pending-approvals")
-async def get_pending_approvals(
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get workflows pending approval for current user"""
-    from models import WorkflowExecution
-    
-    user_role = current_user.get("role", "user")
-    
-    query = db.query(WorkflowExecution).filter(
-        WorkflowExecution.current_stage.in_(["pending_stage_1", "pending_stage_2", "pending_stage_3"])
-    )
-    
-    if user_role == "security":
-        query = query.filter(WorkflowExecution.current_stage == "pending_stage_1")
-    elif user_role == "operations":
-        query = query.filter(WorkflowExecution.current_stage.in_(["pending_stage_1", "pending_stage_2"]))
-    
-    workflows = query.order_by(WorkflowExecution.started_at.desc()).all()
-    
-    result = []
-    for wf in workflows:
-        sla_hours_remaining = None
-        if wf.started_at:
-            deadline = wf.started_at + timedelta(hours=24)
-            now = datetime.now(UTC) if wf.started_at.tzinfo else datetime.now(UTC)
-            sla_hours_remaining = (deadline - now).total_seconds() / 3600
-        
-        result.append({
-            "workflow_id": wf.id,
-            "workflow_execution_id": wf.id,
-            "action_type": wf.workflow_id or "unknown_action",
-            "risk_score": 75,
-            "current_stage": wf.current_stage,
-            "required_role": "security" if wf.current_stage == "pending_stage_1" else "operations" if wf.current_stage == "pending_stage_2" else "executive",
-            "sla_hours_remaining": sla_hours_remaining,
-            "sla_status": "critical" if sla_hours_remaining and sla_hours_remaining < 1 else "warning" if sla_hours_remaining and sla_hours_remaining < 4 else "normal",
-            "can_approve": user_role in ["admin", "operations", "executive"] if wf.current_stage == "pending_stage_2" else user_role in ["admin", "security"] if wf.current_stage == "pending_stage_1" else user_role == "admin",
-            "created_at": wf.started_at.isoformat() if wf.started_at else datetime.now(UTC).isoformat(),
-            "agent_id": wf.executed_by or "system"
-        })
-    
-    return {
-        "my_queue": result,
-        "total_pending": len(result),
-        "role": user_role
-    }
-
-@router.post("/workflows/{workflow_execution_id}/approve")
-async def approve_workflow(
-    workflow_execution_id: int,
-    approval_data: Dict[str, Any],
-    current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Approve or deny a workflow execution"""
-    from models import WorkflowExecution, AgentAction
-    
-    workflow = db.query(WorkflowExecution).filter(
-        WorkflowExecution.id == workflow_execution_id
-    ).first()
-    
-    if not workflow:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-    
-    decision = approval_data.get("decision")  # "approved" or "denied"
-    notes = approval_data.get("notes", "")
-    
-    # Update workflow execution
-    if decision == "approved":
-        workflow.execution_status = "approved"
-        workflow.current_stage = "completed"
-    else:
-        workflow.execution_status = "denied"
-        workflow.current_stage = "denied"
-    
-    # Add to approval chain
-    if not workflow.approval_chain:
-        workflow.approval_chain = []
-    
-    workflow.approval_chain.append({
-        "approver": current_user.get("email"),
-        "decision": decision,
-        "notes": notes,
-        "timestamp": datetime.now(UTC).isoformat(),
-        "stage": workflow.current_stage
-    })
-    
-    workflow.completed_at = datetime.now(UTC)
-    
-    db.commit()
-    db.refresh(workflow)
-    
-    return {
-        "success": True,
-        "message": f"Workflow {decision}",
-        "workflow_execution_id": workflow.id,
-        "decision": decision,
-        "current_stage": workflow.current_stage
-    }

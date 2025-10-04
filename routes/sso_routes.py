@@ -341,8 +341,6 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
                     last_login = :last_login
                 WHERE email = :email
             """), {
-                "password": hashed_password,
-
                 "email": email,
                 "first_name": enterprise_profile["first_name"],
                 "last_name": enterprise_profile["last_name"],
@@ -380,13 +378,10 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
                 ) VALUES (
                     :email, :password, :first_name, :last_name, :access_level, :department,
                     :mfa_enabled, :status, :role, :last_login, :created_at
-                    :email, :first_name, :last_name, :access_level, :department,
-                    :mfa_enabled, :status, :role, :last_login, :created_at
                 ) RETURNING user_id
             """), {
-                "password": hashed_password,
-
                 "email": email,
+                "password": hashed_password,
                 "first_name": enterprise_profile["first_name"],
                 "last_name": enterprise_profile["last_name"],
                 "access_level": enterprise_profile["access_level"],
@@ -405,8 +400,6 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
         
         return {
             "user_id": user_id,
-                "password": hashed_password,
-
             "email": email,
             "access_level": enterprise_profile["access_level"]
         }
@@ -431,7 +424,7 @@ async def log_sso_audit_event(
         db.execute(text("""
             INSERT INTO user_audit_logs (
                 user_email, action, target, details, ip_address, timestamp
-            ) VALUES (:password, 
+            ) VALUES (
                 :user_email, :action, :target, :details, :ip_address, :timestamp
             )
         """), {

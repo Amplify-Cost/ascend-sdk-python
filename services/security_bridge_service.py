@@ -28,7 +28,7 @@ class SecurityEvent:
         self.decision = decision
         self.source_system = source_system
         self.metadata = metadata or {}
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(UTC)
 
 class SecurityBridge:
     """
@@ -255,7 +255,7 @@ class SecurityBridge:
             and_(
                 AgentAction.action_type == action_type,
                 AgentAction.extra_data.isnot(None),
-                AgentAction.created_at >= datetime.utcnow().replace(day=1)  # This month
+                AgentAction.created_at >= datetime.now(UTC).replace(day=1)  # This month
             )
         ).scalar()
         

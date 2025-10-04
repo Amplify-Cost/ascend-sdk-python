@@ -2,7 +2,7 @@
 Enterprise Policy Enforcement using Cedar-like structured rules
 """
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, UTC
 from services.condition_engine import condition_engine
 import json
 import re
@@ -146,7 +146,7 @@ class EnforcementEngine:
             "allowed": final_decision == "ALLOW",
             "policies_triggered": triggered_policies,
             "evaluation_time_ms": 0,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
         
         # Cache result

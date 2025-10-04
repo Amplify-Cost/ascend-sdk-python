@@ -5,7 +5,7 @@ from sqlalchemy import text
 from database import get_db
 from dependencies import get_current_user, require_admin
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import json
 import logging
 from pydantic import BaseModel
@@ -53,7 +53,7 @@ async def get_siem_status(current_user: dict = Depends(get_current_user)):
             "active_connector": siem_manager.active_connector.__class__.__name__ if siem_manager.active_connector else None,
             "available_siem_types": [siem_type.value for siem_type in SIEMType],
             "connection_status": "connected" if siem_manager.active_connector else "not_configured",
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": datetime.now(UTC).isoformat()
         }
         
         # Get connector details if available
@@ -126,7 +126,7 @@ async def configure_siem(
             "host": config_request.host,
             "connection_status": "connected",
             "configured_by": current_user["email"],
-            "configured_at": datetime.utcnow().isoformat()
+            "configured_at": datetime.now(UTC).isoformat()
         }
         
     except HTTPException:
@@ -153,7 +153,7 @@ async def test_siem_connection(current_user: dict = Depends(require_admin), _=De
                 "status": "success",
                 "message": "✅ SIEM connection test successful",
                 "connector_type": siem_manager.active_connector.__class__.__name__,
-                "tested_at": datetime.utcnow().isoformat(),
+                "tested_at": datetime.now(UTC).isoformat(),
                 "tested_by": current_user["email"]
             }
         else:
@@ -161,7 +161,7 @@ async def test_siem_connection(current_user: dict = Depends(require_admin), _=De
             return {
                 "status": "error",
                 "message": "❌ SIEM connection test failed",
-                "tested_at": datetime.utcnow().isoformat()
+                "tested_at": datetime.now(UTC).isoformat()
             }
             
     except HTTPException:
@@ -189,8 +189,8 @@ async def send_event_to_siem(
         
         # Create security event
         event = SecurityEvent(
-            event_id=data.get("event_id", f"owai-custom-{int(datetime.utcnow().timestamp())}"),
-            timestamp=datetime.utcnow(),
+            event_id=data.get("event_id", f"owai-custom-{int(datetime.now(UTC).timestamp())}"),
+            timestamp=datetime.now(UTC),
             event_type=data.get("event_type", "custom_event"),
             severity=data.get("severity", "medium"),
             source=data.get("source", "ow-ai-manual"),
@@ -212,7 +212,7 @@ async def send_event_to_siem(
             return {
                 "message": "✅ Event sent to SIEM successfully",
                 "event_id": event.event_id,
-                "sent_at": datetime.utcnow().isoformat(),
+                "sent_at": datetime.now(UTC).isoformat(),
                 "sent_by": current_user["email"]
             }
         else:
@@ -271,7 +271,7 @@ async def forward_authorization_to_siem(
             return {
                 "message": "✅ Authorization decision forwarded to SIEM",
                 "action_id": action_id,
-                "forwarded_at": datetime.utcnow().isoformat()
+                "forwarded_at": datetime.now(UTC).isoformat()
             }
         else:
             logger.error(f"❌ Failed to forward authorization {action_id} to SIEM")
@@ -353,7 +353,7 @@ async def query_siem_events(
                 "events": [
                     {
                         "event_id": "demo-001",
-                        "timestamp": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
+                        "timestamp": (datetime.now(UTC) - timedelta(hours=2)).isoformat(),
                         "agent_id": "security-scanner-01",
                         "action_type": "vulnerability_scan",
                         "risk_score": 75,
@@ -361,7 +361,7 @@ async def query_siem_events(
                     },
                     {
                         "event_id": "demo-002", 
-                        "timestamp": (datetime.utcnow() - timedelta(hours=4)).isoformat(),
+                        "timestamp": (datetime.now(UTC) - timedelta(hours=4)).isoformat(),
                         "agent_id": "compliance-agent",
                         "action_type": "compliance_check",
                         "risk_score": 55,
@@ -380,7 +380,7 @@ async def query_siem_events(
             "time_range_hours": hours,
             "events": events,
             "total_events": len(events),
-            "queried_at": datetime.utcnow().isoformat()
+            "queried_at": datetime.now(UTC).isoformat()
         }
         
     except Exception as e:
@@ -398,7 +398,7 @@ async def get_siem_integration_metrics(current_user: dict = Depends(get_current_
         logger.info(f"🔄 SIEM metrics requested by: {current_user.get('email', 'unknown')}")
         
         # Calculate metrics (in production, this would come from database/cache)
-        current_time = datetime.utcnow()
+        current_time = datetime.now(UTC)
         
         metrics = {
             "integration_status": {
@@ -452,7 +452,7 @@ async def bulk_forward_events(
             raise HTTPException(status_code=400, detail="No SIEM connector configured")
         
         # Get recent events from database
-        cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+        cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
         
         events_query = text("""
             SELECT id, agent_id, action_type, risk_level, status, approved, created_at
@@ -471,7 +471,7 @@ async def bulk_forward_events(
             
             event = SecurityEvent(
                 event_id=f"owai-bulk-{row.id}",
-                timestamp=row.created_at or datetime.utcnow(),
+                timestamp=row.created_at or datetime.now(UTC),
                 event_type="agent_action_bulk",
                 severity=row.risk_level,
                 source="ow-ai-bulk-forward",
@@ -494,7 +494,7 @@ async def bulk_forward_events(
                 "events_sent": len(security_events),
                 "time_range_hours": hours,
                 "forwarded_by": current_user["email"],
-                "forwarded_at": datetime.utcnow().isoformat(),
+                "forwarded_at": datetime.now(UTC).isoformat(),
                 "siem_response": result
             }
         else:
@@ -519,7 +519,7 @@ async def siem_health_check():
             "status": "healthy",
             "siem_connectors": len(siem_manager.connectors),
             "active_connector": siem_manager.active_connector is not None,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
         
         if siem_manager.active_connector:
@@ -538,5 +538,5 @@ async def siem_health_check():
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(UTC).isoformat()
         }
