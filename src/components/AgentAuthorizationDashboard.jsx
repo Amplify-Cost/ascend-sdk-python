@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
+import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -2891,139 +2892,13 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 
       {/* Policy Management Tab */}
       {activeTab === "policies" && (
-        <div className="space-y-6">
-          {/* Policy Creation Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Create New Policy</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Policy Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={newPolicy.policy_name} onChange={(e) => setNewPolicy({...newPolicy, policy_name: e.target.value})} placeholder="e.g., File Access Control"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Natural Language Description
-                </label>
-                <textarea
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={newPolicy.description} onChange={(e) => setNewPolicy({...newPolicy, description: e.target.value})} placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
-                />
-              </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700" onClick={createEnterprisePolicy}>
-                Create Policy
-              </button>
-            </div>
-          </div>
-
-          {/* Policy Engine Status */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Enterprise Policy Engine Status</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">Active</div>
-                <div className="text-sm text-gray-600">Policy Engine</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">Enabled</div>
-                <div className="text-sm text-gray-600">Natural Language</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">Available</div>
-                <div className="text-sm text-gray-600">Version Control</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">Ready</div>
-                <div className="text-sm text-gray-600">Deployment</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Enterprise Policy Display - Separate Section */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 border border-blue-200">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">Active Policies</h3>
-                <p className="text-sm text-gray-600 mt-1">Enterprise governance rules enforcing organizational security standards</p>
-              </div>
-              <div className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold text-lg">
-                {policies.length}
-              </div>
-            </div>
-            {policies.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                <div className="text-6xl mb-4">📋</div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">No Active Policies</h4>
-                <p className="text-gray-500">Create your first enterprise policy above to begin governance enforcement</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {policies.map((policy) => (
-                  <div key={policy.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-xl transition-all duration-200">
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="text-xl font-bold text-gray-900">{policy.policy_name}</h4>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-                              policy.risk_level === "high" ? "bg-red-500 text-white" :
-                              policy.risk_level === "medium" ? "bg-yellow-500 text-white" :
-                              "bg-green-500 text-white"
-                            }`}>
-                              {policy.risk_level || "MEDIUM"} RISK
-                            </span>
-                            {policy.requires_approval && (
-                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                                ⚠️ APPROVAL REQUIRED
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-gray-700 leading-relaxed">{policy.description}</p>
-                        </div>
-                      </div>
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500 font-medium">Created By</span>
-                            <p className="text-gray-900 font-semibold">{policy.created_by}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Created Date</span>
-                            <p className="text-gray-900 font-semibold">{new Date(policy.created_at).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"})}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Status</span>
-                            <p className="text-green-600 font-semibold flex items-center gap-1">
-                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                              Active
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex justify-end gap-2">
-                      <button onClick={() => handleViewDetails(policy)} className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 rounded-md transition-colors">
-                        📊 View Details
-                      </button>
-                      <button onClick={() => handleEditPolicy(policy)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-md transition-colors">
-                        ✏️ Edit
-                      </button>
-                      <button onClick={() => handleDeletePolicy(policy.id)} className="px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 rounded-md transition-colors">
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <EnhancedPolicyTabComplete
+          policies={policies}
+          onCreatePolicy={createEnterprisePolicy}
+          onDeletePolicy={handleDeletePolicy}
+          API_BASE_URL={API_BASE_URL}
+          getAuthHeaders={getAuthHeaders}
+        />
       )}
       {/* 🚀 NEW: Execution Center Tab */}
       {activeTab === "execution" && (

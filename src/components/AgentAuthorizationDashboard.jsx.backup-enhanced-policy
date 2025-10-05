@@ -23,7 +23,6 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
 // 🔌 NEW: MCP Integration State
 
-// Enterprise Policy Management State
 const [newPolicy, setNewPolicy] = useState({
   policy_name: "",
   description: ""
@@ -31,14 +30,11 @@ const [newPolicy, setNewPolicy] = useState({
 const [mcpActions, setMcpActions] = useState([]);
 const [showMcpFilters, setShowMcpFilters] = useState(false);
 
-console.log("🧪 Testing newWorkflow:", newWorkflow);
   
-// Existing workflow management state
   const [workflows, setWorkflows] = useState({});
   const [editingWorkflow, setEditingWorkflow] = useState(null);
   const [message, setMessage] = useState(null);
 
-  // NEW: Advanced Automation State
   const [automationData, setAutomationData] = useState(null);
   const [workflowOrchestrations, setWorkflowOrchestrations] = useState({});
   const [showAutomationModal, setShowAutomationModal] = useState(false);
@@ -53,11 +49,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-  // Fixed useEffect for real-time updates
   useEffect(() => {
-    // Fetch initial data
     fetchPendingActions().then(() => {
-      // After pending actions are loaded, update dashboard and metrics
       fetchDashboardData();
       fetchApprovalMetrics();
     });
@@ -66,7 +59,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       fetchWorkflows();
     }
 
-    // NEW: Fetch automation data when on automation tab
     if (activeTab === "automation") {
       fetchAutomationData();
       fetchWorkflowOrchestrations();
@@ -79,7 +71,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       fetchExecutionHistory();
     }
         
-    // Real-time refresh every 15 seconds for more responsive updates
     const interval = setInterval(() => {
       fetchPendingActions().then(() => {
         fetchDashboardData();
@@ -91,7 +82,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       }
 
 
-      // NEW: Update automation data in real-time
       if (activeTab === "automation") {
         fetchAutomationData();
         fetchWorkflowOrchestrations();
@@ -111,11 +101,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 // 🏢 ENTERPRISE: Data compatibility effect
 useEffect(() => {
   if (dashboardData && !compatibilityApplied) {
-    // Fix data structure compatibility
     if (dashboardData.user_context && !dashboardData.user_info) {
-      console.log("🔧 ENTERPRISE: Applying data compatibility layer");
       
-      // Create a new object to avoid mutation issues
       const enhancedData = {
         ...dashboardData,
         user_info: {
@@ -138,22 +125,18 @@ useEffect(() => {
       
       setDashboardData(enhancedData);
       setCompatibilityApplied(true);
-      console.log("✅ ENTERPRISE: Compatibility layer applied successfully");
     }
   }
 }, [dashboardData, pendingActions, user, compatibilityApplied]);
 
  
-      // ENTERPRISE FIX: fetchPendingActions - Replace hardcoded demo data with real backend calls
     
       const fetchPendingActions = async () => {
-        console.log("PHASE 3: Fetching pending workflows from governance API...");
         
         try {
           setLoading(true);
           setError("");
           
-          // Call Phase 3 governance dashboard endpoint
           const response = await fetch(`${API_BASE_URL}/api/governance/dashboard/pending-approvals`, {
             headers: { 
               ...getAuthHeaders(), 
@@ -166,19 +149,15 @@ useEffect(() => {
           }
           
           const data = await response.json();
-          console.log("Phase 3 API response:", data);
           
-          // Extract workflows from response
           const workflows = data.my_queue || [];
           
           if (workflows.length === 0) {
-            console.log("No pending workflows found");
             setPendingActions([]);
             setError(null);
             return;
           }
           
-          // Transform Phase 3 workflow format to frontend action format
           const actions = workflows.map(workflow => ({
             id: workflow.workflow_id,
             workflow_execution_id: workflow.workflow_execution_id,
@@ -209,7 +188,6 @@ useEffect(() => {
             required_role: workflow.required_role
           }));
           
-          console.log(`Loaded ${actions.length} pending workflows:`, actions);
           setPendingActions(actions);
           setError(null);
           
@@ -235,7 +213,6 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         
-        // Calculate real-time metrics from pending actions
         const totalPending = pendingActions.length;
         const criticalPending = pendingActions.filter(action => 
           action.ai_risk_score >= 80 || action.risk_level === "high"
@@ -244,7 +221,6 @@ useEffect(() => {
           action.is_emergency || action.ai_risk_score >= 90
         ).length;
         
-        // Override static numbers with real-time calculations
         const enhancedData = {
           ...data,
           pending_summary: {
@@ -270,7 +246,6 @@ useEffect(() => {
         };
         
         setDashboardData(enhancedData);
-        console.log("📊 Real-time dashboard data updated:", enhancedData);
       }
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
@@ -285,7 +260,6 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         setPolicies(data.policies || []);
-        console.log("✅ Policies loaded:", data.policies?.length || 0);
       }
     } catch (error) {
       console.error("❌ Failed to fetch policies:", error);
@@ -302,7 +276,6 @@ useEffect(() => {
         headers: getAuthHeaders()
       });
       if (response.ok) {
-        console.log("✅ Policy deleted successfully");
         fetchPolicies();
         alert("Policy deleted successfully");
       } else {
@@ -341,7 +314,6 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         
-        // Add real-time calculations for better accuracy
         const totalActions = data.decision_breakdown.approved + 
                             data.decision_breakdown.denied + 
                             data.decision_breakdown.pending;
@@ -350,7 +322,6 @@ useEffect(() => {
           ? (data.decision_breakdown.approved / totalActions * 100)
           : 0;
         
-        // Calculate real-time processing metrics
         const currentPendingCount = pendingActions.length;
         const avgRiskScore = pendingActions.length > 0 
           ? Math.round(pendingActions.reduce((sum, action) => sum + action.ai_risk_score, 0) / pendingActions.length)
@@ -385,7 +356,6 @@ useEffect(() => {
         };
         
         setApprovalMetrics(enhancedMetrics);
-        console.log("📈 Real-time metrics updated:", enhancedMetrics);
       }
     } catch (err) {
       console.error("Error fetching metrics:", err);
@@ -412,12 +382,9 @@ useEffect(() => {
     }
   };
 
-  // NEW: Automation Functions
   const fetchAutomationData = async () => {
   try {
-    console.log("🤖 Fetching automation data...");
     
-    // Try the new endpoint first, fallback to demo data
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
@@ -428,13 +395,11 @@ useEffect(() => {
         }
       });
     } catch (err) {
-      console.log("📊 New automation endpoint not available, using demo data");
       response = { ok: false };
     }
     
     if (response.ok) {
       const data = await response.json();
-      console.log("✅ Real automation data loaded:", data);
       
       const safeData = {
         playbooks: data?.playbooks || {},
@@ -450,8 +415,6 @@ useEffect(() => {
       
       setAutomationData(safeData);
     } else {
-      // Provide rich demo data for testing
-      console.log("📊 Using demo automation data");
       const demoData = {
         playbooks: {
           "low_risk_auto_approve": {
@@ -501,7 +464,6 @@ useEffect(() => {
     }
   } catch (err) {
     console.error("❌ Error fetching automation data:", err);
-    // Even on error, provide minimal working data
     setAutomationData({
       playbooks: {},
       automation_summary: {
@@ -516,12 +478,9 @@ useEffect(() => {
 };
 
 
-  // SAFE VERSION - fetchWorkflowOrchestrations with error protection
 const fetchWorkflowOrchestrations = async () => {
   try {
-    console.log("🔄 Fetching workflow orchestrations...");
     
-    // Try the new endpoint first
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/orchestration/active-workflows`, {
@@ -532,13 +491,11 @@ const fetchWorkflowOrchestrations = async () => {
         }
       });
     } catch (err) {
-      console.log("📊 New orchestration endpoint not available, using demo data");
       response = { ok: false };
     }
     
     if (response.ok) {
       const data = await response.json();
-      console.log("✅ Real workflow data loaded:", data);
       
       const safeData = {
         active_workflows: data?.active_workflows || {},
@@ -552,8 +509,6 @@ const fetchWorkflowOrchestrations = async () => {
       
       setWorkflowOrchestrations(safeData);
     } else {
-      // Provide demo workflow data
-      console.log("📊 Using demo workflow orchestration data");
       const demoData = {
         active_workflows: {
           "security_review_workflow": {
@@ -632,7 +587,6 @@ const fetchWorkflowOrchestrations = async () => {
     if (response.ok) {
       const data = await response.json();
       setExecutionHistory(data.execution_history || []);
-      console.log("🚀 Execution history loaded:", data);
     }
   } catch (err) {
     console.error("❌ Error fetching execution history:", err);
@@ -661,14 +615,11 @@ const fetchWorkflowOrchestrations = async () => {
 
   const togglePlaybook = async (playbookId) => {
   try {
-    console.log(`🔄 Toggling playbook: ${playbookId}`);
     
-    // Enterprise demo mode: Update local state immediately for instant feedback
     if (automationData?.playbooks?.[playbookId]) {
       const currentStatus = automationData.playbooks[playbookId].enabled;
       const newStatus = !currentStatus;
       
-      // Update local state immediately for instant user feedback
       const updatedAutomationData = {
         ...automationData,
         playbooks: {
@@ -690,7 +641,6 @@ const fetchWorkflowOrchestrations = async () => {
       setAutomationData(updatedAutomationData);
       setMessage(`✅ Playbook "${automationData.playbooks[playbookId].name}" ${newStatus ? 'enabled' : 'disabled'} successfully`);
       
-      // Try real API in background (graceful degradation)
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/playbook/${playbookId}/toggle`, {
           method: "POST",
@@ -700,12 +650,9 @@ const fetchWorkflowOrchestrations = async () => {
             "X-API-Version": "v1.0"
           }
         });
-        console.log("✅ Real API toggle successful");
       } catch (err) {
-        console.log("📊 API not available, using demo mode (this is normal)");
       }
       
-      // Refresh dashboard data to show changes
       fetchPendingActions();
       
     } else {
@@ -719,15 +666,12 @@ const fetchWorkflowOrchestrations = async () => {
 
   const executePlaybook = async (playbookId, testActionId = null) => {
   try {
-    console.log(`🚀 Executing playbook: ${playbookId}`);
     
     if (automationData?.playbooks?.[playbookId]) {
       const playbook = automationData.playbooks[playbookId];
       
-      // Show immediate execution feedback
       setMessage(`🔄 Executing "${playbook.name}"...`);
       
-      // Update stats immediately for enterprise experience
       const updatedStats = {
         ...playbook.stats,
         triggers_last_24h: playbook.stats.triggers_last_24h + 1,
@@ -753,15 +697,12 @@ const fetchWorkflowOrchestrations = async () => {
       
       setAutomationData(updatedAutomationData);
       
-      // Simulate realistic execution time
       setTimeout(() => {
   const riskScore = Math.floor(Math.random() * 40) + 10;
   setMessage(`✅ "${playbook.name}" executed successfully! Risk score: ${riskScore} | Cost savings: $${Math.floor(Math.random() * 200) + 100}`);
   
-  // Clear message after 10 seconds instead of letting it stay forever
   setTimeout(() => setMessage(""), 10000);
         
-        // Add to recent activity
         if (dashboardData) {
           const newActivity = {
             action_id: `auto-${Date.now()}`,
@@ -784,7 +725,6 @@ const fetchWorkflowOrchestrations = async () => {
         fetchPendingActions(); // Refresh pending actions
       }, 1500);
       
-      // Try real API in background
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/execute-playbook`, {
           method: "POST",
@@ -799,9 +739,7 @@ const fetchWorkflowOrchestrations = async () => {
             execution_context: "enterprise_demo"
           })
         });
-        console.log("✅ Real API execution logged");
       } catch (err) {
-        console.log("📊 API not available, using demo execution (this is normal)");
       }
     } else {
       setMessage("❌ Playbook not found");
@@ -815,15 +753,12 @@ const fetchWorkflowOrchestrations = async () => {
 
   const executeWorkflow = async (workflowId, inputData = {}) => {
   try {
-    console.log(`🔄 Executing workflow: ${workflowId}`);
     
     if (workflowOrchestrations?.active_workflows?.[workflowId]) {
       const workflow = workflowOrchestrations.active_workflows[workflowId];
       
-      // Show immediate execution feedback
       setMessage(`🔄 Executing workflow "${workflow.name}"...`);
       
-      // Update real-time stats immediately
       const updatedStats = {
         ...workflow.real_time_stats,
         currently_executing: workflow.real_time_stats.currently_executing + 1,
@@ -847,9 +782,7 @@ const fetchWorkflowOrchestrations = async () => {
       
       setWorkflowOrchestrations(updatedWorkflowData);
       
-      // Simulate realistic workflow execution
       setTimeout(() => {
-        // Update to show completion
         const completedStats = {
           ...updatedStats,
           currently_executing: Math.max(0, updatedStats.currently_executing - 1)
@@ -873,7 +806,6 @@ const fetchWorkflowOrchestrations = async () => {
         setWorkflowOrchestrations(completedWorkflowData);
         setMessage(`✅ Workflow "${workflow.name}" completed successfully! Duration: ${Math.floor(Math.random() * 60) + 30}s`);
         
-        // Add to recent activity
         if (dashboardData) {
           const newActivity = {
             action_id: `workflow-${Date.now()}`,
@@ -896,7 +828,6 @@ const fetchWorkflowOrchestrations = async () => {
         fetchPendingActions(); // Refresh other data
       }, 2000);
       
-      // Try real API in background
       try {
         await fetch(`${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}`, {
           method: "POST",
@@ -910,9 +841,7 @@ const fetchWorkflowOrchestrations = async () => {
             execution_context: "enterprise_demo"
           })
         });
-        console.log("✅ Real API workflow execution logged");
       } catch (err) {
-        console.log("📊 API not available, using demo execution (this is normal)");
       }
     } else {
       setMessage(`❌ Workflow "${workflowId}" not found`);
@@ -926,9 +855,7 @@ const fetchWorkflowOrchestrations = async () => {
 
 // 🏗️ NEW: Enterprise Workflow Creation Function
 
-  // Enterprise Policy Creation Function
   const createEnterprisePolicy = async () => {
-    console.log("🏛️ Policy creation started with:", newPolicy);
     if (!newPolicy.policy_name || !newPolicy.description) {
       alert("Please fill in both policy name and description");
       return;
@@ -949,7 +876,6 @@ const fetchWorkflowOrchestrations = async () => {
       
       if (response.ok) {
         const result = await response.json();
-        console.log("✅ Enterprise policy created successfully:", result);
         alert("Policy created successfully!");
         setNewPolicy({ policy_name: "", description: "" });
       } else {
@@ -963,18 +889,14 @@ const fetchWorkflowOrchestrations = async () => {
   };
 const createWorkflow = async (workflowData) => {
   try {
-    console.log("🏗️ Creating new workflow:", workflowData);
     
-    // Validate the workflow data
     if (!workflowData.name || workflowData.steps.length === 0) {
       setMessage("❌ Workflow must have a name and at least one step");
       return;
     }
     
-    // Generate unique workflow ID
     const workflowId = workflowData.name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
     
-    // Create workflow object with enterprise metadata
     const newWorkflowObject = {
       id: workflowId,
       name: workflowData.name,
@@ -995,7 +917,6 @@ const createWorkflow = async (workflowData) => {
       status: 'active'
     };
     
-    // Update local state immediately for enterprise UX
     const updatedWorkflows = {
       ...workflowOrchestrations,
       active_workflows: {
@@ -1010,10 +931,8 @@ const createWorkflow = async (workflowData) => {
     
     setWorkflowOrchestrations(updatedWorkflows);
     
-    // Show success message
     setMessage(`✅ Workflow "${workflowData.name}" created successfully! Ready for execution.`);
     
-    // Close the modal and reset form
     setShowWorkflowBuilder(false);
     setNewWorkflow({
       name: '',
@@ -1023,7 +942,6 @@ const createWorkflow = async (workflowData) => {
       approvers: []
     });
     
-    // Try to save to real backend in background
     try {
       await fetch(`${API_BASE_URL}/api/authorization/workflows/create`, {
         method: "POST",
@@ -1038,12 +956,9 @@ const createWorkflow = async (workflowData) => {
           created_by: user?.email || 'admin@enterprise.com'
         })
       });
-      console.log("✅ Workflow saved to backend successfully");
     } catch (err) {
-      console.log("📊 Backend not available, workflow saved locally (demo mode)");
     }
     
-    // Refresh workflow data
     setTimeout(() => {
       fetchWorkflowOrchestrations();
     }, 1000);
@@ -1052,7 +967,6 @@ const createWorkflow = async (workflowData) => {
     console.error("❌ Error creating workflow:", err);
     setMessage("✅ Workflow created successfully (demo mode)");
     
-    // Still close the modal even on error
     setShowWorkflowBuilder(false);
     setNewWorkflow({
       name: '',
@@ -1078,9 +992,7 @@ const createWorkflow = async (workflowData) => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log("🚀 Execution result:", result);
         
-        // Update the action in pending actions list with execution results
         setPendingActions(prev => prev.map(action => 
           action.id === actionId ? {
             ...action,
@@ -1095,7 +1007,6 @@ const createWorkflow = async (workflowData) => {
           } : action
         ));
         
-        // Refresh execution history
         fetchExecutionHistory();
         
         setMessage(result.message);
@@ -1180,10 +1091,8 @@ const createWorkflow = async (workflowData) => {
     if (action?.action_type === 'mcp_server_action') {
       endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
     } else if (action?.workflow_execution_id) {
-      // Phase 3: Use workflow approval endpoint
       endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
     } else {
-      // Fallback: Use existing agent approval endpoint
       endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
     
@@ -1209,22 +1118,18 @@ const createWorkflow = async (workflowData) => {
 
     if (response.ok) {
       const result = await response.json();
-      console.log("✅ Enhanced approval result:", result);
               
-      // PRESERVE: Your existing UI update logic
       setPendingActions(prev => {
         const updated = prev.filter(action => 
           action.id !== actionId && 
           action.workflow_execution_id !== actionId && 
           action.workflow_id !== actionId
         );
-        console.log(`📊 Enhanced pending actions updated: ${prev.length} → ${updated.length}`);
         return updated;
       });
       
       setSelectedAction(null);
               
-      // PRESERVE: Your existing dashboard refresh logic
       setTimeout(() => {
         fetchDashboardData();
         fetchApprovalMetrics();
@@ -1274,16 +1179,13 @@ const createWorkflow = async (workflowData) => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log("🚨 Emergency override result:", result);
                 
-        // Immediate UI updates for real-time feedback
         setPendingActions(prev => {
           const updated = prev.filter(action => 
           action.id !== actionId && 
           action.workflow_execution_id !== actionId && 
           action.workflow_id !== actionId
         );
-          console.log(`🚨 Emergency override: ${prev.length} → ${updated.length} pending actions`);
           return updated;
         });
         
@@ -1291,7 +1193,6 @@ const createWorkflow = async (workflowData) => {
         setEmergencyJustification("");
         setSelectedAction(null);
                 
-        // Update metrics to reflect emergency override immediately
         setTimeout(() => {
           fetchApprovalMetrics();
           fetchDashboardData();
@@ -1333,13 +1234,11 @@ const createWorkflow = async (workflowData) => {
   // 🔌 NEW: MCP server action icons
   if (actionType === "mcp_server_action") return "🔌";
   
-  // PRESERVE: Your existing agent action icons
   if (actionType === "security_scan") return "🔍";
   if (actionType === "data_access") return "📊";
   if (actionType === "system_config") return "⚙️";
   if (actionType === "error_fallback") return "⚠️";
   
-  // Default for any action type
   return "🤖";
 };
 
@@ -1394,7 +1293,6 @@ const createWorkflow = async (workflowData) => {
     );
   };
 
-  // Workflow Editor Component
   const WorkflowEditor = ({ workflowId, workflow, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
       name: workflow.name,
@@ -1574,7 +1472,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-       {console.log("🔍 DEBUG: dashboardData =", dashboardData)}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
           🛡️ Enterprise Authorization Center
@@ -2670,13 +2567,11 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           
           <button
             onClick={() => {
-              // Validate workflow
               if (!newWorkflow.name || newWorkflow.steps.length === 0) {
                 setMessage("❌ Please provide a workflow name and at least one step");
                 return;
               }
               
-              // Create workflow
               createWorkflow(newWorkflow);
             }}
             disabled={!newWorkflow.name || newWorkflow.steps.length === 0}
@@ -2692,7 +2587,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 return;
               }
               
-              // Save as draft
               setMessage("💾 Workflow saved as draft");
             }}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md"
