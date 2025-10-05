@@ -8,6 +8,33 @@ import json
 import re
 from services.action_taxonomy import actions_match, resource_matches
 
+class PolicyValidationError(Exception):
+    """Raised when policy validation fails"""
+    pass
+
+class PolicyValidator:
+    """Validate policy inputs and structure"""
+    
+    @staticmethod
+    def validate_natural_language(text: str) -> tuple:
+        """Validate natural language policy input"""
+        errors = []
+        
+        if not text or not text.strip():
+            errors.append("Policy text cannot be empty")
+        elif len(text.strip()) < 10:
+            errors.append("Policy too short - provide more details (min 10 characters)")
+        elif len(text) > 5000:
+            errors.append("Policy too long - maximum 5000 characters")
+        
+        # Check for at least one action indicator
+        action_keywords = ["block", "deny", "allow", "permit", "require", "approval", 
+                          "read", "write", "delete", "modify", "create", "execute", "prevent"]
+        if not any(kw in text.lower() for kw in action_keywords):
+            errors.append("Policy must specify an action (e.g., block, allow, require approval)")
+        
+        return (len(errors) == 0, errors)
+
 class CedarStylePolicy:
     """Cedar-style policy structure"""
     def __init__(self, policy_data: Dict[str, Any]):
@@ -24,7 +51,20 @@ class PolicyCompiler:
     
     @staticmethod
     def compile(natural_language: str, risk_level: str = "medium") -> Dict[str, Any]:
-        """Convert natural language policy to structured Cedar-style policy"""
+        """
+        Convert natural language policy to structured Cedar-style policy
+        
+        Args:
+            natural_language: Policy description in plain English
+            risk_level: "low", "medium", or "high"
+            
+        Raises:
+            PolicyValidationError: If input is invalid
+        """
+        # Validate input
+        is_valid, errors = PolicyValidator.validate_natural_language(natural_language)
+        if not is_valid:
+            raise PolicyValidationError(f"Invalid policy: {'; '.join(errors)}")
         
         text_lower = natural_language.lower()
         
@@ -109,10 +149,25 @@ class EnforcementEngine:
                  resource: str,
                  context: Optional[Dict] = None) -> Dict[str, Any]:
         """
-        Evaluate action against all policies
+        Evaluate action against all policies with error handling
+        
         Returns: {decision: "ALLOW|DENY|REQUIRE_APPROVAL", policies_triggered: [...]}
         """
         self.stats["total_evaluations"] += 1
+        
+        # Validate inputs - fail closed if invalid
+        if not principal or not action or not resource:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Invalid inputs to evaluate: principal={principal}, action={action}, resource={resource}"
+            )
+            return {
+                "decision": "DENY",
+                "allowed": False,
+                "policies_triggered": [],
+                "error": "Invalid input parameters",
+                "timestamp": datetime.now(UTC).isoformat()
+            }
         
         # Check cache
         cache_key = f"{principal}:{action}:{resource}"
@@ -125,12 +180,20 @@ class EnforcementEngine:
         final_decision = "ALLOW"
         
         for policy in self.policies:
-            if self._matches_policy(policy, principal, action, resource, context):
-                triggered_policies.append({
-                    "policy_id": policy.id,
-                    "policy_name": policy.natural_language,
-                    "effect": policy.effect
-                })
+            try:
+                if self._matches_policy(policy, principal, action, resource, context):
+                    triggered_policies.append({
+                        "policy_id": policy.id,
+                        "policy_name": policy.natural_language,
+                        "effect": policy.effect
+                    })
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(
+                    f"Error evaluating policy {policy.id}: {str(e)}"
+                )
+                # Skip failed policy, continue with others
+                continue
                 
                 # Deny takes precedence
                 if policy.effect == "deny":
