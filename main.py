@@ -404,8 +404,8 @@ for route_name, router in ROUTE_MODULES.items():
                 app.include_router(router, prefix="/analytics", tags=["Analytics"])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /analytics")
             elif route_name == "smart_alerts":
-                app.include_router(router, prefix="/smart-alerts", tags=["Smart Alerts"])
-                print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-alerts")
+                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /alerts")
             elif route_name == "data_rights":
                 app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/data-rights")
