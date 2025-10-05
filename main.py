@@ -27,6 +27,7 @@ from routes.authorization_routes import api_router as authorization_api_router
 from routes.enterprise_secrets_routes import router as secrets_router
 from routes.analytics_routes import router as analytics_router
 from routes.smart_alerts import router as smart_alerts_router
+from routes.smart_alerts import start_alert_monitoring
 from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
@@ -250,6 +251,11 @@ async def lifespan(app: FastAPI):
             print("✅ Admin password synchronized")
     except Exception as e:
         print(f"⚠️ Startup admin fix failed: {e}")
+
+    # Start alert monitoring background task
+    import asyncio
+    asyncio.create_task(start_alert_monitoring())
+    print("🚨 ENTERPRISE: Alert monitoring activated")
     yield
     print("🔧 Enterprise shutdown complete")
 
@@ -364,7 +370,7 @@ app.include_router(auth_router)
 #app.include_router(authorization_api_router)
 #app.include_router(secrets_router)
 #app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
-#app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 #app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
 # app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
