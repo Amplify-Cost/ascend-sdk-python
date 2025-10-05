@@ -1,0 +1,363 @@
+"""
+Generate Product Roadmap in HTML
+"""
+from datetime import datetime
+
+html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>OW-AI Platform - Product Roadmap</title>
+    <style>
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+        h1 {{ color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
+        h2 {{ color: #34495e; margin-top: 40px; border-bottom: 2px solid #ecf0f1; padding-bottom: 8px; }}
+        .header {{ background: #3498db; color: white; padding: 20px; margin: -40px -40px 40px -40px; }}
+        .header h1 {{ color: white; border: none; margin: 0; }}
+        .phase {{ background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; border-left: 5px solid #3498db; }}
+        .complete {{ border-left-color: #27ae60; background: #e8f5e9; }}
+        .in-progress {{ border-left-color: #f39c12; background: #fff3cd; }}
+        .planned {{ border-left-color: #95a5a6; background: #ecf0f1; }}
+        .status {{ display: inline-block; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; }}
+        .status-complete {{ background: #27ae60; color: white; }}
+        .status-progress {{ background: #f39c12; color: white; }}
+        .status-planned {{ background: #95a5a6; color: white; }}
+        ul {{ margin: 10px 0; }}
+        .priority-high {{ color: #e74c3c; font-weight: bold; }}
+        .priority-medium {{ color: #f39c12; font-weight: bold; }}
+        .priority-low {{ color: #95a5a6; }}
+        table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+        th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+        th {{ background-color: #3498db; color: white; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>OW-AI Platform - Product Roadmap</h1>
+        <h2 style="color: white; border: none; margin-top: 10px; font-weight: normal;">Development Timeline & Feature Planning</h2>
+        <div style="color: white; margin-top: 10px;">Current Status: 91% Complete | Generated: {datetime.now().strftime('%B %d, %Y')}</div>
+    </div>
+
+    <h2>Current Status Summary</h2>
+    <table>
+        <tr>
+            <th>Phase</th>
+            <th>Completion</th>
+            <th>Status</th>
+            <th>Key Deliverables</th>
+        </tr>
+        <tr>
+            <td>Phase 1: Foundation</td>
+            <td>100%</td>
+            <td><span class="status status-complete">COMPLETE</span></td>
+            <td>Database, Auth, Basic APIs</td>
+        </tr>
+        <tr>
+            <td>Phase 2: Policy Engine</td>
+            <td>85%</td>
+            <td><span class="status status-progress">IN PROGRESS</span></td>
+            <td>Cedar-style enforcement, Smart rules</td>
+        </tr>
+        <tr>
+            <td>Phase 3: Workflows</td>
+            <td>100%</td>
+            <td><span class="status status-complete">COMPLETE</span></td>
+            <td>Approver assignment, SLA monitoring</td>
+        </tr>
+        <tr>
+            <td>Phase 4: Compliance</td>
+            <td>100%</td>
+            <td><span class="status status-complete">COMPLETE</span></td>
+            <td>NIST, MITRE, CVSS</td>
+        </tr>
+        <tr>
+            <td>Phase 5: Integrations</td>
+            <td>70%</td>
+            <td><span class="status status-progress">IN PROGRESS</span></td>
+            <td>SSO, SIEM, Ticketing</td>
+        </tr>
+    </table>
+
+    <h2>Completed Features</h2>
+    
+    <div class="phase complete">
+        <h3>Phase 1: Core Infrastructure ✓</h3>
+        <span class="status status-complete">100% COMPLETE</span>
+        <ul>
+            <li>PostgreSQL database with 13 production tables</li>
+            <li>JWT authentication with RS256 signing</li>
+            <li>191 API endpoints operational</li>
+            <li>AWS ECS deployment (1/1 healthy)</li>
+            <li>Immutable audit logging</li>
+        </ul>
+    </div>
+
+    <div class="phase complete">
+        <h3>Phase 3: Workflow Automation ✓</h3>
+        <span class="status status-complete">100% COMPLETE</span>
+        <ul>
+            <li>Dynamic approver assignment with risk-based routing</li>
+            <li>Load-balanced approver selection</li>
+            <li>Emergency approver failover</li>
+            <li>SLA monitoring with AWS EventBridge (15-min intervals)</li>
+            <li>Automatic workflow escalation</li>
+        </ul>
+    </div>
+
+    <div class="phase complete">
+        <h3>Phase 4: Compliance Frameworks ✓</h3>
+        <span class="status status-complete">100% COMPLETE</span>
+        <ul>
+            <li>NIST SP 800-53: 44 controls across 14 families</li>
+            <li>MITRE ATT&CK: 14 tactics, 31 techniques</li>
+            <li>CVSS v3.1 calculator with auto-mapping</li>
+            <li>Automatic action-to-framework mapping</li>
+            <li>Compliance reporting infrastructure</li>
+        </ul>
+    </div>
+
+    <h2>In Progress</h2>
+
+    <div class="phase in-progress">
+        <h3>Phase 2: Policy Engine (85% Complete)</h3>
+        <span class="status status-progress">IN PROGRESS</span>
+        
+        <p><strong>Completed:</strong></p>
+        <ul>
+            <li>Cedar-style policy evaluation engine</li>
+            <li>Natural language policy compilation</li>
+            <li>Policy templates library</li>
+            <li>Real-time enforcement</li>
+        </ul>
+
+        <p><strong>Remaining (15%):</strong></p>
+        <ul>
+            <li><span class="priority-medium">MEDIUM:</span> Frontend policy badge integration fixes</li>
+            <li><span class="priority-low">LOW:</span> Policy DSL parser edge cases</li>
+            <li><span class="priority-medium">MEDIUM:</span> Security bridge final testing</li>
+        </ul>
+
+        <p><strong>Estimated Completion:</strong> 1-2 weeks</p>
+    </div>
+
+    <div class="phase in-progress">
+        <h3>Phase 5: Enterprise Integrations (70% Complete)</h3>
+        <span class="status status-progress">IN PROGRESS</span>
+        
+        <p><strong>Completed:</strong></p>
+        <ul>
+            <li>SIEM integration framework (Splunk, Datadog, Sentinel)</li>
+            <li>SSO infrastructure (Okta, Azure AD, Google)</li>
+            <li>Secrets rotation service</li>
+        </ul>
+
+        <p><strong>Remaining (30%):</strong></p>
+        <ul>
+            <li><span class="priority-high">HIGH:</span> SSO SQL schema bugs (blocking production SSO)</li>
+            <li><span class="priority-medium">MEDIUM:</span> SIEM live data forwarding</li>
+            <li><span class="priority-medium">MEDIUM:</span> Ticketing integration (Jira/ServiceNow)</li>
+            <li><span class="priority-low">LOW:</span> PDF compliance report generation</li>
+        </ul>
+
+        <p><strong>Estimated Completion:</strong> 2-3 weeks</p>
+    </div>
+
+    <h2>Planned Features</h2>
+
+    <div class="phase planned">
+        <h3>Phase 6: Testing & Hardening</h3>
+        <span class="status status-planned">PLANNED</span>
+        
+        <p><strong>Scope:</strong></p>
+        <ul>
+            <li><span class="priority-high">HIGH:</span> Security penetration testing</li>
+            <li><span class="priority-high">HIGH:</span> Load testing (100+ concurrent users)</li>
+            <li><span class="priority-medium">MEDIUM:</span> Expand test coverage to 50+ integration tests</li>
+            <li><span class="priority-medium">MEDIUM:</span> Performance optimization (target <2s API response)</li>
+            <li><span class="priority-low">LOW:</span> Browser compatibility testing</li>
+        </ul>
+
+        <p><strong>Timeline:</strong> Q1 2026 (2-3 weeks)</p>
+        <p><strong>Dependencies:</strong> Customer pilot feedback</p>
+    </div>
+
+    <div class="phase planned">
+        <h3>Phase 7: Advanced Analytics</h3>
+        <span class="status status-planned">PLANNED</span>
+        
+        <p><strong>Features:</strong></p>
+        <ul>
+            <li>AI risk trending and prediction</li>
+            <li>Policy effectiveness metrics</li>
+            <li>Approver performance dashboards</li>
+            <li>Compliance posture scoring</li>
+            <li>Automated policy recommendations</li>
+        </ul>
+
+        <p><strong>Timeline:</strong> Q2 2026 (4-6 weeks)</p>
+        <p><strong>Business Value:</strong> Executive visibility, proactive risk management</p>
+    </div>
+
+    <div class="phase planned">
+        <h3>Phase 8: Multi-Tenancy & Scale</h3>
+        <span class="status status-planned">PLANNED</span>
+        
+        <p><strong>Features:</strong></p>
+        <ul>
+            <li>Multi-tenant architecture</li>
+            <li>Organization isolation</li>
+            <li>White-label UI support</li>
+            <li>Horizontal scaling to 10,000+ actions/day</li>
+            <li>Regional deployments (EU, APAC)</li>
+        </ul>
+
+        <p><strong>Timeline:</strong> Q2-Q3 2026 (8-12 weeks)</p>
+        <p><strong>Business Value:</strong> SaaS offering, enterprise scale</p>
+    </div>
+
+    <h2>Known Technical Debt</h2>
+    
+    <table>
+        <tr>
+            <th>Item</th>
+            <th>Priority</th>
+            <th>Effort</th>
+            <th>Impact</th>
+        </tr>
+        <tr>
+            <td>Fix deprecated datetime.utcnow() calls</td>
+            <td>LOW</td>
+            <td>1 hour</td>
+            <td>Remove warnings</td>
+        </tr>
+        <tr>
+            <td>SSO schema fixes (user profile queries)</td>
+            <td>HIGH</td>
+            <td>3-5 hours</td>
+            <td>Enable production SSO</td>
+        </tr>
+        <tr>
+            <td>Pydantic config deprecation warnings</td>
+            <td>LOW</td>
+            <td>2 hours</td>
+            <td>Future Pydantic compatibility</td>
+        </tr>
+        <tr>
+            <td>EventBridge Lambda replacement</td>
+            <td>MEDIUM</td>
+            <td>4 hours</td>
+            <td>Better monitoring integration</td>
+        </tr>
+    </table>
+
+    <h2>Risk Assessment</h2>
+    
+    <h3>Current Risks</h3>
+    <ul>
+        <li><span class="priority-high">HIGH:</span> No penetration testing completed - security vulnerabilities unknown</li>
+        <li><span class="priority-high">HIGH:</span> Single ECS task (no redundancy) - downtime risk if task fails</li>
+        <li><span class="priority-medium">MEDIUM:</span> SSO bugs blocking enterprise customer adoption</li>
+        <li><span class="priority-medium">MEDIUM:</span> Load testing not done - unknown performance at scale</li>
+        <li><span class="priority-low">LOW:</span> Documentation gaps for customer onboarding</li>
+    </ul>
+
+    <h3>Mitigation Strategies</h3>
+    <ul>
+        <li>Schedule pen testing before major customer deployments (Q1 2026)</li>
+        <li>Configure ECS auto-scaling (2+ tasks minimum) before scaling pilots</li>
+        <li>Prioritize SSO fixes in next sprint</li>
+        <li>Implement load testing in staging environment</li>
+        <li>Create customer onboarding guides</li>
+    </ul>
+
+    <h2>Customer Pilot Strategy</h2>
+    
+    <h3>Ready for Pilots</h3>
+    <p>Platform is production-ready for limited customer pilots with these capabilities:</p>
+    <ul>
+        <li>Full workflow approval automation</li>
+        <li>NIST/MITRE/CVSS compliance tracking</li>
+        <li>Real-time policy enforcement</li>
+        <li>SLA monitoring and escalation</li>
+        <li>Immutable audit logging</li>
+    </ul>
+
+    <h3>Pilot Limitations</h3>
+    <ul>
+        <li>SSO not functional (use JWT auth)</li>
+        <li>Single availability zone (no multi-region)</li>
+        <li>Manual SIEM integration setup</li>
+        <li>No ticketing integration yet</li>
+    </ul>
+
+    <h3>Success Metrics</h3>
+    <ul>
+        <li>Average approval time <2 hours</li>
+        <li>SLA compliance >95%</li>
+        <li>Policy false positive rate <5%</li>
+        <li>API uptime >99%</li>
+        <li>Customer satisfaction score >8/10</li>
+    </ul>
+
+    <h2>Resource Requirements</h2>
+    
+    <h3>Next 3 Months</h3>
+    <table>
+        <tr>
+            <th>Role</th>
+            <th>Time Allocation</th>
+            <th>Focus Areas</th>
+        </tr>
+        <tr>
+            <td>Backend Engineer</td>
+            <td>Full-time</td>
+            <td>SSO fixes, SIEM integration, bug fixes</td>
+        </tr>
+        <tr>
+            <td>Security Engineer</td>
+            <td>Part-time (25%)</td>
+            <td>Penetration testing, security hardening</td>
+        </tr>
+        <tr>
+            <td>DevOps Engineer</td>
+            <td>Part-time (25%)</td>
+            <td>Scaling, monitoring, load testing</td>
+        </tr>
+        <tr>
+            <td>QA Engineer</td>
+            <td>Part-time (50%)</td>
+            <td>Integration tests, customer scenarios</td>
+        </tr>
+    </table>
+
+    <h2>Decision Points</h2>
+    
+    <h3>Immediate Decisions Needed</h3>
+    <ol>
+        <li><strong>SSO Priority:</strong> Fix bugs now (delay pilots) or pilot without SSO?
+            <ul>
+                <li>Recommendation: Fix SSO first (3-5 hours) - critical for enterprise adoption</li>
+            </ul>
+        </li>
+        <li><strong>Penetration Testing:</strong> Internal or third-party?
+            <ul>
+                <li>Recommendation: Third-party for credibility with Fortune 500</li>
+            </ul>
+        </li>
+        <li><strong>Scaling Strategy:</strong> Add ECS tasks now or wait for load?
+            <ul>
+                <li>Recommendation: Add 1 more task for redundancy before pilots</li>
+            </ul>
+        </li>
+    </ol>
+
+    <hr style="margin: 40px 0;">
+    <p style="text-align: center; color: #95a5a6;">OW-AI Platform Roadmap | Last Updated: {datetime.now().strftime('%B %d, %Y')}</p>
+</body>
+</html>
+"""
+
+with open('OW-AI_Product_Roadmap.html', 'w') as f:
+    f.write(html)
+
+print("✅ Product roadmap generated: OW-AI_Product_Roadmap.html")

@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
 from models import User, AgentAction, AuditLog, EnterprisePolicy  # REMOVED WorkflowConfig - doesn't exist
-from models_mcp_governance import MCPPolicy
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, UTC
 import logging
@@ -794,9 +793,20 @@ async def get_policy_engine_metrics(
         
         # Import here to avoid circular imports
         
-        # Get actual policy count
-        active_policies = db.query(MCPPolicy).filter(MCPPolicy.is_active == True).count()
-        total_policies = db.query(MCPPolicy).count()
+        # Get actual policy count from unified governance_policies
+        try:
+            from models.governance_models import GovernancePolicy
+            active_policies = db.query(GovernancePolicy).filter(
+                GovernancePolicy.is_active == True
+            ).count()
+            total_policies = db.query(GovernancePolicy).count()
+        except Exception as e:
+            logger.warning(f"Failed to query policies, using in-memory stats: {e}")
+            # Fallback to policy engine in-memory stats
+            from services.cedar_enforcement_service import enforcement_engine
+            stats = enforcement_engine.get_stats()
+            active_policies = stats.get("loaded_policies", 0)
+            total_policies = active_policies
         
         # Simulate realistic metrics
         import random

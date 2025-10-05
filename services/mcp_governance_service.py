@@ -14,6 +14,7 @@ import uuid
 
 # Import your existing models
 from models_mcp_governance import MCPServerAction, MCPServer, MCPSession, MCPPolicy
+from services.cedar_enforcement_service import enforcement_engine
 from models_audit import ImmutableAuditLog  # Your existing audit model
 from services.immutable_audit_service import ImmutableAuditService
 
@@ -40,9 +41,20 @@ class MCPGovernanceService:
         session_context: Dict[str, str]
     ) -> Dict[str, Any]:
         """
-        Evaluate MCP action using same risk assessment as agent actions
+        Evaluate MCP action using UNIFIED Cedar enforcement engine
         Returns governance decision with risk score and required approvals
         """
+        # Use unified policy enforcement
+        policy_decision = enforcement_engine.evaluate(
+            principal=f"mcp_server:{server_id}",
+            action=verb,
+            resource=f"mcp:server:{server_id}:{namespace}:{resource}",
+            context={
+                "user": user_context.get("user_id"),
+                "namespace": namespace,
+                **session_context
+            }
+        )
         try:
             # Create MCP action record
             mcp_action = MCPServerAction(
