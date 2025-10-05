@@ -180,7 +180,7 @@ class AlertEngine:
             if ws in alert_subscribers:
                 alert_subscribers.remove(ws)
 
-@router.get("/alerts/active")
+@router.get("/active")
 async def get_active_alerts(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -214,7 +214,7 @@ async def get_active_alerts(
         logger.error(f"Error fetching active alerts: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch alerts")
 
-@router.post("/alerts/{alert_id}/acknowledge")
+@router.post("/{alert_id}/acknowledge")
 async def acknowledge_alert(
     alert_id: str,
     current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
@@ -240,7 +240,7 @@ async def acknowledge_alert(
         logger.error(f"Error acknowledging alert: {e}")
         raise HTTPException(status_code=500, detail="Failed to acknowledge alert")
 
-@router.post("/alerts/{alert_id}/resolve")
+@router.post("/{alert_id}/resolve")
 async def resolve_alert(
     alert_id: str,
     current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
@@ -310,7 +310,7 @@ async def get_alert_history(
         logger.error(f"Error fetching alert history: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch alert history")
 
-@router.websocket("/alerts/stream")
+@router.websocket("/stream")
 async def alert_stream(websocket: WebSocket, current_user: dict = Depends(get_current_user)):
     """WebSocket endpoint for real-time alert streaming"""
     await websocket.accept()
