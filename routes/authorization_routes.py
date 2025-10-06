@@ -489,8 +489,8 @@ class AuthorizationService:
         try:
             # Build base query
             base_query = """
-                SELECT id, agent_id, action_type, description, risk_level, status, 
-                       created_at, user_id
+                SELECT id, agent_id, action_type, description, risk_level, risk_score, 
+                       status, created_at, user_id
                 FROM agent_actions 
                 WHERE status IN (:pending, :submitted, :pending_approval)
             """
@@ -521,14 +521,27 @@ class AuthorizationService:
             result = DatabaseService.safe_execute(db, base_query, params).fetchall()
             
             # Format actions
+            # Format actions
             formatted_actions = []
             for row in result:
-                action_data = {
-                    "action_type": row[2] or "security_scan",
-                    "risk_level": row[4] or RiskLevel.MEDIUM.value
-                }
+                # OPTION A: Use database risk_score as source of truth
+                db_risk_score = float(row[5]) if row[5] is not None else None
                 
-                risk_assessment = RiskAssessmentService.calculate_risk_score(action_data)
+                # Fallback: Calculate only if database doesn't have score
+                if db_risk_score is None:
+                    logger.warning(f"Action {row[0]} missing risk_score in database, calculating on-demand")
+                    action_data = {
+                        "action_type": row[2] or "security_scan",
+                        "risk_level": row[4] or RiskLevel.MEDIUM.value
+                    }
+                    risk_assessment = RiskAssessmentService.calculate_risk_score(action_data)
+                    db_risk_score = risk_assessment.risk_score
+                    requires_executive = risk_assessment.requires_executive_approval
+                    requires_board = risk_assessment.requires_board_notification
+                else:
+                    # Derive approval requirements from database score
+                    requires_executive = db_risk_score >= 80
+                    requires_board = db_risk_score >= 90
                 
                 formatted_action = {
                     "id": row[0],
@@ -537,17 +550,17 @@ class AuthorizationService:
                     "action_type": row[2] or "security_scan",
                     "description": row[3] or "Enterprise security operation",
                     "risk_level": row[4] or RiskLevel.MEDIUM.value,
-                    "status": row[5] or ActionStatus.PENDING.value,
-                    "created_at": row[6].isoformat() if row[6] else datetime.now(UTC).isoformat(),
-                    "tool_name": "enterprise-mcp" or "enterprise-security-platform",
-                    "user_id": 1,
+                    "status": row[6] or ActionStatus.PENDING.value,
+                    "created_at": row[7].isoformat() if row[7] else datetime.now(UTC).isoformat(),
+                    "tool_name": "enterprise-mcp",
+                    "user_id": row[8] or 1,
                     "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
                     "requires_approval": True,
                     "estimated_impact": "Enterprise security enhancement",
                     "execution_time_estimate": "45 seconds",
-                    "enterprise_risk_score": risk_assessment.risk_score,
-                    "requires_executive_approval": risk_assessment.requires_executive_approval,
-                    "requires_board_notification": risk_assessment.requires_board_notification,
+                    "enterprise_risk_score": db_risk_score,
+                    "requires_executive_approval": requires_executive,
+                    "requires_board_notification": requires_board,
                     "compliance_frameworks": ["SOX", "PCI_DSS", "NIST"]
                 }
                 
