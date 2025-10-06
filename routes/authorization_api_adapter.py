@@ -14,39 +14,42 @@ router = APIRouter(prefix="/api/authorization", tags=["authorization-adapter"])
 logger = logging.getLogger(__name__)
 
 def get_sample_authorization_data():
-    """Generate sample authorization data directly"""
-    return [
-        {
-            "id": "auth-001",
-            "agent_id": "security-scanner-01", 
-            "action_type": "file_read",
-            "resource": "/logs/security.log",
-            "risk_score": 25,
-            "status": "approved",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "requires_approval": False
-        },
-        {
-            "id": "auth-002", 
-            "agent_id": "vulnerability-scanner",
-            "action_type": "network_scan",
-            "resource": "192.168.1.0/24", 
-            "risk_score": 45,
-            "status": "pending",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "requires_approval": False
-        },
-        {
-            "id": "auth-003",
-            "agent_id": "file-analyzer-03",
-            "action_type": "file_delete", 
-            "resource": "/tmp/suspicious_file.exe",
-            "risk_score": 70,
-            "status": "requires_approval",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "requires_approval": True
-        }
-    ]
+    """Query real agent actions from database"""
+    from sqlalchemy import create_engine, text
+    import os
+    
+    engine = create_engine(os.getenv("DATABASE_URL"))
+    
+    with engine.connect() as conn:
+        result = conn.execute(text("""
+            SELECT 
+                id::text as id,
+                agent_id,
+                action_type,
+                target_resource as resource,
+                risk_score,
+                status,
+                timestamp,
+                requires_approval
+            FROM agent_actions
+            ORDER BY timestamp DESC
+            LIMIT 20
+        """))
+        
+        actions = []
+        for row in result:
+            actions.append({
+                "id": f"auth-{row.id}",
+                "agent_id": row.agent_id,
+                "action_type": row.action_type,
+                "resource": row.resource or "N/A",
+                "risk_score": float(row.risk_score) if row.risk_score else 0,
+                "status": row.status,
+                "timestamp": row.timestamp.isoformat() if row.timestamp else datetime.now(UTC).isoformat(),
+                "requires_approval": row.requires_approval or False
+            })
+        
+        return actions if actions else []
 
 @router.get("/automation/playbooks")
 async def get_automation_playbooks(current_user = Depends(get_current_user)):
