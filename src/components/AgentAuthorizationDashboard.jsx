@@ -138,7 +138,7 @@ useEffect(() => {
       setError("");
       
       // 🔄 ENTERPRISE: Use unified governance endpoint
-      const response = await fetch(`${API_BASE_URL}/api/unified-governance/pending-actions`, {
+      const response = await fetch(`${API_BASE_URL}/api/governance/pending-actions`, {
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json"
