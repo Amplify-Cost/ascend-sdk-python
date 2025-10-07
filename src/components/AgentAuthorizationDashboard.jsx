@@ -138,7 +138,7 @@ useEffect(() => {
           setLoading(true);
           setError("");
           
-          const response = await fetch(`${API_BASE_URL}/api/governance/dashboard/pending-approvals`, {
+          const response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
             headers: { 
               ...getAuthHeaders(), 
               "Content-Type": "application/json"
@@ -151,7 +151,7 @@ useEffect(() => {
           
           const data = await response.json();
           
-          const workflows = data.my_queue || [];
+          const workflows = data || [];
           
           if (workflows.length === 0) {
             setPendingActions([]);
