@@ -1847,3 +1847,69 @@ async def approve_workflow(
         "decision": decision,
         "current_stage": workflow.current_stage
     }
+
+# ✅ ENTERPRISE: Unified Pending Actions Endpoint for Authorization Dashboard
+@router.get("/pending-actions")
+async def get_unified_pending_actions(
+    current_user: dict = Depends(get_current_user),
+    db = Depends(get_db)
+):
+    """
+    Enterprise unified endpoint for pending actions.
+    Returns properly formatted data for frontend Authorization Dashboard.
+    """
+    try:
+        # Reuse the existing pending-approvals logic
+        result = await get_pending_approvals(current_user, db)
+        
+        # Transform to expected format
+        if isinstance(result, dict) and "my_queue" in result:
+            actions = result.get("my_queue", [])
+            
+            transformed_actions = []
+            for action in actions:
+                transformed_actions.append({
+                    "action_id": action.get("workflow_execution_id") or action.get("id"),
+                    "id": action.get("workflow_execution_id") or action.get("id"),
+                    "workflow_execution_id": action.get("workflow_execution_id"),
+                    "principal": f"workflow:{action.get('workflow_id', 'unknown')}",
+                    "action": action.get("action_type", "workflow_action"),
+                    "action_type": action.get("action_type", "workflow_action"),
+                    "resource": action.get("target_system", "Governance Workflow"),
+                    "description": action.get("description", ""),
+                    "workflow_stage": action.get("current_stage", "pending_stage_1"),
+                    "current_stage": action.get("current_stage", "pending_stage_1"),
+                    "risk_score": action.get("risk_score", 50),
+                    "ai_risk_score": action.get("risk_score", 50),
+                    "sla_status": action.get("sla_status", "normal"),
+                    "sla_hours_remaining": action.get("sla_hours_remaining"),
+                    "can_approve": action.get("can_approve", False),
+                    "required_role": action.get("required_role"),
+                    "created_at": action.get("created_at"),
+                    "current_approval_level": 0 if action.get("current_stage") == "pending_stage_1" else 1,
+                    "required_approval_level": 1,
+                    "policy_evaluation": {
+                        "risk_score": action.get("risk_score", 50),
+                        "frameworks": {
+                            "nist": action.get("nist_controls", []),
+                            "mitre": action.get("mitre_techniques", []),
+                            "soc2": action.get("soc2_controls", [])
+                        },
+                        "summary": f"Risk assessment: {action.get('risk_score', 50)}/100",
+                        "violated_policies": action.get("violated_policies", []),
+                        "matched_policies": action.get("matched_policies", [])
+                    }
+                })
+            
+            return {
+                "success": True,
+                "pending_actions": transformed_actions,
+                "actions": transformed_actions,
+                "total": len(transformed_actions)
+            }
+        
+        return {"success": True, "pending_actions": [], "total": 0}
+        
+    except Exception as e:
+        logger.error(f"Error fetching unified pending actions: {e}")
+        return {"success": False, "error": str(e), "pending_actions": [], "total": 0}
