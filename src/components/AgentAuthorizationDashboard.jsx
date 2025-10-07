@@ -164,7 +164,7 @@ useEffect(() => {
             workflow_execution_id: workflow.workflow_execution_id,
             agent_id: `Workflow-${workflow.workflow_id}`,
             action_type: workflow.action_type || 'workflow_action',
-            ai_risk_score: workflow.risk_score || 50,
+            ai_risk_score: workflow.risk_score || workflow.ai_risk_score || 50,
             description: `${workflow.action_type || 'Action'} requiring approval - Stage: ${workflow.current_stage}`,
             workflow_stage: workflow.current_stage || 'pending_stage_1',
             current_approval_level: workflow.current_stage === 'pending_stage_1' ? 0 : 
@@ -1091,8 +1091,6 @@ const createWorkflow = async (workflowData) => {
     let endpoint;
     if (action?.action_type === 'mcp_server_action') {
       endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
-    } else if (action?.workflow_execution_id) {
-      endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
     } else {
       endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
