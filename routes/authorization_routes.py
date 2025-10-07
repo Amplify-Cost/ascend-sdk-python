@@ -818,7 +818,7 @@ async def get_approval_dashboard(
     try:
         # Dashboard queries with proper error handling
         dashboard_queries = {
-            "total_pending": f"SELECT COUNT(*) FROM agent_actions WHERE status IN ('{ActionStatus.PENDING.value}', '{ActionStatus.SUBMITTED.value}', '{ActionStatus.PENDING_APPROVAL.value}')",
+            "total_pending": "SELECT COUNT(*) FROM workflow_executions WHERE current_stage IN ('pending_stage_1', 'pending_stage_2', 'pending_stage_3')",
             "total_approved": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.APPROVED.value}'",
             "total_executed": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.EXECUTED.value}'",
             "total_rejected": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.REJECTED.value}'",
