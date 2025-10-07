@@ -7,6 +7,9 @@ ARG COMMIT_SHA
 
 WORKDIR /app
 
+# Cache bust - this changes with every commit
+RUN echo "Build: ${COMMIT_SHA} at ${BUILD_DATE}"
+
 COPY package.json package-lock.json ./
 RUN npm ci --cache /tmp/empty-cache && rm -rf /tmp/empty-cache
 
