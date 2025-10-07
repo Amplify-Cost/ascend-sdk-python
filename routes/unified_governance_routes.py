@@ -1703,17 +1703,52 @@ async def approve_workflow(
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
     
-    decision = approval_data.get("decision")  # "approved" or "denied"
+    decision = approval_data.get("decision")  # "approved", "denied", "escalated", "conditional_approved"
     notes = approval_data.get("notes", "")
+    conditions = approval_data.get("conditions", {})
     
-    # Update workflow execution
+    # Update workflow execution based on decision type
     if decision == "approved":
         workflow.execution_status = "approved"
         workflow.current_stage = "completed"
-    else:
+    elif decision == "denied":
         workflow.execution_status = "denied"
         workflow.current_stage = "denied"
+    elif decision == "escalated":
+        workflow.execution_status = "escalated"
+        # Move to next approval stage
+        if workflow.current_stage == "pending_stage_1":
+            workflow.current_stage = "pending_stage_2"
+        elif workflow.current_stage == "pending_stage_2":
+            workflow.current_stage = "pending_stage_3"
+    elif decision == "conditional_approved":
+        workflow.execution_status = "conditional_approved"
+        workflow.current_stage = "completed"
     
+    # 🔥 ENTERPRISE FIX: Update the linked AgentAction status for ALL decision types
+    if workflow.action_id:
+        agent_action = db.query(AgentAction).filter(AgentAction.id == workflow.action_id).first()
+        if agent_action:
+            # Map workflow decision to agent action status
+            if decision in ["approved", "conditional_approved"]:
+                agent_action.status = decision
+                agent_action.approved = True
+            elif decision == "denied":
+                agent_action.status = "denied"
+                agent_action.approved = False
+            elif decision == "escalated":
+                agent_action.status = "pending_approval"  # Keep pending when escalated
+            
+            agent_action.reviewed_by = current_user.get("email")
+            agent_action.reviewed_at = datetime.now(UTC)
+            
+            # Store conditions if conditional approval
+            if decision == "conditional_approved" and conditions:
+                if not agent_action.extra_data:
+                    agent_action.extra_data = {}
+                agent_action.extra_data["approval_conditions"] = conditions
+            
+            logger.info(f"✅ Updated AgentAction {agent_action.id} status to {agent_action.status}")
     # Add to approval chain
     if not workflow.approval_chain:
         workflow.approval_chain = []
