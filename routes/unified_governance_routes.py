@@ -37,10 +37,15 @@ async def get_unified_governance_stats(
         # Get total actions from your existing AgentAction table
         total_actions = db.query(AgentAction).count()
         
-        # Get pending actions (using your existing status field)
-        pending_actions = db.query(AgentAction).filter(
-            AgentAction.status.in_(["pending", "pending_approval", "submitted"])
+        # 🔥 ENTERPRISE FIX: Count pending workflows, not agent_actions
+        # Since we're using workflow orchestration, count workflow_executions
+        from models import WorkflowExecution
+        
+        pending_workflows = db.query(WorkflowExecution).filter(
+            WorkflowExecution.current_stage.in_(["pending_stage_1", "pending_stage_2", "pending_stage_3"])
         ).count()
+        
+        pending_actions = pending_workflows  # Use workflow count for dashboard
         
         # 🔌 NEW: Identify MCP actions by checking for MCP-specific data
         mcp_actions = db.query(AgentAction).filter(
