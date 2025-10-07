@@ -1698,6 +1698,13 @@ async def get_pending_approvals(
                         logger.warning(f"Risk calculation failed for action {agent_action.id}: {e}")
                         risk_score = 75
         
+        # Calculate SLA hours remaining
+        sla_hours_remaining = None
+        if wf.started_at:
+            deadline = wf.started_at + timedelta(hours=24)
+            now = datetime.now(UTC) if wf.started_at.tzinfo else datetime.now(UTC)
+            sla_hours_remaining = (deadline - now).total_seconds() / 3600
+        
         result.append({
             "workflow_id": wf.id,
             "workflow_execution_id": wf.id,
