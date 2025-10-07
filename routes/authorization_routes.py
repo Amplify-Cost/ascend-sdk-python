@@ -490,7 +490,7 @@ class AuthorizationService:
             # Build base query
             base_query = """
                 SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                       status, created_at, user_id
+                       target_system, nist_control, mitre_tactic, status, created_at, user_id
                 FROM agent_actions 
                 WHERE status IN (:pending, :submitted, :pending_approval)
             """
@@ -549,11 +549,14 @@ class AuthorizationService:
                     "agent_id": row[1] or "enterprise-security-agent",
                     "action_type": row[2] or "security_scan",
                     "description": row[3] or "Enterprise security operation",
+                    "target_system": row[6] or "Unknown",
+                    "nist_control": row[7] or None,
+                    "mitre_tactic": row[8] or None,
                     "risk_level": row[4] or RiskLevel.MEDIUM.value,
-                    "status": row[6] or ActionStatus.PENDING.value,
-                    "created_at": row[7].isoformat() if row[7] else datetime.now(UTC).isoformat(),
+                    "status": row[9] or ActionStatus.PENDING.value,
+                    "created_at": row[10].isoformat() if row[7] else datetime.now(UTC).isoformat(),
                     "tool_name": "enterprise-mcp",
-                    "user_id": row[8] or 1,
+                    "user_id": row[11] or 1,
                     "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
                     "requires_approval": True,
                     "estimated_impact": "Enterprise security enhancement",
@@ -1208,7 +1211,7 @@ async def create_test_action_api(
             result = DatabaseService.safe_execute(
                 db,
                 """
-                INSERT INTO agent_actions (agent_id, action_type, description, risk_level, status, created_at, user_id)
+                INSERT INTO agent_actions (agent_id, action_type, description, risk_level, target_system, nist_control, mitre_tactic, status, created_at, user_id)
                 VALUES (:agent_id, :action_type, :description, :risk_level, :status, :created_at, :user_id)
                 RETURNING id
                 """,
