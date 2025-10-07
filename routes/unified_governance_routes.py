@@ -1703,11 +1703,6 @@ async def get_pending_approvals(
             "workflow_execution_id": wf.id,
             "action_type": wf.workflow_id or "unknown_action",
             "risk_score": risk_score,
-        result.append({
-            "workflow_id": wf.id,
-            "workflow_execution_id": wf.id,
-            "action_type": wf.workflow_id or "unknown_action",
-            "risk_score": 75,
             "current_stage": wf.current_stage,
             "required_role": "security" if wf.current_stage == "pending_stage_1" else "operations" if wf.current_stage == "pending_stage_2" else "executive",
             "sla_hours_remaining": sla_hours_remaining,
