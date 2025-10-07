@@ -132,76 +132,150 @@ useEffect(() => {
 
  
     
-      const fetchPendingActions = async () => {
-        
-        try {
-          setLoading(true);
-          setError("");
-          
-          const response = await fetch(`${API_BASE_URL}/api/governance/dashboard/pending-approvals`, {
-            headers: { 
-              ...getAuthHeaders(), 
-              "Content-Type": "application/json"
-            }
-          });
-          
-          if (!response.ok) {
-            throw new Error(`API returned ${response.status}: ${response.statusText}`);
-          }
-          
-          const data = await response.json();
-          
-          const workflows = data.my_queue || [];
-          
-          if (workflows.length === 0) {
-            setPendingActions([]);
-            setError(null);
-            return;
-          }
-          
-          const actions = workflows.map(workflow => ({
-            id: workflow.workflow_id,
-            workflow_execution_id: workflow.workflow_execution_id,
-            agent_id: `Workflow-${workflow.workflow_id}`,
-            action_type: workflow.action_type || 'workflow_action',
-            ai_risk_score: workflow.risk_score || workflow.ai_risk_score || 50,
-            description: `${workflow.action_type || 'Action'} requiring approval - Stage: ${workflow.current_stage}`,
-            workflow_stage: workflow.current_stage || 'pending_stage_1',
-            current_approval_level: workflow.current_stage === 'pending_stage_1' ? 0 : 
-                                     workflow.current_stage === 'pending_stage_2' ? 1 : 2,
-            required_approval_level: workflow.required_role === 'executive' ? 3 :
-                                      workflow.required_role === 'operations' ? 2 : 1,
-            is_emergency: workflow.sla_status === 'critical',
-            authorization_status: 'pending_approval',
-            execution_status: 'pending_approval',
-            contextual_risk_factors: workflow.sla_status === 'critical' 
-              ? ['SLA Critical', 'Immediate Action Required'] 
-              : workflow.sla_status === 'warning'
-              ? ['SLA Warning', 'Action Needed Soon']
-              : [],
-            time_remaining: workflow.sla_hours_remaining 
-              ? `${workflow.sla_hours_remaining.toFixed(1)}h remaining` 
-              : "No deadline",
-            requested_at: workflow.created_at || new Date().toISOString(),
-            can_approve: workflow.can_approve || false,
-            sla_status: workflow.sla_status || 'normal',
-            target_system: 'Governance Workflow',
-            required_role: workflow.required_role
-          }));
-          
-          setPendingActions(actions);
-          setError(null);
-          
-        } catch (err) {
-          console.error("Failed to fetch pending workflows:", err);
-          console.error("Error details:", err.message);
-          
-          setPendingActions([]);
-          setError(`Unable to connect to governance API: ${err.message}`);
-        } finally {
-          setLoading(false);
+  const fetchPendingActions = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      // 🔄 ENTERPRISE: Use unified governance endpoint
+      const response = await fetch(`${API_BASE_URL}/api/unified-governance/pending-actions`, {
+        headers: { 
+          ...getAuthHeaders(), 
+          "Content-Type": "application/json"
         }
-      };
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // 🏢 ENTERPRISE: Process real action data with policy evaluation
+      const actions = (data.pending_actions || data.actions || []).map(action => {
+        // 🔌 ENTERPRISE: Detect if this is an MCP server action or AI agent action
+        const isMcpAction = action.principal?.startsWith('mcp:') || action.action_source === 'mcp_server';
+        const isAgentAction = action.principal?.startsWith('ai_agent:') || action.action_source === 'ai_agent';
+        
+        // 📊 ENTERPRISE: Extract real risk score from policy evaluation
+        const realRiskScore = action.policy_evaluation?.risk_score || 
+                             action.risk_assessment?.overall_score ||
+                             action.ai_risk_score || 
+                             50;
+        
+        // 🎯 ENTERPRISE: Get actual action type (not workflow ID)
+        const actualActionType = action.action || 
+                                 action.action_type || 
+                                 action.resource_action ||
+                                 'unknown_action';
+        
+        // 🔐 ENTERPRISE: Extract NIST/MITRE framework mappings
+        const frameworkMappings = {
+          nist: action.policy_evaluation?.frameworks?.nist || 
+                action.compliance_frameworks?.nist || [],
+          mitre: action.policy_evaluation?.frameworks?.mitre || 
+                 action.compliance_frameworks?.mitre || [],
+          soc2: action.policy_evaluation?.frameworks?.soc2 || 
+                action.compliance_frameworks?.soc2 || []
+        };
+        
+        // 🤖 ENTERPRISE: Get real agent/MCP server ID
+        const sourceIdentifier = isMcpAction 
+          ? action.principal || action.mcp_server_id || 'mcp:unknown'
+          : isAgentAction
+          ? action.principal || action.agent_id || 'agent:unknown'
+          : action.workflow_id || 'workflow:unknown';
+        
+        return {
+          id: action.action_id || action.id,
+          workflow_execution_id: action.workflow_execution_id,
+          
+          // ✅ FIX: Real agent/MCP ID (not "Workflow-22")
+          agent_id: sourceIdentifier,
+          
+          // ✅ FIX: Real action type (not "risk_70_89")
+          action_type: actualActionType,
+          
+          // ✅ FIX: Real calculated risk score
+          ai_risk_score: realRiskScore,
+          
+          // ✅ NEW: Framework mappings for NIST/MITRE display
+          framework_mappings: frameworkMappings,
+          
+          // ✅ NEW: Source type identification
+          action_source: isMcpAction ? 'mcp_server' : isAgentAction ? 'ai_agent' : 'workflow',
+          is_mcp_action: isMcpAction,
+          is_agent_action: isAgentAction,
+          
+          // 🔌 ENTERPRISE: MCP-specific data if applicable
+          mcp_data: isMcpAction ? {
+            server: action.mcp_server || action.principal?.split(':')[1],
+            namespace: action.mcp_namespace || action.resource?.split(':')[0],
+            verb: action.action || action.verb,
+            resource: action.resource,
+            params: action.parameters || action.params
+          } : null,
+          
+          description: action.description || 
+                      `${actualActionType} requiring approval - Stage: ${action.workflow_stage || 'pending'}`,
+          
+          workflow_stage: action.workflow_stage || action.current_stage || 'pending_stage_1',
+          
+          current_approval_level: action.current_approval_level || 0,
+          required_approval_level: action.required_approval_level || 1,
+          
+          is_emergency: action.is_emergency || 
+                       action.sla_status === 'critical' ||
+                       realRiskScore >= 90,
+          
+          authorization_status: action.authorization_status || 'pending_approval',
+          execution_status: action.execution_status || 'pending_approval',
+          
+          contextual_risk_factors: action.risk_factors || 
+                                  action.contextual_risk_factors || 
+                                  (action.sla_status === 'critical' 
+                                    ? ['SLA Critical', 'Immediate Action Required'] 
+                                    : []),
+          
+          time_remaining: action.time_remaining || 
+                         (action.sla_hours_remaining 
+                           ? `${action.sla_hours_remaining.toFixed(1)}h remaining` 
+                           : "No deadline"),
+          
+          requested_at: action.requested_at || action.created_at || new Date().toISOString(),
+          
+          can_approve: action.can_approve !== undefined ? action.can_approve : true,
+          
+          sla_status: action.sla_status || 'normal',
+          
+          target_system: action.target_system || 
+                        action.resource || 
+                        'Unknown System',
+          
+          required_role: action.required_role,
+          
+          user_email: action.user_email || action.requester_email || 'Unknown',
+          
+          // 📋 ENTERPRISE: Policy evaluation details
+          policy_evaluation_summary: action.policy_evaluation?.summary || null,
+          violated_policies: action.policy_evaluation?.violated_policies || [],
+          matched_policies: action.policy_evaluation?.matched_policies || []
+        };
+      });
+      
+      setPendingActions(actions);
+      setError(null);
+      
+    } catch (err) {
+      console.error("❌ Failed to fetch pending actions:", err);
+      console.error("Error details:", err.message);
+      
+      setPendingActions([]);
+      setError(`Unable to connect to governance API: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
   const fetchDashboardData = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
@@ -1651,7 +1725,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   </>
 ) : (
   <>
-    <div><strong>Action:</strong> {action.action_type}</div>
+    <div><strong>Action:</strong> {action.action_type} {action.action_source === "mcp_server" ? "🔌" : action.action_source === "ai_agent" ? "🤖" : "⚙️"}</div>
     <div><strong>Target:</strong> {action.target_system || 'Unknown'}</div>
     <div><strong>Agent:</strong> {action.agent_id}</div>
     <div><strong>User:</strong> {action.user_email || 'Unknown'}</div>
@@ -3063,6 +3137,69 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           {selectedAction.ai_risk_score}/100
                         </span>
                       </div>
+
+                {/* ✅ ENTERPRISE: NIST/MITRE Framework Mappings */}
+                {selectedAction.framework_mappings && (
+                  Object.keys(selectedAction.framework_mappings).some(key => 
+                    selectedAction.framework_mappings[key]?.length > 0
+                  ) && (
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-semibold mb-2">📋 Compliance Framework Mappings</h4>
+                      <div className="space-y-2 text-sm">
+                        {selectedAction.framework_mappings.nist?.length > 0 && (
+                          <div>
+                            <strong className="text-blue-800">NIST AI RMF:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedAction.framework_mappings.nist.map((control, idx) => (
+                                <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                                  {control}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedAction.framework_mappings.mitre?.length > 0 && (
+                          <div>
+                            <strong className="text-purple-800">MITRE ATLAS:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedAction.framework_mappings.mitre.map((technique, idx) => (
+                                <span key={idx} className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                                  {technique}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedAction.framework_mappings.soc2?.length > 0 && (
+                          <div>
+                            <strong className="text-green-800">SOC 2:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedAction.framework_mappings.soc2.map((control, idx) => (
+                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                                  {control}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* ✅ ENTERPRISE: Policy Violations */}
+                {selectedAction.violated_policies?.length > 0 && (
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2 text-red-900">⚠️ Policy Violations</h4>
+                    <div className="space-y-1">
+                      {selectedAction.violated_policies.map((policy, index) => (
+                        <div key={index} className="text-sm text-red-800">
+                          • {policy.policy_name || policy}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                       <div><strong>Workflow Stage:</strong> {getWorkflowStageLabel(selectedAction.workflow_stage)}</div>
                       <div><strong>Approval Progress:</strong> {selectedAction.current_approval_level}/{selectedAction.required_approval_level}</div>
                     </div>
