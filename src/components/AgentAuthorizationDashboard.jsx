@@ -138,7 +138,7 @@ useEffect(() => {
           setLoading(true);
           setError("");
           
-          const response = await fetch(`${API_BASE_URL}/api/authorization/pending-actions`, {
+          const response = await fetch(`${API_BASE_URL}/api/governance/dashboard/pending-approvals`, {
             headers: { 
               ...getAuthHeaders(), 
               "Content-Type": "application/json"
@@ -151,7 +151,7 @@ useEffect(() => {
           
           const data = await response.json();
           
-          const workflows = data || [];
+          const workflows = data.my_queue || [];
           
           if (workflows.length === 0) {
             setPendingActions([]);
@@ -1088,9 +1088,13 @@ const createWorkflow = async (workflowData) => {
     );
     
     // 🔌 ENHANCED: Route to appropriate endpoint based on action type
+    // 🔌 ENTERPRISE: Route to appropriate endpoint based on action type
     let endpoint;
     if (action?.action_type === 'mcp_server_action') {
       endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
+    } else if (action?.workflow_execution_id) {
+      // Use workflow approval endpoint with workflow_execution_id
+      endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
     } else {
       endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
     }
