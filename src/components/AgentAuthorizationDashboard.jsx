@@ -1277,21 +1277,21 @@ const createWorkflow = async (workflowData) => {
           action.workflow_id !== actionId
         );
           return updated;
-      
-      // ✅ FIX: Immediately update dashboard count to match removed action
-      setDashboardData(prev => ({
-        ...prev,
-        summary: {
-          ...prev?.summary,
-          total_pending: Math.max(0, (prev?.summary?.total_pending || 0) - 1)
-        },
-        enterprise_kpis: {
-          ...prev?.enterprise_kpis,
-          high_risk_pending: Math.max(0, (prev?.enterprise_kpis?.high_risk_pending || 0) - (action.ai_risk_score >= 80 ? 1 : 0)),
-          critical_pending: Math.max(0, (prev?.enterprise_kpis?.critical_pending || 0) - (action.ai_risk_score >= 90 ? 1 : 0))
-        }
-      }));
         });
+        
+        // ✅ FIX: Immediately update dashboard count to match removed action
+        setDashboardData(prev => ({
+          ...prev,
+          summary: {
+            ...prev?.summary,
+            total_pending: Math.max(0, (prev?.summary?.total_pending || 0) - 1)
+          },
+          enterprise_kpis: {
+            ...prev?.enterprise_kpis,
+            high_risk_pending: Math.max(0, (prev?.enterprise_kpis?.high_risk_pending || 0) - (action.ai_risk_score >= 80 ? 1 : 0)),
+            critical_pending: Math.max(0, (prev?.enterprise_kpis?.critical_pending || 0) - (action.ai_risk_score >= 90 ? 1 : 0))
+          }
+        }));
         
         setShowEmergencyModal(false);
         setEmergencyJustification("");
