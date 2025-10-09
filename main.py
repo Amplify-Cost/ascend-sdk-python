@@ -3598,3 +3598,90 @@ async def get_enterprise_auth_metrics(
         logger.error(f"Enterprise auth metrics error: {e}")
         raise HTTPException(status_code=500, detail="Enterprise metrics unavailable")
 # Deployment 1759160003
+
+# ================== ALERT ACTION ENDPOINTS ==================
+@app.post("/alerts/{alert_id}/acknowledge")
+async def acknowledge_alert(
+    alert_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Acknowledge an alert"""
+    try:
+        db: Session = next(get_db())
+        
+        try:
+            result = db.execute(text("""
+                UPDATE alerts 
+                SET status = 'acknowledged',
+                    acknowledged_by = :user_email,
+                    acknowledged_at = NOW()
+                WHERE id = :alert_id
+                RETURNING id
+            """), {
+                "alert_id": alert_id,
+                "user_email": current_user.get("email", "unknown")
+            })
+            
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Alert not found")
+            
+            db.commit()
+            logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
+            
+            return {
+                "success": True,
+                "message": "Alert acknowledged successfully",
+                "alert_id": alert_id,
+                "acknowledged_by": current_user.get("email")
+            }
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to acknowledge alert: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to acknowledge alert")
+
+@app.post("/alerts/{alert_id}/escalate")
+async def escalate_alert(
+    alert_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Escalate an alert to security team"""
+    try:
+        db: Session = next(get_db())
+        
+        try:
+            result = db.execute(text("""
+                UPDATE alerts 
+                SET status = 'escalated',
+                    severity = 'high',
+                    escalated_by = :user_email,
+                    escalated_at = NOW()
+                WHERE id = :alert_id
+                RETURNING id, message
+            """), {
+                "alert_id": alert_id,
+                "user_email": current_user.get("email", "unknown")
+            })
+            
+            alert_data = result.fetchone()
+            if not alert_data:
+                raise HTTPException(status_code=404, detail="Alert not found")
+            
+            db.commit()
+            logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
+            
+            return {
+                "success": True,
+                "message": "Alert escalated to security team",
+                "alert_id": alert_id,
+                "escalated_by": current_user.get("email")
+            }
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to escalate alert: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to escalate alert")
