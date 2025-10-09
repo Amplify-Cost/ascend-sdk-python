@@ -1203,6 +1203,7 @@ const createWorkflow = async (workflowData) => {
           action.workflow_id !== actionId
         );
         return updated;
+      });
       
       // ✅ FIX: Immediately update dashboard count to match removed action
       setDashboardData(prev => ({
@@ -1217,8 +1218,6 @@ const createWorkflow = async (workflowData) => {
           critical_pending: Math.max(0, (prev?.enterprise_kpis?.critical_pending || 0) - (action.ai_risk_score >= 90 ? 1 : 0))
         }
       }));
-      });
-      
       setSelectedAction(null);
               
       setTimeout(() => {
