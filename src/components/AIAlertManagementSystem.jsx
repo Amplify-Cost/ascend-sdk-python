@@ -18,6 +18,55 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+  // Alert action handlers
+  const [actionLoading, setActionLoading] = useState({});
+  const [message, setMessage] = useState(null);
+
+  const handleAcknowledgeAlert = async (alertId) => {
+    setActionLoading(prev => ({...prev, [alertId]: true}));
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}/acknowledge`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        setMessage('✅ Alert acknowledged successfully');
+        fetchAlerts();
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        setError('Failed to acknowledge alert');
+      }
+    } catch (err) {
+      console.error('Failed to acknowledge alert:', err);
+      setError('Failed to acknowledge alert');
+    } finally {
+      setActionLoading(prev => ({...prev, [alertId]: false}));
+    }
+  };
+
+  const handleEscalateAlert = async (alertId) => {
+    setActionLoading(prev => ({...prev, [alertId]: true}));
+    try {
+      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}/escalate`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+      if (response.ok) {
+        setMessage('⚠️ Alert escalated to security team');
+        fetchAlerts();
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        setError('Failed to escalate alert');
+      }
+    } catch (err) {
+      console.error('Failed to escalate alert:', err);
+      setError('Failed to escalate alert');
+    } finally {
+      setActionLoading(prev => ({...prev, [alertId]: false}));
+    }
+  };
+
+
   // Demo data generators - FIXED VERSION
   const generateDemoMetrics = () => {
     console.log("🎯 Generating demo performance metrics with REAL ROI data");
@@ -578,10 +627,15 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         </nav>
       </div>
 
-      {/* Error Display */}
+      {/* Messages Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
           <div className="text-red-800">{error}</div>
+        </div>
+      )}
+      {message && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <div className="text-green-800">{message}</div>
         </div>
       )}
 
@@ -659,10 +713,38 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-4">
                     <div><strong>Threat Category:</strong> {alert.threat_category}</div>
                     <div><strong>Recommended Action:</strong> {alert.recommended_action}</div>
                     <div><strong>Status:</strong> {alert.correlation_id ? '🔗 Correlated' : '⚪ Standalone'}</div>
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => handleAcknowledgeAlert(alert.id)}
+                      disabled={actionLoading[alert.id]}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {actionLoading[alert.id] ? '⏳ Processing...' : '✓ Acknowledge'}
+                    </button>
+                    <button
+                      onClick={() => handleEscalateAlert(alert.id)}
+                      disabled={actionLoading[alert.id]}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {actionLoading[alert.id] ? '⏳ Processing...' : '⚠️ Escalate'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(alert, null, 2));
+                        setMessage('📋 Alert details copied to clipboard');
+                        setTimeout(() => setMessage(null), 2000);
+                      }}
+                      className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm ml-auto"
+                    >
+                      📋 Copy Details
+                    </button>
                   </div>
                 </div>
               </div>
