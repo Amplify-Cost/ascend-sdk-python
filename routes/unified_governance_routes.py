@@ -1923,14 +1923,17 @@ async def get_unified_pending_actions(
                         nist_controls = ["AC-3", "AU-2"]  # Fallback
                 
                 mitre_techniques = []
-                if agent_action.mitre_technique:
+                # ✅ FIX: Use getattr with default to avoid AttributeError
+                if getattr(agent_action, 'mitre_technique', None):
                     mitre_techniques = [agent_action.mitre_technique]
-                elif agent_action.mitre_techniques:
+                elif getattr(agent_action, 'mitre_techniques', None):
                     import json
                     try:
-                        mitre_techniques = json.loads(agent_action.mitre_techniques) if isinstance(agent_action.mitre_techniques, str) else agent_action.mitre_techniques
+                        mitre_val = getattr(agent_action, 'mitre_techniques', None)
+                        mitre_techniques = json.loads(mitre_val) if isinstance(mitre_val, str) else mitre_val
                     except:
-                        mitre_techniques = [agent_action.mitre_techniques] if agent_action.mitre_techniques else []
+                        mitre_val = getattr(agent_action, 'mitre_techniques', None)
+                        mitre_techniques = [mitre_val] if mitre_val else []
                 
                 if not mitre_techniques:
                     try:
