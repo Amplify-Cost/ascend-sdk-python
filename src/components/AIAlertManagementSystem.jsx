@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [alerts, setAlerts] = useState([]);
@@ -25,9 +26,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const handleAcknowledgeAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}/acknowledge`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      const response = await fetchWithAuth(`/alerts/${alertId}/acknowledge`, {
+        method: 'POST'
       });
       if (response.ok) {
         setMessage('✅ Alert acknowledged successfully');
@@ -47,9 +47,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const handleEscalateAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/${alertId}/escalate`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      const response = await fetchWithAuth(`/alerts/${alertId}/escalate`, {
+        method: 'POST'
       });
       if (response.ok) {
         setMessage('⚠️ Alert escalated to security team');
