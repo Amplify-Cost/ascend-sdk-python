@@ -216,29 +216,44 @@ async def get_active_alerts(
 
 @router.post("/{alert_id}/acknowledge")
 async def acknowledge_alert(
-    alert_id: str,
+    alert_id: int,
     current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
-
     """Acknowledge an alert"""
+    from sqlalchemy import text
     try:
-        if alert_id not in active_alerts:
-            raise HTTPException(status_code=404, detail="Alert not found")
+        # Try database first
+        result = db.execute(text("""
+            UPDATE alerts 
+            SET status = 'acknowledged',
+                acknowledged_by = :user_email,
+                acknowledged_at = NOW()
+            WHERE id = :alert_id
+            RETURNING id
+        """), {"alert_id": alert_id, "user_email": current_user.get("email")})
         
-        active_alerts[alert_id]["status"] = "acknowledged"
-        active_alerts[alert_id]["acknowledged_by"] = current_user.get('email')
-        active_alerts[alert_id]["acknowledged_at"] = datetime.now(UTC).isoformat()
+        if result.rowcount > 0:
+            db.commit()
+            logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
+            return {"success": True, "message": "Alert acknowledged successfully"}
         
-        logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
+        # Fallback to in-memory for demo alerts
+        alert_id_str = str(alert_id)
+        if alert_id_str in active_alerts:
+            active_alerts[alert_id_str]["status"] = "acknowledged"
+            active_alerts[alert_id_str]["acknowledged_by"] = current_user.get('email')
+            active_alerts[alert_id_str]["acknowledged_at"] = datetime.now(UTC).isoformat()
+            logger.info(f"✅ Demo alert {alert_id} acknowledged")
+            return {"success": True, "message": "Alert acknowledged successfully"}
         
-        return {"message": "Alert acknowledged successfully"}
+        raise HTTPException(status_code=404, detail="Alert not found")
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error acknowledging alert: {e}")
-        raise HTTPException(status_code=500, detail="Failed to acknowledge alert")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{alert_id}/resolve")
 async def resolve_alert(
@@ -366,3 +381,45 @@ async def start_alert_monitoring():
         except Exception as e:
             logger.error(f"Alert monitoring error: {e}")
             await asyncio.sleep(60)  # Wait longer on error
+@router.post("/{alert_id}/escalate")
+async def escalate_alert(
+    alert_id: int,
+    current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
+    db: Session = Depends(get_db)
+):
+    """Escalate alert to security team"""
+    from sqlalchemy import text
+    try:
+        # Try database first
+        result = db.execute(text("""
+            UPDATE alerts 
+            SET status = 'escalated',
+                severity = 'high',
+                escalated_by = :user_email,
+                escalated_at = NOW()
+            WHERE id = :alert_id
+            RETURNING id
+        """), {"alert_id": alert_id, "user_email": current_user.get("email")})
+        
+        if result.rowcount > 0:
+            db.commit()
+            logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
+            return {"success": True, "message": "Alert escalated to security team"}
+        
+        # Fallback to in-memory for demo alerts
+        alert_id_str = str(alert_id)
+        if alert_id_str in active_alerts:
+            active_alerts[alert_id_str]["status"] = "escalated"
+            active_alerts[alert_id_str]["severity"] = "high"
+            active_alerts[alert_id_str]["escalated_by"] = current_user.get('email')
+            active_alerts[alert_id_str]["escalated_at"] = datetime.now(UTC).isoformat()
+            logger.warning(f"⚠️ Demo alert {alert_id} escalated")
+            return {"success": True, "message": "Alert escalated to security team"}
+        
+        raise HTTPException(status_code=404, detail="Alert not found")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error escalating alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
