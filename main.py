@@ -898,7 +898,8 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                 SELECT a.id, a.alert_type, a.severity, a.message, a.timestamp,
                        aa.agent_id, aa.action_type, aa.tool_name, aa.risk_level,
                        aa.mitre_tactic, aa.mitre_technique, aa.nist_control,
-                       aa.nist_description, aa.recommendation
+                       aa.nist_description, aa.recommendation,
+                       a.status, a.acknowledged_by, a.acknowledged_at, a.escalated_by, a.escalated_at
                 FROM alerts a
                 LEFT JOIN agent_actions aa ON a.agent_action_id = aa.id
                 ORDER BY a.timestamp DESC
@@ -923,7 +924,11 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                         "nist_control": row[11] or "SI-4",
                         "nist_description": row[12] or "Enterprise Security Monitoring",
                         "recommendation": row[13] or "Review and investigate security event",
-                        "status": "new"  # Default status
+                        "status": row[14] or "new",  # Actual status from database
+                        "acknowledged_by": row[15],
+                        "acknowledged_at": row[16].isoformat() if row[16] else None,
+                        "escalated_by": row[17],
+                        "escalated_at": row[18].isoformat() if row[18] else None
                     })
                 
                 logger.info(f"✅ Returning {len(live_alerts)} live alerts from database")
