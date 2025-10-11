@@ -604,3 +604,18 @@ async def enterprise_auth_health():
         "response_format_testing": "active",
         "timestamp": datetime.now(UTC).isoformat()
     }
+# ================== CSRF TOKEN ENDPOINT ==================
+@router.get("/csrf")
+def get_csrf_token(response: Response, request: Request):
+    """Issue/refresh CSRF cookie and return its value for AJAX requests"""
+    import secrets
+    csrf_token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key="owai_csrf",
+        value=csrf_token,
+        httponly=False,  # Must be readable by JavaScript
+        secure=True,
+        samesite="lax",
+        max_age=3600
+    )
+    return {"csrf_token": csrf_token}
