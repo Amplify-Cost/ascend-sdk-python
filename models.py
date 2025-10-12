@@ -21,29 +21,24 @@ class User(Base):
     max_risk_approval = Column(Integer, default=50)
     
     # Relationships
-    alerts = relationship("Alert", back_populates="created_by_user")
+    
     logs = relationship("Log", back_populates="user")
 
 class Alert(Base):
     __tablename__ = "alerts"
     
     id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
+    alert_type = Column(String, index=True)  
+    severity = Column(String)
     message = Column(Text)
-    severity = Column(String)  # low, medium, high, critical
-    status = Column(String, default="open")  # open, in_progress, closed
-    source = Column(String)  # source system or component
-    created_at = Column(DateTime, default=datetime.now(UTC))
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    resolved_at = Column(DateTime, nullable=True)
-    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
-    
-    # Field that main.py expects
-    pending_action_id = Column(Integer, nullable=True)
-    
-    # Foreign key to user who created the alert
-    created_by = Column(Integer, ForeignKey("users.id"))
-    created_by_user = relationship("User", back_populates="alerts")
+    timestamp = Column(DateTime, default=datetime.now(UTC))
+    agent_id = Column(String, index=True)
+    agent_action_id = Column(Integer, nullable=True)
+    status = Column(String, default="new")
+    acknowledged_by = Column(String, nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    escalated_by = Column(String, nullable=True)
+    escalated_at = Column(DateTime, nullable=True)
 
 class Log(Base):
     __tablename__ = "logs"

@@ -263,6 +263,7 @@ async def lifespan(app: FastAPI):
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
+from routes.alerts_router import router as alerts_router
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0", lifespan=lifespan)
 
 
@@ -371,11 +372,13 @@ app.include_router(auth_router)
 #app.include_router(secrets_router)
 app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+app.include_router(alerts_router, prefix="/api/alerts", tags=["alerts"])
 #app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
 # app.include_router(unified_governance_router, prefix="/api/governance", tags=["unified-governance"])
 
 # Include routers with enterprise fallback handling
+
 print("🔗 Loading application routes...")
 
 # Enterprise health monitoring (always included)
