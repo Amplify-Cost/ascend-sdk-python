@@ -338,6 +338,7 @@ def get_executive_dashboard(
         logger.error(f"❌ Executive dashboard error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate executive dashboard")
 
+@router.get("/performance")
 @router.get("/performance/system")
 def get_system_performance(
     db: Session = Depends(get_db),
