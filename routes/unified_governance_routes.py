@@ -1858,49 +1858,70 @@ async def get_unified_pending_actions(
     db: Session = Depends(get_db)
 ):
     """
-    Return pending actions with proper risk scores and NIST/MITRE mappings
+    Return pending actions with REAL risk scores from CVSS/NIST/MITRE
     """
     try:
         from services.nist_mapper import NISTMapper
         from services.mitre_mapper import MITREMapper
+        from services.cvss_auto_mapper import CVSSAutoMapper
         
         nist_mapper = NISTMapper()
         mitre_mapper = MITREMapper()
+        cvss_mapper = CVSSAutoMapper()
         
-        # Query AgentAction table for pending items
+        # Query pending actions
         pending = db.query(AgentAction).filter(
             AgentAction.status.in_(["pending", "pending_approval"])
         ).all()
         
         transformed_actions = []
-        risk_scores = [75, 45, 85, 60, 55, 40, 90, 35]  # Varied scores for demo
         
-        for i, action in enumerate(pending):
-            # Calculate risk score based on action type and target
-            if "database" in action.action_type.lower():
-                risk_score = 75
-            elif "export" in action.action_type.lower():
-                risk_score = 85
-            elif "api" in action.action_type.lower():
-                risk_score = 60
-            elif "read" in action.action_type.lower():
-                risk_score = 45
-            else:
-                risk_score = risk_scores[i % len(risk_scores)]
+        for action in pending:
+            # Get REAL risk score using CVSS auto_assess_action
+            risk_score = action.risk_score  # Use existing if available
             
-            # Get NIST/MITRE mappings
+            if not risk_score:
+                try:
+                    # Use the CVSSAutoMapper with correct signature
+                    cvss_result = cvss_mapper.auto_assess_action(
+                        db=db,
+                        action_id=action.id,
+                        action_type=action.action_type,
+                        description=action.description or "",
+                        target_system=action.target_system or "Unknown"
+                    )
+                    risk_score = cvss_result.get("risk_score", 50)
+                    
+                    # Update in database for caching
+                    action.risk_score = risk_score
+                    db.commit()
+                except Exception as e:
+                    logger.warning(f"CVSS calculation failed for action {action.id}: {e}")
+                    risk_score = 50  # Default fallback
+            
+            # Get NIST controls using correct signature
             try:
-                nist_controls = nist_mapper.map_action_to_controls(
-                    action.action_type, 
-                    action.target_system or "Unknown"
+                nist_result = nist_mapper.map_action_to_controls(
+                    db=db,
+                    action_id=action.id,
+                    action_type=action.action_type,
+                    auto_assess=True
                 )
+                nist_controls = nist_result.get("controls", ["AC-3", "AU-2"])
             except:
-                nist_controls = ["AC-3", "AU-2", "SI-4"]
+                nist_controls = [action.nist_control] if action.nist_control else ["AC-3", "AU-2"]
             
+            # Get MITRE techniques using correct signature
             try:
-                mitre_techniques = mitre_mapper.map_action_to_techniques(action.action_type)
+                mitre_result = mitre_mapper.map_action_to_techniques(
+                    db=db,
+                    action_id=action.id,
+                    action_type=action.action_type,
+                    context={"description": action.description}
+                )
+                mitre_techniques = mitre_result.get("techniques", ["T1078"])
             except:
-                mitre_techniques = ["T1190", "T1078"]
+                mitre_techniques = ["T1078", "T1190"]
             
             transformed_action = {
                 "id": action.id,
@@ -1918,19 +1939,19 @@ async def get_unified_pending_actions(
                 "requires_approval": True,
                 "estimated_impact": "Enterprise security enhancement",
                 "execution_time_estimate": "45 seconds",
-                "enterprise_risk_score": risk_score,
-                "risk_score": risk_score,  # Add this field
-                "requires_executive_approval": risk_score >= 80,
+                "enterprise_risk_score": float(risk_score) if risk_score else 50.0,
+                "risk_score": float(risk_score) if risk_score else 50.0,
+                "requires_executive_approval": float(risk_score) >= 80 if risk_score else False,
                 "requires_board_notification": False,
                 "compliance_frameworks": ["SOX", "PCI_DSS", "NIST"],
                 "nist_control": nist_controls[0] if nist_controls else "AC-3",
                 "nist_controls": nist_controls,
                 "mitre_tactic": "Collection",
-                "mitre_technique": mitre_techniques[0] if mitre_techniques else "T1190",
+                "mitre_technique": mitre_techniques[0] if mitre_techniques else "T1078",
                 "mitre_techniques": mitre_techniques,
                 "workflow_stage": "pending_stage_1",
                 "current_approval_level": 0,
-                "required_approval_level": 2 if risk_score >= 70 else 1
+                "required_approval_level": 2 if float(risk_score) >= 70 else 1
             }
             transformed_actions.append(transformed_action)
         
@@ -1943,9 +1964,13 @@ async def get_unified_pending_actions(
         
     except Exception as e:
         logger.error(f"Error in get_unified_pending_actions: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             "success": True,
             "pending_actions": [],
             "actions": [],
             "total": 0
         }
+
+
