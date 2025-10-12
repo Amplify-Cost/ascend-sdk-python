@@ -1883,12 +1883,11 @@ async def get_unified_pending_actions(
             if not risk_score:
                 try:
                     # Use the CVSSAutoMapper with correct signature
+                    # CVSSAutoMapper expects different parameters
                     cvss_result = cvss_mapper.auto_assess_action(
                         db=db,
                         action_id=action.id,
-                        action_type=action.action_type,
-                        description=action.description or "",
-                        target_system=action.target_system or "Unknown"
+                        action_type=action.action_type
                     )
                     risk_score = cvss_result.get("risk_score", 50)
                     
