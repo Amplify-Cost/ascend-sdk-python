@@ -602,7 +602,13 @@ class AuthorizationService:
         """Authorize action with comprehensive audit and execution."""
         authorization_id = str(uuid.uuid4())
         
-        try:
+            # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
+    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
+        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
+    else:
+        action_id = int(action_id)
+
+    
             logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
             
             # Get action details
@@ -780,13 +786,19 @@ async def get_pending_actions(
 
 @router.post("/authorize/{action_id}")
 async def authorize_action(
-    action_id: int,
+    action_id: str,  # Changed from int to str to handle both formats
     request: Request,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin)
 ):
     """Authorize action with real-time execution and comprehensive audit."""
-    try:
+        # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
+    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
+        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
+    else:
+        action_id = int(action_id)
+
+    
         body = await request.json()
     except Exception:
         body = {"approved": True, "comments": "Enterprise authorization via API"}
@@ -815,7 +827,13 @@ async def get_approval_dashboard(
     current_user: dict = Depends(get_current_user)
 ):
     """Get comprehensive approval dashboard with KPIs."""
-    try:
+        # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
+    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
+        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
+    else:
+        action_id = int(action_id)
+
+    
         # Dashboard queries with proper error handling
         dashboard_queries = {
             "total_pending": "SELECT COUNT(*) FROM agent_actions WHERE status IN ('pending', 'pending_approval')",
@@ -1196,7 +1214,13 @@ async def create_test_action_api(
     current_user: dict = Depends(get_current_user)
 ):
     """Create a test action for development/testing."""
-    try:
+        # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
+    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
+        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
+    else:
+        action_id = int(action_id)
+
+    
         test_action_data = {
             "agent_id": "test-console-agent",
             "action_type": "block_ip",
