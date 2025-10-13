@@ -591,8 +591,16 @@ class AuthorizationService:
             }
     
     @staticmethod
+    def parse_action_id(action_id):
+        """Parse ENT_ACTION_000194 to 194 or return int as-is"""
+        if isinstance(action_id, str):
+            if "ENT_ACTION_" in action_id:
+                return int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
+            return int(action_id)
+        return action_id
+
     async def authorize_action(
-        action_id: int,
+        action_id: str,
         request_data: Dict[str, Any],
         admin_user: Dict[str, Any],
         db: Session,
@@ -600,15 +608,10 @@ class AuthorizationService:
         execute_immediately: bool = True
     ) -> Dict[str, Any]:
         """Authorize action with comprehensive audit and execution."""
+        action_id = AuthorizationService.parse_action_id(action_id)
         authorization_id = str(uuid.uuid4())
         
-            # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
-    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
-        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
-    else:
-        action_id = int(action_id)
-
-    
+        try:
             logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
             
             # Get action details
@@ -784,21 +787,16 @@ async def get_pending_actions(
     return AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user)
 
 
-@router.post("/authorize/{action_id}")
+@router.post("/authorize/{action_id:path}")
 async def authorize_action(
-    action_id: str,  # Changed from int to str to handle both formats
+    action_id: str,
     request: Request,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin)
 ):
+    action_id = AuthorizationService.parse_action_id(action_id)
     """Authorize action with real-time execution and comprehensive audit."""
-        # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
-    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
-        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
-    else:
-        action_id = int(action_id)
-
-    
+    try:
         body = await request.json()
     except Exception:
         body = {"approved": True, "comments": "Enterprise authorization via API"}
@@ -812,11 +810,12 @@ async def authorize_action(
 
 @router.post("/authorize-with-audit/{action_id}")
 async def authorize_action_with_audit(
-    action_id: int,
+    action_id: str,
     request: Request,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin)
 ):
+    action_id = AuthorizationService.parse_action_id(action_id)
     """Authorize action with comprehensive audit - compatibility endpoint."""
     return await authorize_action(action_id, request, db, admin_user)
 
@@ -827,13 +826,7 @@ async def get_approval_dashboard(
     current_user: dict = Depends(get_current_user)
 ):
     """Get comprehensive approval dashboard with KPIs."""
-        # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
-    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
-        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
-    else:
-        action_id = int(action_id)
-
-    
+    try:
         # Dashboard queries with proper error handling
         dashboard_queries = {
             "total_pending": "SELECT COUNT(*) FROM agent_actions WHERE status IN ('pending', 'pending_approval')",
@@ -1194,6 +1187,7 @@ async def authorize_action_api(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin)
 ):
+    action_id = AuthorizationService.parse_action_id(action_id)
     """API version of authorization for Authorization Center frontend compatibility."""
     return await authorize_action(action_id, request, db, admin_user)
 
@@ -1214,13 +1208,7 @@ async def create_test_action_api(
     current_user: dict = Depends(get_current_user)
 ):
     """Create a test action for development/testing."""
-        # Parse action ID (handle both "194" and "ENT_ACTION_000194" formats)
-    if isinstance(action_id, str) and action_id.startswith("ENT_ACTION_"):
-        action_id = int(action_id.replace("ENT_ACTION_", "").lstrip("0"))
-    else:
-        action_id = int(action_id)
-
-    
+    try:
         test_action_data = {
             "agent_id": "test-console-agent",
             "action_type": "block_ip",
