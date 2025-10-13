@@ -158,7 +158,8 @@ useEffect(() => {
         const isAgentAction = action.principal?.startsWith('ai_agent:') || action.action_source === 'ai_agent';
         
         // 📊 ENTERPRISE: Extract real risk score from policy evaluation
-        const realRiskScore = action.policy_evaluation?.risk_score || 
+        const realRiskScore = action.risk_score || 
+                             action.policy_evaluation?.risk_score ||
                              action.risk_assessment?.overall_score ||
                              action.ai_risk_score || 
                              50;
@@ -171,11 +172,14 @@ useEffect(() => {
         
         // 🔐 ENTERPRISE: Extract NIST/MITRE framework mappings
         const frameworkMappings = {
-          nist: action.policy_evaluation?.frameworks?.nist || 
+          nist: action.nist_controls || 
+                action.policy_evaluation?.frameworks?.nist || 
                 action.compliance_frameworks?.nist || [],
-          mitre: action.policy_evaluation?.frameworks?.mitre || 
+          mitre: action.mitre_techniques || 
+                 action.policy_evaluation?.frameworks?.mitre || 
                  action.compliance_frameworks?.mitre || [],
-          soc2: action.policy_evaluation?.frameworks?.soc2 || 
+          soc2: action.soc2_controls ||
+                action.policy_evaluation?.frameworks?.soc2 || 
                 action.compliance_frameworks?.soc2 || []
         };
         
@@ -201,6 +205,10 @@ useEffect(() => {
           
           // ✅ NEW: Framework mappings for NIST/MITRE display
           framework_mappings: frameworkMappings,
+          
+          // Direct NIST/MITRE for display
+          nist_controls: action.nist_controls || [],
+          mitre_techniques: action.mitre_techniques || [],
           
           // ✅ NEW: Source type identification
           action_source: isMcpAction ? 'mcp_server' : isAgentAction ? 'ai_agent' : 'workflow',
@@ -1155,6 +1163,11 @@ const createWorkflow = async (workflowData) => {
   // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
   try {
+    // Handle both numeric and ENT_ACTION formats
+    let numericId = actionId;
+    if (typeof actionId === 'string' && actionId.includes('ENT_ACTION_')) {
+      numericId = parseInt(actionId.replace('ENT_ACTION_', ''));
+    }
     const action = pendingActions.find(a => 
       a.id === actionId || 
       a.workflow_execution_id === actionId || 
@@ -1170,7 +1183,7 @@ const createWorkflow = async (workflowData) => {
       // Use workflow approval endpoint with workflow_execution_id
       endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
     } else {
-      endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
+      endpoint = `${API_BASE_URL}/api/authorization/authorize/${numericId}`;
     }
     
     const response = await fetch(endpoint, {
