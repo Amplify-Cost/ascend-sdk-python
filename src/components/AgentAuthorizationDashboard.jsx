@@ -94,7 +94,7 @@ const [showMcpFilters, setShowMcpFilters] = useState(false);
       if (activeTab === "execution") {
         fetchExecutionHistory();
       }
-    }, 60000); // Changed to 60 seconds to prevent UI flashing
+    }, 300000); // Changed to 60 seconds to prevent UI flashing
         
     return () => clearInterval(interval);
   }, [activeTab]);
@@ -1613,7 +1613,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Critical Risk</h3>
-                <p className="text-2xl font-bold">{dashboardData?.enterprise_kpis?.high_risk_pending || 0}</p>
+                <p className="text-2xl font-bold">{pendingActions.filter(action => action.ai_risk_score >= 80).length}</p>
                 </div>
               <div className="text-3xl opacity-80">🚨</div>
             </div>
