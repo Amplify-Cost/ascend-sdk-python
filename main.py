@@ -1,3 +1,4 @@
+from enterprise_mcp_service import create_enterprise_mcp_endpoints
 # main.py - Complete original file with only auth router fixes
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
@@ -383,6 +384,9 @@ print("🔗 Loading application routes...")
 
 # Enterprise health monitoring (always included)
 app.include_router(health_router, tags=["Health"])
+
+# Register Enterprise MCP endpoints
+create_enterprise_mcp_endpoints(app, Depends(get_db), Depends(get_current_user))
 print("✅ Health routes included")
 
 # Enterprise SSO routes (if available)
