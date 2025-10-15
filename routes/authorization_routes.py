@@ -487,12 +487,19 @@ class AuthorizationService:
     ) -> Dict[str, Any]:
         """Get pending actions with enterprise filtering."""
         try:
-            # Build base query
+            # Build base query with JOINs to assessment tables
             base_query = """
-                SELECT id, agent_id, action_type, description, risk_level, risk_score, 
-                       target_system, nist_control, mitre_tactic, status, created_at, user_id
-                FROM agent_actions 
-                WHERE status IN (:pending, :submitted, :pending_approval)
+                SELECT 
+                    aa.id, aa.agent_id, aa.action_type, aa.description, aa.risk_level,
+                    COALESCE(ca.base_score * 10, aa.risk_score, 50) as risk_score,
+                    aa.target_system, aa.status, aa.created_at, aa.user_id,
+                    ARRAY_AGG(DISTINCT ncm.control_id) FILTER (WHERE ncm.control_id IS NOT NULL) as nist_controls,
+                    ARRAY_AGG(DISTINCT mtm.technique_id) FILTER (WHERE mtm.technique_id IS NOT NULL) as mitre_techniques
+                FROM agent_actions aa
+                LEFT JOIN cvss_assessments ca ON aa.id = ca.action_id
+                LEFT JOIN nist_control_mappings ncm ON aa.id = ncm.action_id
+                LEFT JOIN mitre_technique_mappings mtm ON aa.id = mtm.action_id
+                WHERE aa.status IN (:pending, :submitted, :pending_approval)
             """
             params = {
                 "pending": ActionStatus.PENDING.value,
@@ -502,17 +509,24 @@ class AuthorizationService:
             
             # Apply filters
             if risk_filter:
-                base_query += " AND risk_level = :risk_filter"
+                base_query += " AND aa.risk_level = :risk_filter"
                 params['risk_filter'] = risk_filter
             
             if emergency_only:
-                base_query += " AND risk_level IN (:high, :critical)"
+                base_query += " AND aa.risk_level IN (:high, :critical)"
                 params.update({
                     "high": RiskLevel.HIGH.value,
                     "critical": RiskLevel.CRITICAL.value
                 })
             
-            base_query += " ORDER BY CASE WHEN risk_level = :critical THEN 1 WHEN risk_level = :high THEN 2 ELSE 3 END, created_at DESC LIMIT 100"
+            base_query += """
+                GROUP BY aa.id, aa.agent_id, aa.action_type, aa.description, 
+                         aa.risk_level, aa.target_system, aa.status, aa.created_at, 
+                         aa.user_id, ca.base_score
+                ORDER BY CASE WHEN aa.risk_level = :critical THEN 1 WHEN aa.risk_level = :high THEN 2 ELSE 3 END, 
+                         aa.created_at DESC 
+                LIMIT 100
+            """
             params.update({
                 "high": RiskLevel.HIGH.value,
                 "critical": RiskLevel.CRITICAL.value
@@ -550,13 +564,13 @@ class AuthorizationService:
                     "action_type": row[2] or "security_scan",
                     "description": row[3] or "Enterprise security operation",
                     "target_system": row[6] or "Unknown",
-                    "nist_control": row[7] or None,
-                    "mitre_tactic": row[8] or None,
+                    "nist_controls": [c for c in (row[10] or []) if c is not None],
+                    "mitre_techniques": [t for t in (row[11] or []) if t is not None],
                     "risk_level": row[4] or RiskLevel.MEDIUM.value,
-                    "status": row[9] or ActionStatus.PENDING.value,
-                    "created_at": row[10].isoformat() if row[7] else datetime.now(UTC).isoformat(),
+                    "status": row[7] or ActionStatus.PENDING.value,
+                    "created_at": row[8].isoformat() if row[8] else datetime.now(UTC).isoformat(),
                     "tool_name": "enterprise-mcp",
-                    "user_id": row[11] or 1,
+                    "user_id": row[9] or 1,
                     "can_approve": current_user.get("role") in ["admin", "security_manager"] if current_user else False,
                     "requires_approval": True,
                     "estimated_impact": "Enterprise security enhancement",
