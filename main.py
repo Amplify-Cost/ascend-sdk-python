@@ -1985,6 +1985,48 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
         
         logger.info(f"🏢 ENTERPRISE: Authorization request created - ID: {new_action.id}")
         
+        # === ENTERPRISE RISK ASSESSMENT ===
+        try:
+            from services.cvss_auto_mapper import cvss_auto_mapper
+            from services.mitre_mapper import mitre_mapper
+            from services.nist_mapper import nist_mapper
+            
+            logger.info(f"🔍 Starting enterprise assessment for action {new_action.id}")
+            
+            # 1. CVSS Assessment
+            cvss_result = cvss_auto_mapper.auto_assess_action(
+                db=db,
+                action_id=new_action.id,
+                action_type=data.get("action_type", "unknown"),
+                context=data.get("context", {})
+            )
+            
+            # 2. MITRE Mapping
+            mitre_result = mitre_mapper.map_action_to_techniques(
+                db=db,
+                action_id=new_action.id,
+                action_type=data.get("action_type", "unknown")
+            )
+            
+            # 3. NIST Mapping
+            nist_result = nist_mapper.map_action_to_controls(
+                db=db,
+                action_id=new_action.id,
+                action_type=data.get("action_type", "unknown")
+            )
+            
+            # 4. Update risk_score from CVSS
+            if cvss_result and 'base_score' in cvss_result:
+                risk_score = min(int(cvss_result['base_score'] * 10), 100)
+                new_action.risk_score = risk_score
+                db.commit()
+            
+            logger.info(f"✅ Enterprise assessment complete for action {new_action.id}: CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result.get('techniques', []))}, NIST={len(nist_result.get('controls', []))}")
+            
+        except Exception as assessment_error:
+            logger.warning(f"⚠️ Enterprise assessment failed for action {new_action.id}: {str(assessment_error)}")
+            # Don't fail the submission if assessment fails
+        
         return {
             "authorization_id": new_action.id,
             "status": "pending",
