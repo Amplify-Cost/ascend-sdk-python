@@ -23,6 +23,130 @@ class NISTMapper:
             ("AC-4", "SECONDARY"), # Information Flow Enforcement
             ("AU-2", "SUPPORTING") # Event Logging
         ],
+
+        # === CURRENT SYSTEM ACTION TYPES (13) ===
+        "database_query": [
+            ("AC-3", "PRIMARY"),   # Access Enforcement
+            ("AC-6", "PRIMARY"),   # Least Privilege
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("IA-2", "SUPPORTING") # User Identification
+        ],
+        "forensic_analysis": [
+            ("AU-6", "PRIMARY"),   # Audit Review and Analysis
+            ("AU-7", "PRIMARY"),   # Audit Reduction and Report Generation
+            ("IR-4", "SECONDARY"), # Incident Handling
+            ("SI-4", "SUPPORTING") # System Monitoring
+        ],
+        "threat_analysis": [
+            ("SI-4", "PRIMARY"),   # Information System Monitoring
+            ("RA-5", "PRIMARY"),   # Vulnerability Monitoring
+            ("IR-4", "SECONDARY"), # Incident Handling
+            ("AU-6", "SUPPORTING") # Audit Review
+        ],
+        "access_review": [
+            ("AC-2", "PRIMARY"),   # Account Management
+            ("AC-6", "PRIMARY"),   # Least Privilege
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("IA-4", "SUPPORTING") # Identifier Management
+        ],
+        "network_monitoring": [
+            ("SI-4", "PRIMARY"),   # Information System Monitoring
+            ("SC-7", "PRIMARY"),   # Boundary Protection
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("IR-4", "SUPPORTING") # Incident Handling
+        ],
+        "financial_transaction": [
+            ("AU-2", "PRIMARY"),   # Event Logging
+            ("AC-3", "PRIMARY"),   # Access Enforcement
+            ("SI-7", "SECONDARY"), # Software and Information Integrity
+            ("AU-10", "SUPPORTING") # Non-Repudiation
+        ],
+        "firewall_modification": [
+            ("SC-7", "PRIMARY"),   # Boundary Protection
+            ("CM-3", "PRIMARY"),   # Configuration Change Control
+            ("AC-3", "SECONDARY"), # Access Enforcement
+            ("AU-2", "SUPPORTING") # Event Logging
+        ],
+        "anomaly_detection": [
+            ("SI-4", "PRIMARY"),   # Information System Monitoring
+            ("IR-4", "PRIMARY"),   # Incident Handling
+            ("AU-6", "SECONDARY"), # Audit Review
+            ("RA-5", "SUPPORTING") # Vulnerability Monitoring
+        ],
+        "code_deployment": [
+            ("CM-3", "PRIMARY"),   # Configuration Change Control
+            ("SA-10", "PRIMARY"),  # Developer Configuration Management
+            ("CM-2", "SECONDARY"), # Baseline Configuration
+            ("AU-2", "SUPPORTING") # Event Logging
+        ],
+        "compliance_check": [
+            ("CA-2", "PRIMARY"),   # Control Assessments
+            ("CA-7", "PRIMARY"),   # Continuous Monitoring
+            ("AU-6", "SECONDARY"), # Audit Review
+            ("PM-6", "SUPPORTING") # Measures of Performance
+        ],
+        "delete_files": [
+            ("MP-6", "PRIMARY"),   # Media Sanitization
+            ("AU-2", "PRIMARY"),   # Event Logging
+            ("AC-3", "SECONDARY"), # Access Enforcement
+            ("SI-7", "SUPPORTING") # Software and Information Integrity
+        ],
+        "send_email": [
+            ("SC-8", "PRIMARY"),   # Transmission Confidentiality
+            ("AC-4", "PRIMARY"),   # Information Flow Enforcement
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("AT-2", "SUPPORTING") # Literacy Training and Awareness
+        ],
+        "vulnerability_scan": [
+            ("RA-5", "PRIMARY"),   # Vulnerability Monitoring and Scanning
+            ("SI-2", "PRIMARY"),   # Flaw Remediation
+            ("CA-7", "SECONDARY"), # Continuous Monitoring
+            ("AU-2", "SUPPORTING") # Event Logging
+        ],
+        # === COMMON ENTERPRISE ACTION TYPES (7) ===
+        "api_call": [
+            ("SC-8", "PRIMARY"),   # Transmission Confidentiality
+            ("AC-3", "PRIMARY"),   # Access Enforcement
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("IA-2", "SUPPORTING") # User Authentication
+        ],
+        "file_read": [
+            ("AC-3", "PRIMARY"),   # Access Enforcement
+            ("AC-6", "PRIMARY"),   # Least Privilege
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("MP-2", "SUPPORTING") # Media Access
+        ],
+        "file_write": [
+            ("AC-3", "PRIMARY"),   # Access Enforcement
+            ("SI-7", "PRIMARY"),   # Software and Information Integrity
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("MP-2", "SUPPORTING") # Media Access
+        ],
+        "authentication": [
+            ("IA-2", "PRIMARY"),   # User Identification and Authentication
+            ("AC-7", "PRIMARY"),   # Unsuccessful Logon Attempts
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("IA-5", "SUPPORTING") # Authenticator Management
+        ],
+        "backup_operation": [
+            ("CP-9", "PRIMARY"),   # Information System Backup
+            ("MP-4", "PRIMARY"),   # Media Storage
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("SC-28", "SUPPORTING") # Protection of Information at Rest
+        ],
+        "log_analysis": [
+            ("AU-6", "PRIMARY"),   # Audit Review and Analysis
+            ("AU-7", "PRIMARY"),   # Audit Reduction and Report Generation
+            ("SI-4", "SECONDARY"), # System Monitoring
+            ("IR-4", "SUPPORTING") # Incident Handling
+        ],
+        "user_management": [
+            ("AC-2", "PRIMARY"),   # Account Management
+            ("IA-4", "PRIMARY"),   # Identifier Management
+            ("AU-2", "SECONDARY"), # Event Logging
+            ("AC-6", "SUPPORTING") # Least Privilege
+        ],
+
         "database_write": [
             ("SI-7", "PRIMARY"),   # Software and Information Integrity
             ("AC-3", "PRIMARY"),   # Access Enforcement

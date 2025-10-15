@@ -39,6 +39,110 @@ class MITREMapper:
             ("T1068", "HIGH"),  # Exploitation for Privilege Escalation
             ("T1134", "MEDIUM"), # Access Token Manipulation
         ],
+
+        # === CURRENT SYSTEM ACTION TYPES (13) ===
+        "database_query": [
+            ("T1213", "HIGH"),   # Data from Information Repositories
+            ("T1005", "MEDIUM"), # Data from Local System
+            ("T1119", "LOW"),    # Automated Collection
+        ],
+        "forensic_analysis": [
+            ("T1074", "HIGH"),   # Data Staged
+            ("T1005", "HIGH"),   # Data from Local System
+            ("T1119", "MEDIUM"), # Automated Collection
+        ],
+        "threat_analysis": [
+            ("T1595", "HIGH"),   # Active Scanning
+            ("T1046", "MEDIUM"), # Network Service Discovery
+            ("T1595", "LOW"),    # Vulnerability Scanning
+        ],
+        "access_review": [
+            ("T1078", "HIGH"),   # Valid Accounts
+            ("T1087", "MEDIUM"), # Account Discovery
+            ("T1069", "LOW"),    # Permission Groups Discovery
+        ],
+        "network_monitoring": [
+            ("T1040", "HIGH"),   # Network Sniffing
+            ("T1590", "MEDIUM"), # Gather Victim Network Information
+            ("T1046", "LOW"),    # Network Service Discovery
+        ],
+        "financial_transaction": [
+            ("T1565", "HIGH"),   # Data Manipulation
+            ("T1491", "HIGH"),   # Defacement
+            ("T1486", "MEDIUM"), # Data Encrypted for Impact
+        ],
+        "firewall_modification": [
+            ("T1562", "HIGH"),   # Impair Defenses
+            ("T1556", "MEDIUM"), # Modify Authentication Process
+            ("T1599", "LOW"),    # Network Boundary Bridging
+        ],
+        "anomaly_detection": [
+            ("T1046", "HIGH"),   # Network Service Discovery
+            ("T1040", "MEDIUM"), # Network Sniffing
+            ("T1082", "LOW"),    # System Information Discovery
+        ],
+        "code_deployment": [
+            ("T1203", "HIGH"),   # Exploitation for Client Execution
+            ("T1059", "HIGH"),   # Command and Scripting Interpreter
+            ("T1105", "MEDIUM"), # Ingress Tool Transfer
+        ],
+        "compliance_check": [
+            ("T1087", "MEDIUM"), # Account Discovery
+            ("T1069", "MEDIUM"), # Permission Groups Discovery
+            ("T1082", "LOW"),    # System Information Discovery
+        ],
+        "delete_files": [
+            ("T1485", "HIGH"),   # Data Destruction
+            ("T1070", "HIGH"),   # Indicator Removal
+            ("T1565", "MEDIUM"), # Data Manipulation
+        ],
+        "send_email": [
+            ("T1566", "HIGH"),   # Phishing
+            ("T1071", "MEDIUM"), # Application Layer Protocol
+            ("T1114", "LOW"),    # Email Collection
+        ],
+        "vulnerability_scan": [
+            ("T1595", "HIGH"),   # Active Scanning
+            ("T1046", "MEDIUM"), # Network Service Discovery
+            ("T1590", "LOW"),    # Gather Victim Network Information
+        ],
+        # === COMMON ENTERPRISE ACTION TYPES (7) ===
+        "api_call": [
+            ("T1071", "HIGH"),   # Application Layer Protocol
+            ("T1102", "MEDIUM"), # Web Service
+            ("T1059", "LOW"),    # Command and Scripting Interpreter
+        ],
+        "file_read": [
+            ("T1005", "HIGH"),   # Data from Local System
+            ("T1083", "MEDIUM"), # File and Directory Discovery
+            ("T1119", "LOW"),    # Automated Collection
+        ],
+        "file_write": [
+            ("T1565", "HIGH"),   # Data Manipulation
+            ("T1105", "MEDIUM"), # Ingress Tool Transfer
+            ("T1027", "LOW"),    # Obfuscated Files or Information
+        ],
+        "authentication": [
+            ("T1078", "HIGH"),   # Valid Accounts
+            ("T1110", "MEDIUM"), # Brute Force
+            ("T1556", "LOW"),    # Modify Authentication Process
+        ],
+        "backup_operation": [
+            ("T1005", "HIGH"),   # Data from Local System
+            ("T1074", "MEDIUM"), # Data Staged
+            ("T1119", "LOW"),    # Automated Collection
+        ],
+        "log_analysis": [
+            ("T1070", "MEDIUM"), # Indicator Removal
+            ("T1083", "MEDIUM"), # File and Directory Discovery
+            ("T1082", "LOW"),    # System Information Discovery
+        ],
+        "user_management": [
+            ("T1136", "HIGH"),   # Create Account
+            ("T1098", "MEDIUM"), # Account Manipulation
+            ("T1087", "LOW"),    # Account Discovery
+        ],
+
         "defense_evasion": [
             ("T1070", "HIGH"),  # Indicator Removal
             ("T1027", "MEDIUM"), # Obfuscated Files
