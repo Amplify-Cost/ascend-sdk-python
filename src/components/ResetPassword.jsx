@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 
+import { API_BASE_URL } from '../config/api';
+
 const ResetPassword = ({ token, switchToLogin }) => {
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleReset = async (e) => {
     e.preventDefault();

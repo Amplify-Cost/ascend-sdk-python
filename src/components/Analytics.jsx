@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { Bar, Pie } from "react-chartjs-2";
 import {
+
+import { API_BASE_URL } from '../config/api';
   Chart as ChartJS,
   ArcElement,
   Tooltip,
@@ -15,7 +15,6 @@ ChartJS.register(ArcElement, Tooltip, Legend, BarElement, CategoryScale, LinearS
 const Analytics = ({ getAuthHeaders }) => {
   const [logs, setLogs] = useState([]);
   const [error, setError] = useState(null);
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchLogs = async () => {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
+import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -23,7 +24,6 @@ const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
 
 // 🔌 NEW: MCP Integration State
 
-// Enterprise Policy Management State
 const [newPolicy, setNewPolicy] = useState({
   policy_name: "",
   description: ""
@@ -31,14 +31,11 @@ const [newPolicy, setNewPolicy] = useState({
 const [mcpActions, setMcpActions] = useState([]);
 const [showMcpFilters, setShowMcpFilters] = useState(false);
 
-console.log("🧪 Testing newWorkflow:", newWorkflow);
   
-// Existing workflow management state
   const [workflows, setWorkflows] = useState({});
   const [editingWorkflow, setEditingWorkflow] = useState(null);
   const [message, setMessage] = useState(null);
 
-  // NEW: Advanced Automation State
   const [automationData, setAutomationData] = useState(null);
   const [workflowOrchestrations, setWorkflowOrchestrations] = useState({});
   const [showAutomationModal, setShowAutomationModal] = useState(false);
@@ -53,11 +50,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-  // Fixed useEffect for real-time updates
   useEffect(() => {
-    // Fetch initial data
     fetchPendingActions().then(() => {
-      // After pending actions are loaded, update dashboard and metrics
       fetchDashboardData();
       fetchApprovalMetrics();
     });
@@ -66,7 +60,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       fetchWorkflows();
     }
 
-    // NEW: Fetch automation data when on automation tab
     if (activeTab === "automation") {
       fetchAutomationData();
       fetchWorkflowOrchestrations();
@@ -79,7 +72,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       fetchExecutionHistory();
     }
         
-    // Real-time refresh every 15 seconds for more responsive updates
     const interval = setInterval(() => {
       fetchPendingActions().then(() => {
         fetchDashboardData();
@@ -91,7 +83,6 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       }
 
 
-      // NEW: Update automation data in real-time
       if (activeTab === "automation") {
         fetchAutomationData();
         fetchWorkflowOrchestrations();
@@ -103,7 +94,7 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
       if (activeTab === "execution") {
         fetchExecutionHistory();
       }
-    }, 60000); // Changed to 60 seconds to prevent UI flashing
+    }, 300000); // Changed to 60 seconds to prevent UI flashing
         
     return () => clearInterval(interval);
   }, [activeTab]);
@@ -111,11 +102,8 @@ console.log("🧪 Testing newWorkflow:", newWorkflow);
 // 🏢 ENTERPRISE: Data compatibility effect
 useEffect(() => {
   if (dashboardData && !compatibilityApplied) {
-    // Fix data structure compatibility
     if (dashboardData.user_context && !dashboardData.user_info) {
-      console.log("🔧 ENTERPRISE: Applying data compatibility layer");
       
-      // Create a new object to avoid mutation issues
       const enhancedData = {
         ...dashboardData,
         user_info: {
@@ -138,212 +126,164 @@ useEffect(() => {
       
       setDashboardData(enhancedData);
       setCompatibilityApplied(true);
-      console.log("✅ ENTERPRISE: Compatibility layer applied successfully");
     }
   }
 }, [dashboardData, pendingActions, user, compatibilityApplied]);
 
  
-      // ENTERPRISE FIX: fetchPendingActions - Replace hardcoded demo data with real backend calls
     
   const fetchPendingActions = async () => {
-    console.log("🚀 ENTERPRISE: Starting real backend data fetch...");
-    
     try {
       setLoading(true);
       setError("");
       
-      // ENTERPRISE: Try real backend endpoints first - no demo data loading
-      console.log("📊 ENTERPRISE: Attempting real API calls...");
-      const startTime = Date.now();
-      
-      let realData = null;
-      let apiWorked = false;
-      
-      // Try the main dashboard endpoint that we know works from chat history
-      try {
-        console.log("🔍 ENTERPRISE: Calling /api/authorization/dashboard...");
-        const dashboardResponse = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
-          headers: { 
-            ...getAuthHeaders(), 
-            "Content-Type": "application/json",
-            "X-API-Version": "v1.0"
-          }
-        });
-        
-        if (dashboardResponse.ok) {
-          const dashboardData = await dashboardResponse.json();
-          console.log("✅ ENTERPRISE: Dashboard data received:", dashboardData);
-          
-          // Set dashboard data immediately
-          setDashboardData(dashboardData);
-          apiWorked = true;
+      // 🔄 ENTERPRISE: Use unified governance endpoint
+      const response = await fetch(`${API_BASE_URL}/api/governance/pending-actions`, {
+        headers: { 
+          ...getAuthHeaders(), 
+          "Content-Type": "application/json"
         }
-      } catch (err) {
-        console.log("⚠️ ENTERPRISE: Dashboard endpoint failed:", err.message);
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API returned ${response.status}: ${response.statusText}`);
       }
       
-      // Try the pending actions endpoint
-      try {
-        console.log("🔍 ENTERPRISE: Calling /agent-control/pending-actions...");
-        const actionsResponse = await fetch(`${API_BASE_URL}/agent-control/pending-actions`, {
-          headers: { 
-            ...getAuthHeaders(), 
-            "Content-Type": "application/json",
-            "X-API-Version": "v1.0"
-          }
-        });
-        
-        if (actionsResponse.ok) {
-          const actionsData = await actionsResponse.json();
-          console.log("✅ ENTERPRISE: Actions data received:", actionsData);
-          
-          // Handle different response formats
-          const actions = actionsData.actions || actionsData || [];
-          
-          if (Array.isArray(actions) && actions.length > 0) {
-            console.log(`🔄 ENTERPRISE: Setting ${actions.length} real actions`);
-            setPendingActions(actions);
-            realData = actions;
-            apiWorked = true;
-          } else {
-            console.log("📊 ENTERPRISE: No actions in response, checking other endpoints...");
-          }
-        }
-      } catch (err) {
-        console.log("⚠️ ENTERPRISE: Pending actions endpoint failed:", err.message);
-      }
+      const data = await response.json();
       
-      // If no actions found, try the agent-actions endpoint
-      if (!realData) {
-        try {
-          console.log("🔍 ENTERPRISE: Calling /agent-actions...");
-          const agentActionsResponse = await fetch(`${API_BASE_URL}/agent-actions`, {
-            headers: { 
-              ...getAuthHeaders(), 
-              "Content-Type": "application/json",
-              "X-API-Version": "v1.0"
-            }
-          });
+      // 🏢 ENTERPRISE: Process real action data with policy evaluation
+      const actions = (data.pending_actions || data.actions || []).map(action => {
+        // 🔌 ENTERPRISE: Detect if this is an MCP server action or AI agent action
+        const isMcpAction = action.principal?.startsWith('mcp:') || action.action_source === 'mcp_server';
+        const isAgentAction = action.principal?.startsWith('ai_agent:') || action.action_source === 'ai_agent';
+        
+        // 📊 ENTERPRISE: Extract real risk score from policy evaluation
+        const realRiskScore = action.risk_score || 
+                             action.policy_evaluation?.risk_score ||
+                             action.risk_assessment?.overall_score ||
+                             action.ai_risk_score || 
+                             50;
+        
+        // 🎯 ENTERPRISE: Get actual action type (not workflow ID)
+        const actualActionType = action.action || 
+                                 action.action_type || 
+                                 action.resource_action ||
+                                 'unknown_action';
+        
+        // 🔐 ENTERPRISE: Extract NIST/MITRE framework mappings
+        const frameworkMappings = {
+          nist: action.nist_controls || 
+                action.policy_evaluation?.frameworks?.nist || 
+                action.compliance_frameworks?.nist || [],
+          mitre: action.mitre_techniques || 
+                 action.policy_evaluation?.frameworks?.mitre || 
+                 action.compliance_frameworks?.mitre || [],
+          soc2: action.soc2_controls ||
+                action.policy_evaluation?.frameworks?.soc2 || 
+                action.compliance_frameworks?.soc2 || []
+        };
+        
+        // 🤖 ENTERPRISE: Get real agent/MCP server ID
+        const sourceIdentifier = isMcpAction 
+          ? action.principal || action.mcp_server_id || 'mcp:unknown'
+          : isAgentAction
+          ? action.principal || action.agent_id || 'agent:unknown'
+          : action.workflow_id || 'workflow:unknown';
+        
+        return {
+          id: action.action_id || action.id,
+          workflow_execution_id: action.workflow_execution_id,
           
-          if (agentActionsResponse.ok) {
-            const agentActionsData = await agentActionsResponse.json();
-            console.log("✅ ENTERPRISE: Agent actions data received:", agentActionsData);
-            
-            const actions = agentActionsData.actions || agentActionsData || [];
-            if (Array.isArray(actions) && actions.length > 0) {
-              console.log(`🔄 ENTERPRISE: Setting ${actions.length} real agent actions`);
-              setPendingActions(actions);
-              realData = actions;
-              apiWorked = true;
-            }
-          }
-        } catch (err) {
-          console.log("⚠️ ENTERPRISE: Agent actions endpoint failed:", err.message);
-        }
-      }
-      
-      // Try MCP governance endpoint as fallback
-      if (!realData) {
-        try {
-          console.log("🔍 ENTERPRISE: Calling /api/mcp-governance/actions...");
-          const mcpResponse = await fetch(`${API_BASE_URL}/api/mcp-governance/actions`, {
-            headers: { 
-              ...getAuthHeaders(), 
-              "Content-Type": "application/json",
-              "X-API-Version": "v1.0"
-            }
-          });
+          // ✅ FIX: Real agent/MCP ID (not "Workflow-22")
+          agent_id: sourceIdentifier,
           
-          if (mcpResponse.ok) {
-            const mcpData = await mcpResponse.json();
-            console.log("✅ ENTERPRISE: MCP data received:", mcpData);
-            
-            const actions = mcpData.actions || mcpData || [];
-            if (Array.isArray(actions) && actions.length > 0) {
-              console.log(`🔄 ENTERPRISE: Setting ${actions.length} real MCP actions`);
-              setPendingActions(actions);
-              realData = actions;
-              apiWorked = true;
-            }
-          }
-        } catch (err) {
-          console.log("⚠️ ENTERPRISE: MCP endpoint failed:", err.message);
-        }
-      }
+          // ✅ FIX: Real action type (not "risk_70_89")
+          action_type: actualActionType,
+          
+          // ✅ FIX: Real calculated risk score
+          ai_risk_score: realRiskScore,
+          
+          // ✅ NEW: Framework mappings for NIST/MITRE display
+          framework_mappings: frameworkMappings,
+          
+          // Direct NIST/MITRE for display
+          nist_controls: action.nist_controls || [],
+          mitre_techniques: action.mitre_techniques || [],
+          
+          // ✅ NEW: Source type identification
+          action_source: isMcpAction ? 'mcp_server' : isAgentAction ? 'ai_agent' : 'workflow',
+          is_mcp_action: isMcpAction,
+          is_agent_action: isAgentAction,
+          
+          // 🔌 ENTERPRISE: MCP-specific data if applicable
+          mcp_data: isMcpAction ? {
+            server: action.mcp_server || action.principal?.split(':')[1],
+            namespace: action.mcp_namespace || action.resource?.split(':')[0],
+            verb: action.action || action.verb,
+            resource: action.resource,
+            params: action.parameters || action.params
+          } : null,
+          
+          description: action.description || 
+                      `${actualActionType} requiring approval - Stage: ${action.workflow_stage || 'pending'}`,
+          
+          workflow_stage: action.workflow_stage || action.current_stage || 'pending_stage_1',
+          
+          current_approval_level: action.current_approval_level || 0,
+          required_approval_level: action.required_approval_level || 1,
+          
+          is_emergency: action.is_emergency || 
+                       action.sla_status === 'critical' ||
+                       realRiskScore >= 90,
+          
+          authorization_status: action.authorization_status || 'pending_approval',
+          execution_status: action.execution_status || 'pending_approval',
+          
+          contextual_risk_factors: action.risk_factors || 
+                                  action.contextual_risk_factors || 
+                                  (action.sla_status === 'critical' 
+                                    ? ['SLA Critical', 'Immediate Action Required'] 
+                                    : []),
+          
+          time_remaining: action.time_remaining || 
+                         (action.sla_hours_remaining 
+                           ? `${action.sla_hours_remaining.toFixed(1)}h remaining` 
+                           : "No deadline"),
+          
+          requested_at: action.requested_at || action.created_at || new Date().toISOString(),
+          
+          can_approve: action.can_approve !== undefined ? action.can_approve : true,
+          
+          sla_status: action.sla_status || 'normal',
+          
+          target_system: action.target_system || 
+                        action.resource || 
+                        'Unknown System',
+          
+          required_role: action.required_role,
+          
+          user_email: action.user_email || action.requester_email || 'Unknown',
+          
+          // 📋 ENTERPRISE: Policy evaluation details
+          policy_evaluation_summary: action.policy_evaluation?.summary || null,
+          violated_policies: action.policy_evaluation?.violated_policies || [],
+          matched_policies: action.policy_evaluation?.matched_policies || []
+        };
+      });
       
-      const apiTime = Date.now() - startTime;
-      console.log(`⏱️ ENTERPRISE: API calls took ${apiTime}ms`);
-      
-      // ENTERPRISE: Only show demo data if NO backend endpoints worked
-      if (!apiWorked) {
-        console.log("🚨 ENTERPRISE: All backend endpoints failed, using minimal demo data");
-        
-        const fallbackActions = [
-          {
-            id: 999,
-            agent_id: "Agent-BACKEND-DOWN",
-            action_type: "system_status",
-            ai_risk_score: 30,
-            description: "Backend connectivity issue - showing fallback data",
-            workflow_stage: "level_1",
-            current_approval_level: 1,
-            required_approval_level: 1,
-            is_emergency: false,
-            authorization_status: "pending_approval",
-            execution_status: "pending_approval",
-            contextual_risk_factors: ["Backend connectivity"],
-            time_remaining: "No deadline",
-            requested_at: new Date().toISOString(),
-            backend_status: "disconnected"
-          }
-        ];
-        
-        setPendingActions(fallbackActions);
-        setError("⚠️ ENTERPRISE: Backend endpoints not responding - check network connectivity");
-      } else {
-        console.log("✅ ENTERPRISE: Real backend data loaded successfully");
-        
-        // If we have real data but no actions, show empty state
-        if (!realData || realData.length === 0) {
-          console.log("📋 ENTERPRISE: No pending actions found in backend");
-          setPendingActions([]);
-        }
-        
-        setError(null);
-      }
+      setPendingActions(actions);
+      setError(null);
       
     } catch (err) {
-      console.error("❌ ENTERPRISE: Critical error in fetchPendingActions:", err);
+      console.error("❌ Failed to fetch pending actions:", err);
+      console.error("Error details:", err.message);
       
-      // ENTERPRISE: Even on critical error, show connection issue instead of fake demo data
-      const errorActions = [
-        {
-          id: 998,
-          agent_id: "System-Error",
-          action_type: "error_state",
-          ai_risk_score: 20,
-          description: `Enterprise backend error: ${err.message}`,
-          workflow_stage: "level_1",
-          current_approval_level: 1,
-          required_approval_level: 1,
-          is_emergency: false,
-          authorization_status: "pending_approval",
-          execution_status: "pending_approval",
-          contextual_risk_factors: ["System Error"],
-          time_remaining: "No deadline",
-          requested_at: new Date().toISOString(),
-          error_details: err.message
-        }
-      ];
-      
-      setPendingActions(errorActions);
-      setError(`ENTERPRISE ERROR: ${err.message}`);
+      setPendingActions([]);
+      setError(`Unable to connect to governance API: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
-
   const fetchDashboardData = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
@@ -356,7 +296,6 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         
-        // Calculate real-time metrics from pending actions
         const totalPending = pendingActions.length;
         const criticalPending = pendingActions.filter(action => 
           action.ai_risk_score >= 80 || action.risk_level === "high"
@@ -365,7 +304,6 @@ useEffect(() => {
           action.is_emergency || action.ai_risk_score >= 90
         ).length;
         
-        // Override static numbers with real-time calculations
         const enhancedData = {
           ...data,
           pending_summary: {
@@ -391,7 +329,6 @@ useEffect(() => {
         };
         
         setDashboardData(enhancedData);
-        console.log("📊 Real-time dashboard data updated:", enhancedData);
       }
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
@@ -406,7 +343,6 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         setPolicies(data.policies || []);
-        console.log("✅ Policies loaded:", data.policies?.length || 0);
       }
     } catch (error) {
       console.error("❌ Failed to fetch policies:", error);
@@ -423,7 +359,6 @@ useEffect(() => {
         headers: getAuthHeaders()
       });
       if (response.ok) {
-        console.log("✅ Policy deleted successfully");
         fetchPolicies();
         alert("Policy deleted successfully");
       } else {
@@ -462,7 +397,6 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         
-        // Add real-time calculations for better accuracy
         const totalActions = data.decision_breakdown.approved + 
                             data.decision_breakdown.denied + 
                             data.decision_breakdown.pending;
@@ -471,7 +405,6 @@ useEffect(() => {
           ? (data.decision_breakdown.approved / totalActions * 100)
           : 0;
         
-        // Calculate real-time processing metrics
         const currentPendingCount = pendingActions.length;
         const avgRiskScore = pendingActions.length > 0 
           ? Math.round(pendingActions.reduce((sum, action) => sum + action.ai_risk_score, 0) / pendingActions.length)
@@ -506,7 +439,6 @@ useEffect(() => {
         };
         
         setApprovalMetrics(enhancedMetrics);
-        console.log("📈 Real-time metrics updated:", enhancedMetrics);
       }
     } catch (err) {
       console.error("Error fetching metrics:", err);
@@ -533,12 +465,9 @@ useEffect(() => {
     }
   };
 
-  // NEW: Automation Functions
   const fetchAutomationData = async () => {
   try {
-    console.log("🤖 Fetching automation data...");
     
-    // Try the new endpoint first, fallback to demo data
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
@@ -549,13 +478,11 @@ useEffect(() => {
         }
       });
     } catch (err) {
-      console.log("📊 New automation endpoint not available, using demo data");
       response = { ok: false };
     }
     
     if (response.ok) {
       const data = await response.json();
-      console.log("✅ Real automation data loaded:", data);
       
       const safeData = {
         playbooks: data?.playbooks || {},
@@ -571,8 +498,6 @@ useEffect(() => {
       
       setAutomationData(safeData);
     } else {
-      // Provide rich demo data for testing
-      console.log("📊 Using demo automation data");
       const demoData = {
         playbooks: {
           "low_risk_auto_approve": {
@@ -622,7 +547,6 @@ useEffect(() => {
     }
   } catch (err) {
     console.error("❌ Error fetching automation data:", err);
-    // Even on error, provide minimal working data
     setAutomationData({
       playbooks: {},
       automation_summary: {
@@ -637,12 +561,9 @@ useEffect(() => {
 };
 
 
-  // SAFE VERSION - fetchWorkflowOrchestrations with error protection
 const fetchWorkflowOrchestrations = async () => {
   try {
-    console.log("🔄 Fetching workflow orchestrations...");
     
-    // Try the new endpoint first
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/orchestration/active-workflows`, {
@@ -653,13 +574,11 @@ const fetchWorkflowOrchestrations = async () => {
         }
       });
     } catch (err) {
-      console.log("📊 New orchestration endpoint not available, using demo data");
       response = { ok: false };
     }
     
     if (response.ok) {
       const data = await response.json();
-      console.log("✅ Real workflow data loaded:", data);
       
       const safeData = {
         active_workflows: data?.active_workflows || {},
@@ -673,8 +592,6 @@ const fetchWorkflowOrchestrations = async () => {
       
       setWorkflowOrchestrations(safeData);
     } else {
-      // Provide demo workflow data
-      console.log("📊 Using demo workflow orchestration data");
       const demoData = {
         active_workflows: {
           "security_review_workflow": {
@@ -753,7 +670,6 @@ const fetchWorkflowOrchestrations = async () => {
     if (response.ok) {
       const data = await response.json();
       setExecutionHistory(data.execution_history || []);
-      console.log("🚀 Execution history loaded:", data);
     }
   } catch (err) {
     console.error("❌ Error fetching execution history:", err);
@@ -782,14 +698,11 @@ const fetchWorkflowOrchestrations = async () => {
 
   const togglePlaybook = async (playbookId) => {
   try {
-    console.log(`🔄 Toggling playbook: ${playbookId}`);
     
-    // Enterprise demo mode: Update local state immediately for instant feedback
     if (automationData?.playbooks?.[playbookId]) {
       const currentStatus = automationData.playbooks[playbookId].enabled;
       const newStatus = !currentStatus;
       
-      // Update local state immediately for instant user feedback
       const updatedAutomationData = {
         ...automationData,
         playbooks: {
@@ -811,7 +724,6 @@ const fetchWorkflowOrchestrations = async () => {
       setAutomationData(updatedAutomationData);
       setMessage(`✅ Playbook "${automationData.playbooks[playbookId].name}" ${newStatus ? 'enabled' : 'disabled'} successfully`);
       
-      // Try real API in background (graceful degradation)
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/playbook/${playbookId}/toggle`, {
           method: "POST",
@@ -821,12 +733,9 @@ const fetchWorkflowOrchestrations = async () => {
             "X-API-Version": "v1.0"
           }
         });
-        console.log("✅ Real API toggle successful");
       } catch (err) {
-        console.log("📊 API not available, using demo mode (this is normal)");
       }
       
-      // Refresh dashboard data to show changes
       fetchPendingActions();
       
     } else {
@@ -840,15 +749,12 @@ const fetchWorkflowOrchestrations = async () => {
 
   const executePlaybook = async (playbookId, testActionId = null) => {
   try {
-    console.log(`🚀 Executing playbook: ${playbookId}`);
     
     if (automationData?.playbooks?.[playbookId]) {
       const playbook = automationData.playbooks[playbookId];
       
-      // Show immediate execution feedback
       setMessage(`🔄 Executing "${playbook.name}"...`);
       
-      // Update stats immediately for enterprise experience
       const updatedStats = {
         ...playbook.stats,
         triggers_last_24h: playbook.stats.triggers_last_24h + 1,
@@ -874,15 +780,12 @@ const fetchWorkflowOrchestrations = async () => {
       
       setAutomationData(updatedAutomationData);
       
-      // Simulate realistic execution time
       setTimeout(() => {
   const riskScore = Math.floor(Math.random() * 40) + 10;
   setMessage(`✅ "${playbook.name}" executed successfully! Risk score: ${riskScore} | Cost savings: $${Math.floor(Math.random() * 200) + 100}`);
   
-  // Clear message after 10 seconds instead of letting it stay forever
   setTimeout(() => setMessage(""), 10000);
         
-        // Add to recent activity
         if (dashboardData) {
           const newActivity = {
             action_id: `auto-${Date.now()}`,
@@ -905,7 +808,6 @@ const fetchWorkflowOrchestrations = async () => {
         fetchPendingActions(); // Refresh pending actions
       }, 1500);
       
-      // Try real API in background
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/execute-playbook`, {
           method: "POST",
@@ -920,9 +822,7 @@ const fetchWorkflowOrchestrations = async () => {
             execution_context: "enterprise_demo"
           })
         });
-        console.log("✅ Real API execution logged");
       } catch (err) {
-        console.log("📊 API not available, using demo execution (this is normal)");
       }
     } else {
       setMessage("❌ Playbook not found");
@@ -936,15 +836,12 @@ const fetchWorkflowOrchestrations = async () => {
 
   const executeWorkflow = async (workflowId, inputData = {}) => {
   try {
-    console.log(`🔄 Executing workflow: ${workflowId}`);
     
     if (workflowOrchestrations?.active_workflows?.[workflowId]) {
       const workflow = workflowOrchestrations.active_workflows[workflowId];
       
-      // Show immediate execution feedback
       setMessage(`🔄 Executing workflow "${workflow.name}"...`);
       
-      // Update real-time stats immediately
       const updatedStats = {
         ...workflow.real_time_stats,
         currently_executing: workflow.real_time_stats.currently_executing + 1,
@@ -968,9 +865,7 @@ const fetchWorkflowOrchestrations = async () => {
       
       setWorkflowOrchestrations(updatedWorkflowData);
       
-      // Simulate realistic workflow execution
       setTimeout(() => {
-        // Update to show completion
         const completedStats = {
           ...updatedStats,
           currently_executing: Math.max(0, updatedStats.currently_executing - 1)
@@ -994,7 +889,6 @@ const fetchWorkflowOrchestrations = async () => {
         setWorkflowOrchestrations(completedWorkflowData);
         setMessage(`✅ Workflow "${workflow.name}" completed successfully! Duration: ${Math.floor(Math.random() * 60) + 30}s`);
         
-        // Add to recent activity
         if (dashboardData) {
           const newActivity = {
             action_id: `workflow-${Date.now()}`,
@@ -1017,7 +911,6 @@ const fetchWorkflowOrchestrations = async () => {
         fetchPendingActions(); // Refresh other data
       }, 2000);
       
-      // Try real API in background
       try {
         await fetch(`${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}`, {
           method: "POST",
@@ -1031,9 +924,7 @@ const fetchWorkflowOrchestrations = async () => {
             execution_context: "enterprise_demo"
           })
         });
-        console.log("✅ Real API workflow execution logged");
       } catch (err) {
-        console.log("📊 API not available, using demo execution (this is normal)");
       }
     } else {
       setMessage(`❌ Workflow "${workflowId}" not found`);
@@ -1047,9 +938,7 @@ const fetchWorkflowOrchestrations = async () => {
 
 // 🏗️ NEW: Enterprise Workflow Creation Function
 
-  // Enterprise Policy Creation Function
   const createEnterprisePolicy = async () => {
-    console.log("🏛️ Policy creation started with:", newPolicy);
     if (!newPolicy.policy_name || !newPolicy.description) {
       alert("Please fill in both policy name and description");
       return;
@@ -1070,7 +959,6 @@ const fetchWorkflowOrchestrations = async () => {
       
       if (response.ok) {
         const result = await response.json();
-        console.log("✅ Enterprise policy created successfully:", result);
         alert("Policy created successfully!");
         setNewPolicy({ policy_name: "", description: "" });
       } else {
@@ -1084,18 +972,14 @@ const fetchWorkflowOrchestrations = async () => {
   };
 const createWorkflow = async (workflowData) => {
   try {
-    console.log("🏗️ Creating new workflow:", workflowData);
     
-    // Validate the workflow data
     if (!workflowData.name || workflowData.steps.length === 0) {
       setMessage("❌ Workflow must have a name and at least one step");
       return;
     }
     
-    // Generate unique workflow ID
     const workflowId = workflowData.name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now();
     
-    // Create workflow object with enterprise metadata
     const newWorkflowObject = {
       id: workflowId,
       name: workflowData.name,
@@ -1116,7 +1000,6 @@ const createWorkflow = async (workflowData) => {
       status: 'active'
     };
     
-    // Update local state immediately for enterprise UX
     const updatedWorkflows = {
       ...workflowOrchestrations,
       active_workflows: {
@@ -1131,10 +1014,8 @@ const createWorkflow = async (workflowData) => {
     
     setWorkflowOrchestrations(updatedWorkflows);
     
-    // Show success message
     setMessage(`✅ Workflow "${workflowData.name}" created successfully! Ready for execution.`);
     
-    // Close the modal and reset form
     setShowWorkflowBuilder(false);
     setNewWorkflow({
       name: '',
@@ -1144,7 +1025,6 @@ const createWorkflow = async (workflowData) => {
       approvers: []
     });
     
-    // Try to save to real backend in background
     try {
       await fetch(`${API_BASE_URL}/api/authorization/workflows/create`, {
         method: "POST",
@@ -1159,12 +1039,9 @@ const createWorkflow = async (workflowData) => {
           created_by: user?.email || 'admin@enterprise.com'
         })
       });
-      console.log("✅ Workflow saved to backend successfully");
     } catch (err) {
-      console.log("📊 Backend not available, workflow saved locally (demo mode)");
     }
     
-    // Refresh workflow data
     setTimeout(() => {
       fetchWorkflowOrchestrations();
     }, 1000);
@@ -1173,7 +1050,6 @@ const createWorkflow = async (workflowData) => {
     console.error("❌ Error creating workflow:", err);
     setMessage("✅ Workflow created successfully (demo mode)");
     
-    // Still close the modal even on error
     setShowWorkflowBuilder(false);
     setNewWorkflow({
       name: '',
@@ -1199,9 +1075,7 @@ const createWorkflow = async (workflowData) => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log("🚀 Execution result:", result);
         
-        // Update the action in pending actions list with execution results
         setPendingActions(prev => prev.map(action => 
           action.id === actionId ? {
             ...action,
@@ -1216,7 +1090,6 @@ const createWorkflow = async (workflowData) => {
           } : action
         ));
         
-        // Refresh execution history
         fetchExecutionHistory();
         
         setMessage(result.message);
@@ -1290,15 +1163,27 @@ const createWorkflow = async (workflowData) => {
   // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
   try {
-    const action = pendingActions.find(a => a.id === actionId);
+    // Handle both numeric and ENT_ACTION formats
+    let numericId = actionId;
+    if (typeof actionId === 'string' && actionId.includes('ENT_ACTION_')) {
+      numericId = parseInt(actionId.replace('ENT_ACTION_', ''));
+    }
+    const action = pendingActions.find(a => 
+      a.id === actionId || 
+      a.workflow_execution_id === actionId || 
+      a.workflow_id === actionId
+    );
     
     // 🔌 ENHANCED: Route to appropriate endpoint based on action type
+    // 🔌 ENTERPRISE: Route to appropriate endpoint based on action type
     let endpoint;
     if (action?.action_type === 'mcp_server_action') {
       endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
+    } else if (action?.workflow_execution_id) {
+      // Use workflow approval endpoint with workflow_execution_id
+      endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
     } else {
-      // PRESERVE: Use existing agent approval endpoint
-      endpoint = `${API_BASE_URL}/api/authorization/authorize/${actionId}`;
+      endpoint = `${API_BASE_URL}/api/authorization/authorize/${numericId}`;
     }
     
     const response = await fetch(endpoint, {
@@ -1323,18 +1208,31 @@ const createWorkflow = async (workflowData) => {
 
     if (response.ok) {
       const result = await response.json();
-      console.log("✅ Enhanced approval result:", result);
               
-      // PRESERVE: Your existing UI update logic
       setPendingActions(prev => {
-        const updated = prev.filter(action => action.id !== actionId);
-        console.log(`📊 Enhanced pending actions updated: ${prev.length} → ${updated.length}`);
+        const updated = prev.filter(action => 
+          action.id !== actionId && 
+          action.workflow_execution_id !== actionId && 
+          action.workflow_id !== actionId
+        );
         return updated;
       });
       
+      // ✅ FIX: Immediately update dashboard count to match removed action
+      setDashboardData(prev => ({
+        ...prev,
+        summary: {
+          ...prev?.summary,
+          total_pending: Math.max(0, (prev?.summary?.total_pending || 0) - 1)
+        },
+        enterprise_kpis: {
+          ...prev?.enterprise_kpis,
+          high_risk_pending: Math.max(0, (prev?.enterprise_kpis?.high_risk_pending || 0) - (action.ai_risk_score >= 80 ? 1 : 0)),
+          critical_pending: Math.max(0, (prev?.enterprise_kpis?.critical_pending || 0) - (action.ai_risk_score >= 90 ? 1 : 0))
+        }
+      }));
       setSelectedAction(null);
               
-      // PRESERVE: Your existing dashboard refresh logic
       setTimeout(() => {
         fetchDashboardData();
         fetchApprovalMetrics();
@@ -1384,20 +1282,34 @@ const createWorkflow = async (workflowData) => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log("🚨 Emergency override result:", result);
                 
-        // Immediate UI updates for real-time feedback
         setPendingActions(prev => {
-          const updated = prev.filter(action => action.id !== actionId);
-          console.log(`🚨 Emergency override: ${prev.length} → ${updated.length} pending actions`);
+          const updated = prev.filter(action => 
+          action.id !== actionId && 
+          action.workflow_execution_id !== actionId && 
+          action.workflow_id !== actionId
+        );
           return updated;
         });
+        
+        // ✅ FIX: Immediately update dashboard count to match removed action
+        setDashboardData(prev => ({
+          ...prev,
+          summary: {
+            ...prev?.summary,
+            total_pending: Math.max(0, (prev?.summary?.total_pending || 0) - 1)
+          },
+          enterprise_kpis: {
+            ...prev?.enterprise_kpis,
+            high_risk_pending: Math.max(0, (prev?.enterprise_kpis?.high_risk_pending || 0) - (action.ai_risk_score >= 80 ? 1 : 0)),
+            critical_pending: Math.max(0, (prev?.enterprise_kpis?.critical_pending || 0) - (action.ai_risk_score >= 90 ? 1 : 0))
+          }
+        }));
         
         setShowEmergencyModal(false);
         setEmergencyJustification("");
         setSelectedAction(null);
                 
-        // Update metrics to reflect emergency override immediately
         setTimeout(() => {
           fetchApprovalMetrics();
           fetchDashboardData();
@@ -1439,13 +1351,11 @@ const createWorkflow = async (workflowData) => {
   // 🔌 NEW: MCP server action icons
   if (actionType === "mcp_server_action") return "🔌";
   
-  // PRESERVE: Your existing agent action icons
   if (actionType === "security_scan") return "🔍";
   if (actionType === "data_access") return "📊";
   if (actionType === "system_config") return "⚙️";
   if (actionType === "error_fallback") return "⚠️";
   
-  // Default for any action type
   return "🤖";
 };
 
@@ -1500,7 +1410,6 @@ const createWorkflow = async (workflowData) => {
     );
   };
 
-  // Workflow Editor Component
   const WorkflowEditor = ({ workflowId, workflow, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
       name: workflow.name,
@@ -1680,7 +1589,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-       {console.log("🔍 DEBUG: dashboardData =", dashboardData)}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center">
           🛡️ Enterprise Authorization Center
@@ -1705,7 +1613,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Critical Risk</h3>
-                <p className="text-2xl font-bold">{dashboardData?.enterprise_kpis?.high_risk_pending || 0}</p>
+                <p className="text-2xl font-bold">{pendingActions.filter(action => action.ai_risk_score >= 80).length}</p>
                 </div>
               <div className="text-3xl opacity-80">🚨</div>
             </div>
@@ -1857,7 +1765,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   </>
 ) : (
   <>
-    <div><strong>Action:</strong> {action.action_type}</div>
+    <div><strong>Action:</strong> {action.action_type} {action.action_source === "mcp_server" ? "🔌" : action.action_source === "ai_agent" ? "🤖" : "⚙️"}</div>
     <div><strong>Target:</strong> {action.target_system || 'Unknown'}</div>
     <div><strong>Agent:</strong> {action.agent_id}</div>
     <div><strong>User:</strong> {action.user_email || 'Unknown'}</div>
@@ -2776,13 +2684,11 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           
           <button
             onClick={() => {
-              // Validate workflow
               if (!newWorkflow.name || newWorkflow.steps.length === 0) {
                 setMessage("❌ Please provide a workflow name and at least one step");
                 return;
               }
               
-              // Create workflow
               createWorkflow(newWorkflow);
             }}
             disabled={!newWorkflow.name || newWorkflow.steps.length === 0}
@@ -2798,7 +2704,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 return;
               }
               
-              // Save as draft
               setMessage("💾 Workflow saved as draft");
             }}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md"
@@ -3103,139 +3008,13 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
 
       {/* Policy Management Tab */}
       {activeTab === "policies" && (
-        <div className="space-y-6">
-          {/* Policy Creation Section */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Create New Policy</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Policy Name
-                </label>
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={newPolicy.policy_name} onChange={(e) => setNewPolicy({...newPolicy, policy_name: e.target.value})} placeholder="e.g., File Access Control"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Natural Language Description
-                </label>
-                <textarea
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={newPolicy.description} onChange={(e) => setNewPolicy({...newPolicy, description: e.target.value})} placeholder="Describe the policy in natural language, e.g., Allow read access to log files but require approval for delete operations"
-                />
-              </div>
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700" onClick={createEnterprisePolicy}>
-                Create Policy
-              </button>
-            </div>
-          </div>
-
-          {/* Policy Engine Status */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">Enterprise Policy Engine Status</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">Active</div>
-                <div className="text-sm text-gray-600">Policy Engine</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">Enabled</div>
-                <div className="text-sm text-gray-600">Natural Language</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">Available</div>
-                <div className="text-sm text-gray-600">Version Control</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">Ready</div>
-                <div className="text-sm text-gray-600">Deployment</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Enterprise Policy Display - Separate Section */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 border border-blue-200">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">Active Policies</h3>
-                <p className="text-sm text-gray-600 mt-1">Enterprise governance rules enforcing organizational security standards</p>
-              </div>
-              <div className="bg-blue-600 text-white px-4 py-2 rounded-full font-semibold text-lg">
-                {policies.length}
-              </div>
-            </div>
-            {policies.length === 0 ? (
-              <div className="text-center py-16 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                <div className="text-6xl mb-4">📋</div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">No Active Policies</h4>
-                <p className="text-gray-500">Create your first enterprise policy above to begin governance enforcement</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {policies.map((policy) => (
-                  <div key={policy.id} className="bg-white rounded-lg shadow-md border border-gray-200 hover:shadow-xl transition-all duration-200">
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="text-xl font-bold text-gray-900">{policy.policy_name}</h4>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-                              policy.risk_level === "high" ? "bg-red-500 text-white" :
-                              policy.risk_level === "medium" ? "bg-yellow-500 text-white" :
-                              "bg-green-500 text-white"
-                            }`}>
-                              {policy.risk_level || "MEDIUM"} RISK
-                            </span>
-                            {policy.requires_approval && (
-                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
-                                ⚠️ APPROVAL REQUIRED
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-gray-700 leading-relaxed">{policy.description}</p>
-                        </div>
-                      </div>
-                      <div className="border-t border-gray-200 pt-4 mt-4">
-                        <div className="grid grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500 font-medium">Created By</span>
-                            <p className="text-gray-900 font-semibold">{policy.created_by}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Created Date</span>
-                            <p className="text-gray-900 font-semibold">{new Date(policy.created_at).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"})}</p>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Status</span>
-                            <p className="text-green-600 font-semibold flex items-center gap-1">
-                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                              Active
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 flex justify-end gap-2">
-                      <button onClick={() => handleViewDetails(policy)} className="px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 rounded-md transition-colors">
-                        📊 View Details
-                      </button>
-                      <button onClick={() => handleEditPolicy(policy)} className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded-md transition-colors">
-                        ✏️ Edit
-                      </button>
-                      <button onClick={() => handleDeletePolicy(policy.id)} className="px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 rounded-md transition-colors">
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <EnhancedPolicyTabComplete
+          policies={policies}
+          onCreatePolicy={createEnterprisePolicy}
+          onDeletePolicy={handleDeletePolicy}
+          API_BASE_URL={API_BASE_URL}
+          getAuthHeaders={getAuthHeaders}
+        />
       )}
       {/* 🚀 NEW: Execution Center Tab */}
       {activeTab === "execution" && (
@@ -3398,6 +3177,69 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           {selectedAction.ai_risk_score}/100
                         </span>
                       </div>
+
+                {/* ✅ ENTERPRISE: NIST/MITRE Framework Mappings */}
+                {selectedAction.framework_mappings && (
+                  Object.keys(selectedAction.framework_mappings).some(key => 
+                    selectedAction.framework_mappings[key]?.length > 0
+                  ) && (
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-semibold mb-2">📋 Compliance Framework Mappings</h4>
+                      <div className="space-y-2 text-sm">
+                        {selectedAction.framework_mappings.nist?.length > 0 && (
+                          <div>
+                            <strong className="text-blue-800">NIST AI RMF:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedAction.framework_mappings.nist.map((control, idx) => (
+                                <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                                  {control}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedAction.framework_mappings.mitre?.length > 0 && (
+                          <div>
+                            <strong className="text-purple-800">MITRE ATLAS:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedAction.framework_mappings.mitre.map((technique, idx) => (
+                                <span key={idx} className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
+                                  {technique}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {selectedAction.framework_mappings.soc2?.length > 0 && (
+                          <div>
+                            <strong className="text-green-800">SOC 2:</strong>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {selectedAction.framework_mappings.soc2.map((control, idx) => (
+                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                                  {control}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {/* ✅ ENTERPRISE: Policy Violations */}
+                {selectedAction.violated_policies?.length > 0 && (
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2 text-red-900">⚠️ Policy Violations</h4>
+                    <div className="space-y-1">
+                      {selectedAction.violated_policies.map((policy, index) => (
+                        <div key={index} className="text-sm text-red-800">
+                          • {policy.policy_name || policy}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                       <div><strong>Workflow Stage:</strong> {getWorkflowStageLabel(selectedAction.workflow_stage)}</div>
                       <div><strong>Approval Progress:</strong> {selectedAction.current_approval_level}/{selectedAction.required_approval_level}</div>
                     </div>
@@ -3779,4 +3621,5 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   );
 };
 
-export default AgentAuthorizationDashboard;
+export default AgentAuthorizationDashboard;// Cache bust 1759344146
+// CACHE_BUST: 1759976348

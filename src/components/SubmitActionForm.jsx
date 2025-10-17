@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
+
+import { API_BASE_URL } from '../config/api';
 
 const SubmitActionForm = ({ user, getAuthHeaders }) => {
   const [tool, setTool] = useState("");
@@ -11,7 +12,6 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     setTimestamp(format(new Date(), "yyyy-MM-dd'T'HH:mm"));

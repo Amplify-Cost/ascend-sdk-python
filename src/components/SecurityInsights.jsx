@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
 import {
+
+import { API_BASE_URL } from '../config/api';
   BarChart,
   Bar,
   XAxis,
@@ -18,7 +19,6 @@ const SecurityInsights = ({ getAuthHeaders }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchInsights = async () => {

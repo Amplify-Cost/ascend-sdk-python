@@ -1,5 +1,6 @@
-import React, { useState } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+
+import { API_BASE_URL } from '../config/api';
 
 const Profile = ({ user, onUpdateProfile }) => {
   const [email, setEmail] = useState(user?.email || "");
@@ -9,7 +10,6 @@ const Profile = ({ user, onUpdateProfile }) => {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleUpdateProfile = async () => {
     if (!email && !newPassword) {

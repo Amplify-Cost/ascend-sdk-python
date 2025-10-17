@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
+
+import { API_BASE_URL } from '../config/api';
 
 const ManageUsers = ({ getAuthHeaders }) => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchUsers = async () => {

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 
+import { API_BASE_URL } from '../config/api';
+
 const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   const [agentActions, setAgentActions] = useState([]);
   const [error, setError] = useState(null);
@@ -8,7 +10,6 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // 🚀 ENTERPRISE: Fetch live agent actions from database
   const fetchAgentActions = async () => {

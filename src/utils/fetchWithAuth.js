@@ -1,5 +1,7 @@
+
+
+import { API_BASE_URL } from './config/api';
 // utils/fetchWithAuth.js — Enhanced Enterprise Token Lifecycle Management
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // Enterprise JWT Token Management
 class EnterpriseTokenManager {

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+import { API_BASE_URL } from '../config/api';
+
 const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [rules, setRules] = useState([]);
   const [ruleAnalytics, setRuleAnalytics] = useState(null);
@@ -17,7 +19,6 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [abTests, setAbTests] = useState([]);
   const [creatingTest, setCreatingTest] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     fetchInitialData();

@@ -1,7 +1,8 @@
-// components/Login.jsx - Enterprise Cookie Authentication (Phase 2 Complete)
-import React, { useState } from "react";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+import { API_BASE_URL } from '../config/api';
+// components/Login.jsx - Enterprise Cookie Authentication (Phase 2 Complete)
+
 
 const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
   const [email, setEmail] = useState("");

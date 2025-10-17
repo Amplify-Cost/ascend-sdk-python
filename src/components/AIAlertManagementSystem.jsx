@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+
+import { API_BASE_URL } from '../config/api';
 
 const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [alerts, setAlerts] = useState([]);
@@ -17,7 +18,6 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [executiveBrief, setExecutiveBrief] = useState(null);
   const [briefLoading, setBriefLoading] = useState(false);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Alert action handlers
   const [actionLoading, setActionLoading] = useState({});

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
+
+import { API_BASE_URL } from '../config/api';
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -49,7 +49,6 @@ const [showMcpFilters, setShowMcpFilters] = useState(false);
   const [selectedExecution, setSelectedExecution] = useState(null);
 
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   useEffect(() => {
     fetchPendingActions().then(() => {
       fetchDashboardData();

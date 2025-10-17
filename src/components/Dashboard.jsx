@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from "react";
 import {
+
+import { API_BASE_URL } from '../config/api';
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
 } from "recharts";
-import { useTheme } from "../contexts/ThemeContext";
-import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 // Modern metric card component
 const MetricCard = ({ title, value, change, changeType, icon, color, trend }) => {
@@ -155,7 +154,6 @@ const Dashboard = ({ getAuthHeaders }) => {
   const [trends, setTrends] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Mock trend data for metric cards
   const mockTrendData = [

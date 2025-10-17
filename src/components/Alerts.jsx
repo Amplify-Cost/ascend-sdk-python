@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 
+import { API_BASE_URL } from '../config/api';
+
 const riskColors = {
   high: "bg-red-100 text-red-800",
   medium: "bg-yellow-100 text-yellow-800",
@@ -20,7 +22,6 @@ const Alerts = ({ getAuthHeaders, user }) => {
   const [summaryError, setSummaryError] = useState("");
   const [summaryResult, setSummaryResult] = useState("");
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchAlerts = async () => {

@@ -1,3 +1,6 @@
+
+
+import { API_BASE_URL } from './config/api';
 /**
  * Unified Approval Service
  * Consolidates all approval-related API calls across:
@@ -6,7 +9,6 @@
  * - MCP server governance
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://pilot.owkai.app';
 
 class ApprovalService {
   constructor(getAuthHeaders) {

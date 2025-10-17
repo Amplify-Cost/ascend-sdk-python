@@ -1,10 +1,12 @@
+
+
+import { API_BASE_URL } from './config/api';
 /**
  * Enterprise API Service Layer - CORRECTED VERSION
  * Maps frontend API calls to actual working backend endpoints
  * Eliminates demo data fallback by using correct API paths
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://pilot.owkai.app';
 
 class EnterpriseApiService {
   constructor() {
