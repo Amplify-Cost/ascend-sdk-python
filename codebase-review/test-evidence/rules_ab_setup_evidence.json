@@ -1,0 +1,12 @@
+{
+    "test_name": "rules_ab_setup",
+    "endpoint": "/api/smart-rules/setup-ab-testing-table",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.131784",
+    "response_body": "{\"message\":\"✅ A/B testing table created successfully!\",\"table\":\"ab_tests\",\"enterprise_ready\":true}",
+    "request_data": ,
+    "has_auth": true
+}

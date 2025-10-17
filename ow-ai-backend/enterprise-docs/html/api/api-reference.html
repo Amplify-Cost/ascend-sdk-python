@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>OW-AI Platform - API Reference</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">OW-AI Platform - API Reference</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#ow-ai-platform---api-reference"
+id="toc-ow-ai-platform---api-reference">OW-AI Platform - API
+Reference</a>
+<ul>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#base-urls-environment" id="toc-base-urls-environment">Base
+URLs &amp; Environment</a>
+<ul>
+<li><a href="#production-environment"
+id="toc-production-environment">Production Environment</a></li>
+<li><a href="#staging-environment" id="toc-staging-environment">Staging
+Environment</a></li>
+<li><a href="#development-environment"
+id="toc-development-environment">Development Environment</a></li>
+</ul></li>
+<li><a href="#authentication" id="toc-authentication">Authentication</a>
+<ul>
+<li><a href="#authentication-methods"
+id="toc-authentication-methods">Authentication Methods</a></li>
+<li><a href="#token-format" id="toc-token-format">Token Format</a></li>
+<li><a href="#token-lifecycle" id="toc-token-lifecycle">Token
+Lifecycle</a></li>
+</ul></li>
+<li><a href="#authentication-endpoints"
+id="toc-authentication-endpoints">Authentication Endpoints</a>
+<ul>
+<li><a href="#post-authtoken" id="toc-post-authtoken">POST
+/auth/token</a></li>
+<li><a href="#get-authme" id="toc-get-authme">GET /auth/me</a></li>
+<li><a href="#post-authrefresh-token"
+id="toc-post-authrefresh-token">POST /auth/refresh-token</a></li>
+<li><a href="#post-authlogout" id="toc-post-authlogout">POST
+/auth/logout</a></li>
+</ul></li>
+<li><a href="#authorization-center-apis"
+id="toc-authorization-center-apis">Authorization Center APIs</a>
+<ul>
+<li><a href="#get-agent-controldashboard"
+id="toc-get-agent-controldashboard">GET
+/agent-control/dashboard</a></li>
+<li><a href="#get-agent-controlpending-actions"
+id="toc-get-agent-controlpending-actions">GET
+/agent-control/pending-actions</a></li>
+<li><a href="#post-agent-controlauthorizeaction_id"
+id="toc-post-agent-controlauthorizeaction_id">POST
+/agent-control/authorize/{action_id}</a></li>
+<li><a href="#get-agent-controlexecution-history"
+id="toc-get-agent-controlexecution-history">GET
+/agent-control/execution-history</a></li>
+<li><a href="#post-apiauthorizationpoliciesevaluate-realtime"
+id="toc-post-apiauthorizationpoliciesevaluate-realtime">POST
+/api/authorization/policies/evaluate-realtime</a></li>
+</ul></li>
+<li><a href="#alert-management-apis"
+id="toc-alert-management-apis">Alert Management APIs</a>
+<ul>
+<li><a href="#get-alerts" id="toc-get-alerts">GET /alerts</a></li>
+<li><a href="#get-alertsactive" id="toc-get-alertsactive">GET
+/alerts/active</a></li>
+<li><a href="#post-alertsalert_idacknowledge"
+id="toc-post-alertsalert_idacknowledge">POST
+/alerts/{alert_id}/acknowledge</a></li>
+<li><a href="#post-alertsalert_idescalate"
+id="toc-post-alertsalert_idescalate">POST
+/alerts/{alert_id}/escalate</a></li>
+<li><a href="#post-alertsalert_idresolve"
+id="toc-post-alertsalert_idresolve">POST
+/alerts/{alert_id}/resolve</a></li>
+</ul></li>
+<li><a href="#smart-rules-engine-apis"
+id="toc-smart-rules-engine-apis">Smart Rules Engine APIs</a>
+<ul>
+<li><a href="#get-apismart-rules" id="toc-get-apismart-rules">GET
+/api/smart-rules</a></li>
+<li><a href="#post-apismart-rulesgenerate-from-nl"
+id="toc-post-apismart-rulesgenerate-from-nl">POST
+/api/smart-rules/generate-from-nl</a></li>
+<li><a href="#get-apismart-rulesanalytics"
+id="toc-get-apismart-rulesanalytics">GET
+/api/smart-rules/analytics</a></li>
+<li><a href="#post-apismart-rulesoptimizerule_id"
+id="toc-post-apismart-rulesoptimizerule_id">POST
+/api/smart-rules/optimize/{rule_id}</a></li>
+<li><a href="#get-apismart-rulessuggestions"
+id="toc-get-apismart-rulessuggestions">GET
+/api/smart-rules/suggestions</a></li>
+</ul></li>
+<li><a href="#enterprise-user-management-apis"
+id="toc-enterprise-user-management-apis">Enterprise User Management
+APIs</a>
+<ul>
+<li><a href="#get-apienterprise-usersusers"
+id="toc-get-apienterprise-usersusers">GET
+/api/enterprise-users/users</a></li>
+<li><a href="#post-apienterprise-usersusers"
+id="toc-post-apienterprise-usersusers">POST
+/api/enterprise-users/users</a></li>
+</ul></li>
+<li><a href="#error-handling" id="toc-error-handling">Error Handling</a>
+<ul>
+<li><a href="#standard-error-response-format"
+id="toc-standard-error-response-format">Standard Error Response
+Format</a></li>
+<li><a href="#common-http-status-codes"
+id="toc-common-http-status-codes">Common HTTP Status Codes</a></li>
+</ul></li>
+<li><a href="#rate-limiting" id="toc-rate-limiting">Rate Limiting</a>
+<ul>
+<li><a href="#default-limits" id="toc-default-limits">Default
+Limits</a></li>
+<li><a href="#rate-limit-headers" id="toc-rate-limit-headers">Rate Limit
+Headers</a></li>
+<li><a href="#rate-limit-response-429"
+id="toc-rate-limit-response-429">Rate Limit Response (429)</a></li>
+</ul></li>
+<li><a href="#sdk-client-libraries" id="toc-sdk-client-libraries">SDK
+&amp; Client Libraries</a>
+<ul>
+<li><a href="#python-sdk" id="toc-python-sdk">Python SDK</a></li>
+<li><a href="#javascript-sdk" id="toc-javascript-sdk">JavaScript
+SDK</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="ow-ai-platform---api-reference">OW-AI Platform - API
+Reference</h1>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#base-urls--environment">Base URLs &amp;
+Environment</a></li>
+<li><a href="#authentication">Authentication</a></li>
+<li><a href="#authorization-center-apis">Authorization Center
+APIs</a></li>
+<li><a href="#alert-management-apis">Alert Management APIs</a></li>
+<li><a href="#smart-rules-engine-apis">Smart Rules Engine APIs</a></li>
+<li><a href="#enterprise-user-management-apis">Enterprise User
+Management APIs</a></li>
+<li><a href="#error-handling">Error Handling</a></li>
+<li><a href="#rate-limiting">Rate Limiting</a></li>
+</ol>
+<h2 id="base-urls-environment">Base URLs &amp; Environment</h2>
+<h3 id="production-environment">Production Environment</h3>
+<ul>
+<li><strong>Base URL:</strong> https://pilot.owkai.app</li>
+<li><strong>API Version:</strong> v1</li>
+<li><strong>Documentation:</strong> https://pilot.owkai.app/docs</li>
+</ul>
+<h3 id="staging-environment">Staging Environment</h3>
+<ul>
+<li><strong>Base URL:</strong> https://staging.owkai.app</li>
+<li><strong>API Version:</strong> v1</li>
+<li><strong>Documentation:</strong> https://staging.owkai.app/docs</li>
+</ul>
+<h3 id="development-environment">Development Environment</h3>
+<ul>
+<li><strong>Base URL:</strong> http://localhost:8000</li>
+<li><strong>API Version:</strong> v1</li>
+<li><strong>Documentation:</strong> http://localhost:8000/docs</li>
+</ul>
+<h2 id="authentication">Authentication</h2>
+<p>All API requests (except authentication endpoints) require
+authentication using JWT Bearer tokens.</p>
+<h3 id="authentication-methods">Authentication Methods</h3>
+<ol type="1">
+<li><strong>Bearer Token:</strong> Include JWT token in Authorization
+header</li>
+<li><strong>Cookie Authentication:</strong> For browser-based
+applications (automatic)</li>
+</ol>
+<h3 id="token-format">Token Format</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Authorization:</span> Bearer <span class="op">&lt;</span>JWT_TOKEN<span class="op">&gt;</span></span></code></pre></div>
+<h3 id="token-lifecycle">Token Lifecycle</h3>
+<ul>
+<li><strong>Access Token Expiry:</strong> 30 minutes</li>
+<li><strong>Refresh Token Expiry:</strong> 7 days</li>
+<li><strong>Automatic Refresh:</strong> Handled by client libraries</li>
+</ul>
+<hr />
+<h2 id="authentication-endpoints">Authentication Endpoints</h2>
+<h3 id="post-authtoken">POST /auth/token</h3>
+<p><strong>Description:</strong> Authenticate user and receive JWT
+access and refresh tokens</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;admin@owkai.com&quot;</span><span class="fu">,</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;password&quot;</span><span class="fu">:</span> <span class="st">&quot;SecurePassword123!&quot;</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200 (Success):</strong></p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;access_token&quot;</span><span class="fu">:</span> <span class="st">&quot;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3IiwiZW1haWwiOiJhZG1pbkBvd2thaS5jb20iLCJyb2xlIjoiYWRtaW4iLCJ1c2VyX2lkIjo3LCJleHAiOjE3NjAyNDQ3NTcsImlhdCI6MTc2MDI0Mjk1NywidHlwZSI6ImFjY2VzcyIsImlzcyI6Im93LWFpLWVudGVycHJpc2UiLCJhdWQiOiJvdy1haS1wbGF0Zm9ybSIsImp0aSI6ImFjY2Vzcy03LTE3NjAyNDI5NTcifQ.H64dVK0a7S92-42EuwxsT3wnLTxphunSINBwTeyKFaE&quot;</span><span class="fu">,</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;refresh_token&quot;</span><span class="fu">:</span> <span class="st">&quot;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3IiwiZW1haWwiOiJhZG1pbkBvd2thaS5jb20iLCJyb2xlIjoiYWRtaW4iLCJ1c2VyX2lkIjo3LCJleHAiOjE3NjA4NDc3NTcsImlhdCI6MTc2MDI0Mjk1NywidHlwZSI6InJlZnJlc2giLCJpc3MiOiJvdy1haS1lbnRlcnByaXNlIiwiYXVkIjoib3ctYWktcGxhdGZvcm0iLCJqdGkiOiJyZWZyZXNoLTctMTc2MDI0Mjk1NyJ9.l2voTAcdT5PD1YTm_AYXfG9quLiuCSdJmwLsl-NNQo8&quot;</span><span class="fu">,</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;token_type&quot;</span><span class="fu">:</span> <span class="st">&quot;bearer&quot;</span><span class="fu">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expires_in&quot;</span><span class="fu">:</span> <span class="dv">1800</span><span class="fu">,</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;user&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;admin@owkai.com&quot;</span><span class="fu">,</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;admin&quot;</span><span class="fu">,</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;user_id&quot;</span><span class="fu">:</span> <span class="dv">7</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;auth_mode&quot;</span><span class="fu">:</span> <span class="st">&quot;token&quot;</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 401 (Invalid Credentials):</strong></p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;detail&quot;</span><span class="fu">:</span> <span class="st">&quot;Invalid email or password&quot;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST https://pilot.owkai.app/auth/token <span class="dt">\</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{&quot;email&quot;:&quot;admin@owkai.com&quot;,&quot;password&quot;:&quot;SecurePassword123!&quot;}&#39;</span></span></code></pre></div>
+<h3 id="get-authme">GET /auth/me</h3>
+<p><strong>Description:</strong> Get current authenticated user profile
+information</p>
+<p><strong>Authentication:</strong> Required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;user_id&quot;</span><span class="fu">:</span> <span class="dv">7</span><span class="fu">,</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;admin@owkai.com&quot;</span><span class="fu">,</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;admin&quot;</span><span class="fu">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;auth_source&quot;</span><span class="fu">:</span> <span class="st">&quot;bearer&quot;</span><span class="fu">,</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;auth_mode&quot;</span><span class="fu">:</span> <span class="st">&quot;enterprise&quot;</span><span class="fu">,</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;enterprise_validated&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> GET https://pilot.owkai.app/auth/me <span class="dt">\</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer YOUR_TOKEN&quot;</span></span></code></pre></div>
+<h3 id="post-authrefresh-token">POST /auth/refresh-token</h3>
+<p><strong>Description:</strong> Refresh expired access token using
+refresh token</p>
+<p><strong>Authentication:</strong> Refresh token required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;access_token&quot;</span><span class="fu">:</span> <span class="st">&quot;new_access_token_here&quot;</span><span class="fu">,</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;token_type&quot;</span><span class="fu">:</span> <span class="st">&quot;bearer&quot;</span><span class="fu">,</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;expires_in&quot;</span><span class="fu">:</span> <span class="dv">1800</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-authlogout">POST /auth/logout</h3>
+<p><strong>Description:</strong> Logout and invalidate current
+session</p>
+<p><strong>Authentication:</strong> Required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Successfully logged out&quot;</span><span class="fu">,</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;cleared_tokens&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="authorization-center-apis">Authorization Center APIs</h2>
+<p>The Authorization Center provides real-time policy evaluation,
+approval workflows, and enterprise governance capabilities.</p>
+<h3 id="get-agent-controldashboard">GET /agent-control/dashboard</h3>
+<p><strong>Description:</strong> Get comprehensive approval dashboard
+with KPIs and metrics</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Any authenticated user</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;summary&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_pending&quot;</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_approved&quot;</span><span class="fu">:</span> <span class="dv">147</span><span class="fu">,</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_executed&quot;</span><span class="fu">:</span> <span class="dv">134</span><span class="fu">,</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_rejected&quot;</span><span class="fu">:</span> <span class="dv">23</span><span class="fu">,</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;approval_rate&quot;</span><span class="fu">:</span> <span class="fl">86.5</span><span class="fu">,</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;avg_approval_time_hours&quot;</span><span class="fu">:</span> <span class="fl">2.3</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;recent_activity&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">1001</span><span class="fu">,</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;file_access&quot;</span><span class="fu">,</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;approved&quot;</span><span class="fu">,</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;approved_by&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;timestamp&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T10:30:00Z&quot;</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;pending_actions&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">1002</span><span class="fu">,</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;agent_id&quot;</span><span class="fu">:</span> <span class="st">&quot;ai-agent-001&quot;</span><span class="fu">,</span></span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;database_query&quot;</span><span class="fu">,</span></span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;risk_level&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span><span class="fu">,</span></span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T11:15:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Query customer database for analysis&quot;</span></span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;performance_metrics&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;avg_evaluation_time_ms&quot;</span><span class="fu">:</span> <span class="dv">145</span><span class="fu">,</span></span>
+<span id="cb10-31"><a href="#cb10-31" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;policy_cache_hit_rate&quot;</span><span class="fu">:</span> <span class="fl">87.2</span><span class="fu">,</span></span>
+<span id="cb10-32"><a href="#cb10-32" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_evaluations_24h&quot;</span><span class="fu">:</span> <span class="dv">1247</span></span>
+<span id="cb10-33"><a href="#cb10-33" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb10-34"><a href="#cb10-34" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> GET https://pilot.owkai.app/agent-control/dashboard <span class="dt">\</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer YOUR_TOKEN&quot;</span></span></code></pre></div>
+<h3 id="get-agent-controlpending-actions">GET
+/agent-control/pending-actions</h3>
+<p><strong>Description:</strong> Get all pending actions requiring
+approval with filtering capabilities</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Approver role or higher</p>
+<p><strong>Query Parameters:</strong> - <code>risk_level</code>
+(optional): Filter by risk level (low, medium, high, critical) -
+<code>agent_id</code> (optional): Filter by specific agent ID -
+<code>limit</code> (optional): Limit number of results (default: 50,
+max: 100) - <code>offset</code> (optional): Pagination offset (default:
+0)</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;actions&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">1003</span><span class="fu">,</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;agent_id&quot;</span><span class="fu">:</span> <span class="st">&quot;ai-agent-002&quot;</span><span class="fu">,</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;api_call&quot;</span><span class="fu">,</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Call external payment processing API&quot;</span><span class="fu">,</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;risk_level&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span><span class="fu">,</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;risk_score&quot;</span><span class="fu">:</span> <span class="dv">85</span><span class="fu">,</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;pending&quot;</span><span class="fu">,</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T12:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;extra_data&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;endpoint&quot;</span><span class="fu">:</span> <span class="st">&quot;https://api.payments.com/process&quot;</span><span class="fu">,</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;method&quot;</span><span class="fu">:</span> <span class="st">&quot;POST&quot;</span><span class="fu">,</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;data_sensitivity&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;approval_requirements&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;minimum_role&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst&quot;</span><span class="fu">,</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;requires_dual_approval&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;max_approval_time_hours&quot;</span><span class="fu">:</span> <span class="dv">4</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;pagination&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total&quot;</span><span class="fu">:</span> <span class="dv">25</span><span class="fu">,</span></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;limit&quot;</span><span class="fu">:</span> <span class="dv">50</span><span class="fu">,</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;offset&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;has_more&quot;</span><span class="fu">:</span> <span class="kw">false</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> GET <span class="st">&quot;https://pilot.owkai.app/agent-control/pending-actions?risk_level=high&amp;limit=10&quot;</span> <span class="dt">\</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer YOUR_TOKEN&quot;</span></span></code></pre></div>
+<h3 id="post-agent-controlauthorizeaction_id">POST
+/agent-control/authorize/{action_id}</h3>
+<p><strong>Description:</strong> Authorize a specific action with
+comprehensive audit trail</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Approver role or higher <strong>CSRF
+Protection:</strong> Required for web requests</p>
+<p><strong>Path Parameters:</strong> - <code>action_id</code> (integer):
+ID of the action to authorize</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;decision&quot;</span><span class="fu">:</span> <span class="st">&quot;approve&quot;</span><span class="fu">,</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;comment&quot;</span><span class="fu">:</span> <span class="st">&quot;Approved after security review&quot;</span><span class="fu">,</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;conditions&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;time_limit_hours&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;monitoring_required&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;additional_logging&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200 (Success):</strong></p>
+<div class="sourceCode" id="cb15"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;action_id&quot;</span><span class="fu">:</span> <span class="dv">1003</span><span class="fu">,</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;decision&quot;</span><span class="fu">:</span> <span class="st">&quot;approved&quot;</span><span class="fu">,</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;approved_by&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;approved_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T12:30:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;execution_status&quot;</span><span class="fu">:</span> <span class="st">&quot;authorized&quot;</span><span class="fu">,</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;audit_trail&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;audit_id&quot;</span><span class="fu">:</span> <span class="st">&quot;audit_20251012_123000_1003&quot;</span><span class="fu">,</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;compliance_flags&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;SOX&quot;</span><span class="ot">,</span> <span class="st">&quot;PCI-DSS&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;risk_assessment&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;original_score&quot;</span><span class="fu">:</span> <span class="dv">85</span><span class="fu">,</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;mitigated_score&quot;</span><span class="fu">:</span> <span class="dv">45</span><span class="fu">,</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;mitigation_factors&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;time_limit&quot;</span><span class="ot">,</span> <span class="st">&quot;monitoring&quot;</span><span class="ot">]</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;next_steps&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Action authorized for execution&quot;</span><span class="ot">,</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Monitoring enabled for 2 hours&quot;</span><span class="ot">,</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Results will be logged for audit&quot;</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 400 (Invalid Decision):</strong></p>
+<div class="sourceCode" id="cb16"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;detail&quot;</span><span class="fu">:</span> <span class="st">&quot;Invalid decision. Must be &#39;approve&#39; or &#39;reject&#39;&quot;</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 404 (Action Not Found):</strong></p>
+<div class="sourceCode" id="cb17"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;detail&quot;</span><span class="fu">:</span> <span class="st">&quot;Action not found or already processed&quot;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb18"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> POST https://pilot.owkai.app/agent-control/authorize/1003 <span class="dt">\</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer YOUR_TOKEN&quot;</span> <span class="dt">\</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Content-Type: application/json&quot;</span> <span class="dt">\</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">-d</span> <span class="st">&#39;{</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;decision&quot;: &quot;approve&quot;,</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;comment&quot;: &quot;Approved after security review&quot;,</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a><span class="st">    &quot;conditions&quot;: {&quot;time_limit_hours&quot;: 2}</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a><span class="st">  }&#39;</span></span></code></pre></div>
+<h3 id="get-agent-controlexecution-history">GET
+/agent-control/execution-history</h3>
+<p><strong>Description:</strong> Get comprehensive execution history
+with enterprise metadata</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Any authenticated user</p>
+<p><strong>Query Parameters:</strong> - <code>start_date</code>
+(optional): Filter from date (ISO 8601 format) - <code>end_date</code>
+(optional): Filter to date (ISO 8601 format) - <code>status</code>
+(optional): Filter by execution status - <code>limit</code> (optional):
+Limit results (default: 50, max: 100)</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb19"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;executions&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">1001</span><span class="fu">,</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_id&quot;</span><span class="fu">:</span> <span class="dv">998</span><span class="fu">,</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;agent_id&quot;</span><span class="fu">:</span> <span class="st">&quot;ai-agent-001&quot;</span><span class="fu">,</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;file_access&quot;</span><span class="fu">,</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;completed&quot;</span><span class="fu">,</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;approved_by&quot;</span><span class="fu">:</span> <span class="st">&quot;admin@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;executed_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T10:45:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;execution_time_ms&quot;</span><span class="fu">:</span> <span class="dv">1250</span><span class="fu">,</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;results&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;files_accessed&quot;</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span></span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;data_processed&quot;</span><span class="fu">:</span> <span class="st">&quot;124KB&quot;</span></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>      <span class="fu">},</span></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;compliance_data&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;nist_controls&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;AC-3&quot;</span><span class="ot">,</span> <span class="st">&quot;AU-2&quot;</span><span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;sox_compliance&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a>        <span class="dt">&quot;audit_log_id&quot;</span><span class="fu">:</span> <span class="st">&quot;audit_20251012_104500_998&quot;</span></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;summary&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_executions&quot;</span><span class="fu">:</span> <span class="dv">134</span><span class="fu">,</span></span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;success_rate&quot;</span><span class="fu">:</span> <span class="fl">97.8</span><span class="fu">,</span></span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;avg_execution_time_ms&quot;</span><span class="fu">:</span> <span class="dv">1180</span><span class="fu">,</span></span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;compliance_rate&quot;</span><span class="fu">:</span> <span class="fl">100.0</span></span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-apiauthorizationpoliciesevaluate-realtime">POST
+/api/authorization/policies/evaluate-realtime</h3>
+<p><strong>Description:</strong> Real-time policy evaluation for
+authorization decisions</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Any authenticated user</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb20"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;file_access&quot;</span><span class="fu">,</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;resource&quot;</span><span class="fu">:</span> <span class="st">&quot;/secure/customer_data.db&quot;</span><span class="fu">,</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;namespace&quot;</span><span class="fu">:</span> <span class="st">&quot;database&quot;</span><span class="fu">,</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;environment&quot;</span><span class="fu">:</span> <span class="st">&quot;production&quot;</span><span class="fu">,</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;user_context&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;user_id&quot;</span><span class="fu">:</span> <span class="st">&quot;user123&quot;</span><span class="fu">,</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;user_email&quot;</span><span class="fu">:</span> <span class="st">&quot;analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;user_role&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst&quot;</span></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;additional_context&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;ip_address&quot;</span><span class="fu">:</span> <span class="st">&quot;10.0.1.100&quot;</span><span class="fu">,</span></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;time_of_day&quot;</span><span class="fu">:</span> <span class="st">&quot;business_hours&quot;</span><span class="fu">,</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;data_classification&quot;</span><span class="fu">:</span> <span class="st">&quot;confidential&quot;</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb21"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;evaluation_id&quot;</span><span class="fu">:</span> <span class="st">&quot;eval_20251012_125500&quot;</span><span class="fu">,</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;decision&quot;</span><span class="fu">:</span> <span class="st">&quot;require_approval&quot;</span><span class="fu">,</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;risk_score&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_score&quot;</span><span class="fu">:</span> <span class="dv">75</span><span class="fu">,</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;risk_level&quot;</span><span class="fu">:</span> <span class="st">&quot;HIGH&quot;</span><span class="fu">,</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;category_scores&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;data_sensitivity&quot;</span><span class="fu">:</span> <span class="dv">85</span><span class="fu">,</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;user_privilege&quot;</span><span class="fu">:</span> <span class="dv">60</span><span class="fu">,</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;time_context&quot;</span><span class="fu">:</span> <span class="dv">70</span><span class="fu">,</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;environmental&quot;</span><span class="fu">:</span> <span class="dv">80</span></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;policy_matches&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;policy_id&quot;</span><span class="fu">:</span> <span class="st">&quot;pol_sensitive_data_access&quot;</span><span class="fu">,</span></span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;policy_name&quot;</span><span class="fu">:</span> <span class="st">&quot;Sensitive Data Access Control&quot;</span><span class="fu">,</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;effect&quot;</span><span class="fu">:</span> <span class="st">&quot;require_approval&quot;</span><span class="fu">,</span></span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;conditions_met&quot;</span><span class="fu">:</span> <span class="ot">[</span><span class="st">&quot;high_data_sensitivity&quot;</span><span class="ot">,</span> <span class="st">&quot;production_environment&quot;</span><span class="ot">]</span></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;approval_requirements&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;minimum_role&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst&quot;</span><span class="fu">,</span></span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;dual_approval_required&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;max_approval_time_hours&quot;</span><span class="fu">:</span> <span class="dv">2</span></span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;evaluation_time_ms&quot;</span><span class="fu">:</span> <span class="dv">142</span><span class="fu">,</span></span>
+<span id="cb21-29"><a href="#cb21-29" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;cached&quot;</span><span class="fu">:</span> <span class="kw">false</span></span>
+<span id="cb21-30"><a href="#cb21-30" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="alert-management-apis">Alert Management APIs</h2>
+<p>The Alert Management System provides real-time threat detection,
+alert correlation, and automated response capabilities.</p>
+<h3 id="get-alerts">GET /alerts</h3>
+<p><strong>Description:</strong> Get all alerts with filtering and
+pagination</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Any authenticated user</p>
+<p><strong>Query Parameters:</strong> - <code>severity</code>
+(optional): Filter by severity (low, medium, high, critical) -
+<code>status</code> (optional): Filter by status (new, acknowledged,
+resolved) - <code>limit</code> (optional): Limit results (default: 50,
+max: 100) - <code>start_date</code> (optional): Filter from date -
+<code>end_date</code> (optional): Filter to date</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb22"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">{</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">3001</span><span class="fu">,</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;alert_type&quot;</span><span class="fu">:</span> <span class="st">&quot;High Risk Agent Action&quot;</span><span class="fu">,</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;severity&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span><span class="fu">,</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Multiple failed login attempts detected&quot;</span><span class="fu">,</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;timestamp&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T04:24:38.693457&quot;</span><span class="fu">,</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agent_id&quot;</span><span class="fu">:</span> <span class="st">&quot;unknown-agent&quot;</span><span class="fu">,</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;authentication&quot;</span><span class="fu">,</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;new&quot;</span><span class="fu">,</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;metadata&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;source_ip&quot;</span><span class="fu">:</span> <span class="st">&quot;192.168.1.100&quot;</span><span class="fu">,</span></span>
+<span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;attempt_count&quot;</span><span class="fu">:</span> <span class="dv">5</span><span class="fu">,</span></span>
+<span id="cb22-14"><a href="#cb22-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;time_window&quot;</span><span class="fu">:</span> <span class="st">&quot;5 minutes&quot;</span></span>
+<span id="cb22-15"><a href="#cb22-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">},</span></span>
+<span id="cb22-16"><a href="#cb22-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;correlation_id&quot;</span><span class="fu">:</span> <span class="st">&quot;corr_20251012_042438&quot;</span></span>
+<span id="cb22-17"><a href="#cb22-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb22-18"><a href="#cb22-18" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<p><strong>Example:</strong></p>
+<div class="sourceCode" id="cb23"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-X</span> GET <span class="st">&quot;https://pilot.owkai.app/alerts?severity=high&amp;limit=20&quot;</span> <span class="dt">\</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">-H</span> <span class="st">&quot;Authorization: Bearer YOUR_TOKEN&quot;</span></span></code></pre></div>
+<h3 id="get-alertsactive">GET /alerts/active</h3>
+<p><strong>Description:</strong> Get all currently active alerts with
+real-time statistics</p>
+<p><strong>Authentication:</strong> Required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb24"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;alerts&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">3002</span><span class="fu">,</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;alert_type&quot;</span><span class="fu">:</span> <span class="st">&quot;Threat Detection&quot;</span><span class="fu">,</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;severity&quot;</span><span class="fu">:</span> <span class="st">&quot;critical&quot;</span><span class="fu">,</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;message&quot;</span><span class="fu">:</span> <span class="st">&quot;Potential data exfiltration detected&quot;</span><span class="fu">,</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;timestamp&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:15:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;agent_id&quot;</span><span class="fu">:</span> <span class="st">&quot;ai-agent-003&quot;</span><span class="fu">,</span></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;active&quot;</span><span class="fu">,</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;escalation_level&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;assigned_to&quot;</span><span class="fu">:</span> <span class="st">&quot;security_team@company.com&quot;</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;statistics&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total_active&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;by_severity&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;critical&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;high&quot;</span><span class="fu">:</span> <span class="dv">2</span><span class="fu">,</span></span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;medium&quot;</span><span class="fu">:</span> <span class="dv">0</span><span class="fu">,</span></span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;low&quot;</span><span class="fu">:</span> <span class="dv">0</span></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;last_updated&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:20:00Z&quot;</span></span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-alertsalert_idacknowledge">POST
+/alerts/{alert_id}/acknowledge</h3>
+<p><strong>Description:</strong> Acknowledge an alert and add
+acknowledgment details</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Security Analyst role or higher
+<strong>CSRF Protection:</strong> Required</p>
+<p><strong>Path Parameters:</strong> - <code>alert_id</code> (integer):
+ID of the alert to acknowledge</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb25"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;comment&quot;</span><span class="fu">:</span> <span class="st">&quot;Acknowledged - investigating potential false positive&quot;</span><span class="fu">,</span></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;estimated_resolution_time&quot;</span><span class="fu">:</span> <span class="st">&quot;2 hours&quot;</span><span class="fu">,</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;assigned_to&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb26"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;alert_id&quot;</span><span class="fu">:</span> <span class="dv">3001</span><span class="fu">,</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;acknowledged&quot;</span><span class="fu">,</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;acknowledged_by&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;acknowledged_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:25:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;comment&quot;</span><span class="fu">:</span> <span class="st">&quot;Acknowledged - investigating potential false positive&quot;</span><span class="fu">,</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;audit_trail&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;alert_acknowledged&quot;</span><span class="fu">,</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;user&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;timestamp&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:25:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;compliance_logged&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-alertsalert_idescalate">POST
+/alerts/{alert_id}/escalate</h3>
+<p><strong>Description:</strong> Escalate alert to higher security level
+or different team</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Security Analyst role or higher
+<strong>CSRF Protection:</strong> Required</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb27"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;escalation_level&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span><span class="fu">,</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;reason&quot;</span><span class="fu">:</span> <span class="st">&quot;Potential security breach requires immediate attention&quot;</span><span class="fu">,</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;escalate_to&quot;</span><span class="fu">:</span> <span class="st">&quot;security_manager@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;urgency&quot;</span><span class="fu">:</span> <span class="st">&quot;immediate&quot;</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb28"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;alert_id&quot;</span><span class="fu">:</span> <span class="dv">3001</span><span class="fu">,</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;escalation_level&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span><span class="fu">,</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;escalated_by&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;escalated_to&quot;</span><span class="fu">:</span> <span class="st">&quot;security_manager@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;escalated_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:30:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;notification_sent&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;sla_updated&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;new_response_time_minutes&quot;</span><span class="fu">:</span> <span class="dv">15</span><span class="fu">,</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;new_resolution_time_hours&quot;</span><span class="fu">:</span> <span class="dv">1</span></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-alertsalert_idresolve">POST /alerts/{alert_id}/resolve</h3>
+<p><strong>Description:</strong> Mark alert as resolved with resolution
+details</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Security Analyst role or higher</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb29"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;resolution&quot;</span><span class="fu">:</span> <span class="st">&quot;False positive - legitimate user activity&quot;</span><span class="fu">,</span></span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;resolution_type&quot;</span><span class="fu">:</span> <span class="st">&quot;false_positive&quot;</span><span class="fu">,</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;actions_taken&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Reviewed user activity logs&quot;</span><span class="ot">,</span></span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Confirmed legitimate business access&quot;</span><span class="ot">,</span></span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;Updated detection rules&quot;</span></span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;prevent_recurrence&quot;</span><span class="fu">:</span> <span class="st">&quot;Updated whitelist for user&#39;s IP range&quot;</span></span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb30"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;alert_id&quot;</span><span class="fu">:</span> <span class="dv">3001</span><span class="fu">,</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;resolved&quot;</span><span class="fu">,</span></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;resolved_by&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;resolved_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T14:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;resolution_time_minutes&quot;</span><span class="fu">:</span> <span class="dv">95</span><span class="fu">,</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;compliance_documentation&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;incident_report_id&quot;</span><span class="fu">:</span> <span class="st">&quot;INC_20251012_001&quot;</span><span class="fu">,</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;stored_location&quot;</span><span class="fu">:</span> <span class="st">&quot;s3://compliance-docs/incidents/2025/10/&quot;</span><span class="fu">,</span></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;retention_period_years&quot;</span><span class="fu">:</span> <span class="dv">7</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="smart-rules-engine-apis">Smart Rules Engine APIs</h2>
+<p>The Smart Rules Engine provides AI-powered rule creation,
+optimization, and performance analytics.</p>
+<h3 id="get-apismart-rules">GET /api/smart-rules</h3>
+<p><strong>Description:</strong> List all smart rules with performance
+analytics</p>
+<p><strong>Authentication:</strong> Required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb31"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">{</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">12</span><span class="fu">,</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;agent_id&quot;</span><span class="fu">:</span> <span class="st">&quot;enterprise-ai-generated&quot;</span><span class="fu">,</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;action_type&quot;</span><span class="fu">:</span> <span class="st">&quot;natural_language_enterprise_rule&quot;</span><span class="fu">,</span></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Block API calls from suspicious geographic locations&quot;</span><span class="fu">,</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;condition&quot;</span><span class="fu">:</span> <span class="st">&quot;smart_analysis(&#39;geographic_anomaly&#39;) AND threat_detected&quot;</span><span class="fu">,</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;block_and_alert&quot;</span><span class="fu">,</span></span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;enabled&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T10:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;performance_metrics&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;trigger_count_24h&quot;</span><span class="fu">:</span> <span class="dv">15</span><span class="fu">,</span></span>
+<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;false_positive_rate&quot;</span><span class="fu">:</span> <span class="fl">2.1</span><span class="fu">,</span></span>
+<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;effectiveness_score&quot;</span><span class="fu">:</span> <span class="dv">94</span></span>
+<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<h3 id="post-apismart-rulesgenerate-from-nl">POST
+/api/smart-rules/generate-from-nl</h3>
+<p><strong>Description:</strong> Generate smart rule from natural
+language description using AI</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Security Analyst role or higher</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb32"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;description&quot;</span><span class="fu">:</span> <span class="st">&quot;Alert me when any user accesses more than 100 files in 5 minutes&quot;</span><span class="fu">,</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;severity&quot;</span><span class="fu">:</span> <span class="st">&quot;high&quot;</span><span class="fu">,</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;enabled&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;context&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;department&quot;</span><span class="fu">:</span> <span class="st">&quot;engineering&quot;</span><span class="fu">,</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;environment&quot;</span><span class="fu">:</span> <span class="st">&quot;production&quot;</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb33"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">13</span><span class="fu">,</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;condition&quot;</span><span class="fu">:</span> <span class="st">&quot;smart_analysis(&#39;Alert me when any user accesses more than 100 file&#39;) AND threat_detected&quot;</span><span class="fu">,</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;action&quot;</span><span class="fu">:</span> <span class="st">&quot;monitor_and_alert&quot;</span><span class="fu">,</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;justification&quot;</span><span class="fu">:</span> <span class="st">&quot;Enterprise-grade intelligent rule created from natural language: &#39;Alert me when any user accesses more than 100 file&#39;. This rule implements advanced threat detection with smart analysis.&quot;</span><span class="fu">,</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;confidence_score&quot;</span><span class="fu">:</span> <span class="dv">87</span><span class="fu">,</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;generated_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:45:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ai_model_version&quot;</span><span class="fu">:</span> <span class="st">&quot;gpt-4-enterprise&quot;</span><span class="fu">,</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;estimated_performance&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;expected_false_positive_rate&quot;</span><span class="fu">:</span> <span class="fl">3.2</span><span class="fu">,</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;expected_effectiveness&quot;</span><span class="fu">:</span> <span class="dv">91</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="get-apismart-rulesanalytics">GET /api/smart-rules/analytics</h3>
+<p><strong>Description:</strong> Get comprehensive rule performance
+analytics</p>
+<p><strong>Authentication:</strong> Required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb34"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_rules&quot;</span><span class="fu">:</span> <span class="dv">6</span><span class="fu">,</span></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;active_rules&quot;</span><span class="fu">:</span> <span class="dv">6</span><span class="fu">,</span></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;avg_performance_score&quot;</span><span class="fu">:</span> <span class="fl">88.2</span><span class="fu">,</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;total_triggers_24h&quot;</span><span class="fu">:</span> <span class="dv">170</span><span class="fu">,</span></span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;false_positive_rate&quot;</span><span class="fu">:</span> <span class="fl">4.5</span><span class="fu">,</span></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;top_performing_rules&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;name&quot;</span><span class="fu">:</span> <span class="st">&quot;Data Exfiltration Block&quot;</span><span class="fu">,</span></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;score&quot;</span><span class="fu">:</span> <span class="dv">94</span><span class="fu">,</span></span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;category&quot;</span><span class="fu">:</span> <span class="st">&quot;data_protection&quot;</span></span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;recommendations&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;rule_id&quot;</span><span class="fu">:</span> <span class="dv">3</span><span class="fu">,</span></span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;recommendation&quot;</span><span class="fu">:</span> <span class="st">&quot;Consider adjusting threshold from 50 to 75 for better accuracy&quot;</span><span class="fu">,</span></span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;confidence&quot;</span><span class="fu">:</span> <span class="dv">85</span></span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;performance_trends&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;7_day_average_score&quot;</span><span class="fu">:</span> <span class="fl">87.1</span><span class="fu">,</span></span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;improvement_percentage&quot;</span><span class="fu">:</span> <span class="fl">12.3</span></span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-apismart-rulesoptimizerule_id">POST
+/api/smart-rules/optimize/{rule_id}</h3>
+<p><strong>Description:</strong> Use AI to optimize rule performance and
+reduce false positives</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Admin role</p>
+<p><strong>Path Parameters:</strong> - <code>rule_id</code> (integer):
+ID of the rule to optimize</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb35"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;success&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;rule_id&quot;</span><span class="fu">:</span> <span class="dv">12</span><span class="fu">,</span></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;optimization_results&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;original_performance&quot;</span><span class="fu">:</span> <span class="dv">87</span><span class="fu">,</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;optimized_performance&quot;</span><span class="fu">:</span> <span class="dv">94</span><span class="fu">,</span></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;improvement_percentage&quot;</span><span class="fu">:</span> <span class="fl">8.0</span><span class="fu">,</span></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;changes_made&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Adjusted threshold from 5 to 7 failed attempts&quot;</span><span class="ot">,</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Added time window clustering&quot;</span><span class="ot">,</span></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true" tabindex="-1"></a>      <span class="st">&quot;Enhanced geographic correlation&quot;</span></span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true" tabindex="-1"></a>    <span class="ot">]</span></span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">},</span></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;ai_analysis&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;confidence&quot;</span><span class="fu">:</span> <span class="dv">92</span><span class="fu">,</span></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;model_version&quot;</span><span class="fu">:</span> <span class="st">&quot;optimization-v2.1&quot;</span><span class="fu">,</span></span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;training_data_points&quot;</span><span class="fu">:</span> <span class="dv">10000</span></span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="get-apismart-rulessuggestions">GET
+/api/smart-rules/suggestions</h3>
+<p><strong>Description:</strong> Get AI-powered rule suggestions based
+on system analysis</p>
+<p><strong>Authentication:</strong> Required</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb36"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ot">[</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">{</span></span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;suggested_rule&quot;</span><span class="fu">:</span> <span class="st">&quot;Block API calls from new geographic regions during off-hours&quot;</span><span class="fu">,</span></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;confidence&quot;</span><span class="fu">:</span> <span class="dv">89</span><span class="fu">,</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;reasoning&quot;</span><span class="fu">:</span> <span class="st">&quot;ML pattern analysis shows 94% of off-hours geo-anomalies correlate with malicious activity&quot;</span><span class="fu">,</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;category&quot;</span><span class="fu">:</span> <span class="st">&quot;geographic_anomaly&quot;</span><span class="fu">,</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;estimated_impact&quot;</span><span class="fu">:</span> <span class="st">&quot;15-20% reduction in security incidents&quot;</span><span class="fu">,</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;implementation_complexity&quot;</span><span class="fu">:</span> <span class="st">&quot;low&quot;</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a><span class="ot">]</span></span></code></pre></div>
+<hr />
+<h2 id="enterprise-user-management-apis">Enterprise User Management
+APIs</h2>
+<h3 id="get-apienterprise-usersusers">GET
+/api/enterprise-users/users</h3>
+<p><strong>Description:</strong> Get all enterprise users with role and
+permission information</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Admin role</p>
+<p><strong>Response 200:</strong></p>
+<div class="sourceCode" id="cb37"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;users&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="fu">{</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">7</span><span class="fu">,</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;admin@owkai.com&quot;</span><span class="fu">,</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;first_name&quot;</span><span class="fu">:</span> <span class="st">&quot;System&quot;</span><span class="fu">,</span></span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;last_name&quot;</span><span class="fu">:</span> <span class="st">&quot;Administrator&quot;</span><span class="fu">,</span></span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;department&quot;</span><span class="fu">:</span> <span class="st">&quot;Engineering&quot;</span><span class="fu">,</span></span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;admin&quot;</span><span class="fu">,</span></span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;is_active&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T04:20:21Z&quot;</span><span class="fu">,</span></span>
+<span id="cb37-12"><a href="#cb37-12" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;last_login&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T13:45:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb37-13"><a href="#cb37-13" aria-hidden="true" tabindex="-1"></a>      <span class="dt">&quot;permissions&quot;</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb37-14"><a href="#cb37-14" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;user_management&quot;</span><span class="ot">,</span></span>
+<span id="cb37-15"><a href="#cb37-15" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;policy_creation&quot;</span><span class="ot">,</span></span>
+<span id="cb37-16"><a href="#cb37-16" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;alert_management&quot;</span><span class="ot">,</span></span>
+<span id="cb37-17"><a href="#cb37-17" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;system_administration&quot;</span></span>
+<span id="cb37-18"><a href="#cb37-18" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span></span>
+<span id="cb37-19"><a href="#cb37-19" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb37-20"><a href="#cb37-20" aria-hidden="true" tabindex="-1"></a>  <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb37-21"><a href="#cb37-21" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;pagination&quot;</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb37-22"><a href="#cb37-22" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;total&quot;</span><span class="fu">:</span> <span class="dv">15</span><span class="fu">,</span></span>
+<span id="cb37-23"><a href="#cb37-23" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;page&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span></span>
+<span id="cb37-24"><a href="#cb37-24" aria-hidden="true" tabindex="-1"></a>    <span class="dt">&quot;per_page&quot;</span><span class="fu">:</span> <span class="dv">50</span></span>
+<span id="cb37-25"><a href="#cb37-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb37-26"><a href="#cb37-26" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="post-apienterprise-usersusers">POST
+/api/enterprise-users/users</h3>
+<p><strong>Description:</strong> Create new enterprise user</p>
+<p><strong>Authentication:</strong> Required
+<strong>Permissions:</strong> Admin role</p>
+<p><strong>Request Body:</strong></p>
+<div class="sourceCode" id="cb38"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;new_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;first_name&quot;</span><span class="fu">:</span> <span class="st">&quot;Jane&quot;</span><span class="fu">,</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;last_name&quot;</span><span class="fu">:</span> <span class="st">&quot;Smith&quot;</span><span class="fu">,</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst&quot;</span><span class="fu">,</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;department&quot;</span><span class="fu">:</span> <span class="st">&quot;Security&quot;</span><span class="fu">,</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;password&quot;</span><span class="fu">:</span> <span class="st">&quot;TempPassword123!&quot;</span><span class="fu">,</span></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;force_password_change&quot;</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<p><strong>Response 201:</strong></p>
+<div class="sourceCode" id="cb39"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;id&quot;</span><span class="fu">:</span> <span class="dv">15</span><span class="fu">,</span></span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;email&quot;</span><span class="fu">:</span> <span class="st">&quot;new_analyst@company.com&quot;</span><span class="fu">,</span></span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;role&quot;</span><span class="fu">:</span> <span class="st">&quot;security_analyst&quot;</span><span class="fu">,</span></span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;created_at&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T14:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;activation_required&quot;</span><span class="fu">:</span> <span class="kw">true</span><span class="fu">,</span></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;activation_link&quot;</span><span class="fu">:</span> <span class="st">&quot;https://pilot.owkai.app/activate?token=abc123...&quot;</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<hr />
+<h2 id="error-handling">Error Handling</h2>
+<h3 id="standard-error-response-format">Standard Error Response
+Format</h3>
+<div class="sourceCode" id="cb40"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;detail&quot;</span><span class="fu">:</span> <span class="st">&quot;Error message description&quot;</span><span class="fu">,</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;error_code&quot;</span><span class="fu">:</span> <span class="st">&quot;AUTH_001&quot;</span><span class="fu">,</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;timestamp&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T14:00:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;request_id&quot;</span><span class="fu">:</span> <span class="st">&quot;req_20251012_140000_123&quot;</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h3 id="common-http-status-codes">Common HTTP Status Codes</h3>
+<p><strong>400 Bad Request</strong> - Invalid request format - Missing
+required fields - Invalid parameter values</p>
+<p><strong>401 Unauthorized</strong> - Missing or invalid authentication
+- Expired tokens - Invalid credentials</p>
+<p><strong>403 Forbidden</strong> - Insufficient permissions - RBAC
+access denied - CSRF token validation failed</p>
+<p><strong>404 Not Found</strong> - Resource not found - Invalid
+endpoint - Deleted or non-existent ID</p>
+<p><strong>429 Too Many Requests</strong> - Rate limit exceeded - API
+quota exceeded</p>
+<p><strong>500 Internal Server Error</strong> - Unexpected server error
+- Database connection issues - Third-party service failures</p>
+<h2 id="rate-limiting">Rate Limiting</h2>
+<h3 id="default-limits">Default Limits</h3>
+<ul>
+<li><strong>Authenticated Users:</strong> 100 requests per minute</li>
+<li><strong>Admin Users:</strong> 200 requests per minute</li>
+<li><strong>Burst Allowance:</strong> 150% of rate limit for 30
+seconds</li>
+</ul>
+<h3 id="rate-limit-headers">Rate Limit Headers</h3>
+<pre><code>X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1634567890</code></pre>
+<h3 id="rate-limit-response-429">Rate Limit Response (429)</h3>
+<div class="sourceCode" id="cb42"><pre
+class="sourceCode json"><code class="sourceCode json"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;detail&quot;</span><span class="fu">:</span> <span class="st">&quot;Rate limit exceeded&quot;</span><span class="fu">,</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;limit&quot;</span><span class="fu">:</span> <span class="dv">100</span><span class="fu">,</span></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;reset_time&quot;</span><span class="fu">:</span> <span class="st">&quot;2025-10-12T14:01:00Z&quot;</span><span class="fu">,</span></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">&quot;retry_after_seconds&quot;</span><span class="fu">:</span> <span class="dv">60</span></span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div>
+<h2 id="sdk-client-libraries">SDK &amp; Client Libraries</h2>
+<h3 id="python-sdk">Python SDK</h3>
+<div class="sourceCode" id="cb43"><pre
+class="sourceCode python"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> owkai_client <span class="im">import</span> OWKAIClient</span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-3"><a href="#cb43-3" aria-hidden="true" tabindex="-1"></a>client <span class="op">=</span> OWKAIClient(</span>
+<span id="cb43-4"><a href="#cb43-4" aria-hidden="true" tabindex="-1"></a>    base_url<span class="op">=</span><span class="st">&quot;https://pilot.owkai.app&quot;</span>,</span>
+<span id="cb43-5"><a href="#cb43-5" aria-hidden="true" tabindex="-1"></a>    api_key<span class="op">=</span><span class="st">&quot;your_api_key&quot;</span></span>
+<span id="cb43-6"><a href="#cb43-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb43-7"><a href="#cb43-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-8"><a href="#cb43-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Authenticate</span></span>
+<span id="cb43-9"><a href="#cb43-9" aria-hidden="true" tabindex="-1"></a>auth_response <span class="op">=</span> client.auth.login(<span class="st">&quot;admin@company.com&quot;</span>, <span class="st">&quot;password&quot;</span>)</span>
+<span id="cb43-10"><a href="#cb43-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-11"><a href="#cb43-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Get alerts</span></span>
+<span id="cb43-12"><a href="#cb43-12" aria-hidden="true" tabindex="-1"></a>alerts <span class="op">=</span> client.alerts.<span class="bu">list</span>(severity<span class="op">=</span><span class="st">&quot;high&quot;</span>)</span>
+<span id="cb43-13"><a href="#cb43-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb43-14"><a href="#cb43-14" aria-hidden="true" tabindex="-1"></a><span class="co"># Authorize action</span></span>
+<span id="cb43-15"><a href="#cb43-15" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> client.authorization.approve_action(</span>
+<span id="cb43-16"><a href="#cb43-16" aria-hidden="true" tabindex="-1"></a>    action_id<span class="op">=</span><span class="dv">1003</span>,</span>
+<span id="cb43-17"><a href="#cb43-17" aria-hidden="true" tabindex="-1"></a>    comment<span class="op">=</span><span class="st">&quot;Approved after review&quot;</span></span>
+<span id="cb43-18"><a href="#cb43-18" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<h3 id="javascript-sdk">JavaScript SDK</h3>
+<div class="sourceCode" id="cb44"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { OWKAIClient } <span class="im">from</span> <span class="st">&#39;@owkai/client&#39;</span><span class="op">;</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> client <span class="op">=</span> <span class="kw">new</span> <span class="fu">OWKAIClient</span>({</span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">baseURL</span><span class="op">:</span> <span class="st">&#39;https://pilot.owkai.app&#39;</span><span class="op">,</span></span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">apiKey</span><span class="op">:</span> <span class="st">&#39;your_api_key&#39;</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>})<span class="op">;</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a><span class="co">// Authenticate</span></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> authResponse <span class="op">=</span> <span class="cf">await</span> client<span class="op">.</span><span class="at">auth</span><span class="op">.</span><span class="fu">login</span>({</span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a>  <span class="dt">email</span><span class="op">:</span> <span class="st">&#39;admin@company.com&#39;</span><span class="op">,</span></span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">password</span><span class="op">:</span> <span class="st">&#39;password&#39;</span></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>})<span class="op">;</span></span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a><span class="co">// Get dashboard data</span></span>
+<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> dashboard <span class="op">=</span> <span class="cf">await</span> client<span class="op">.</span><span class="at">authorization</span><span class="op">.</span><span class="fu">getDashboard</span>()<span class="op">;</span></span>
+<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a><span class="co">// Create smart rule</span></span>
+<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> rule <span class="op">=</span> <span class="cf">await</span> client<span class="op">.</span><span class="at">smartRules</span><span class="op">.</span><span class="fu">createFromNL</span>({</span>
+<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a>  <span class="dt">description</span><span class="op">:</span> <span class="st">&#39;Block suspicious file access patterns&#39;</span></span>
+<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a>})<span class="op">;</span></span></code></pre></div>
+<hr />
+<p>This API reference provides comprehensive documentation for
+integrating with the OW-AI Platform. For additional support or
+questions, contact our enterprise support team.</p>
+</body>
+</html>

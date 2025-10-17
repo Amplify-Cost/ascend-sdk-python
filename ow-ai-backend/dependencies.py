@@ -36,7 +36,7 @@ except ImportError:
             os.getenv("POSTGRESQL_URL", "postgresql://localhost/owai")
         )
         
-        # Handle Railway PostgreSQL URL format
+        # Handle AWS RDS PostgreSQL URL format
         if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
             DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
         

@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>OW-AI Platform - User Manual</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">OW-AI Platform - User Manual</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#ow-ai-platform---user-manual"
+id="toc-ow-ai-platform---user-manual">OW-AI Platform - User Manual</a>
+<ul>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#getting-started" id="toc-getting-started">Getting
+Started</a>
+<ul>
+<li><a href="#first-time-login" id="toc-first-time-login">First Time
+Login</a></li>
+<li><a href="#navigation" id="toc-navigation">Navigation</a></li>
+</ul></li>
+<li><a href="#user-roles-and-permissions"
+id="toc-user-roles-and-permissions">User Roles and Permissions</a>
+<ul>
+<li><a href="#admin" id="toc-admin">Admin</a></li>
+<li><a href="#security-analyst" id="toc-security-analyst">Security
+Analyst</a></li>
+<li><a href="#approver" id="toc-approver">Approver</a></li>
+<li><a href="#viewer" id="toc-viewer">Viewer</a></li>
+</ul></li>
+<li><a href="#authorization-center"
+id="toc-authorization-center">Authorization Center</a>
+<ul>
+<li><a href="#policy-management" id="toc-policy-management">Policy
+Management</a></li>
+<li><a href="#approval-workflows" id="toc-approval-workflows">Approval
+Workflows</a></li>
+<li><a href="#real-time-policy-evaluation"
+id="toc-real-time-policy-evaluation">Real-Time Policy
+Evaluation</a></li>
+</ul></li>
+<li><a href="#alert-management" id="toc-alert-management">Alert
+Management</a>
+<ul>
+<li><a href="#viewing-alerts" id="toc-viewing-alerts">Viewing
+Alerts</a></li>
+<li><a href="#responding-to-alerts"
+id="toc-responding-to-alerts">Responding to Alerts</a></li>
+<li><a href="#alert-correlation" id="toc-alert-correlation">Alert
+Correlation</a></li>
+</ul></li>
+<li><a href="#smart-rules-engine" id="toc-smart-rules-engine">Smart
+Rules Engine</a>
+<ul>
+<li><a href="#creating-rules" id="toc-creating-rules">Creating
+Rules</a></li>
+<li><a href="#managing-rules" id="toc-managing-rules">Managing
+Rules</a></li>
+<li><a href="#rule-templates" id="toc-rule-templates">Rule
+Templates</a></li>
+</ul></li>
+<li><a href="#user-account-management"
+id="toc-user-account-management">User Account Management</a>
+<ul>
+<li><a href="#personal-profile" id="toc-personal-profile">Personal
+Profile</a></li>
+<li><a href="#session-management" id="toc-session-management">Session
+Management</a></li>
+<li><a href="#notification-preferences"
+id="toc-notification-preferences">Notification Preferences</a></li>
+</ul></li>
+<li><a href="#troubleshooting"
+id="toc-troubleshooting">Troubleshooting</a>
+<ul>
+<li><a href="#common-login-issues" id="toc-common-login-issues">Common
+Login Issues</a></li>
+<li><a href="#performance-issues"
+id="toc-performance-issues">Performance Issues</a></li>
+<li><a href="#feature-specific-issues"
+id="toc-feature-specific-issues">Feature-Specific Issues</a></li>
+<li><a href="#browser-compatibility"
+id="toc-browser-compatibility">Browser Compatibility</a></li>
+</ul></li>
+<li><a href="#faq" id="toc-faq">FAQ</a>
+<ul>
+<li><a href="#general-questions" id="toc-general-questions">General
+Questions</a></li>
+<li><a href="#security-questions" id="toc-security-questions">Security
+Questions</a></li>
+<li><a href="#approval-workflow-questions"
+id="toc-approval-workflow-questions">Approval Workflow
+Questions</a></li>
+<li><a href="#alert-management-questions"
+id="toc-alert-management-questions">Alert Management Questions</a></li>
+<li><a href="#smart-rules-questions"
+id="toc-smart-rules-questions">Smart Rules Questions</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="ow-ai-platform---user-manual">OW-AI Platform - User Manual</h1>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#getting-started">Getting Started</a></li>
+<li><a href="#user-roles-and-permissions">User Roles and
+Permissions</a></li>
+<li><a href="#authorization-center">Authorization Center</a></li>
+<li><a href="#alert-management">Alert Management</a></li>
+<li><a href="#smart-rules-engine">Smart Rules Engine</a></li>
+<li><a href="#user-account-management">User Account Management</a></li>
+<li><a href="#troubleshooting">Troubleshooting</a></li>
+<li><a href="#faq">FAQ</a></li>
+</ol>
+<h2 id="getting-started">Getting Started</h2>
+<h3 id="first-time-login">First Time Login</h3>
+<h4 id="accessing-the-platform">Accessing the Platform</h4>
+<ol type="1">
+<li>Navigate to https://pilot.owkai.app in your web browser</li>
+<li>You’ll see the OW-AI Platform login screen</li>
+<li>Enter your email address and password provided by your
+administrator</li>
+<li>Click “Login” to access the platform</li>
+</ol>
+<h4 id="initial-setup">Initial Setup</h4>
+<p>Upon first login, you may be prompted to: - Change your temporary
+password - Set up multi-factor authentication (if enabled) - Review and
+accept terms of service - Complete your user profile information</p>
+<h4 id="dashboard-overview">Dashboard Overview</h4>
+<p>After logging in, you’ll see the main dashboard which includes: -
+<strong>Summary Cards</strong>: Quick overview of pending actions,
+alerts, and rules - <strong>Activity Feed</strong>: Recent activity
+across the platform - <strong>Quick Actions</strong>: Shortcuts to
+common tasks - <strong>Performance Metrics</strong>: Key system
+performance indicators</p>
+<h3 id="navigation">Navigation</h3>
+<p>The platform uses a sidebar navigation with the following main
+sections: - <strong>Dashboard</strong>: Overview and quick access -
+<strong>Authorization Center</strong>: Policy management and approval
+workflows - <strong>Alert Management</strong>: Security alerts and
+incident response - <strong>Smart Rules</strong>: Intelligent rule
+creation and management - <strong>User Management</strong>: User
+accounts and permissions (Admin only) - <strong>Settings</strong>:
+Personal and system configuration</p>
+<h2 id="user-roles-and-permissions">User Roles and Permissions</h2>
+<p>The OW-AI Platform implements a four-tier role-based access control
+system:</p>
+<h3 id="admin">Admin</h3>
+<p><strong>Full system access with all privileges</strong></p>
+<p><strong>Capabilities:</strong> - Complete system administration -
+Create, edit, and delete policies - Manage all user accounts and roles -
+Configure system settings - Access all alerts and rules - Approve any
+actions regardless of risk level - View comprehensive audit logs -
+Manage integrations and API keys</p>
+<p><strong>Use Cases:</strong> - System administrators - Security team
+leads - Compliance officers</p>
+<h3 id="security-analyst">Security Analyst</h3>
+<p><strong>Advanced security operations and analysis</strong></p>
+<p><strong>Capabilities:</strong> - View and manage all alerts -
+Acknowledge and escalate alerts - Create and modify smart rules -
+Approve medium and high-risk actions - Generate security reports -
+Access audit logs for investigations - Configure alert correlation
+rules</p>
+<p><strong>Cannot:</strong> - Manage user accounts - Create or modify
+policies - Access system configuration - Approve critical-risk
+actions</p>
+<p><strong>Use Cases:</strong> - SOC analysts - Security engineers -
+Incident response team members</p>
+<h3 id="approver">Approver</h3>
+<p><strong>Focused on workflow approval and review</strong></p>
+<p><strong>Capabilities:</strong> - View approval workflows assigned to
+them - Approve or deny pending actions - View alerts (read-only) -
+Access relevant audit information - Add comments to approval decisions -
+Set approval conditions and timeframes</p>
+<p><strong>Cannot:</strong> - Create policies or rules - Manage alerts
+(acknowledge/escalate) - Access user management - Modify system
+settings</p>
+<p><strong>Use Cases:</strong> - Department managers - Compliance
+reviewers - Business stakeholders</p>
+<h3 id="viewer">Viewer</h3>
+<p><strong>Read-only access for monitoring and reporting</strong></p>
+<p><strong>Capabilities:</strong> - View dashboards and metrics - Access
+reports and analytics - View alert summaries (no action capabilities) -
+Monitor rule performance - Export permitted data</p>
+<p><strong>Cannot:</strong> - Make any system changes - Approve actions
+- Acknowledge alerts - Create or modify rules - Access audit logs</p>
+<p><strong>Use Cases:</strong> - Business users - Executives - Audit
+teams - External stakeholders</p>
+<h2 id="authorization-center">Authorization Center</h2>
+<p>The Authorization Center is the core policy management and approval
+workflow system.</p>
+<h3 id="policy-management">Policy Management</h3>
+<h4 id="viewing-policies">Viewing Policies</h4>
+<ol type="1">
+<li>Navigate to <strong>Authorization Center</strong> →
+<strong>Policies</strong></li>
+<li>You’ll see a list of all active policies with:
+<ul>
+<li>Policy name and description</li>
+<li>Effect (Allow, Deny, Require Approval)</li>
+<li>Creation date and author</li>
+<li>Performance metrics</li>
+</ul></li>
+</ol>
+<h4 id="creating-a-policy-from-natural-language">Creating a Policy from
+Natural Language</h4>
+<p><strong>For Admin and Security Analyst roles:</strong></p>
+<ol type="1">
+<li><p>Click <strong>“Create New Policy”</strong> button</p></li>
+<li><p>Select <strong>“Natural Language”</strong> option</p></li>
+<li><p>Enter your policy description in plain English:</p>
+<pre><code>Example: &quot;Block any file access to sensitive data without manager approval during off-hours&quot;</code></pre></li>
+<li><p>Provide additional context:</p>
+<ul>
+<li><strong>Environment</strong>: Production, Staging, Development</li>
+<li><strong>Department</strong>: Engineering, Finance, HR, etc.</li>
+<li><strong>Risk Level</strong>: Low, Medium, High, Critical</li>
+</ul></li>
+<li><p>Click <strong>“Generate Policy”</strong></p></li>
+<li><p>Review the generated policy structure:</p>
+<ul>
+<li><strong>Conditions</strong>: When the policy applies</li>
+<li><strong>Actions</strong>: What happens when triggered</li>
+<li><strong>Approval Requirements</strong>: Who needs to approve</li>
+</ul></li>
+<li><p>Test the policy with sample scenarios</p></li>
+<li><p>Click <strong>“Save and Activate”</strong></p></li>
+</ol>
+<h4 id="policy-testing">Policy Testing</h4>
+<p>Before activating a policy: 1. Use the <strong>“Test Policy”</strong>
+feature 2. Input sample scenarios: - User context (role, department,
+location) - Action details (type, resource, time) - Environmental
+factors 3. Review the policy decision and reasoning 4. Adjust policy
+conditions if needed</p>
+<h3 id="approval-workflows">Approval Workflows</h3>
+<h4 id="viewing-pending-approvals">Viewing Pending Approvals</h4>
+<ol type="1">
+<li>Navigate to <strong>Authorization Center</strong> → <strong>Pending
+Actions</strong></li>
+<li>Filter by:
+<ul>
+<li><strong>Risk Level</strong>: Show only high-risk items</li>
+<li><strong>Age</strong>: Actions pending for specific timeframes</li>
+<li><strong>Type</strong>: File access, API calls, database queries,
+etc.</li>
+<li><strong>Agent</strong>: Specific AI agents or systems</li>
+</ul></li>
+</ol>
+<h4 id="approving-an-action">Approving an Action</h4>
+<p><strong>For Approver, Security Analyst, and Admin roles:</strong></p>
+<ol type="1">
+<li>Click on a pending action to view details</li>
+<li>Review the action information:
+<ul>
+<li><strong>Agent Details</strong>: Which AI agent is requesting
+access</li>
+<li><strong>Action Type</strong>: What the agent wants to do</li>
+<li><strong>Resource</strong>: What data/system is being accessed</li>
+<li><strong>Risk Assessment</strong>: Automated risk score and
+reasoning</li>
+<li><strong>Business Context</strong>: Why this action is needed</li>
+</ul></li>
+<li>Consider approval factors:
+<ul>
+<li><strong>Necessity</strong>: Is this action required for business
+operations?</li>
+<li><strong>Risk Level</strong>: Does the risk align with business
+tolerance?</li>
+<li><strong>Timing</strong>: Is this an appropriate time for this
+action?</li>
+<li><strong>Precedent</strong>: Have similar actions been approved
+before?</li>
+</ul></li>
+<li>Make your decision:
+<ul>
+<li><strong>Approve</strong>: Allow the action to proceed</li>
+<li><strong>Approve with Conditions</strong>: Set limitations (time,
+monitoring, etc.)</li>
+<li><strong>Reject</strong>: Deny the action with explanation</li>
+</ul></li>
+<li>Add comments explaining your decision</li>
+<li>Set any additional conditions:
+<ul>
+<li><strong>Time Limit</strong>: Action must complete within X
+hours</li>
+<li><strong>Monitoring</strong>: Enhanced logging and monitoring</li>
+<li><strong>Notification</strong>: Alert specific people when action
+completes</li>
+</ul></li>
+<li>Click <strong>“Submit Decision”</strong></li>
+</ol>
+<h4 id="approval-conditions">Approval Conditions</h4>
+<p>When approving with conditions, you can set: - <strong>Time
+Constraints</strong>: “Approve for next 2 hours only” -
+<strong>Monitoring Requirements</strong>: “Enable enhanced logging” -
+<strong>Scope Limitations</strong>: “Limit to specific file types” -
+<strong>Notification Rules</strong>: “Alert security team when
+complete”</p>
+<h3 id="real-time-policy-evaluation">Real-Time Policy Evaluation</h3>
+<h4 id="understanding-policy-decisions">Understanding Policy
+Decisions</h4>
+<p>When policies are evaluated, the system provides: 1.
+<strong>Decision</strong>: Allow, Deny, or Require Approval 2.
+<strong>Risk Score</strong>: 0-100 scale with breakdown by category 3.
+<strong>Policy Matches</strong>: Which policies triggered 4.
+<strong>Reasoning</strong>: Why this decision was made 5.
+<strong>Recommendations</strong>: Suggested next steps</p>
+<h4 id="risk-score-breakdown">Risk Score Breakdown</h4>
+<p>Risk scores are calculated across multiple dimensions: - <strong>Data
+Sensitivity</strong> (0-100): How sensitive is the accessed data? -
+<strong>User Privilege</strong> (0-100): What’s the user’s access level?
+- <strong>Time Context</strong> (0-100): Is this a normal time for this
+action? - <strong>Environmental</strong> (0-100): Production
+vs. development environment - <strong>Historical</strong> (0-100): How
+common is this type of action?</p>
+<h2 id="alert-management">Alert Management</h2>
+<p>The Alert Management system provides intelligent threat detection and
+response automation.</p>
+<h3 id="viewing-alerts">Viewing Alerts</h3>
+<h4 id="alert-dashboard">Alert Dashboard</h4>
+<ol type="1">
+<li>Navigate to <strong>Alert Management</strong> →
+<strong>Dashboard</strong></li>
+<li>View summary statistics:
+<ul>
+<li>Total active alerts</li>
+<li>Alerts by severity level</li>
+<li>Recent activity timeline</li>
+<li>Response time metrics</li>
+</ul></li>
+</ol>
+<h4 id="alert-list">Alert List</h4>
+<ol type="1">
+<li>Go to <strong>Alert Management</strong> → <strong>All
+Alerts</strong></li>
+<li>Use filters to find specific alerts:
+<ul>
+<li><strong>Severity</strong>: Critical, High, Medium, Low</li>
+<li><strong>Status</strong>: New, Acknowledged, In Progress,
+Resolved</li>
+<li><strong>Time Range</strong>: Last hour, day, week, month</li>
+<li><strong>Source</strong>: Which system generated the alert</li>
+<li><strong>Assigned To</strong>: Who is responsible for the alert</li>
+</ul></li>
+</ol>
+<h4 id="alert-details">Alert Details</h4>
+<p>Click any alert to view: - <strong>Alert Summary</strong>: What
+happened and when - <strong>Severity Justification</strong>: Why this
+severity was assigned - <strong>Affected Systems</strong>: What systems
+are involved - <strong>Evidence</strong>: Supporting data and logs -
+<strong>Correlation</strong>: Related alerts or patterns -
+<strong>Recommendations</strong>: Suggested response actions</p>
+<h3 id="responding-to-alerts">Responding to Alerts</h3>
+<h4 id="acknowledging-an-alert">Acknowledging an Alert</h4>
+<p><strong>For Security Analyst and Admin roles:</strong></p>
+<ol type="1">
+<li>Open the alert you want to acknowledge</li>
+<li>Click <strong>“Acknowledge Alert”</strong></li>
+<li>Add a comment explaining:
+<ul>
+<li>What you’ve reviewed</li>
+<li>Your initial assessment</li>
+<li>Planned next steps</li>
+</ul></li>
+<li>Optionally set:
+<ul>
+<li><strong>Estimated Resolution Time</strong>: When you expect to
+resolve</li>
+<li><strong>Assigned To</strong>: Transfer to another team member</li>
+<li><strong>Priority</strong>: Adjust if initial assessment was
+incorrect</li>
+</ul></li>
+<li>Click <strong>“Acknowledge”</strong></li>
+</ol>
+<h4 id="escalating-an-alert">Escalating an Alert</h4>
+<p><strong>When an alert needs higher-level attention:</strong></p>
+<ol type="1">
+<li>Open the alert requiring escalation</li>
+<li>Click <strong>“Escalate Alert”</strong></li>
+<li>Select escalation level:
+<ul>
+<li><strong>Internal</strong>: Escalate to security manager</li>
+<li><strong>External</strong>: Involve external incident response</li>
+<li><strong>Executive</strong>: Notify C-level executives</li>
+</ul></li>
+<li>Provide escalation reason:
+<ul>
+<li><strong>Severity Increase</strong>: Threat is worse than initially
+assessed</li>
+<li><strong>Resource Constraint</strong>: Need additional resources</li>
+<li><strong>Expertise Required</strong>: Need specialized knowledge</li>
+<li><strong>Policy Requirement</strong>: Policy mandates escalation</li>
+</ul></li>
+<li>Set urgency level:
+<ul>
+<li><strong>Immediate</strong>: Response needed within 15 minutes</li>
+<li><strong>High</strong>: Response needed within 1 hour</li>
+<li><strong>Normal</strong>: Response needed within 4 hours</li>
+</ul></li>
+<li>Add detailed explanation of why escalation is needed</li>
+<li>Click <strong>“Escalate”</strong></li>
+</ol>
+<h4 id="resolving-an-alert">Resolving an Alert</h4>
+<p><strong>When investigation is complete:</strong></p>
+<ol type="1">
+<li>Open the resolved alert</li>
+<li>Click <strong>“Resolve Alert”</strong></li>
+<li>Select resolution type:
+<ul>
+<li><strong>True Positive</strong>: Real security incident</li>
+<li><strong>False Positive</strong>: Benign activity incorrectly
+flagged</li>
+<li><strong>Inconclusive</strong>: Unable to determine with
+certainty</li>
+<li><strong>Duplicate</strong>: Same issue as another alert</li>
+</ul></li>
+<li>Document resolution:
+<ul>
+<li><strong>Root Cause</strong>: What actually happened</li>
+<li><strong>Actions Taken</strong>: How you responded</li>
+<li><strong>Lessons Learned</strong>: What can be improved</li>
+<li><strong>Prevention Measures</strong>: How to prevent recurrence</li>
+</ul></li>
+<li>Update any affected systems or processes</li>
+<li>Click <strong>“Resolve”</strong></li>
+</ol>
+<h3 id="alert-correlation">Alert Correlation</h3>
+<p>The system automatically correlates related alerts to help identify:
+- <strong>Attack Patterns</strong>: Multiple alerts indicating
+coordinated attack - <strong>System Issues</strong>: Multiple alerts
+from same source system - <strong>False Positive Clusters</strong>:
+Groups of alerts that are typically benign</p>
+<h2 id="smart-rules-engine">Smart Rules Engine</h2>
+<p>The Smart Rules Engine provides AI-powered rule creation and
+optimization.</p>
+<h3 id="creating-rules">Creating Rules</h3>
+<h4 id="natural-language-rule-creation">Natural Language Rule
+Creation</h4>
+<p><strong>For Security Analyst and Admin roles:</strong></p>
+<ol type="1">
+<li><p>Navigate to <strong>Smart Rules</strong> → <strong>Create
+Rule</strong></p></li>
+<li><p>Select <strong>“Natural Language”</strong> option</p></li>
+<li><p>Describe what you want to detect:</p>
+<pre><code>Examples:
+- &quot;Alert me when any user accesses more than 100 files in 5 minutes&quot;
+- &quot;Block API calls from suspicious geographic locations&quot;
+- &quot;Notify security team when database queries access customer PII&quot;</code></pre></li>
+<li><p>Set rule parameters:</p>
+<ul>
+<li><strong>Severity</strong>: How important is this rule?</li>
+<li><strong>Enabled</strong>: Should the rule be active
+immediately?</li>
+<li><strong>Environment</strong>: Where should this rule apply?</li>
+</ul></li>
+<li><p>Review the generated rule:</p>
+<ul>
+<li><strong>Condition</strong>: When the rule triggers</li>
+<li><strong>Action</strong>: What happens when triggered</li>
+<li><strong>Confidence Score</strong>: How confident the AI is in this
+rule</li>
+</ul></li>
+<li><p>Test the rule with sample data</p></li>
+<li><p>Click <strong>“Create Rule”</strong></p></li>
+</ol>
+<h4 id="manual-rule-creation">Manual Rule Creation</h4>
+<p><strong>For advanced users:</strong></p>
+<ol type="1">
+<li>Select <strong>“Manual Creation”</strong> option</li>
+<li>Define rule conditions using the rule builder:
+<ul>
+<li><strong>Data Sources</strong>: What systems to monitor</li>
+<li><strong>Triggers</strong>: What events activate the rule</li>
+<li><strong>Thresholds</strong>: Numerical limits (time, count,
+size)</li>
+<li><strong>Context</strong>: User, time, location factors</li>
+</ul></li>
+<li>Specify actions:
+<ul>
+<li><strong>Alert</strong>: Generate an alert</li>
+<li><strong>Block</strong>: Prevent the action</li>
+<li><strong>Monitor</strong>: Increase logging/monitoring</li>
+<li><strong>Approve</strong>: Require manual approval</li>
+</ul></li>
+<li>Set rule metadata:
+<ul>
+<li><strong>Name and Description</strong></li>
+<li><strong>Severity Level</strong></li>
+<li><strong>Notification Recipients</strong></li>
+</ul></li>
+<li>Save and test the rule</li>
+</ol>
+<h3 id="managing-rules">Managing Rules</h3>
+<h4 id="rule-performance-analytics">Rule Performance Analytics</h4>
+<ol type="1">
+<li>Go to <strong>Smart Rules</strong> → <strong>Analytics</strong></li>
+<li>View performance metrics:
+<ul>
+<li><strong>Trigger Frequency</strong>: How often rules activate</li>
+<li><strong>False Positive Rate</strong>: Percentage of incorrect
+alerts</li>
+<li><strong>Effectiveness Score</strong>: Overall rule performance</li>
+<li><strong>Response Time</strong>: How quickly alerts are handled</li>
+</ul></li>
+</ol>
+<h4 id="optimizing-rules">Optimizing Rules</h4>
+<p>The system provides AI-powered optimization suggestions: 1. Navigate
+to <strong>Smart Rules</strong> → <strong>Optimization</strong> 2.
+Review suggestions for each rule: - <strong>Threshold
+Adjustments</strong>: Fine-tune numerical limits - <strong>Condition
+Refinements</strong>: Improve trigger accuracy - <strong>Performance
+Improvements</strong>: Reduce resource usage 3. Apply recommended
+optimizations 4. Monitor performance changes</p>
+<h4 id="ab-testing-rules">A/B Testing Rules</h4>
+<p><strong>For testing rule improvements:</strong></p>
+<ol type="1">
+<li>Select a rule to test</li>
+<li>Click <strong>“Create A/B Test”</strong></li>
+<li>Define test parameters:
+<ul>
+<li><strong>Duration</strong>: How long to run the test</li>
+<li><strong>Traffic Split</strong>: Percentage of events for each
+version</li>
+<li><strong>Success Metrics</strong>: How to measure improvement</li>
+</ul></li>
+<li>Create the test variant (modified rule)</li>
+<li>Start the test and monitor results</li>
+<li>Apply the winning version</li>
+</ol>
+<h3 id="rule-templates">Rule Templates</h3>
+<p>The platform includes pre-built rule templates for common
+scenarios:</p>
+<h4 id="data-protection-templates">Data Protection Templates</h4>
+<ul>
+<li><strong>PII Access Monitoring</strong>: Track access to personal
+data</li>
+<li><strong>Data Exfiltration Detection</strong>: Identify unusual data
+transfers</li>
+<li><strong>File Access Anomalies</strong>: Detect abnormal file access
+patterns</li>
+</ul>
+<h4 id="security-templates">Security Templates</h4>
+<ul>
+<li><strong>Brute Force Detection</strong>: Identify repeated failed
+login attempts</li>
+<li><strong>Privilege Escalation</strong>: Monitor for unauthorized
+privilege changes</li>
+<li><strong>Suspicious Network Activity</strong>: Detect unusual network
+patterns</li>
+</ul>
+<h4 id="compliance-templates">Compliance Templates</h4>
+<ul>
+<li><strong>SOX Compliance</strong>: Rules for financial data
+access</li>
+<li><strong>HIPAA Compliance</strong>: Healthcare data protection
+rules</li>
+<li><strong>GDPR Compliance</strong>: EU data protection
+requirements</li>
+</ul>
+<h2 id="user-account-management">User Account Management</h2>
+<h3 id="personal-profile">Personal Profile</h3>
+<h4 id="updating-your-profile">Updating Your Profile</h4>
+<ol type="1">
+<li>Click your name in the top-right corner</li>
+<li>Select <strong>“Profile Settings”</strong></li>
+<li>Update your information:
+<ul>
+<li><strong>Name and Contact Information</strong></li>
+<li><strong>Department and Role</strong></li>
+<li><strong>Notification Preferences</strong></li>
+<li><strong>Time Zone and Language</strong></li>
+</ul></li>
+<li>Click <strong>“Save Changes”</strong></li>
+</ol>
+<h4 id="changing-your-password">Changing Your Password</h4>
+<ol type="1">
+<li>Go to <strong>Profile Settings</strong> →
+<strong>Security</strong></li>
+<li>Click <strong>“Change Password”</strong></li>
+<li>Enter your current password</li>
+<li>Enter your new password (meeting security requirements)</li>
+<li>Confirm your new password</li>
+<li>Click <strong>“Update Password”</strong></li>
+</ol>
+<h4 id="multi-factor-authentication-mfa">Multi-Factor Authentication
+(MFA)</h4>
+<p><strong>If enabled by your organization:</strong></p>
+<ol type="1">
+<li>Go to <strong>Profile Settings</strong> →
+<strong>Security</strong></li>
+<li>Click <strong>“Setup MFA”</strong></li>
+<li>Choose your preferred method:
+<ul>
+<li><strong>Authenticator App</strong>: Use Google Authenticator, Authy,
+etc.</li>
+<li><strong>SMS</strong>: Receive codes via text message</li>
+<li><strong>Email</strong>: Receive codes via email</li>
+</ul></li>
+<li>Follow the setup instructions</li>
+<li>Verify with a test code</li>
+<li>Save backup codes in a secure location</li>
+</ol>
+<h3 id="session-management">Session Management</h3>
+<h4 id="active-sessions">Active Sessions</h4>
+<ol type="1">
+<li>Go to <strong>Profile Settings</strong> →
+<strong>Sessions</strong></li>
+<li>View all active sessions:
+<ul>
+<li><strong>Device and Browser</strong>: What you’re logged in from</li>
+<li><strong>Location</strong>: Geographic location (if available)</li>
+<li><strong>Last Activity</strong>: When you last used that session</li>
+<li><strong>IP Address</strong>: Network identifier</li>
+</ul></li>
+<li>Revoke suspicious or unused sessions</li>
+</ol>
+<h4 id="session-security">Session Security</h4>
+<ul>
+<li>Sessions automatically expire after 30 minutes of inactivity</li>
+<li>You’ll be warned 5 minutes before expiration</li>
+<li>Closing your browser ends the session</li>
+<li>Logging out from one device doesn’t affect others</li>
+</ul>
+<h3 id="notification-preferences">Notification Preferences</h3>
+<h4 id="alert-notifications">Alert Notifications</h4>
+<p>Configure how you receive alert notifications: -
+<strong>Email</strong>: Immediate, daily digest, or weekly summary -
+<strong>In-App</strong>: Browser notifications when logged in -
+<strong>Mobile</strong>: Push notifications (if mobile app is available)
+- <strong>Slack/Teams</strong>: Integration with collaboration tools</p>
+<h4 id="approval-notifications">Approval Notifications</h4>
+<p>Set preferences for approval workflow notifications: -
+<strong>Assigned Actions</strong>: When actions are assigned to you -
+<strong>Escalated Items</strong>: When items are escalated to your level
+- <strong>Deadline Reminders</strong>: Approaching approval deadlines -
+<strong>Decision Updates</strong>: When decisions are made on items
+you’ve handled</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<h3 id="common-login-issues">Common Login Issues</h3>
+<h4 id="problem-cannot-log-in-with-correct-credentials">Problem: Cannot
+log in with correct credentials</h4>
+<p><strong>Possible Solutions:</strong> 1. <strong>Check Caps
+Lock</strong>: Ensure caps lock is off 2. <strong>Clear Browser
+Cache</strong>: Clear cookies and cached data 3. <strong>Try Incognito
+Mode</strong>: Rule out browser extension issues 4. <strong>Check
+Account Status</strong>: Your account may be locked or suspended 5.
+<strong>Contact Administrator</strong>: Your password may have been
+reset</p>
+<h4 id="problem-page-wont-load-or-shows-error">Problem: Page won’t load
+or shows error</h4>
+<p><strong>Possible Solutions:</strong> 1. <strong>Refresh the
+Page</strong>: Press F5 or Ctrl+R 2. <strong>Check Internet
+Connection</strong>: Ensure you have connectivity 3. <strong>Try
+Different Browser</strong>: Rule out browser-specific issues 4.
+<strong>Disable Ad Blockers</strong>: Some extensions can interfere 5.
+<strong>Check System Status</strong>: Visit the status page or contact
+support</p>
+<h4 id="problem-session-keeps-expiring">Problem: Session keeps
+expiring</h4>
+<p><strong>Possible Solutions:</strong> 1. <strong>Check System
+Clock</strong>: Ensure your computer’s time is correct 2. <strong>Stay
+Active</strong>: Move your mouse or click periodically 3. <strong>Close
+Extra Tabs</strong>: Multiple tabs can cause session conflicts 4.
+<strong>Check Network</strong>: Unstable connections can cause
+timeouts</p>
+<h3 id="performance-issues">Performance Issues</h3>
+<h4 id="problem-platform-is-running-slowly">Problem: Platform is running
+slowly</h4>
+<p><strong>Possible Solutions:</strong> 1. <strong>Check Network
+Speed</strong>: Run a speed test 2. <strong>Close Unused Tabs</strong>:
+Free up browser memory 3. <strong>Update Browser</strong>: Ensure you’re
+using a supported version 4. <strong>Clear Cache</strong>: Remove stored
+data that may be corrupted 5. <strong>Check System Resources</strong>:
+Ensure your computer isn’t overloaded</p>
+<h4 id="problem-large-datasets-wont-load">Problem: Large datasets won’t
+load</h4>
+<p><strong>Possible Solutions:</strong> 1. <strong>Use Filters</strong>:
+Narrow down the data you’re viewing 2. <strong>Reduce Time
+Range</strong>: Look at smaller time periods 3. <strong>Export
+Data</strong>: Download for offline analysis 4. <strong>Contact
+Support</strong>: May need to increase limits</p>
+<h3 id="feature-specific-issues">Feature-Specific Issues</h3>
+<h4 id="problem-policy-evaluation-is-slow">Problem: Policy evaluation is
+slow</h4>
+<p><strong>This may indicate:</strong> - High system load - Complex
+policy conditions - Network latency issues</p>
+<p><strong>Solutions:</strong> - Simplify policy conditions - Use policy
+caching - Contact administrator about performance</p>
+<h4 id="problem-alerts-not-appearing">Problem: Alerts not appearing</h4>
+<p><strong>Check:</strong> - Alert filters and time ranges - Your role
+permissions - Notification settings - System connectivity</p>
+<h4 id="problem-cannot-approve-actions">Problem: Cannot approve
+actions</h4>
+<p><strong>Verify:</strong> - You have appropriate role permissions -
+The action hasn’t already been processed - Your session hasn’t expired -
+CSRF protection isn’t blocking the request</p>
+<h3 id="browser-compatibility">Browser Compatibility</h3>
+<h4 id="supported-browsers">Supported Browsers</h4>
+<ul>
+<li><strong>Chrome</strong>: Version 100+ (recommended)</li>
+<li><strong>Firefox</strong>: Version 98+</li>
+<li><strong>Safari</strong>: Version 15+</li>
+<li><strong>Edge</strong>: Version 100+</li>
+</ul>
+<h4 id="unsupported-browsers">Unsupported Browsers</h4>
+<ul>
+<li>Internet Explorer (any version)</li>
+<li>Chrome/Firefox versions older than listed above</li>
+<li>Mobile browsers (limited support)</li>
+</ul>
+<h4 id="browser-configuration">Browser Configuration</h4>
+<p>For optimal performance: - Enable JavaScript - Allow cookies from
+pilot.owkai.app - Disable ad blockers for the site - Keep browser
+updated</p>
+<h2 id="faq">FAQ</h2>
+<h3 id="general-questions">General Questions</h3>
+<p><strong>Q: How long do JWT tokens last?</strong> A: Access tokens
+expire after 30 minutes. They automatically refresh before expiring if
+you’re actively using the platform.</p>
+<p><strong>Q: Can I have multiple roles?</strong> A: No, each user is
+assigned one role. However, roles are hierarchical - higher roles
+include permissions of lower roles.</p>
+<p><strong>Q: What happens if I forget my password?</strong> A: Use the
+“Forgot Password” link on the login page. You’ll receive a reset link
+via email.</p>
+<p><strong>Q: Can I use the platform on mobile devices?</strong> A: The
+platform is optimized for desktop use. Mobile access is limited but
+functional for viewing dashboards and basic operations.</p>
+<p><strong>Q: How often is data backed up?</strong> A: The platform
+creates automated backups daily with 30-day retention. Database backups
+occur every 6 hours.</p>
+<h3 id="security-questions">Security Questions</h3>
+<p><strong>Q: Is my data encrypted?</strong> A: Yes, all data is
+encrypted in transit (TLS 1.3) and at rest (AES-256). Database
+connections use SSL encryption.</p>
+<p><strong>Q: Who can see my actions in the platform?</strong> A: All
+actions are logged for audit purposes. Administrators can view audit
+logs, but regular user actions are only visible to users with audit
+permissions.</p>
+<p><strong>Q: What should I do if I suspect my account is
+compromised?</strong> A: Immediately change your password, revoke all
+active sessions, and contact your administrator. Review recent activity
+in your profile.</p>
+<p><strong>Q: Can I use the same password as other systems?</strong> A:
+It’s strongly recommended to use a unique password. The platform
+enforces complex password requirements and checks against common
+breaches.</p>
+<h3 id="approval-workflow-questions">Approval Workflow Questions</h3>
+<p><strong>Q: How long do I have to approve an action?</strong> A:
+Default approval timeouts are: - Low risk: 24 hours - Medium risk: 4
+hours - High risk: 2 hours - Critical risk: 30 minutes</p>
+<p><strong>Q: What happens if I don’t approve in time?</strong> A:
+Actions are automatically escalated to the next approval level or denied
+based on policy configuration.</p>
+<p><strong>Q: Can I delegate my approval authority?</strong> A: Yes, you
+can temporarily delegate to another user of equal or higher role through
+the user settings.</p>
+<p><strong>Q: Can I see who else has approved an action?</strong> A:
+Yes, the approval chain is visible in the action details, showing all
+approvers and their decisions.</p>
+<h3 id="alert-management-questions">Alert Management Questions</h3>
+<p><strong>Q: Why am I not receiving alert notifications?</strong> A:
+Check your notification preferences in Profile Settings. Ensure your
+email address is correct and check spam folders.</p>
+<p><strong>Q: Can I create custom alert types?</strong> A: Custom alerts
+can be created through the Smart Rules engine using natural language or
+manual configuration.</p>
+<p><strong>Q: What’s the difference between acknowledging and resolving
+an alert?</strong> A: Acknowledging means you’ve seen the alert and are
+investigating. Resolving means the investigation is complete and the
+issue is addressed.</p>
+<p><strong>Q: Can alerts be automatically resolved?</strong> A: Some
+alerts can be configured for automatic resolution based on rules, but
+most require human review for security reasons.</p>
+<h3 id="smart-rules-questions">Smart Rules Questions</h3>
+<p><strong>Q: How accurate is the natural language rule
+creation?</strong> A: The AI typically achieves 85-90% accuracy in
+converting natural language to functional rules. Always review and test
+generated rules.</p>
+<p><strong>Q: Can I modify AI-generated rules?</strong> A: Yes, all
+rules can be manually edited after creation to fine-tune conditions and
+actions.</p>
+<p><strong>Q: How often should I review rule performance?</strong> A:
+Review rule analytics weekly for high-impact rules, monthly for standard
+rules. The system will also proactively suggest optimizations.</p>
+<p><strong>Q: Can rules trigger other rules?</strong> A: Yes, rules can
+create cascading effects. However, the system includes loop detection to
+prevent infinite chains.</p>
+<p>For additional support or questions not covered in this manual,
+contact your system administrator or the OW-AI Platform support
+team.</p>
+</body>
+</html>

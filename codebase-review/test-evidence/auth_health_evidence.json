@@ -1,0 +1,12 @@
+{
+    "test_name": "auth_health",
+    "endpoint": "/auth/health",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:34-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.000979",
+    "response_body": "{\"status\":\"diagnostic_mode\",\"service\":\"enterprise-authentication-diagnostic\",\"diagnostic_logging\":\"active\",\"cookie_support\":\"enabled\",\"cookie_names_fixed\":true,\"response_format_testing\":\"active\",\"timestamp\":\"2025-10-12T16:45:34.328814+00:00\"}",
+    "request_data": ,
+    "has_auth": false
+}

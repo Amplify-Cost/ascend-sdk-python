@@ -37,10 +37,10 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
     
-    # Get DATABASE_URL from environment (Railway)
+    # Get DATABASE_URL from environment (AWS RDS or local development)
     database_url = os.getenv("DATABASE_URL")
     if database_url:
-        # Use Railway DATABASE_URL
+        # Use AWS RDS DATABASE_URL or local development URL
         connectable = create_engine(database_url, poolclass=pool.NullPool)
     else:
         # Fallback to config

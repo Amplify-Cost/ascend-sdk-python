@@ -1,0 +1,67 @@
+47:    async def execute_action(action: AgentAction, db: Session, execution_context: Dict = None) -> Dict[str, Any]:
+181:    async def _execute_ip_block(action: AgentAction, context: Dict) -> Dict[str, Any]:
+200:    async def _execute_system_isolation(action: AgentAction, context: Dict) -> Dict[str, Any]:
+217:    async def _execute_vulnerability_scan(action: AgentAction, context: Dict) -> Dict[str, Any]:
+244:    async def _execute_compliance_check(action: AgentAction, context: Dict) -> Dict[str, Any]:
+267:    async def _execute_threat_analysis(action: AgentAction, context: Dict) -> Dict[str, Any]:
+292:    async def _execute_firewall_update(action: AgentAction, context: Dict) -> Dict[str, Any]:
+311:    async def _execute_file_quarantine(action: AgentAction, context: Dict) -> Dict[str, Any]:
+330:    async def _execute_privilege_monitoring(action: AgentAction, context: Dict) -> Dict[str, Any]:
+348:    async def _execute_dlp_action(action: AgentAction, context: Dict) -> Dict[str, Any]:
+367:    async def _execute_anomaly_detection(action: AgentAction, context: Dict) -> Dict[str, Any]:
+386:    async def _execute_sox_compliance(action: AgentAction, context: Dict) -> Dict[str, Any]:
+405:    async def _execute_security_scan(action: AgentAction, context: Dict) -> Dict[str, Any]:
+424:    async def _execute_network_analysis(action: AgentAction, context: Dict) -> Dict[str, Any]:
+443:    async def _execute_incident_response(action: AgentAction, context: Dict) -> Dict[str, Any]:
+462:    async def _execute_generic_action(action: AgentAction, context: Dict) -> Dict[str, Any]:
+484:    async def orchestrate_multi_step_workflow(workflow_definition: Dict, context: Dict, db: Session) -> Dict[str, Any]:
+599:    async def correlate_with_siem(action_data: Dict, db: Session) -> Dict[str, Any]:
+645:async def get_pending_actions_enterprise_data(
+741:async def get_enterprise_dashboard_data(db: Session, current_user: dict):
+849:async def authorize_enterprise_action(
+1076:async def get_pending_actions(
+1086:async def get_approval_dashboard(
+1094:async def authorize_action(
+1104:async def get_execution_history(
+1165:async def execute_approved_action(
+1216:async def get_approval_metrics_real_data(
+1315:async def execute_enterprise_workflow(
+1344:async def get_active_workflows(
+1387:async def get_enterprise_risk_assessment(
+1451:async def emergency_override_action(
+1577:async def get_enterprise_audit_trail(
+1635:async def get_siem_correlation(
+1670:async def get_pending_actions_api(
+1694:async def get_approval_dashboard_api(
+1731:async def authorize_action_api(
+1741:async def get_execution_history_api(
+1750:async def execute_approved_action_api(
+1759:async def get_approval_metrics_api(
+1767:async def create_test_action_api(
+1811:async def request_authorization(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+1855:async def get_pending_actions_persistent(
+1994:async def get_approval_dashboard_enhanced(
+2128:async def authorize_enterprise_action_synchronized(
+2254:async def get_pending_actions(
+2264:async def get_approval_dashboard(
+2272:async def authorize_action(
+2282:async def get_execution_history(
+2343:async def execute_approved_action(
+2394:async def get_approval_metrics_real_data(
+2493:async def execute_enterprise_workflow(
+2522:async def get_active_workflows(
+2565:async def get_enterprise_risk_assessment(
+2629:async def emergency_override_action(
+2755:async def get_enterprise_audit_trail(
+2813:async def get_siem_correlation(
+2848:async def get_pending_actions_api(
+2872:async def get_approval_dashboard_api(
+2909:async def authorize_action_api(
+2919:async def get_execution_history_api(
+2928:async def execute_approved_action_api(
+2937:async def get_approval_metrics_api(
+2945:async def create_test_action_api(
+2989:async def request_authorization(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+3033:async def get_pending_actions_persistent(
+3172:async def get_approval_dashboard_enhanced(
+3306:async def authorize_enterprise_action_synchronized(

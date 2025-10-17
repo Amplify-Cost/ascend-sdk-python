@@ -1,0 +1,12 @@
+{
+    "test_name": "rules_analytics",
+    "endpoint": "/api/smart-rules/analytics",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.126283",
+    "response_body": "{\"total_rules\":7,\"active_rules\":7,\"avg_performance_score\":89.7,\"total_triggers_24h\":181,\"false_positive_rate\":4.2,\"top_performing_rules\":[{\"id\":1,\"name\":\"Data Exfiltration Block\",\"score\":94,\"category\":\"data_protection\"},{\"id\":2,\"name\":\"Privilege Escalation Alert\",\"score\":91,\"category\":\"access_control\"},{\"id\":3,\"name\":\"Suspicious Network Activity\",\"score\":87,\"category\":\"network_security\"}],\"performance_trends\":{\"accuracy_improvement\":\"+13%\",\"response_time_improvement\":\"-24%\",\"false_positive_reduction\":\"-32%\"},\"ml_insights\":{\"pattern_recognition_accuracy\":95,\"events_analyzed\":1697,\"new_patterns_identified\":16,\"prediction_confidence\":85},\"enterprise_metrics\":{\"cost_savings_monthly\":\"$15,404\",\"incidents_prevented\":43,\"automation_rate\":\"85%\",\"compliance_score\":\"92%\"}}",
+    "request_data": ,
+    "has_auth": true
+}

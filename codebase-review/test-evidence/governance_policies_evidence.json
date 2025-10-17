@@ -1,0 +1,12 @@
+{
+    "test_name": "governance_policies",
+    "endpoint": "/api/governance/policies",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:37-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.131774",
+    "response_body": "{\"success\":true,\"policies\":[],\"total_count\":0}",
+    "request_data": ,
+    "has_auth": true
+}

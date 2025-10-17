@@ -1,0 +1,189 @@
+
+=== TEST 1: /auth/token ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.583932s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/auth_login_evidence.json
+----------------------------------------
+
+=== TEST 2: /auth/me ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.124830s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/auth_me_evidence.json
+----------------------------------------
+
+=== TEST 3: /auth/health ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.000979s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/auth_health_evidence.json
+----------------------------------------
+
+=== TEST 4: /auth/csrf ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.001511s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/auth_csrf_evidence.json
+----------------------------------------
+
+=== TEST 5: /api/authorization/policies/list ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.026633s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/policies_list_evidence.json
+----------------------------------------
+
+=== TEST 6: /api/authorization/policies/create-from-natural-language ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.151978s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/policies_create_nl_evidence.json
+----------------------------------------
+
+=== TEST 7: /api/authorization/policies/evaluate-realtime ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.133367s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/policies_evaluate_evidence.json
+----------------------------------------
+
+=== TEST 8: /api/authorization/policies/engine-metrics ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:34 EDT 2025
+Response: 200 (0.143501s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/policies_metrics_evidence.json
+----------------------------------------
+
+=== TEST 9: /alerts ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 200 (0.125908s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/alerts_list_evidence.json
+----------------------------------------
+
+=== TEST 10: /alerts?severity=high ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 200 (0.122735s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/alerts_filter_evidence.json
+----------------------------------------
+
+=== TEST 11: /alerts/active ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 200 (0.001690s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/alerts_active_evidence.json
+----------------------------------------
+
+=== TEST 12: /alerts/summary ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 200 (0.291524s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/alerts_summary_evidence.json
+----------------------------------------
+
+=== TEST 13: /alerts/3001/acknowledge ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 403 (0.001525s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/alerts_acknowledge_evidence.json
+----------------------------------------
+
+=== TEST 14: /alerts/3001/escalate ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 403 (0.001400s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/alerts_escalate_evidence.json
+----------------------------------------
+
+=== TEST 15: /api/smart-rules ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:35 EDT 2025
+Response: 200 (0.124632s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_list_evidence.json
+----------------------------------------
+
+=== TEST 16: /api/smart-rules/generate-from-nl ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: 200 (0.310461s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_generate_nl_evidence.json
+----------------------------------------
+
+=== TEST 17: /api/smart-rules/generate ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: 200 (0.002182s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_generate_ai_evidence.json
+----------------------------------------
+
+=== TEST 18: /api/smart-rules/analytics ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: 200 (0.126283s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_analytics_evidence.json
+----------------------------------------
+
+=== TEST 19: /api/smart-rules/suggestions ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: 200 (0.001395s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_suggestions_evidence.json
+----------------------------------------
+
+=== TEST 20: /api/smart-rules/setup-ab-testing-table ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: 200 (0.131784s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_ab_setup_evidence.json
+----------------------------------------
+
+=== TEST 21: /api/smart-rules/ab-tests ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: 200 (0.001502s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_ab_tests_evidence.json
+----------------------------------------
+
+=== TEST 22: /api/smart-rules/seed ===
+Status: FAIL
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: Expected 200, got 500
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_seed_evidence.json
+----------------------------------------
+
+=== TEST 23: /api/smart-rules/optimize/1 ===
+Status: FAIL
+Timestamp: Sun Oct 12 12:45:36 EDT 2025
+Response: Expected 200, got 500
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/rules_optimize_evidence.json
+----------------------------------------
+
+=== TEST 24: /api/enterprise-users/users ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:37 EDT 2025
+Response: 200 (0.129783s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/users_list_evidence.json
+----------------------------------------
+
+=== TEST 25: /health ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:37 EDT 2025
+Response: 200 (0.129239s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/health_basic_evidence.json
+----------------------------------------
+
+=== TEST 26: /api/governance/policies ===
+Status: PASS
+Timestamp: Sun Oct 12 12:45:37 EDT 2025
+Response: 200 (0.131774s)
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/governance_policies_evidence.json
+----------------------------------------
+
+=== TEST 27: /analytics/performance ===
+Status: FAIL
+Timestamp: Sun Oct 12 12:45:37 EDT 2025
+Response: Expected 200, got 404
+Evidence File: /Users/mac_001/OW_AI_Project/codebase-review/test-evidence/analytics_performance_evidence.json
+----------------------------------------

@@ -395,3 +395,10 @@ class WorkflowResponse(BaseModel):
     steps: list
     real_time_stats: Optional[dict] = None
     success_metrics: Optional[dict] = None
+class SmartRuleOutEnhanced(SmartRuleOut):
+    """Extended model with performance metrics"""
+    performance_score: Optional[int] = None
+    triggers_last_24h: Optional[int] = None
+    false_positives: Optional[int] = None
+    effectiveness_rating: Optional[str] = None
+    last_triggered: Optional[str] = None

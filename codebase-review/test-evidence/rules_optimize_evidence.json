@@ -1,0 +1,14 @@
+{
+    "test_name": "rules_optimize",
+    "endpoint": "/api/smart-rules/optimize/1",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "500",
+    "expected_status": "200",
+    "response_time": "0.124739",
+    "response_body": "{\"detail\":\"Failed to optimize rule\"}",
+    "request_data": {
+  "optimization_type": "performance"
+},
+    "has_auth": true
+}

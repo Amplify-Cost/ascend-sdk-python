@@ -26,7 +26,7 @@ class MCPServerAction(Base):
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
     
     # MCP Server Identity
-    mcp_server_id = Column(String(100), nullable=False, index=True)  # e.g., "claude-desktop", "vscode-mcp"
+    mcp_server_id = Column(UUID(as_uuid=True), ForeignKey("mcp_servers.id"), nullable=False, index=True)  # e.g., "claude-desktop", "vscode-mcp"
     mcp_server_name = Column(String(200), nullable=False)  # Human readable name
     mcp_server_version = Column(String(50))  # Version info
     
@@ -213,7 +213,26 @@ class MCPPolicy(Base):
     server_patterns = Column(JSON, default=list)  # Server ID patterns
     namespace_patterns = Column(JSON, default=list)  # Namespace patterns
     verb_patterns = Column(JSON, default=list)  # Verb patterns
-    resource_patterns = Column(JSON, default=list)  # Resource patterns
+    resource_patterns = Column(JSON, default=list)
+    
+    # Enterprise Policy Versioning Fields
+    policy_status = Column(String(50), nullable=False, default='draft')  # draft, testing, approved, deployed, deprecated
+    major_version = Column(Integer, nullable=False, default=1)
+    minor_version = Column(Integer, nullable=False, default=0) 
+    patch_version = Column(Integer, nullable=False, default=0)
+    version_hash = Column(String(64), nullable=True)  # SHA256 of policy content
+    parent_policy_id = Column(UUID(as_uuid=True), ForeignKey('mcp_policies.id'), nullable=True)
+    deployment_timestamp = Column(DateTime, nullable=True)
+    rollback_target_id = Column(UUID(as_uuid=True), ForeignKey('mcp_policies.id'), nullable=True)
+    
+    # Natural Language Policy Support
+    natural_language_description = Column(Text, nullable=True)
+    test_results = Column(JSON, nullable=True)
+    
+    # Enterprise Approval Workflow
+    approval_required = Column(Boolean, nullable=False, default=True)
+    approved_by = Column(String(200), nullable=True)
+    approved_at = Column(DateTime, nullable=True)  # Resource patterns
     
     # Conditions
     conditions = Column(JSON, default=dict)  # Policy conditions (JSON/CEL format)

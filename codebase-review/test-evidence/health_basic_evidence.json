@@ -1,0 +1,12 @@
+{
+    "test_name": "health_basic",
+    "endpoint": "/health",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:37-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.129239",
+    "response_body": "{\"status\":\"healthy\",\"timestamp\":1760287537,\"environment\":\"development\",\"version\":\"1.0.0\",\"checks\":{\"enterprise_config\":{\"status\":\"healthy\",\"environment\":\"development\",\"aws_enabled\":false,\"fallback_mode\":true,\"secret_access\":\"available\"},\"jwt_manager\":{\"status\":\"healthy\",\"has_private_key\":true,\"has_public_key\":true,\"algorithm\":\"RS256\",\"issuer\":\"https://api.ow-ai.com\"},\"rbac_system\":{\"status\":\"healthy\",\"access_levels\":6,\"permissions_loaded\":true,\"separation_of_duties\":true},\"sso_manager\":{\"status\":\"healthy\",\"providers_configured\":3,\"group_mappings\":22,\"available_providers\":[\"okta\",\"azure_ad\",\"google\"]},\"database\":{\"status\":\"healthy\",\"connection\":\"active\",\"engine_available\":true}},\"response_time_ms\":125.1,\"failed_checks\":[],\"enterprise_grade\":true}",
+    "request_data": ,
+    "has_auth": false
+}

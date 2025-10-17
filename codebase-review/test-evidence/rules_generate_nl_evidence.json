@@ -1,0 +1,15 @@
+{
+    "test_name": "rules_generate_nl",
+    "endpoint": "/api/smart-rules/generate-from-nl",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.310461",
+    "response_body": "{\"id\":14,\"condition\":\"smart_analysis('Alert when CPU usage exceeds 90%') AND threat_detected\",\"action\":\"monitor_and_alert\",\"justification\":\"Enterprise-grade intelligent rule created from: Alert when CPU usage exceeds 90%\",\"risk_level\":\"medium\",\"performance_score\":85,\"triggers_last_24h\":0,\"false_positives\":0,\"created_at\":\"2025-10-12T16:45:36.198731+00:00\",\"agent_id\":\"enterprise-ai-generated\",\"action_type\":\"natural_language_enterprise_rule\",\"description\":\"Alert when CPU usage exceeds 90%\",\"recommendation\":\"Review and monitor: Alert when CPU usage exceeds 90%\",\"effectiveness_rating\":\"high\",\"last_triggered\":\"2025-10-12T16:45:36.198745+00:00\",\"natural_language_source\":\"Alert when CPU usage exceeds 90%\",\"enterprise_features\":{\"compliance_impact\":\"Enterprise security framework compliance\",\"business_impact\":\"Minimal operational disruption\",\"false_positive_likelihood\":\"3-7%\",\"ai_confidence\":85}}",
+    "request_data": {
+  "description": "Alert when CPU usage exceeds 90%",
+  "context": "performance"
+},
+    "has_auth": true
+}

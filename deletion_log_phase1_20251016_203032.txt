@@ -1,0 +1,14 @@
+Deletion started: Thu Oct 16 20:30:32 EDT 2025
+
+✓ Deleted
+9.0G	EMERGENCY_BACKUPS
+✓ Deleted
+ 45M	ow-ai-backend.current-backup.20250817_074750
+✓ Deleted
+✓ Deleted
+984K	src
+✓ Deleted
+199M	ow-ai-dashboard
+✓ Deleted
+=== PHASE 1 COMPLETE ===
+Deletion completed: Thu Oct 16 20:31:15 EDT 2025

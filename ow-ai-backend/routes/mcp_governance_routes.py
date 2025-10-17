@@ -765,10 +765,40 @@ async def get_unified_actions(
                 } for action in mcp_results
             ]
         
-        # Note: In a complete implementation, you would also query agent actions
-        # from your existing AgentAction model and merge the results
+        # ENTERPRISE UNIFIED GOVERNANCE: Query both MCP and agent actions
         
-        all_actions = mcp_actions
+        # Get agent actions from the main authorization system
+        agent_actions = []
+        
+        agent_query = db.execute(text("""
+            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
+                   status, created_at, updated_at, approved, reviewed_by
+            FROM agent_actions
+            WHERE status IN ('pending', 'pending_approval', 'approved', 'submitted')
+            ORDER BY created_at DESC
+            LIMIT :limit
+        """), {"limit": limit}).fetchall()
+        
+        for row in agent_query:
+            agent_actions.append({
+                'id': str(row[0]),
+                'action_type': 'agent_action',
+                'created_at': row[7].isoformat() if row[7] else None,
+                'updated_at': row[8].isoformat() if row[8] else None,
+                'title': f"Agent {row[1]}: {row[2]}",
+                'description': row[3] or "Agent security action",
+                'agent_id': row[1],
+                'risk_level': row[4] or 'medium',
+                'risk_score': float(row[5]) if row[5] else 50.0,
+                'status': row[6] or 'pending',
+                'approved': bool(row[9]) if row[9] is not None else False,
+                'reviewed_by': row[10],
+                'enterprise_compliant': True,
+                'source': 'agent_actions'
+            })
+        
+        # Merge MCP and agent actions
+        all_actions = mcp_actions + agent_actions
         
         # Sort by risk score and creation time
         all_actions.sort(key=lambda x: (x['risk_score'], x['created_at']), reverse=True)

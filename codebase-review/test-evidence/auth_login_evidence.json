@@ -1,0 +1,15 @@
+{
+    "test_name": "auth_login",
+    "endpoint": "/auth/token",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:34-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.583932",
+    "response_body": "{\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3IiwiZW1haWwiOiJhZG1pbkBvd2thaS5jb20iLCJyb2xlIjoiYWRtaW4iLCJ1c2VyX2lkIjo3LCJleHAiOjE3NjAyODkzMzMsImlhdCI6MTc2MDI4NzUzMywidHlwZSI6ImFjY2VzcyIsImlzcyI6Im93LWFpLWVudGVycHJpc2UiLCJhdWQiOiJvdy1haS1wbGF0Zm9ybSIsImp0aSI6ImFjY2Vzcy03LTE3NjAyODc1MzMifQ.sf8wW28xvaC17rZeHTGctzhcGx7S2_e7zfd6xQGdeJc\",\"refresh_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3IiwiZW1haWwiOiJhZG1pbkBvd2thaS5jb20iLCJyb2xlIjoiYWRtaW4iLCJ1c2VyX2lkIjo3LCJleHAiOjE3NjA4OTIzMzMsImlhdCI6MTc2MDI4NzUzMywidHlwZSI6InJlZnJlc2giLCJpc3MiOiJvdy1haS1lbnRlcnByaXNlIiwiYXVkIjoib3ctYWktcGxhdGZvcm0iLCJqdGkiOiJyZWZyZXNoLTctMTc2MDI4NzUzMyJ9.g9L7_OZ1NmgObbkGegDCHU3YFZdLBZsXlYfo1LVOVd4\",\"token_type\":\"bearer\",\"expires_in\":1800,\"user\":{\"email\":\"admin@owkai.com\",\"role\":\"admin\",\"user_id\":7},\"auth_mode\":\"token\"}",
+    "request_data": {
+  "email": "admin@owkai.com",
+  "password": "admin123"
+},
+    "has_auth": false
+}

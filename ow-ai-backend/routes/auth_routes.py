@@ -7,6 +7,8 @@ from slowapi.util import get_remote_address
 from datetime import datetime, UTC
 import logging
 from passlib.context import CryptContext
+from auth_utils import verify_password
+from auth_utils import hash_password
 from secrets import token_urlsafe
 
 from database import get_db
@@ -94,10 +96,10 @@ async def register(
         if existing_user:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
 
-        hashed_password = pwd_context.hash(user_data.password)
+        password_hash = hash_password(user_data.password)
         new_user = User(
             email=user_data.email,
-            hashed_password=hashed_password,
+            password=password_hash,
             role="user",
             is_active=True,
             created_at=datetime.now(UTC)
@@ -186,7 +188,7 @@ async def login(
     """Login with dual auth support + CSRF issuance for cookie mode."""
     try:
         user = db.query(User).filter(User.email == login_data.email).first()
-        if not user or not pwd_context.verify(login_data.password, user.hashed_password):
+        if not user or not verify_password(login_data.password, user.password):
             logger.warning(f"❌ Failed login attempt: {login_data.email}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -378,3 +380,17 @@ def get_csrf(response: Response, request: Request):
     """Issue/refresh CSRF cookie and return its value."""
     csrf = _set_csrf_cookie(response, request)
     return {"csrf": csrf}
+@router.get("/debug/check-admin")
+async def debug_check_admin(db: Session = Depends(get_db)):
+    """Diagnostic endpoint to check admin user password hash"""
+    from sqlalchemy import text
+    result = db.execute(text("SELECT email, password, role FROM users WHERE email = 'admin@owkai.com'"))
+    user = result.fetchone()
+    if user:
+        return {
+            "email": user[0],
+            "password_hash_prefix": user[1][:50] if user[1] else None,
+            "password_length": len(user[1]) if user[1] else 0,
+            "role": user[2]
+        }
+    return {"error": "Admin user not found"}

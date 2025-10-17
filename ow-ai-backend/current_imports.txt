@@ -1,0 +1,50 @@
+# routes/authorization_routes.py - COMPLETE VERSION WITH ALL ORIGINAL ENTERPRISE FEATURES + DUAL PREFIX SUPPORT
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime, timedelta, UTC
+from typing import Optional, Dict, List, Any
+import logging
+import asyncio
+import json
+import uuid
+from database import get_db
+from models import AgentAction, LogAuditTrail, Alert, SmartRule
+from dependencies import get_current_user, require_admin, require_csrf
+from schemas import AgentActionOut, AgentActionCreate
+from schemas import AutomationPlaybookOut, AutomationExecutionCreate, AuthorizationRequest
+from schemas import WorkflowCreateRequest, WorkflowExecutionRequest
+
+
+# Emergency data structure validation
+def ensure_array_response(data, field_name="actions"):
+    """Ensure response contains valid arrays for frontend compatibility"""
+    if not isinstance(data, dict):
+        return []
+    
+    field_data = data.get(field_name, [])
+    if not isinstance(field_data, list):
+        logger.warning(f"Field {field_name} is not an array, converting to empty array")
+        return []
+    
+    return field_data
+
+# Configure enterprise logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 🎯 PRIMARY ROUTER - Original /agent-control prefix for ALL existing enterprise features
+router = APIRouter(prefix="/agent-control", tags=["authorization"])
+
+# 🎯 API ROUTER - New /api/authorization prefix for Authorization Center frontend compatibility
+api_router = APIRouter(prefix="/api/authorization", tags=["authorization-api"])
+
+# ========== ENTERPRISE EXECUTION ENGINE ==========
+class EnterpriseActionExecutor:
+    """Enterprise-grade execution engine for real-time security action processing"""
+    
+    @staticmethod
+    async def execute_action(action: AgentAction, db: Session, execution_context: Dict = None) -> Dict[str, Any]:
+        """Execute an approved action with enterprise-grade logging and monitoring"""
+        try:
+            execution_id = str(uuid.uuid4())

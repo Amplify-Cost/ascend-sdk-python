@@ -1,0 +1,16 @@
+{
+    "test_name": "rules_generate_ai",
+    "endpoint": "/api/smart-rules/generate",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.002182",
+    "response_body": "{\"id\":\"ESR-DEMO-AGENT-SUSPICIOUS_ACTIVITY\",\"agent_id\":\"demo-agent\",\"action_type\":\"suspicious_activity\",\"description\":\"Analyze security patterns\",\"condition\":\"agent_id == 'demo-agent' AND action_type == 'suspicious_activity'\",\"action\":\"security_assessment\",\"risk_level\":\"LOW\",\"recommendation\":\"Standard monitoring sufficient.\",\"compliance_framework\":\"SOC 2 Type II\",\"security_classification\":\"INTERNAL\",\"auto_generated\":true,\"requires_approval\":false}",
+    "request_data": {
+  "type": "security",
+  "priority": "high",
+  "context": "threat_detection"
+},
+    "has_auth": true
+}

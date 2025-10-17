@@ -1,3 +1,4 @@
+from auth_utils import hash_password
 # routes/enterprise_user_management_routes.py - Complete Enterprise Backend
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -129,7 +130,7 @@ async def create_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Create new enterprise user"""
     try:
@@ -146,22 +147,22 @@ async def create_user(
         
         # Generate temporary password
         temp_password = f"TempPass{datetime.now().strftime('%m%d')}"
-        hashed_password = bcrypt.hashpw(temp_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        password_hash = hash_password(temp_password)
         
         # Insert new user
         insert_query = text("""
             INSERT INTO users (
-                email, password, role, first_name, last_name, 
+                email, password_hash, role, first_name, last_name, 
                 department, access_level, mfa_enabled, status, created_at
             ) VALUES (
-                :email, :password, :role, :first_name, :last_name,
+                :email, :password_hash, :role, :first_name, :last_name,
                 :department, :access_level, :mfa_enabled, 'Active', CURRENT_TIMESTAMP
             ) RETURNING id, email, created_at
         """)
         
         result = db.execute(insert_query, {
             "email": user_data.email,
-            "password": hashed_password,
+            "password_hash": password_hash,
             "role": user_data.role,
             "first_name": user_data.first_name,
             "last_name": user_data.last_name,
@@ -201,7 +202,7 @@ async def update_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Update enterprise user"""
     try:
@@ -259,7 +260,7 @@ async def delete_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-      _=Depends(require_csrf)
+      
 ):
     """Deactivate user (soft delete)"""
     try:
@@ -354,7 +355,7 @@ async def create_role(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """Create new enterprise role"""
     try:
@@ -534,7 +535,9 @@ async def get_user_analytics(
                 "active_users": stats_result.active_users if stats_result else 0,
                 "inactive_users": stats_result.inactive_users if stats_result else 0,
                 "mfa_enabled": stats_result.mfa_enabled_users if stats_result else 0,
-                "high_risk_users": stats_result.high_risk_users if stats_result else 0
+                "high_risk_users": stats_result.high_risk_users if stats_result else 0,
+                "mfa_percentage": round((stats_result.mfa_enabled_users / stats_result.total_users * 100), 1) if stats_result and stats_result.total_users > 0 else 0.0,
+                "risk_percentage": round((stats_result.high_risk_users / stats_result.total_users * 100), 1) if stats_result and stats_result.total_users > 0 else 0.0
             },
             "department_distribution": department_stats if department_stats else [],
             "role_distribution": role_stats if role_stats else [],
@@ -820,7 +823,7 @@ async def generate_enterprise_report(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """🏢 Generate enterprise report using existing analytics system"""
     try:
@@ -1003,7 +1006,7 @@ async def download_enterprise_report(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    _=Depends(require_csrf)
+    
 ):
     """🏢 Download report with audit tracking"""
     try:

@@ -1,0 +1,14 @@
+{
+    "test_name": "alerts_acknowledge",
+    "endpoint": "/alerts/3001/acknowledge",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:35-04:00",
+    "http_status": "403",
+    "expected_status": "403",
+    "response_time": "0.001525",
+    "response_body": "{\"detail\":\"CSRF validation failed\"}",
+    "request_data": {
+  "comment": "Investigating this alert"
+},
+    "has_auth": true
+}

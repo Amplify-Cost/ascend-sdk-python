@@ -1,3 +1,12 @@
+from auth_utils import hash_password
+import secrets
+import string
+
+
+def generate_sso_temp_password():
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return "".join(secrets.choice(alphabet) for _ in range(12))
+
 """
 Enterprise SSO/OIDC Routes
 Handles authentication with Okta, Azure AD, Google Workspace
@@ -347,16 +356,32 @@ async def create_or_update_sso_user(db: Session, enterprise_profile: Dict) -> Di
             
         else:
             # Create new user
+            temp_password = generate_sso_temp_password()
+            hashed_password = hash_password(temp_password)
+
+            # Enterprise: Generate secure password for SSO users
+            import secrets
+            import string
+            from auth_utils import hash_password
+            
+            def generate_enterprise_sso_password():
+                alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+                return "".join(secrets.choice(alphabet) for _ in range(14))
+            
+            temp_password = generate_enterprise_sso_password()
+            hashed_password = hash_password(temp_password)
+            logger.info(f"Enterprise SSO: Generated secure password for {email}")
             result = db.execute(text("""
                 INSERT INTO users (
-                    email, first_name, last_name, access_level, department,
+                    email, password, first_name, last_name, access_level, department,
                     mfa_enabled, status, role, last_login, created_at
                 ) VALUES (
-                    :email, :first_name, :last_name, :access_level, :department,
+                    :email, :password, :first_name, :last_name, :access_level, :department,
                     :mfa_enabled, :status, :role, :last_login, :created_at
                 ) RETURNING user_id
             """), {
                 "email": email,
+                "password": hashed_password,
                 "first_name": enterprise_profile["first_name"],
                 "last_name": enterprise_profile["last_name"],
                 "access_level": enterprise_profile["access_level"],

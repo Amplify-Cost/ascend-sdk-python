@@ -1,0 +1,12 @@
+{
+    "test_name": "rules_suggestions",
+    "endpoint": "/api/smart-rules/suggestions",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.001395",
+    "response_body": "[{\"id\":1,\"suggested_rule\":\"Block API calls from new geographic regions during off-hours\",\"confidence\":89,\"reasoning\":\"ML pattern analysis shows 94% of off-hours geo-anomalies correlate with malicious activity\",\"potential_impact\":\"Could prevent 15-20 potential security incidents per month\",\"data_points\":1247,\"category\":\"geo_anomaly\",\"priority\":\"high\",\"implementation_complexity\":\"medium\",\"estimated_false_positives\":\"2-4%\",\"business_impact\":\"low\"},{\"id\":2,\"suggested_rule\":\"Alert on rapid file access patterns exceeding 100 files/minute\",\"confidence\":92,\"reasoning\":\"Deep learning analysis identifies this pattern in 87% of confirmed data exfiltration attempts\",\"potential_impact\":\"Early detection of data theft attempts with 3.2x faster response time\",\"data_points\":2156,\"category\":\"data_exfiltration\",\"priority\":\"critical\",\"implementation_complexity\":\"low\",\"estimated_false_positives\":\"1-2%\",\"business_impact\":\"medium\"},{\"id\":3,\"suggested_rule\":\"Monitor privilege escalation attempts with failed authentication patterns\",\"confidence\":85,\"reasoning\":\"Advanced correlation analysis shows 78% of successful breaches follow this attack vector\",\"potential_impact\":\"Reduce successful privilege escalation by 60% with early intervention\",\"data_points\":892,\"category\":\"privilege_escalation\",\"priority\":\"high\",\"implementation_complexity\":\"high\",\"estimated_false_positives\":\"5-8%\",\"business_impact\":\"high\"},{\"id\":4,\"suggested_rule\":\"Detect unusual database query patterns during maintenance windows\",\"confidence\":81,\"reasoning\":\"Time-series analysis reveals 73% of insider threats occur during maintenance periods\",\"potential_impact\":\"Protect against insider threats during vulnerable maintenance windows\",\"data_points\":634,\"category\":\"insider_threat\",\"priority\":\"medium\",\"implementation_complexity\":\"medium\",\"estimated_false_positives\":\"3-6%\",\"business_impact\":\"medium\"}]",
+    "request_data": ,
+    "has_auth": true
+}

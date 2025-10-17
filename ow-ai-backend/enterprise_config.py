@@ -90,7 +90,7 @@ class EnterpriseConfig:
             if fallback_value:
                 return fallback_value
             
-            # Enterprise fallback for Railway deployment
+            # Enterprise fallback for AWS deployment
             if secret_name == 'jwt-private-key':
                 return os.getenv('JWT_PRIVATE_KEY')
             elif secret_name == 'jwt-public-key':
@@ -111,7 +111,7 @@ class EnterpriseConfig:
             database = os.getenv('DATABASE_NAME', 'owai')
             return f"postgresql://{username}:REDACTED-CREDENTIAL@{host}/{database}"
         else:
-            # Fallback to Railway DATABASE_URL or construct from parts
+            # Fallback to AWS RDS DATABASE_URL or construct from parts
             database_url = os.getenv('DATABASE_URL')
             if database_url:
                 return database_url

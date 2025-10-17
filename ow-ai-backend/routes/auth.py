@@ -6,13 +6,19 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 from passlib.context import CryptContext
+from auth_utils import verify_password
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any
 from dependencies import get_current_user, require_csrf
+from pydantic import BaseModel
 import jwt
 import os
 import logging
 import json
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 # =================== ENTERPRISE DIAGNOSTIC CONFIGURATION ===================
 
@@ -220,19 +226,14 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
 # =================== ENTERPRISE ENDPOINTS ===================
 
 @router.post("/token")
-async def enterprise_login_diagnostic(request: Request, response: Response, db: Session = Depends(get_db,)):
+async def enterprise_login_diagnostic(login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """🔍 Enterprise Login with Response Diagnostics"""
     
     try:
-        client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"🔍 DIAGNOSTIC LOGIN from {client_ip}")
+        logger.info(f"🔍 DIAGNOSTIC LOGIN for email: {login_data.email}")
         
-        # Parse request
-        request_body = await request.body()
-        data = parse_request_safely(request_body)
-        
-        email = data.get("email", "").strip().lower()
-        password = data.get("password", "")
+        email = login_data.email.strip().lower()
+        password = login_data.password
         
         if not email or not password:
             raise HTTPException(status_code=400, detail="Email and password required")
@@ -242,7 +243,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         if not user:
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        if not pwd_context.verify(password, getattr(user, "hashed_password", user.password)):
+        if not verify_password(password, user.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create tokens
@@ -354,7 +355,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         raise
     except Exception as e:
         logger.error(f"🚨 Login error: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Authentication system error")
+        raise HTTPException(status_code=500, detail=f"Login failed: {str(e)}")
 
 @router.get("/me")
 async def get_current_user_diagnostic(
@@ -578,7 +579,7 @@ async def response_format_diagnostic():
     
     return {
         "message": "Enterprise Response Format Diagnostic",
-        "instructions": "Check Railway logs after login attempt",
+        "instructions": "Check AWS CloudWatch logs after login attempt",
         "formats_tested": [
             "Format 1: Minimal (access_token, token_type, user)",
             "Format 2: With Refresh (adds refresh_token)",
@@ -603,3 +604,18 @@ async def enterprise_auth_health():
         "response_format_testing": "active",
         "timestamp": datetime.now(UTC).isoformat()
     }
+# ================== CSRF TOKEN ENDPOINT ==================
+@router.get("/csrf")
+def get_csrf_token(response: Response, request: Request):
+    """Issue/refresh CSRF cookie and return its value for AJAX requests"""
+    import secrets
+    csrf_token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key="owai_csrf",
+        value=csrf_token,
+        httponly=False,  # Must be readable by JavaScript
+        secure=True,
+        samesite="lax",
+        max_age=3600
+    )
+    return {"csrf_token": csrf_token}

@@ -1,0 +1,119 @@
+
+# Enterprise Risk Assessment Endpoints
+@app.get("/enterprise/risk-methodology")
+async def get_risk_methodology():
+    """Enterprise risk methodology documentation for compliance audits"""
+    return {
+        "methodology_overview": {
+            "approach": "Multi-framework enterprise risk assessment",
+            "version": "enterprise_v1.0",
+            "frameworks_used": ["CVSS v3.1", "NIST 800-30", "MITRE ATT&CK"],
+            "last_updated": "2025-09-04"
+        },
+        "frameworks": {
+            "cvss_v3_1": {
+                "purpose": "Base vulnerability-style scoring for AI agent actions",
+                "metrics": ["Attack Vector", "Attack Complexity", "Privileges Required", "User Interaction", "Impact (CIA)"],
+                "output_range": "0.0 to 10.0",
+                "reference": "https://www.first.org/cvss/v3.1/specification-document"
+            },
+            "nist_800_30": {
+                "purpose": "Federal risk management methodology for threat assessment",
+                "components": ["Threat Source", "Threat Event", "Vulnerability", "Impact Analysis"],
+                "output_levels": ["VERY_LOW", "LOW", "MODERATE", "HIGH", "VERY_HIGH"],
+                "reference": "https://csrc.nist.gov/publications/detail/sp/800-30/rev-1/final"
+            },
+            "mitre_attack": {
+                "purpose": "Map AI agent actions to established adversarial tactics",
+                "coverage": ["Initial Access", "Execution", "Persistence", "Privilege Escalation", "Collection", "Command and Control", "Impact"],
+                "reference": "https://attack.mitre.org/"
+            }
+        },
+        "compliance_alignment": {
+            "soc2": "Documented risk assessment procedures with audit trail",
+            "nist_csf": "Risk management process alignment with federal standards", 
+            "iso_27001": "Information security risk assessment methodology"
+        },
+        "business_benefits": {
+            "enterprise_sales": "Credible methodology for Fortune 500 discussions",
+            "competitive_advantage": "Framework-based approach vs arbitrary scoring",
+            "compliance_readiness": "SOC2/ISO27001 audit preparation"
+        }
+    }
+
+@app.post("/mcp/actions/assess-risk-enterprise") 
+async def assess_enterprise_risk(
+    action_data: dict,
+    current_user = Depends(get_current_user)
+):
+    """Enterprise risk assessment with framework-based methodology"""
+    try:
+        # Validate required fields
+        required_fields = ["agent_id", "action_type", "resource"]
+        for field in required_fields:
+            if field not in action_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        
+        # Use enterprise framework for risk assessment
+        risk_result = enterprise_risk_assessor.assess_action_risk(action_data)
+        
+        return {
+            "action_data": action_data,
+            "enterprise_risk_assessment": risk_result,
+            "assessed_by": current_user.email if hasattr(current_user, 'email') else 'system',
+            "assessment_timestamp": datetime.utcnow().isoformat(),
+            "enterprise_benefits": {
+                "methodology_credibility": "Industry-standard CVSS v3.1 + NIST 800-30 + MITRE ATT&CK",
+                "audit_ready": "Complete documentation for SOC2 compliance", 
+                "threat_intelligence": f"Mapped to MITRE tactic {risk_result.get('mitre_tactic_id')}"
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Enterprise risk assessment failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
+
+@app.get("/enterprise/framework-status")
+async def get_framework_status():
+    """Enterprise framework status for monitoring and health checks"""
+    try:
+        # Test the framework with a sample assessment
+        test_action = {
+            "agent_id": "framework_health_check",
+            "action_type": "test_assessment",
+            "resource": "/health/test"
+        }
+        
+        start_time = datetime.utcnow()
+        test_result = enterprise_risk_assessor.assess_action_risk(test_action)
+        end_time = datetime.utcnow()
+        processing_time = (end_time - start_time).total_seconds()
+        
+        return {
+            "framework_status": "operational",
+            "version": enterprise_risk_assessor.framework_version,
+            "last_tested": end_time.isoformat(),
+            "performance": {
+                "test_assessment_time": f"{processing_time:.4f} seconds",
+                "performance_target": "< 1.0 seconds",
+                "performance_acceptable": processing_time < 1.0
+            },
+            "frameworks_loaded": {
+                "cvss_v3_1": "✅ Operational",
+                "nist_800_30": "✅ Operational", 
+                "mitre_attack": "✅ Operational"
+            },
+            "compliance_status": "Enterprise Ready"
+        }
+    except Exception as e:
+        return {
+            "framework_status": "error",
+            "error_message": str(e),
+            "frameworks_loaded": {
+                "cvss_v3_1": "❌ Error",
+                "nist_800_30": "❌ Error",
+                "mitre_attack": "❌ Error" 
+            },
+            "compliance_status": "Not Ready"
+        }

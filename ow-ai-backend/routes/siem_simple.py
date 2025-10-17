@@ -8,7 +8,7 @@ import json
 import urllib.request
 import urllib.parse
 import ssl
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from database import get_db
 from models import User, AgentAction, PendingAgentAction, Alert
@@ -103,7 +103,7 @@ async def test_siem_connection(config: SIEMConfig):
                     "test": True,
                     "source": "ow-ai-enterprise",
                     "message": "SIEM log file test",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 }
                 
                 with open(config.log_file_path, "a") as f:
@@ -127,14 +127,14 @@ async def test_siem_connection(config: SIEMConfig):
                     "test": True,
                     "source": "ow-ai-enterprise",
                     "message": "SIEM connection test",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.now(UTC).isoformat()
                 }
                 
                 if config.siem_type == "splunk":
                     # Splunk HEC format
                     test_payload = {
                         "event": test_payload,
-                        "time": datetime.utcnow().timestamp(),
+                        "time": datetime.now(UTC).timestamp(),
                         "source": "ow-ai",
                         "sourcetype": "owai:test"
                     }
@@ -215,7 +215,7 @@ async def get_siem_status():
             "siem_type": current_siem_config.siem_type,
             "endpoint": current_siem_config.endpoint_url or current_siem_config.log_file_path,
             "connection_healthy": True,  # We'll assume healthy for simplicity
-            "last_configured": datetime.utcnow().isoformat(),
+            "last_configured": datetime.now(UTC).isoformat(),
             "message": "SIEM integration active"
         }
         
@@ -284,7 +284,7 @@ async def send_http_event(event: SIEMEvent, is_splunk: bool = False) -> bool:
         if is_splunk:
             # Splunk HEC format
             payload = {
-                "time": datetime.utcnow().timestamp(),
+                "time": datetime.now(UTC).timestamp(),
                 "source": "ow-ai-enterprise",
                 "sourcetype": "owai:security:event",
                 "event": {
@@ -369,7 +369,7 @@ async def send_authorization_event(
     """Send authorization decision event to SIEM"""
     event = SIEMEvent(
         event_id=f"owai-auth-{action_id}",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         event_type="agent_authorization",
         severity="high" if risk_score >= 70 else "medium",
         agent_id=agent_id,
@@ -395,7 +395,7 @@ async def send_emergency_override_event(
     """Send emergency override event to SIEM"""
     event = SIEMEvent(
         event_id=f"owai-emergency-{action_id}",
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         event_type="emergency_override",
         severity="critical",
         agent_id=agent_id,

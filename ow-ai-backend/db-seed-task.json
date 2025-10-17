@@ -1,0 +1,34 @@
+{
+    "family": "owkai-pilot-db-seed",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "arn:aws:iam::110948415588:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+        {
+            "name": "db-seeder",
+            "image": "postgres:15",
+            "essential": true,
+            "command": [
+                "sh",
+                "-c",
+                "sleep 30 && psql $DATABASE_URL -f /schema/enterprise_schema.sql"
+            ],
+            "environment": [
+                {
+                    "name": "DATABASE_URL",
+                    "value": "postgresql://owkai_admin:REDACTED-CREDENTIAL@owkai-pilot-db.cpwaouykib7n.us-east-2.rds.amazonaws.com:5432/owkai_pilot"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/owkai-pilot-db-seed",
+                    "awslogs-region": "us-east-2",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            }
+        }
+    ]
+}

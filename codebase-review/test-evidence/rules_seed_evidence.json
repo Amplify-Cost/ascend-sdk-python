@@ -1,0 +1,12 @@
+{
+    "test_name": "rules_seed",
+    "endpoint": "/api/smart-rules/seed",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:36-04:00",
+    "http_status": "500",
+    "expected_status": "200",
+    "response_time": "0.125578",
+    "response_body": "{\"detail\":\"Failed to seed demo rules\"}",
+    "request_data": ,
+    "has_auth": true
+}

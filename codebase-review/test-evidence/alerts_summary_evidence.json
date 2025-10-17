@@ -1,0 +1,15 @@
+{
+    "test_name": "alerts_summary",
+    "endpoint": "/alerts/summary",
+    "method": "POST",
+    "timestamp": "2025-10-12T12:45:35-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.291524",
+    "response_body": "{\"summary\":\"[ENTERPRISE FALLBACK] Agent 'enterprise_security_system' performed 'security_alert_analysis' (Risk: UNKNOWN). Manual security review required.\",\"metadata\":{\"alerts_processed\":1,\"generated_by\":\"admin@owkai.com\",\"timestamp\":\"2025-10-12T16:45:35.620456+00:00\",\"llm_powered\":true,\"enterprise_grade\":true}}",
+    "request_data": {
+  "time_range": "24h",
+  "severity_filter": "all"
+},
+    "has_auth": true
+}

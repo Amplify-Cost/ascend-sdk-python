@@ -1,0 +1,12 @@
+{
+    "test_name": "auth_me",
+    "endpoint": "/auth/me",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:34-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.124830",
+    "response_body": "{\"user_id\":7,\"email\":\"admin@owkai.com\",\"role\":\"admin\",\"auth_source\":\"bearer\",\"auth_mode\":\"enterprise\",\"enterprise_validated\":true}",
+    "request_data": ,
+    "has_auth": true
+}

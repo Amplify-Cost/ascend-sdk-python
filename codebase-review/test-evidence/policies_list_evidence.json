@@ -1,0 +1,12 @@
+{
+    "test_name": "policies_list",
+    "endpoint": "/api/authorization/policies/list",
+    "method": "GET",
+    "timestamp": "2025-10-12T12:45:34-04:00",
+    "http_status": "200",
+    "expected_status": "200",
+    "response_time": "0.026633",
+    "response_body": "{\"success\":false,\"policies\":[],\"total_count\":0,\"error\":\"'PolicyEngine' object has no attribute 'get_policies'\"}",
+    "request_data": ,
+    "has_auth": true
+}
