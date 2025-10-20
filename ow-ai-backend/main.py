@@ -18,6 +18,8 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
+from security.rate_limiter import limiter, rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from routes.smart_rules_routes import router as smart_rules_router
 from contextlib import asynccontextmanager
 from auth_utils import hash_password, decode_refresh_token, create_access_token
@@ -266,6 +268,11 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app (unchanged)
 from routes.alerts_router import router as alerts_router
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0", lifespan=lifespan)
+
+# Register rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 
 
 # CORS Configuration (unchanged)

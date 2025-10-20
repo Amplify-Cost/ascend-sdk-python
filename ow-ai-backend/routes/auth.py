@@ -16,6 +16,9 @@ import os
 import logging
 import json
 
+# Enterprise rate limiting
+from security.rate_limiter import limiter, RATE_LIMITS
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -226,7 +229,8 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
 # =================== ENTERPRISE ENDPOINTS ===================
 
 @router.post("/token")
-async def enterprise_login_diagnostic(login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit(RATE_LIMITS["auth_login"])
+async def enterprise_login_diagnostic(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """🔍 Enterprise Login with Response Diagnostics"""
     
     try:
@@ -446,6 +450,7 @@ async def get_current_user_diagnostic(
         raise HTTPException(status_code=401, detail="Authentication validation failed")
 
 @router.post("/refresh-token")
+@limiter.limit(RATE_LIMITS["auth_refresh"])
 async def refresh_token_diagnostic(request: Request, response: Response):
     """🔍 Enterprise Token Refresh with Diagnostics - ENTERPRISE FIX: Correct cookie names"""
     
@@ -606,6 +611,7 @@ async def enterprise_auth_health():
     }
 # ================== CSRF TOKEN ENDPOINT ==================
 @router.get("/csrf")
+@limiter.limit(RATE_LIMITS["auth_csrf"])
 def get_csrf_token(response: Response, request: Request):
     """Issue/refresh CSRF cookie and return its value for AJAX requests"""
     import secrets
