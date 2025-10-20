@@ -6,19 +6,16 @@ import { API_BASE_URL } from './config/api';
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.token = localStorage.getItem('access_token');
   }
 
   // Set authentication token
   setAuthToken(token) {
     this.token = token;
-    localStorage.setItem('access_token', token);
   }
 
   // Clear authentication
   clearAuth() {
     this.token = null;
-    localStorage.removeItem('access_token');
   }
 
   // Generic request handler

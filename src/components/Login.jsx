@@ -76,9 +76,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         console.log("⚠️ Legacy token authentication - consider upgrading");
         
         // Store tokens for backward compatibility
-        localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) {
-          localStorage.setItem("refresh_token", data.refresh_token);
         }
         
         onLoginSuccess({

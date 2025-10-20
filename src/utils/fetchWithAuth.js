@@ -66,19 +66,15 @@ class EnterpriseTokenManager {
    * Clear expired or invalid tokens
    */
   static clearInvalidTokens() {
-    const accessToken = localStorage.getItem("access_token");
-    const refreshToken = localStorage.getItem("refresh_token");
     
     let clearedTokens = false;
     
     if (accessToken && this.isTokenExpired(accessToken)) {
-      localStorage.removeItem("access_token");
       console.log("🧹 Enterprise: Cleared expired access token");
       clearedTokens = true;
     }
     
     if (refreshToken && this.isTokenExpired(refreshToken)) {
-      localStorage.removeItem("refresh_token");
       console.log("🧹 Enterprise: Cleared expired refresh token");
       clearedTokens = true;
     }
@@ -90,7 +86,6 @@ class EnterpriseTokenManager {
    * Attempt to refresh access token using refresh token
    */
   static async refreshAccessToken() {
-    const refreshToken = localStorage.getItem("refresh_token");
     
     if (!refreshToken || this.isTokenExpired(refreshToken)) {
       console.log("❌ Enterprise: No valid refresh token available");
@@ -120,9 +115,7 @@ class EnterpriseTokenManager {
       const data = await response.json();
       
       if (data.access_token) {
-        localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) {
-          localStorage.setItem("refresh_token", data.refresh_token);
         }
         
         console.log("✅ Enterprise: Token refresh successful");
@@ -142,7 +135,6 @@ class EnterpriseTokenManager {
    * Get valid access token (refreshes if needed)
    */
   static async getValidAccessToken() {
-    let accessToken = localStorage.getItem("access_token");
     
     // If no token or expired, try to refresh
     if (!accessToken || this.isTokenExpired(accessToken)) {
@@ -276,8 +268,6 @@ export async function logout() {
   } finally {
     // Comprehensive client-side cleanup
     EnterpriseTokenManager.clearInvalidTokens();
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     sessionStorage.clear();
     
     // Clear any application state
