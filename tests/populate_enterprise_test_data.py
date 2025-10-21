@@ -88,6 +88,7 @@ def main():
         if existing > 0:
             print(f"\n⚠️  Found {existing} existing test actions (IDs 2001-2006)")
             print("Deleting and recreating...")
+	    cur.execute("DELETE FROM cvss_assessments WHERE action_id BETWEEN 2001 AND 2006")	
             cur.execute("DELETE FROM agent_actions WHERE id BETWEEN 2001 AND 2006")
         
         # Insert new enterprise test actions

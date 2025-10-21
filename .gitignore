@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backup files from today's session
+*.backup
+*.backup-*
+*_backup_*
+.env.backup-*
+*.sh.backup
+check_limiter.py
+todays_summary.sh
