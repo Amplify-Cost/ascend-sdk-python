@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const riskColors = {
   high: "bg-red-100 text-red-800",
@@ -26,7 +27,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
-        console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
+        logger.debug("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
           headers: getAuthHeaders(),
         });
@@ -34,14 +35,14 @@ const Alerts = ({ getAuthHeaders, user }) => {
         const data = await res.json();
         
         // ✅ DEBUG: Log the actual response
-        console.log("🚨 Alerts API Response:", data);
-        console.log("🚨 Alerts array length:", Array.isArray(data) ? data.length : "Not an array");
-        console.log("🚨 First alert:", Array.isArray(data) && data.length > 0 ? data[0] : "No alerts");
+        logger.debug("🚨 Alerts API Response:", data);
+        logger.debug("🚨 Alerts array length:", Array.isArray(data) ? data.length : "Not an array");
+        logger.debug("🚨 First alert:", Array.isArray(data) && data.length > 0 ? data[0] : "No alerts");
         
         setAlerts(Array.isArray(data) ? data : []);
         setError(null);
       } catch (err) {
-        console.error("❌ Alert fetch failed", err);
+        logger.error("❌ Alert fetch failed", err);
         setError("Could not load alerts.");
         setAlerts([]);
       } finally {
@@ -65,7 +66,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
     }
     
     setFiltered(filtered);
-    console.log("🚨 Filtered alerts:", filtered.length);
+    logger.debug("🚨 Filtered alerts:", filtered.length);
   }, [riskFilter, toolFilter, agentFilter, alerts]);
 
   const updateAlertStatus = async (alertId, status) => {
@@ -86,7 +87,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
         alert.id === alertId ? { ...alert, status } : alert
       ));
     } catch (err) {
-      console.error("Status update error:", err);
+      logger.error("Status update error:", err);
     }
   };
 
@@ -113,7 +114,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
       const data = await res.json();
       setSummaryResult(data.summary || "No summary returned.");
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       setSummaryError("Error generating summary. Try again.");
     } finally {
       setSummaryLoading(false);

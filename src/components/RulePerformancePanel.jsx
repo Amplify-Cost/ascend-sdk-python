@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const RulePerformancePanel = ({ getAuthHeaders }) => {
   const [performance, setPerformance] = useState({});
@@ -16,7 +17,7 @@ const RulePerformancePanel = ({ getAuthHeaders }) => {
         const data = await res.json();
         setPerformance(data.performance || {});
       } catch (err) {
-        console.error("Error fetching rule performance:", err);
+        logger.error("Error fetching rule performance:", err);
         setError("Failed to load rule performance.");
       } finally {
         setLoading(false);

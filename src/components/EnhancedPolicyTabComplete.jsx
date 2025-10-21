@@ -9,6 +9,7 @@ import { VisualPolicyBuilderAdvanced } from './VisualPolicyBuilderAdvanced';
 import { ComplianceMapping } from './ComplianceMapping';
 import { PolicyVersionControl } from './PolicyVersionControl';
 import { PolicyImpactAnalysis } from './PolicyImpactAnalysis';
+import logger from '../utils/logger.js';
 
 export const EnhancedPolicyTabComplete = ({ 
   policies, 
@@ -38,7 +39,7 @@ export const EnhancedPolicyTabComplete = ({
       const data = await response.json();
       setTemplates(data.templates || []);
     } catch (error) {
-      console.error('Failed to load templates:', error);
+      logger.error('Failed to load templates:', error);
     }
   };
 

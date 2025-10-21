@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import EnterpriseApiService from '../services/EnterpriseApiService';
+import logger from '../utils/logger.js';
 
 export function useAuthorizationData() {
   const [data, setData] = useState([]);
@@ -19,7 +20,7 @@ export function useAuthorizationData() {
       setData(result.data || result || []);
     } catch (err) {
       setError(err.message);
-      console.error('Failed to fetch authorization data:', err);
+      logger.error('Failed to fetch authorization data:', err);
     } finally {
       setLoading(false);
     }
@@ -84,7 +85,7 @@ export function useDashboardData() {
         setHealth(healthData);
       } catch (err) {
         setError(err.message);
-        console.error('Failed to fetch dashboard data:', err);
+        logger.error('Failed to fetch dashboard data:', err);
       } finally {
         setLoading(false);
       }
@@ -112,7 +113,7 @@ export function useChatApi() {
       
       return response;
     } catch (err) {
-      console.error('Failed to send message:', err);
+      logger.error('Failed to send message:', err);
       throw err;
     } finally {
       setLoading(false);

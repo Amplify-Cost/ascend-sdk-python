@@ -2,6 +2,7 @@
 // Enterprise Real-Time Analytics Dashboard Component - Master Prompt Aligned Fix
 import React, { useState, useEffect, useRef } from 'react';
 import { Activity, TrendingUp, AlertTriangle, CheckCircle, Target, Server, Database,
+import logger from '../utils/logger.js';
   Users, Shield, BarChart3 
 } from 'lucide-react';
 
@@ -18,15 +19,15 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
   // 🎯 MASTER PROMPT: Enhanced authentication with enterprise error handling
   const fetchWithAuth = async (endpoint) => {
     try {
-      console.log('🔄 Real-Time Analytics: Fetching', endpoint);
-      console.log('🔄 User context:', user?.email, user?.role);
+      logger.debug('🔄 Real-Time Analytics: Fetching', endpoint);
+      logger.debug('🔄 User context:', user?.email, user?.role);
       
       // Use the getAuthHeaders function passed from App.jsx
       const headers = getAuthHeaders ? getAuthHeaders() : {
         'Content-Type': 'application/json'
       };
       
-      console.log('🔄 Auth headers available:', !!headers.Authorization);
+      logger.debug('🔄 Auth headers available:', !!headers.Authorization);
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${endpoint}`, {
         method: 'GET',
@@ -38,11 +39,11 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
         credentials: 'include'
       });
 
-      console.log('🔄 Response status:', response.status, response.statusText);
+      logger.debug('🔄 Response status:', response.status, response.statusText);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ API Error:', response.status, errorText);
+        logger.error('❌ API Error:', response.status, errorText);
         
         // 🎯 MASTER PROMPT: Specific error handling for common issues
         if (response.status === 401) {
@@ -57,11 +58,11 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       }
 
       const data = await response.json();
-      console.log('✅ Data received for', endpoint, '- Keys:', Object.keys(data));
+      logger.debug('✅ Data received for', endpoint, '- Keys:', Object.keys(data));
       return data;
       
     } catch (error) {
-      console.error('❌ Fetch error for', endpoint, ':', error.message);
+      logger.error('❌ Fetch error for', endpoint, ':', error.message);
       throw error;
     }
   };
@@ -69,7 +70,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
   // 🎯 MASTER PROMPT: WebSocket connection with proper error handling
   const initializeWebSocket = () => {
     if (!user?.email) {
-      console.log('⚠️ No user email available for WebSocket connection');
+      logger.debug('⚠️ No user email available for WebSocket connection');
       return;
     }
 
@@ -77,18 +78,18 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
     const wsUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
     
     try {
-      console.log('🔌 Initializing WebSocket:', wsUrl);
+      logger.debug('🔌 Initializing WebSocket:', wsUrl);
       wsRef.current = new WebSocket(wsUrl);
       
       wsRef.current.onopen = () => {
-        console.log('🔌 WebSocket connected for real-time analytics');
+        logger.debug('🔌 WebSocket connected for real-time analytics');
         setIsConnected(true);
       };
 
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('📡 WebSocket message received:', data.type);
+          logger.debug('📡 WebSocket message received:', data.type);
           
           if (data.type === 'metrics_update') {
             // Update real-time metrics from WebSocket
@@ -110,12 +111,12 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
             }));
           }
         } catch (err) {
-          console.error('❌ WebSocket message parse error:', err);
+          logger.error('❌ WebSocket message parse error:', err);
         }
       };
 
       wsRef.current.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+        logger.debug('🔌 WebSocket disconnected');
         setIsConnected(false);
         // Attempt to reconnect after 10 seconds
         setTimeout(() => {
@@ -126,11 +127,11 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        logger.error('❌ WebSocket error:', error);
         setIsConnected(false);
       };
     } catch (err) {
-      console.error('❌ WebSocket initialization error:', err);
+      logger.error('❌ WebSocket initialization error:', err);
       setIsConnected(false);
     }
   };
@@ -140,8 +141,8 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
     try {
       setLoading(true);
       setError(null);
-      console.log('🔄 Fetching enhanced analytics data...');
-      console.log('🔄 User authentication:', !!user, user?.email, user?.role);
+      logger.debug('🔄 Fetching enhanced analytics data...');
+      logger.debug('🔄 User authentication:', !!user, user?.email, user?.role);
 
       // Check if user is authenticated before making requests
       if (!user) {
@@ -155,7 +156,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
         fetchWithAuth('/analytics/performance/system')
       ]);
 
-      console.log('🔄 Results:', {
+      logger.debug('🔄 Results:', {
         metrics: metricsResult.status,
         predictive: predictiveResult.status,
         performance: performanceResult.status
@@ -164,23 +165,23 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       // Process successful results
       if (metricsResult.status === 'fulfilled') {
         setRealTimeMetrics(metricsResult.value);
-        console.log('✅ Real-time metrics loaded');
+        logger.debug('✅ Real-time metrics loaded');
       } else {
-        console.error('❌ Failed to load real-time metrics:', metricsResult.reason?.message);
+        logger.error('❌ Failed to load real-time metrics:', metricsResult.reason?.message);
       }
 
       if (predictiveResult.status === 'fulfilled') {
         setPredictiveData(predictiveResult.value);
-        console.log('✅ Predictive data loaded');
+        logger.debug('✅ Predictive data loaded');
       } else {
-        console.error('❌ Failed to load predictive data:', predictiveResult.reason?.message);
+        logger.error('❌ Failed to load predictive data:', predictiveResult.reason?.message);
       }
 
       if (performanceResult.status === 'fulfilled') {
         setSystemPerformance(performanceResult.value);
-        console.log('✅ System performance loaded');
+        logger.debug('✅ System performance loaded');
       } else {
-        console.error('❌ Failed to load system performance:', performanceResult.reason?.message);
+        logger.error('❌ Failed to load system performance:', performanceResult.reason?.message);
       }
 
       // If all requests failed, show an error
@@ -192,7 +193,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
       }
 
     } catch (err) {
-      console.error('❌ Analytics fetch error:', err);
+      logger.error('❌ Analytics fetch error:', err);
       setError(`Failed to load analytics data: ${err.message}`);
     } finally {
       setLoading(false);
@@ -201,7 +202,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
   // 🎯 MASTER PROMPT: Only fetch data when user is available
   useEffect(() => {
     if (user) {
-      console.log('🚀 RealTimeAnalyticsDashboard: User available, fetching data...');
+      logger.debug('🚀 RealTimeAnalyticsDashboard: User available, fetching data...');
       fetchAnalyticsData();
 
 
@@ -225,7 +226,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
         }
       };
     } else {
-      console.log('⚠️ RealTimeAnalyticsDashboard: No user available');
+      logger.debug('⚠️ RealTimeAnalyticsDashboard: No user available');
       setError('User authentication required');
       setLoading(false);
     }

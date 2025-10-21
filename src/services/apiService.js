@@ -1,6 +1,7 @@
 
 
 import { API_BASE_URL } from './config/api';
+import logger from '../utils/logger.js';
 // Enterprise API Service Layer
 
 class ApiService {
@@ -54,7 +55,7 @@ class ApiService {
       // Return parsed response
       return await response.json();
     } catch (error) {
-      console.error(`API Error: ${endpoint}`, error);
+      logger.error(`API Error: ${endpoint}`, error);
       throw error;
     }
   }

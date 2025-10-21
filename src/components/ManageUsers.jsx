@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const ManageUsers = ({ getAuthHeaders }) => {
   const [users, setUsers] = useState([]);
@@ -24,7 +25,7 @@ const ManageUsers = ({ getAuthHeaders }) => {
         const data = await response.json();
         setUsers(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("Error fetching users:", err);
+        logger.error("Error fetching users:", err);
         setError(err.message || "Failed to load users");
       } finally {
         setLoading(false);

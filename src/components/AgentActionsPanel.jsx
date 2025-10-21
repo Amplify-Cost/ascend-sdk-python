@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   const [agentActions, setAgentActions] = useState([]);
@@ -14,31 +15,31 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   // 🚀 ENTERPRISE: Fetch live agent actions from database
   const fetchAgentActions = async () => {
     try {
-      console.log("🔄 Fetching LIVE agent actions from database...");
+      logger.debug("🔄 Fetching LIVE agent actions from database...");
       setRefreshing(true);
       
       const headers = await getAuthHeaders();
-      console.log("🔑 Using auth headers:", Object.keys(headers));
+      logger.debug("🔑 Using auth headers:", Object.keys(headers));
       
       const response = await fetch(`${API_BASE_URL}/agent-actions`, {
         method: "GET",
         headers
       });
       
-      console.log("📡 Agent actions response status:", response.status);
+      logger.debug("📡 Agent actions response status:", response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("📦 LIVE agent actions data received:", data);
+        logger.debug("📦 LIVE agent actions data received:", data);
         setAgentActions(data);
         setError(null);
       } else {
         const errorText = await response.text();
-        console.error("❌ Failed to fetch agent actions:", response.status, errorText);
+        logger.error("❌ Failed to fetch agent actions:", response.status, errorText);
         setError(`Failed to fetch agent actions: ${response.status}`);
       }
     } catch (err) {
-      console.error("💥 Network error fetching agent actions:", err);
+      logger.error("💥 Network error fetching agent actions:", err);
       setError(`Network error: ${err.message}`);
     } finally {
       setRefreshing(false);
@@ -48,13 +49,13 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   // 🟢 ENTERPRISE: Approve action with live database update
   const updateActionStatus = async (id, statusType) => {
     try {
-      console.log(`🎯 ${user?.role === 'admin' ? 'Admin' : 'User'} clicked ${statusType} for action ${id}`);
-      console.log(`🎯 Starting ${statusType} for action ${id}`);
+      logger.debug(`🎯 ${user?.role === 'admin' ? 'Admin' : 'User'} clicked ${statusType} for action ${id}`);
+      logger.debug(`🎯 Starting ${statusType} for action ${id}`);
       setLoading(true);
       
       const headers = await getAuthHeaders();
-      console.log("🔑 Auth headers for action:", Object.keys(headers));
-      console.log(`📡 Making request to: ${API_BASE_URL}/agent-action/${id}/${statusType}`);
+      logger.debug("🔑 Auth headers for action:", Object.keys(headers));
+      logger.debug(`📡 Making request to: ${API_BASE_URL}/agent-action/${id}/${statusType}`);
       
       const response = await fetch(`${API_BASE_URL}/agent-action/${id}/${statusType}`, {
         method: "POST",
@@ -64,11 +65,11 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
         }
       });
       
-      console.log(`📊 ${statusType} response status:`, response.status);
+      logger.debug(`📊 ${statusType} response status:`, response.status);
       
       if (response.ok) {
         const result = await response.json();
-        console.log(`✅ ${statusType} successful:`, result);
+        logger.debug(`✅ ${statusType} successful:`, result);
         
         // 🚀 ENTERPRISE: Show success message and refresh live data
         alert(`✅ Enterprise Action ${statusType.replace('-', ' ')} successful!\n\nAction ID: ${id}\nProcessed by: ${result.approved_by || result.rejected_by || result.reviewed_by}\nAudit Trail: ${result.enterprise_audit}`);
@@ -78,11 +79,11 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
         
       } else {
         const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-        console.error(`❌ ${statusType} failed:`, errorData);
+        logger.error(`❌ ${statusType} failed:`, errorData);
         alert(`❌ Enterprise ${statusType.replace("-", " ")} failed: ${errorData.message || response.status}`);
       }
     } catch (err) {
-      console.error(`💥 Network error during ${statusType}:`, err);
+      logger.error(`💥 Network error during ${statusType}:`, err);
       alert(`❌ Network error during ${statusType}: ${err.message}`);
     } finally {
       setLoading(false);
@@ -92,7 +93,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   // 🏗️ ENTERPRISE: Create enterprise sample records
   const createSampleRecords = async () => {
     try {
-      console.log("🏗️ Creating enterprise sample database records...");
+      logger.debug("🏗️ Creating enterprise sample database records...");
       setLoading(true);
       
       const response = await fetch(`${API_BASE_URL}/admin/create-sample-agent-actions-enterprise`, {
@@ -100,7 +101,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
       });
       
       const result = await response.json();
-      console.log("📦 Enterprise sample records result:", result);
+      logger.debug("📦 Enterprise sample records result:", result);
       
       if (result.status === 'success') {
         alert(`✅ Enterprise sample records created!\n\nCreated: ${result.count} actions\nIDs: ${result.action_ids.join(', ')}\nEnterprise Ready: ${result.enterprise_ready}\n\nRefreshing live data...`);
@@ -109,7 +110,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
         alert(`⚠️ ${result.message}`);
       }
     } catch (err) {
-      console.error("❌ Failed to create enterprise sample records:", err);
+      logger.error("❌ Failed to create enterprise sample records:", err);
       alert(`❌ Error creating enterprise records: ${err.message}`);
     } finally {
       setLoading(false);
@@ -119,18 +120,18 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   // 📊 ENTERPRISE: Get enterprise status
   const checkEnterpriseStatus = async () => {
     try {
-      console.log("📊 Checking enterprise readiness status...");
+      logger.debug("📊 Checking enterprise readiness status...");
       
       const response = await fetch(`${API_BASE_URL}/admin/enterprise-status`);
       const status = await response.json();
       
-      console.log("🏢 Enterprise Status:", status);
+      logger.debug("🏢 Enterprise Status:", status);
       
       if (status.enterprise_readiness) {
         alert(`🏢 ENTERPRISE STATUS REPORT\n\nReadiness: ${status.enterprise_readiness}\nDatabase Records: ${status.database_records.agent_actions} actions, ${status.database_records.users} users\nProcessed Actions: ${status.database_records.processed_actions}\nNext Milestone: ${status.next_milestone}\n\nStatus: ${status.status}`);
       }
     } catch (err) {
-      console.error("❌ Failed to check enterprise status:", err);
+      logger.error("❌ Failed to check enterprise status:", err);
       alert(`❌ Error checking enterprise status: ${err.message}`);
     }
   };

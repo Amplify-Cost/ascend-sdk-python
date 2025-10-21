@@ -1,6 +1,7 @@
 import ReplayModal from "./ReplayModal";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const AgentActivityFeed = ({ getAuthHeaders }) => {
   const [activities, setActivities] = useState([]);
@@ -19,13 +20,13 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
 
   const fetchActivity = async () => {
     try {
-      console.log("🔍 Fetching from:", API_BASE_URL); // Debug log
+      logger.debug("🔍 Fetching from:", API_BASE_URL); // Debug log
       const url =
         selectedRisk === "all"
           ? `${API_BASE_URL}/agent-activity`
           : `${API_BASE_URL}/agent-activity?risk=${selectedRisk}`;
       
-      console.log("📡 Full URL:", url); // Debug log
+      logger.debug("📡 Full URL:", url); // Debug log
       
       const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent activity`);
@@ -33,7 +34,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
       setActivities(Array.isArray(data) ? data : []);
       setError(null); // Clear any previous errors
     } catch (err) {
-      console.error("❌ Fetch error:", err);
+      logger.error("❌ Fetch error:", err);
       setError(`Unable to load activity: ${err.message}`);
     } finally {
       setLoading(false);

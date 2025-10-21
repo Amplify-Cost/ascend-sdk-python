@@ -1,6 +1,7 @@
 import {
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
 } from "recharts";
@@ -189,16 +190,16 @@ const Dashboard = ({ getAuthHeaders }) => {
   ];
 
   useEffect(() => {
-    console.log("📊 Loading Dashboard");
+    logger.debug("📊 Loading Dashboard");
     const fetchTrends = async () => {
       try {
-        console.log("🔍 Fetching dashboard data from: /analytics/trends");
+        logger.debug("🔍 Fetching dashboard data from: /analytics/trends");
         const res = await fetchWithAuth('/analytics/trends');
 
         if (!res.ok) throw new Error("Failed to fetch analytics data");
         const data = await res.json();
         
-        console.log("📊 Dashboard API Response:", data);
+        logger.debug("📊 Dashboard API Response:", data);
         
         setTrends({
           high_risk_actions_by_day: data.high_risk_actions_by_day || [],
@@ -208,7 +209,7 @@ const Dashboard = ({ getAuthHeaders }) => {
         });
         
       } catch (err) {
-        console.error("❌ Dashboard fetch error:", err);
+        logger.error("❌ Dashboard fetch error:", err);
         setError("Failed to load analytics data.");
       } finally {
         setLoading(false);

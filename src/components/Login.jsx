@@ -1,6 +1,7 @@
 
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 // components/Login.jsx - Enterprise Cookie Authentication (Phase 2 Complete)
 
 
@@ -17,7 +18,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
     setIsLoading(true);
 
     try {
-      console.log("🏢 Enterprise login attempt for:", email);
+      logger.debug("🏢 Enterprise login attempt for:", email);
 
       // Enterprise cookie authentication request
       const response = await fetch(`${API_BASE_URL}/auth/token`, {
@@ -33,7 +34,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       });
 
       const data = await response.json();
-      console.log("🏢 Enterprise login response:", data);
+      logger.debug("🏢 Enterprise login response:", data);
 
       if (!response.ok) {
         setError(data.detail || "Enterprise login failed");
@@ -43,8 +44,8 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       // CRITICAL FIX: Handle the actual backend response format
       if (data.access_token && data.user) {
         // 🍪 Enterprise Cookie Mode (cookies set automatically)
-        console.log("✅ Enterprise cookie authentication successful");
-        console.log("🍪 Secure cookies set automatically");
+        logger.debug("✅ Enterprise cookie authentication successful");
+        logger.debug("🍪 Secure cookies set automatically");
         
         // Pass the complete response to parent
         onLoginSuccess({
@@ -60,8 +61,8 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         
       } else if (data.auth_mode === "cookie" && data.user) {
         // Alternative cookie response format
-        console.log("✅ Enterprise cookie authentication successful");
-        console.log("🍪 Secure cookies set automatically");
+        logger.debug("✅ Enterprise cookie authentication successful");
+        logger.debug("🍪 Secure cookies set automatically");
         
         // No need to store tokens - cookies handle everything
         onLoginSuccess({
@@ -73,7 +74,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         
       } else if (data.access_token) {
         // 🎫 Legacy Token Mode (Fallback Compatibility)
-        console.log("⚠️ Legacy token authentication - consider upgrading");
+        logger.debug("⚠️ Legacy token authentication - consider upgrading");
         
         // Store tokens for backward compatibility
         if (data.refresh_token) {
@@ -93,7 +94,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       }
 
     } catch (err) {
-      console.error("🏢 Enterprise login error:", err);
+      logger.error("🏢 Enterprise login error:", err);
       setError("Network error - please check your connection");
     } finally {
       setIsLoading(false);

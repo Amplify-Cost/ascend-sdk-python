@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 
 const Register = ({ onRegisterSuccess, switchToLogin }) => {
@@ -61,7 +62,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
       }
 
     } catch (err) {
-      console.error("Registration error:", err);
+      logger.error("Registration error:", err);
       setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);

@@ -1,6 +1,7 @@
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -274,8 +275,8 @@ useEffect(() => {
       setError(null);
       
     } catch (err) {
-      console.error("❌ Failed to fetch pending actions:", err);
-      console.error("Error details:", err.message);
+      logger.error("❌ Failed to fetch pending actions:", err);
+      logger.error("Error details:", err.message);
       
       setPendingActions([]);
       setError(`Unable to connect to governance API: ${err.message}`);
@@ -330,7 +331,7 @@ useEffect(() => {
         setDashboardData(enhancedData);
       }
     } catch (err) {
-      console.error("Error fetching dashboard data:", err);
+      logger.error("Error fetching dashboard data:", err);
     }
   };
 
@@ -344,7 +345,7 @@ useEffect(() => {
         setPolicies(data.policies || []);
       }
     } catch (error) {
-      console.error("❌ Failed to fetch policies:", error);
+      logger.error("❌ Failed to fetch policies:", error);
     }
   };
 
@@ -365,7 +366,7 @@ useEffect(() => {
         alert(`Failed to delete policy: ${error.detail || "Unknown error"}`);
       }
     } catch (error) {
-      console.error("❌ Delete failed:", error);
+      logger.error("❌ Delete failed:", error);
       alert("Failed to delete policy. Please try again.");
     }
   };
@@ -440,7 +441,7 @@ useEffect(() => {
         setApprovalMetrics(enhancedMetrics);
       }
     } catch (err) {
-      console.error("Error fetching metrics:", err);
+      logger.error("Error fetching metrics:", err);
     }
   };
 
@@ -459,7 +460,7 @@ useEffect(() => {
       }
       setError(null);
     } catch (err) {
-      console.error("Error fetching workflows:", err);
+      logger.error("Error fetching workflows:", err);
       setError("Failed to load workflow configuration");
     }
   };
@@ -545,7 +546,7 @@ useEffect(() => {
       setAutomationData(demoData);
     }
   } catch (err) {
-    console.error("❌ Error fetching automation data:", err);
+    logger.error("❌ Error fetching automation data:", err);
     setAutomationData({
       playbooks: {},
       automation_summary: {
@@ -644,7 +645,7 @@ const fetchWorkflowOrchestrations = async () => {
       setWorkflowOrchestrations(demoData);
     }
   } catch (err) {
-    console.error("❌ Error fetching workflow data:", err);
+    logger.error("❌ Error fetching workflow data:", err);
     setWorkflowOrchestrations({
       active_workflows: {},
       summary: {
@@ -671,7 +672,7 @@ const fetchWorkflowOrchestrations = async () => {
       setExecutionHistory(data.execution_history || []);
     }
   } catch (err) {
-    console.error("❌ Error fetching execution history:", err);
+    logger.error("❌ Error fetching execution history:", err);
   }
 };
 
@@ -691,7 +692,7 @@ const fetchWorkflowOrchestrations = async () => {
         return data;
       }
     } catch (err) {
-      console.error("❌ Error fetching execution status:", err);
+      logger.error("❌ Error fetching execution status:", err);
     }
   };
 
@@ -741,7 +742,7 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    console.error("Error toggling playbook:", err);
+    logger.error("Error toggling playbook:", err);
     setMessage("✅ Playbook toggled successfully (demo mode)");
   }
 };
@@ -827,7 +828,7 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    console.error("Error executing playbook:", err);
+    logger.error("Error executing playbook:", err);
     setMessage("✅ Playbook executed successfully (demo mode)");
   }
 };
@@ -929,7 +930,7 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage(`❌ Workflow "${workflowId}" not found`);
     }
   } catch (err) {
-    console.error("Error executing workflow:", err);
+    logger.error("Error executing workflow:", err);
     setMessage(`✅ Workflow executed successfully (demo mode)`);
   }
 };
@@ -961,11 +962,11 @@ const fetchWorkflowOrchestrations = async () => {
         alert("Policy created successfully!");
         setNewPolicy({ policy_name: "", description: "" });
       } else {
-        console.error("❌ Policy creation failed:", await response.text());
+        logger.error("❌ Policy creation failed:", await response.text());
         alert("Policy creation failed. Please try again.");
       }
     } catch (error) {
-      console.error("❌ Policy creation error:", error);
+      logger.error("❌ Policy creation error:", error);
       alert("Error creating policy. Please check your connection.");
     }
   };
@@ -1046,7 +1047,7 @@ const createWorkflow = async (workflowData) => {
     }, 1000);
     
   } catch (err) {
-    console.error("❌ Error creating workflow:", err);
+    logger.error("❌ Error creating workflow:", err);
     setMessage("✅ Workflow created successfully (demo mode)");
     
     setShowWorkflowBuilder(false);
@@ -1099,7 +1100,7 @@ const createWorkflow = async (workflowData) => {
         setError(`❌ Failed to execute action: ${error.detail}`);
       }
     } catch (err) {
-      console.error("Error executing action:", err);
+      logger.error("Error executing action:", err);
       setError("❌ Failed to execute action. Please try again.");
     }
   };
@@ -1154,7 +1155,7 @@ const createWorkflow = async (workflowData) => {
         setError(`❌ Failed to update workflow: ${errorData.detail}`);
       }
     } catch (err) {
-      console.error("Error updating workflow:", err);
+      logger.error("Error updating workflow:", err);
       setError("❌ Failed to update workflow. Please try again.");
     }
   };
@@ -1257,7 +1258,7 @@ const createWorkflow = async (workflowData) => {
       setError(`❌ Failed to ${decision} action: ${error.detail}`);
     }
   } catch (err) {
-    console.error(`Error ${decision} action:`, err);
+    logger.error(`Error ${decision} action:`, err);
     setError(`❌ Failed to ${decision} action. Please try again.`);
   }
 };
@@ -1334,7 +1335,7 @@ const createWorkflow = async (workflowData) => {
         setError(`❌ Emergency override failed: ${error.detail}`);
       }
     } catch (err) {
-      console.error("Emergency override error:", err);
+      logger.error("Emergency override error:", err);
       setError("❌ Emergency override failed. Please try again.");
     }
   };

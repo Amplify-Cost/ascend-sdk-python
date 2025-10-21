@@ -1,6 +1,7 @@
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [alerts, setAlerts] = useState([]);
@@ -37,7 +38,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         setError('Failed to acknowledge alert');
       }
     } catch (err) {
-      console.error('Failed to acknowledge alert:', err);
+      logger.error('Failed to acknowledge alert:', err);
       setError('Failed to acknowledge alert');
     } finally {
       setActionLoading(prev => ({...prev, [alertId]: false}));
@@ -58,7 +59,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         setError('Failed to escalate alert');
       }
     } catch (err) {
-      console.error('Failed to escalate alert:', err);
+      logger.error('Failed to escalate alert:', err);
       setError('Failed to escalate alert');
     } finally {
       setActionLoading(prev => ({...prev, [alertId]: false}));
@@ -68,7 +69,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   // Demo data generators - FIXED VERSION
   const generateDemoMetrics = () => {
-    console.log("🎯 Generating demo performance metrics with REAL ROI data");
+    logger.debug("🎯 Generating demo performance metrics with REAL ROI data");
     
     const demoData = {
       ai_performance: {
@@ -94,7 +95,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       }
     };
     
-    console.log("📊 Demo metrics generated with ROI:", demoData.trend_analysis.roi_percentage);
+    logger.debug("📊 Demo metrics generated with ROI:", demoData.trend_analysis.roi_percentage);
     return demoData;
   };
 
@@ -267,7 +268,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   });
 
   useEffect(() => {
-    console.log("🚀 AIAlertManagementSystem: Initial load");
+    logger.debug("🚀 AIAlertManagementSystem: Initial load");
     fetchInitialData();
     
     // Auto-refresh every 30 seconds for real-time updates
@@ -282,7 +283,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   }, [activeTab]);
 
   const fetchInitialData = async () => {
-    console.log("📊 Fetching all initial data...");
+    logger.debug("📊 Fetching all initial data...");
     setLoading(true);
     
     try {
@@ -292,9 +293,9 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         fetchThreatIntelligence(),
         fetchPerformanceMetrics()
       ]);
-      console.log("✅ All initial data loaded");
+      logger.debug("✅ All initial data loaded");
     } catch (error) {
-      console.error("❌ Error in fetchInitialData:", error);
+      logger.error("❌ Error in fetchInitialData:", error);
       setError("Failed to load initial data");
     } finally {
       setLoading(false);
@@ -302,7 +303,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   };
 
   const fetchPerformanceMetrics = async () => {
-    console.log("🔄 Fetching performance metrics...");
+    logger.debug("🔄 Fetching performance metrics...");
     try {
       const response = await fetch(`${API_BASE_URL}/alerts/performance-metrics`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
@@ -310,17 +311,17 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Backend metrics loaded:", data);
+        logger.debug("✅ Backend metrics loaded:", data);
         setPerformanceMetrics(data);
       } else {
-        console.log("⚠️ Backend metrics failed, loading demo data");
+        logger.debug("⚠️ Backend metrics failed, loading demo data");
         const demoData = generateDemoMetrics();
         setPerformanceMetrics(demoData);
       }
       setError(null);
     } catch (err) {
-      console.error("❌ Error fetching performance metrics:", err);
-      console.log("🎯 Loading demo performance metrics as fallback");
+      logger.error("❌ Error fetching performance metrics:", err);
+      logger.debug("🎯 Loading demo performance metrics as fallback");
       
       // Always load demo data as fallback
       const demoData = generateDemoMetrics();
@@ -347,7 +348,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       }
       setError(null);
     } catch (err) {
-      console.error("Error fetching alerts:", err);
+      logger.error("Error fetching alerts:", err);
       setError("Failed to load alerts");
       setAlerts(generateDemoAlerts());
     }
@@ -366,7 +367,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       }
       setError(null);
     } catch (err) {
-      console.error("Error fetching AI insights:", err);
+      logger.error("Error fetching AI insights:", err);
       setError("Failed to load AI insights");
       setAiInsights(generateDemoInsights());
     }
@@ -385,7 +386,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       }
       setError(null);
     } catch (err) {
-      console.error("Error fetching threat intelligence:", err);
+      logger.error("Error fetching threat intelligence:", err);
       setError("Failed to load threat intelligence");
       setThreatIntelligence(generateDemoThreatIntel());
     }
@@ -422,7 +423,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         alert(`✅ Successfully correlated ${selectedAlerts.length} alerts with ${data.correlation_strength}% confidence`);
       }
     } catch (err) {
-      console.error("Error correlating alerts:", err);
+      logger.error("Error correlating alerts:", err);
       alert("❌ Failed to correlate alerts");
     } finally {
       setCorrelationLoading(false);
@@ -430,7 +431,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   };
 
   const generateExecutiveBrief = async () => {
-    console.log("🔄 Generating executive brief...");
+    logger.debug("🔄 Generating executive brief...");
     setBriefLoading(true);
     
     try {
@@ -445,7 +446,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Executive brief received from backend:", data);
+        logger.debug("✅ Executive brief received from backend:", data);
         
         // Handle different possible response formats from your OpenAI backend
         let processedBrief;
@@ -489,17 +490,17 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
           };
         }
         
-        console.log("📊 Processed executive brief:", processedBrief);
+        logger.debug("📊 Processed executive brief:", processedBrief);
         setExecutiveBrief(processedBrief);
         
       } else {
-        console.log("⚠️ Backend brief generation failed, using demo data");
+        logger.debug("⚠️ Backend brief generation failed, using demo data");
         setExecutiveBrief(generateDemoExecutiveBrief());
       }
       
     } catch (err) {
-      console.error("❌ Error generating executive brief:", err);
-      console.log("🎯 Loading demo executive brief as fallback");
+      logger.error("❌ Error generating executive brief:", err);
+      logger.debug("🎯 Loading demo executive brief as fallback");
       setExecutiveBrief(generateDemoExecutiveBrief());
     } finally {
       setBriefLoading(false);

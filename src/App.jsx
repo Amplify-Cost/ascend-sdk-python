@@ -1,6 +1,7 @@
 
 
 import { API_BASE_URL } from './config/api';
+import logger from './utils/logger.js';
 // App.jsx - Enhanced Enterprise Cookie Authentication (Phase 2 Complete)
 
 
@@ -61,7 +62,7 @@ const AppContent = () => {
 
   // ENTERPRISE FIX: Enhanced tab change handler with proper scope
   const handleTabChange = (tab) => {
-    console.log("🎯 Changing tab to:", tab);
+    logger.debug("🎯 Changing tab to:", tab);
     setPageTransition(true);
     
     setTimeout(() => {
@@ -75,14 +76,14 @@ const AppContent = () => {
   useEffect(() => {
     const checkEnterpriseAuthentication = async () => {
       try {
-        console.log("🔍 Checking enterprise authentication status...");
+        logger.debug("🔍 Checking enterprise authentication status...");
         setLoading(true);
 
         // 🍪 PRIMARY: Try cookie authentication first (enterprise preferred)
         const currentUser = await getCurrentUser();
         
         if (currentUser && currentUser.enterprise_validated) {
-          console.log("✅ Enterprise cookie authentication confirmed:", currentUser.email);
+          logger.debug("✅ Enterprise cookie authentication confirmed:", currentUser.email);
           
           setUser({
             id: currentUser.user_id || currentUser.id,
@@ -94,15 +95,15 @@ const AppContent = () => {
           
           // 🧹 Clean up any legacy tokens when using cookies
           if (currentUser.auth_source === "cookie") {
-            console.log("🧹 Legacy tokens cleaned up - using secure cookies");
+            logger.debug("🧹 Legacy tokens cleaned up - using secure cookies");
           }
           
         } else {
           // 🎫 FALLBACK: Check for legacy token authentication
-          console.log("🔍 No cookie authentication, checking legacy tokens...");
+          logger.debug("🔍 No cookie authentication, checking legacy tokens...");
           
           if (storedToken) {
-            console.log("⚠️ Legacy token found, attempting validation...");
+            logger.debug("⚠️ Legacy token found, attempting validation...");
             try {
               // Import jwt-decode dynamically to avoid bundle issues
               const { jwtDecode } = await import("jwt-decode");
@@ -110,7 +111,7 @@ const AppContent = () => {
               const currentTime = Date.now() / 1000;
               
               if (decoded.exp && decoded.exp < currentTime) {
-                console.warn("❌ Legacy token expired, clearing...");
+                logger.warn("❌ Legacy token expired, clearing...");
                 handleLogout(false);
               } else {
                 // Use legacy token temporarily
@@ -121,20 +122,20 @@ const AppContent = () => {
                 });
                 setView("app");
                 setAuthMode("token");
-                console.log("⚠️ Using legacy token authentication");
+                logger.debug("⚠️ Using legacy token authentication");
                 toast("Using legacy authentication - consider logging out and back in for enhanced security", "warning");
               }
             } catch (err) {
-              console.error("❌ Invalid legacy token:", err);
+              logger.error("❌ Invalid legacy token:", err);
               handleLogout(false);
             }
           } else {
-            console.log("ℹ️ No authentication found, showing login");
+            logger.debug("ℹ️ No authentication found, showing login");
             setView("login");
           }
         }
       } catch (error) {
-        console.error("❌ Enterprise authentication check failed:", error);
+        logger.error("❌ Enterprise authentication check failed:", error);
         setView("login");
       } finally {
         setLoading(false);
@@ -147,14 +148,14 @@ const AppContent = () => {
   // 🍪 ENTERPRISE FIX: Handle login response without problematic toast calls
   const handleLoginSuccess = async (loginResponse) => {
     try {
-      console.log("🏢 Processing enterprise login response...");
-      console.log("🔍 Login response received:", loginResponse);
+      logger.debug("🏢 Processing enterprise login response...");
+      logger.debug("🔍 Login response received:", loginResponse);
       
       if (loginResponse && typeof loginResponse === 'object') {
         
         // Handle the backend response format we see in logs
         if (loginResponse.access_token && loginResponse.user) {
-          console.log("✅ Enterprise cookie authentication established");
+          logger.debug("✅ Enterprise cookie authentication established");
           
           // Store tokens for compatibility (cookies are also set automatically)
           if (loginResponse.refresh_token) {
@@ -171,11 +172,11 @@ const AppContent = () => {
           setAuthMode("cookie"); // Enterprise security active
           
           // FIXED: Use console.log instead of problematic toast
-          console.log("🍪 Secure cookie authentication activated");
+          logger.debug("🍪 Secure cookie authentication activated");
           
         } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
           // Alternative cookie response format
-          console.log("✅ Enterprise cookie authentication (alt format)");
+          logger.debug("✅ Enterprise cookie authentication (alt format)");
           
           setUser({
             id: loginResponse.user.user_id || loginResponse.user.id,
@@ -186,11 +187,11 @@ const AppContent = () => {
           
           // Clear any legacy tokens
           
-          console.log("🍪 Secure cookie authentication activated");
+          logger.debug("🍪 Secure cookie authentication activated");
           
         } else if (typeof loginResponse === 'string') {
           // Legacy string token (backward compatibility)
-          console.log("⚠️ Legacy string token received");
+          logger.debug("⚠️ Legacy string token received");
           
           const { jwtDecode } = await import("jwt-decode");
           const decoded = jwtDecode(loginResponse);
@@ -201,21 +202,21 @@ const AppContent = () => {
           });
           setAuthMode("token");
           
-          console.log("Legacy authentication - consider upgrading to cookies");
+          logger.debug("Legacy authentication - consider upgrading to cookies");
         }
       }
       
       setView("app");
       setActiveTab("dashboard");
-      console.log("✅ Enterprise login processing complete");
+      logger.debug("✅ Enterprise login processing complete");
       
     } catch (err) {
-      console.error("❌ Login processing error:", err);
-      console.error("❌ Error details:", err.message);
-      console.error("❌ Login response that failed:", loginResponse);
+      logger.error("❌ Login processing error:", err);
+      logger.error("❌ Error details:", err.message);
+      logger.error("❌ Login response that failed:", loginResponse);
       
       // FIXED: Use console.log instead of problematic toast
-      console.log("Login processing failed - please try again");
+      logger.debug("Login processing failed - please try again");
       
       // Simple fallback - just show login again
       setView("login");
@@ -225,20 +226,20 @@ const AppContent = () => {
   // 🍪 ENHANCED: Enterprise logout with cookie clearing
   const handleLogout = async (callAPI = true) => {
     try {
-      console.log("🚪 Enterprise logout initiated...");
+      logger.debug("🚪 Enterprise logout initiated...");
       
       if (callAPI) {
         // Call the enterprise logout API to clear cookies
         await logout();
-        console.log("✅ Enterprise logout API called");
+        logger.debug("✅ Enterprise logout API called");
       } else {
-        console.log("🧹 Local session cleanup only");
+        logger.debug("🧹 Local session cleanup only");
       }
       
       toast("Logged out successfully", "success");
       
     } catch (error) {
-      console.warn("⚠️ Logout API error:", error);
+      logger.warn("⚠️ Logout API error:", error);
       // Continue with cleanup even if API fails
     } finally {
       // Always clean up state and localStorage
@@ -249,7 +250,7 @@ const AppContent = () => {
       
       // Clear any remaining localStorage
       
-      console.log("✅ Enterprise logout complete");
+      logger.debug("✅ Enterprise logout complete");
     }
   };
 
@@ -279,28 +280,28 @@ const AppContent = () => {
         setUser(prev => ({ ...prev, email: updateData.email }));
       }
     } catch (err) {
-      console.error("Profile update failed:", err);
+      logger.error("Profile update failed:", err);
       throw err;
     }
   };
 
   // 🔧 MASTER PROMPT FIX: ALWAYS send token when available (no conditions)
   const getAuthHeaders = () => {
-    console.log("🔍 Getting auth headers for API call");
-    console.log("🔍 Current auth mode:", authMode);
+    logger.debug("🔍 Getting auth headers for API call");
+    logger.debug("🔍 Current auth mode:", authMode);
     
     // ENTERPRISE FIX: ALWAYS send token when available (regardless of auth mode)
-    console.log("🔍 Access token present:", !!token);
+    logger.debug("🔍 Access token present:", !!token);
     
     if (token) {
-      console.log("🔄 Enterprise auth: Sending Authorization header");
+      logger.debug("🔄 Enterprise auth: Sending Authorization header");
       return {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`
       };
     }
     
-    console.log("⚠️ No token available for auth headers");
+    logger.debug("⚠️ No token available for auth headers");
     return {
       "Content-Type": "application/json"
     };
@@ -308,8 +309,8 @@ const AppContent = () => {
 
   // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {
-    console.log("🎯 Rendering tab:", activeTab);
-    console.log("🎯 User role:", user?.role);
+    logger.debug("🎯 Rendering tab:", activeTab);
+    logger.debug("🎯 User role:", user?.role);
     
     const adminRequiredMessage = (
       <div className={`p-6 text-center transition-colors duration-300 ${
@@ -514,7 +515,7 @@ const AppContent = () => {
             <SupportModal
               onClose={() => setShowSupportModal(false)}
               onSubmit={(message) => {
-                console.log("Support message submitted:", message);
+                logger.debug("Support message submitted:", message);
                 setShowSupportModal(false);
                 toast("Support ticket submitted successfully", "success");
               }}

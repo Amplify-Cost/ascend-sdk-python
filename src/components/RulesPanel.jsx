@@ -1,6 +1,7 @@
 
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 
 const Rules = ({ getAuthHeaders, user }) => {
@@ -18,15 +19,15 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchRules = useCallback(async () => {
     try {
-      console.log("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
+      logger.debug("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
       const res = await fetch(`${API_BASE_URL}/rules`, {
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
-      console.log("📋 Rules data:", data);
+      logger.debug("📋 Rules data:", data);
       setRules(Array.isArray(data) ? data : []); // ✅ Ensure it's an array
     } catch (err) {
-      console.error("❌ Failed to fetch rules", err);
+      logger.error("❌ Failed to fetch rules", err);
       setRules([]); // ✅ Set empty array on error
     }
   }, [getAuthHeaders]);
@@ -50,7 +51,7 @@ const Rules = ({ getAuthHeaders, user }) => {
         setNewRule({ condition: "", action: "", justification: "", tags: [] });
       }
     } catch (err) {
-      console.error("Failed to update rules", err);
+      logger.error("Failed to update rules", err);
     }
   };
 
@@ -81,7 +82,7 @@ const Rules = ({ getAuthHeaders, user }) => {
       setAuditLog(log);
       setShowAuditModal(true);
     } catch (err) {
-      console.error("Audit log fetch failed", err);
+      logger.error("Audit log fetch failed", err);
     }
   };
 

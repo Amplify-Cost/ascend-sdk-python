@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { 
+import logger from '../utils/logger.js';
   Shield, Plus, Code, Sparkles, TestTube, BarChart3, 
   FileText, Check, X, AlertTriangle, ChevronDown, Edit2, Trash2
 } from 'lucide-react';
@@ -35,7 +36,7 @@ export const EnhancedPolicyTab = ({
       const data = await response.json();
       setTemplates(data.templates || []);
     } catch (error) {
-      console.error('Failed to load templates:', error);
+      logger.error('Failed to load templates:', error);
     }
   };
 

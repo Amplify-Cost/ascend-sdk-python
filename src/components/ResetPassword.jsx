@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const ResetPassword = ({ token, switchToLogin }) => {
   const [newPassword, setNewPassword] = useState("");
@@ -24,7 +25,7 @@ const ResetPassword = ({ token, switchToLogin }) => {
         setMessage(data.detail || "Reset failed");
       }
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       setMessage("Server error");
     }
   };

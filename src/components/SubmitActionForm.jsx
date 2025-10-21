@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const SubmitActionForm = ({ user, getAuthHeaders }) => {
   const [tool, setTool] = useState("");
@@ -35,7 +36,7 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
       timestamp: new Date(timestamp).toISOString(),
     };
 
-    console.log("Payload being sent:", payload);
+    logger.debug("Payload being sent:", payload);
 
     try {
       setLoading(true);
@@ -59,7 +60,7 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
       setDescription("");
       setTimestamp(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
     } catch (err) {
-      console.error("Submission error:", err);
+      logger.error("Submission error:", err);
       setMessage({ type: "error", text: err.message });
     } finally {
       setLoading(false);

@@ -1,6 +1,7 @@
 
 
 import { API_BASE_URL } from './config/api';
+import logger from './logger.js';
 // utils/fetchWithAuth.js — Enhanced Enterprise Token Lifecycle Management
 
 // Enterprise JWT Token Management
@@ -21,7 +22,7 @@ class EnterpriseTokenManager {
       const payload = JSON.parse(atob(parts[1]));
       return payload;
     } catch (error) {
-      console.warn("🔍 Enterprise: Invalid JWT format detected");
+      logger.warn("🔍 Enterprise: Invalid JWT format detected");
       return null;
     }
   }
@@ -37,7 +38,7 @@ class EnterpriseTokenManager {
     const isExpired = payload.exp <= (now + this.TOKEN_EXPIRY_BUFFER);
     
     if (isExpired) {
-      console.log("🔄 Enterprise: Token expired or expiring soon");
+      logger.debug("🔄 Enterprise: Token expired or expiring soon");
     }
     
     return isExpired;
@@ -70,12 +71,12 @@ class EnterpriseTokenManager {
     let clearedTokens = false;
     
     if (accessToken && this.isTokenExpired(accessToken)) {
-      console.log("🧹 Enterprise: Cleared expired access token");
+      logger.debug("🧹 Enterprise: Cleared expired access token");
       clearedTokens = true;
     }
     
     if (refreshToken && this.isTokenExpired(refreshToken)) {
-      console.log("🧹 Enterprise: Cleared expired refresh token");
+      logger.debug("🧹 Enterprise: Cleared expired refresh token");
       clearedTokens = true;
     }
     
@@ -88,13 +89,13 @@ class EnterpriseTokenManager {
   static async refreshAccessToken() {
     
     if (!refreshToken || this.isTokenExpired(refreshToken)) {
-      console.log("❌ Enterprise: No valid refresh token available");
+      logger.debug("❌ Enterprise: No valid refresh token available");
       this.clearInvalidTokens();
       return null;
     }
     
     try {
-      console.log("🔄 Enterprise: Attempting token refresh");
+      logger.debug("🔄 Enterprise: Attempting token refresh");
       
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
@@ -118,14 +119,14 @@ class EnterpriseTokenManager {
         if (data.refresh_token) {
         }
         
-        console.log("✅ Enterprise: Token refresh successful");
+        logger.debug("✅ Enterprise: Token refresh successful");
         return data.access_token;
       }
       
       throw new Error("Invalid refresh response format");
       
     } catch (error) {
-      console.error("❌ Enterprise: Token refresh failed:", error);
+      logger.error("❌ Enterprise: Token refresh failed:", error);
       this.clearInvalidTokens();
       return null;
     }
@@ -192,19 +193,19 @@ export async function fetchWithAuth(url, options = {}) {
     
     if (validToken) {
       init.headers.Authorization = `Bearer ${validToken}`;
-      console.log("🔐 Enterprise: Using refreshed token authentication");
+      logger.debug("🔐 Enterprise: Using refreshed token authentication");
       
       // Log token metadata for audit trail
       const metadata = EnterpriseTokenManager.getTokenMetadata(validToken);
       if (metadata) {
-        console.log(`🔍 Enterprise Audit: ${metadata.email} (${metadata.role}) - Token valid until ${new Date(metadata.expires_at * 1000).toISOString()}`);
+        logger.debug(`🔍 Enterprise Audit: ${metadata.email} (${metadata.role}) - Token valid until ${new Date(metadata.expires_at * 1000).toISOString()}`);
       }
     } else {
-      console.log("🍪 Enterprise: Falling back to cookie-only authentication");
+      logger.debug("🍪 Enterprise: Falling back to cookie-only authentication");
     }
 
   } catch (tokenError) {
-    console.warn("⚠️ Enterprise: Token management error, proceeding with cookies only:", tokenError);
+    logger.warn("⚠️ Enterprise: Token management error, proceeding with cookies only:", tokenError);
   }
 
   // Execute the request
@@ -213,23 +214,23 @@ export async function fetchWithAuth(url, options = {}) {
   // Handle CSRF token expiration (403 Forbidden)
   if (response.status === 403) {
     try {
-      console.log("🔄 Enterprise: CSRF token expired, refreshing");
+      logger.debug("🔄 Enterprise: CSRF token expired, refreshing");
       await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
       
       const newCsrf = getCookie("owai_csrf");
       if (newCsrf && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
         init.headers["X-CSRF-Token"] = newCsrf;
         response = await fetch(absoluteUrl, init);
-        console.log("✅ Enterprise: CSRF token refreshed successfully");
+        logger.debug("✅ Enterprise: CSRF token refreshed successfully");
       }
     } catch (csrfError) {
-      console.error("❌ Enterprise: CSRF refresh failed:", csrfError);
+      logger.error("❌ Enterprise: CSRF refresh failed:", csrfError);
     }
   }
 
   // Handle token expiration during request (401 Unauthorized)
   if (response.status === 401) {
-    console.log("🔄 Enterprise: Authentication failed, attempting token refresh");
+    logger.debug("🔄 Enterprise: Authentication failed, attempting token refresh");
     
     try {
       const refreshedToken = await EnterpriseTokenManager.refreshAccessToken();
@@ -237,18 +238,18 @@ export async function fetchWithAuth(url, options = {}) {
       if (refreshedToken) {
         init.headers.Authorization = `Bearer ${refreshedToken}`;
         response = await fetch(absoluteUrl, init);
-        console.log("✅ Enterprise: Request retry with refreshed token successful");
+        logger.debug("✅ Enterprise: Request retry with refreshed token successful");
       } else {
-        console.log("🍪 Enterprise: Token refresh failed, relying on cookie authentication");
+        logger.debug("🍪 Enterprise: Token refresh failed, relying on cookie authentication");
       }
     } catch (refreshError) {
-      console.error("❌ Enterprise: Token refresh during request failed:", refreshError);
+      logger.error("❌ Enterprise: Token refresh during request failed:", refreshError);
     }
   }
 
   // Final response validation
   if (!response.ok && response.status === 401) {
-    console.log("🚪 Enterprise: Authentication failed completely, user needs to re-login");
+    logger.debug("🚪 Enterprise: Authentication failed completely, user needs to re-login");
     EnterpriseTokenManager.clearInvalidTokens();
   }
 
@@ -258,13 +259,13 @@ export async function fetchWithAuth(url, options = {}) {
 // Enhanced logout with comprehensive cleanup
 export async function logout() {
   try {
-    console.log("🚪 Enterprise: Initiating secure logout");
+    logger.debug("🚪 Enterprise: Initiating secure logout");
     
     // Server-side logout to invalidate server sessions
     await fetchWithAuth("/auth/logout", { method: "POST" });
     
   } catch (error) {
-    console.warn("⚠️ Enterprise: Server logout failed, proceeding with client cleanup:", error);
+    logger.warn("⚠️ Enterprise: Server logout failed, proceeding with client cleanup:", error);
   } finally {
     // Comprehensive client-side cleanup
     EnterpriseTokenManager.clearInvalidTokens();
@@ -275,7 +276,7 @@ export async function logout() {
       window.appState.clear();
     }
     
-    console.log("✅ Enterprise: Logout complete - all tokens and sessions cleared");
+    logger.debug("✅ Enterprise: Logout complete - all tokens and sessions cleared");
     window.location.href = "/";
   }
 }
@@ -287,7 +288,7 @@ export async function getCurrentUser() {
     const validToken = await EnterpriseTokenManager.getValidAccessToken();
     
     if (!validToken) {
-      console.log("🔍 Enterprise: No valid token available for user info");
+      logger.debug("🔍 Enterprise: No valid token available for user info");
       return null;
     }
     
@@ -295,18 +296,18 @@ export async function getCurrentUser() {
     
     if (response.ok) {
       const userData = await response.json();
-      console.log(`✅ Enterprise: User info retrieved for ${userData.email}`);
+      logger.debug(`✅ Enterprise: User info retrieved for ${userData.email}`);
       return userData;
     }
     
     if (response.status === 401) {
-      console.log("🔍 Enterprise: User session expired");
+      logger.debug("🔍 Enterprise: User session expired");
       EnterpriseTokenManager.clearInvalidTokens();
     }
     
     return null;
   } catch (error) {
-    console.error("❌ Enterprise: Get current user failed:", error);
+    logger.error("❌ Enterprise: Get current user failed:", error);
     return null;
   }
 }

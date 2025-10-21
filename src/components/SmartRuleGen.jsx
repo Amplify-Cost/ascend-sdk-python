@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [rules, setRules] = useState([]);
@@ -43,7 +44,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         fetchSuggestedRules()
       ]);
     } catch (error) {
-      console.error("Error fetching initial data:", error);
+      logger.error("Error fetching initial data:", error);
       setError("Failed to load rule engine data");
     } finally {
       setLoading(false);
@@ -52,26 +53,26 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
   const fetchRules = async () => {
     try {
-      console.log("🔍 ENTERPRISE: Fetching smart rules from:", `${API_BASE_URL}/api/smart-rules`);
+      logger.debug("🔍 ENTERPRISE: Fetching smart rules from:", `${API_BASE_URL}/api/smart-rules`);
       const response = await fetch(`${API_BASE_URL}/api/smart-rules`, {
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
-      console.log("📡 ENTERPRISE: Rules API response status:", response.status);
+      logger.debug("📡 ENTERPRISE: Rules API response status:", response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ ENTERPRISE: Rules fetched successfully:", data.length, "rules");
-        console.log("📋 ENTERPRISE: First rule:", data[0]);
+        logger.debug("✅ ENTERPRISE: Rules fetched successfully:", data.length, "rules");
+        logger.debug("📋 ENTERPRISE: First rule:", data[0]);
         setRules(data);
         setError(null);
       } else {
         const errorText = await response.text();
-        console.error("❌ ENTERPRISE: Failed to fetch rules:", response.status, errorText);
+        logger.error("❌ ENTERPRISE: Failed to fetch rules:", response.status, errorText);
         setRules([]);
         setError("Failed to fetch rules from server");
       }
     } catch (err) {
-      console.error("❌ ENTERPRISE: Network error fetching rules:", err);
+      logger.error("❌ ENTERPRISE: Network error fetching rules:", err);
       setRules([]);
       setError("Network error fetching rules");
     }
@@ -86,11 +87,11 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         const data = await response.json();
         setRuleAnalytics(data);
       } else {
-        console.error("Failed to fetch analytics:", response.status);
+        logger.error("Failed to fetch analytics:", response.status);
         setRuleAnalytics(null); // ENTERPRISE: No demo data
       }
     } catch (err) {
-      console.error("Error fetching rule analytics:", err);
+      logger.error("Error fetching rule analytics:", err);
       setRuleAnalytics(null); // ENTERPRISE: No demo data
     }
   };
@@ -102,14 +103,14 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ ENTERPRISE: A/B tests fetched:", data);
+        logger.debug("✅ ENTERPRISE: A/B tests fetched:", data);
         setAbTests(data);
       } else {
-        console.error("❌ ENTERPRISE: Failed to fetch A/B tests:", response.status);
+        logger.error("❌ ENTERPRISE: Failed to fetch A/B tests:", response.status);
         setAbTests([]); // ENTERPRISE: No demo data
       }
     } catch (err) {
-      console.error("❌ ENTERPRISE: Error fetching A/B tests:", err);
+      logger.error("❌ ENTERPRISE: Error fetching A/B tests:", err);
       setAbTests([]); // ENTERPRISE: No demo data
     }
   };
@@ -123,11 +124,11 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         const data = await response.json();
         setSuggestedRules(data);
       } else {
-        console.error("Failed to fetch suggestions:", response.status);
+        logger.error("Failed to fetch suggestions:", response.status);
         setSuggestedRules([]); // ENTERPRISE: No demo data
       }
     } catch (err) {
-      console.error("Error fetching rule suggestions:", err);
+      logger.error("Error fetching rule suggestions:", err);
       setSuggestedRules([]); // ENTERPRISE: No demo data
     }
   };
@@ -157,11 +158,11 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       } else {
         // ENTERPRISE: No demo fallback - show actual error
         const errorText = await response.text();
-        console.error("Rule generation failed:", response.status, errorText);
+        logger.error("Rule generation failed:", response.status, errorText);
         alert("❌ Failed to generate rule - check server connection");
       }
     } catch (err) {
-      console.error("Error generating rule:", err);
+      logger.error("Error generating rule:", err);
       alert("❌ Network error - failed to generate rule");
     } finally {
       setGeneratingRule(false);
@@ -185,7 +186,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
         alert("❌ Failed to delete rule - server error");
       }
     } catch (err) {
-      console.error("Error deleting rule:", err);
+      logger.error("Error deleting rule:", err);
       alert("❌ Network error - failed to delete rule");
     } finally {
       setDeletingId(null);
@@ -195,7 +196,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const createAbTest = async (ruleId) => {
   setCreatingTest(true);
   try {
-    console.log(`🧪 ENTERPRISE: Creating A/B test for rule ${ruleId}`);
+    logger.debug(`🧪 ENTERPRISE: Creating A/B test for rule ${ruleId}`);
     
     // ENTERPRISE FIX: Send rule_id as query parameter
     const response = await fetch(`${API_BASE_URL}/api/smart-rules/ab-test?rule_id=${ruleId}`, {
@@ -209,7 +210,7 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const newTest = await response.json();
-        console.log("✅ ENTERPRISE: A/B test created:", newTest);
+        logger.debug("✅ ENTERPRISE: A/B test created:", newTest);
         setAbTests(prev => [newTest, ...prev]);
         alert("✅ Enterprise A/B test created successfully!");
         
@@ -218,11 +219,11 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       } else {
         // ENTERPRISE: No demo fallback - show actual error
         const errorText = await response.text();
-        console.error("❌ ENTERPRISE: A/B test creation failed:", response.status, errorText);
+        logger.error("❌ ENTERPRISE: A/B test creation failed:", response.status, errorText);
         alert(`❌ Failed to create A/B test - Server error (${response.status})`);
       }
     } catch (err) {
-      console.error("❌ ENTERPRISE: Network error creating A/B test:", err);
+      logger.error("❌ ENTERPRISE: Network error creating A/B test:", err);
       alert("❌ Network error - failed to create A/B test");
     } finally {
       setCreatingTest(false);

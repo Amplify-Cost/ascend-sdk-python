@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [agentId, setAgentId] = useState("");
@@ -90,7 +91,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
     }
 
     try {
-      console.log('🚀 Submitting enterprise agent action...');
+      logger.debug('🚀 Submitting enterprise agent action...');
       
       const payload = {
         agent_id: agentId,
@@ -103,7 +104,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
         timestamp: Math.floor(Date.now() / 1000),
       };
 
-      console.log('📤 Payload:', payload);
+      logger.debug('📤 Payload:', payload);
 
       // Try multiple endpoints to find the working one
       const endpoints = [
@@ -117,7 +118,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
 
       for (const endpoint of endpoints) {
         try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
+          logger.debug(`🔍 Trying endpoint: ${endpoint}`);
           
           const res = await fetch(endpoint, {
             method: "POST",
@@ -128,11 +129,11 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
             body: JSON.stringify(payload),
           });
 
-          console.log(`📊 Response status: ${res.status}`);
+          logger.debug(`📊 Response status: ${res.status}`);
           
           if (res.ok) {
             const result = await res.json();
-            console.log('✅ Success response:', result);
+            logger.debug('✅ Success response:', result);
             
             setMessage(`✅ Enterprise agent action submitted successfully! 
                        Action ID: ${result.action_id || result.authorization_id || 'Generated'}
@@ -144,11 +145,11 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
             break;
           } else {
             const errorText = await res.text();
-            console.log(`❌ Error response: ${res.status} - ${errorText}`);
+            logger.debug(`❌ Error response: ${res.status} - ${errorText}`);
             lastError = `${res.status}: ${errorText}`;
           }
         } catch (fetchError) {
-          console.log(`🔥 Fetch error for ${endpoint}:`, fetchError);
+          logger.debug(`🔥 Fetch error for ${endpoint}:`, fetchError);
           lastError = fetchError.message;
         }
       }
@@ -158,7 +159,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       }
 
     } catch (err) {
-      console.error("💥 Enterprise submission error:", err);
+      logger.error("💥 Enterprise submission error:", err);
       setError(`❌ Enterprise submission failed: ${err.message}`);
     } finally {
       setLoading(false);

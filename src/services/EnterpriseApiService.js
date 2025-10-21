@@ -1,6 +1,7 @@
 
 
 import { API_BASE_URL } from './config/api';
+import logger from '../utils/logger.js';
 /**
  * Enterprise API Service Layer - CORRECTED VERSION
  * Maps frontend API calls to actual working backend endpoints
@@ -42,20 +43,20 @@ class EnterpriseApiService {
     };
 
     try {
-      console.log(`🔄 API Request: ${options.method || 'GET'} ${url}`);
+      logger.debug(`🔄 API Request: ${options.method || 'GET'} ${url}`);
       const response = await fetch(url, config);
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ API Error ${response.status}:`, errorText);
+        logger.error(`❌ API Error ${response.status}:`, errorText);
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log(`✅ API Response:`, data);
+      logger.debug(`✅ API Response:`, data);
       return data;
     } catch (error) {
-      console.error('💥 API Request failed:', error);
+      logger.error('💥 API Request failed:', error);
       throw error;
     }
   }
@@ -79,7 +80,7 @@ class EnterpriseApiService {
         systemStatus: dashboardData.system_status || {}
       };
     } catch (error) {
-      console.error('Failed to load authorization data:', error);
+      logger.error('Failed to load authorization data:', error);
       // Don't fall back to demo data - throw error so frontend knows to handle it
       throw error;
     }
@@ -171,7 +172,7 @@ class EnterpriseApiService {
     try {
       await this.request('/auth/logout', { method: 'POST' });
     } catch (error) {
-      console.warn('Logout endpoint not available:', error);
+      logger.warn('Logout endpoint not available:', error);
     }
   }
 
@@ -195,7 +196,7 @@ class EnterpriseApiService {
         body: JSON.stringify({ count }),
       });
     } catch (error) {
-      console.warn('Test action creation not available:', error);
+      logger.warn('Test action creation not available:', error);
       throw error;
     }
   }

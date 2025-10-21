@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const AuditTrailModal = ({ token, actionId, onClose }) => {
   const [auditLogs, setAuditLogs] = useState([]);
@@ -16,7 +17,7 @@ const AuditTrailModal = ({ token, actionId, onClose }) => {
       const filtered = data.filter((log) => log.action_id === actionId);
       setAuditLogs(filtered);
     } catch (err) {
-      console.error("Failed to fetch audit logs:", err);
+      logger.error("Failed to fetch audit logs:", err);
     }
   }, [API_BASE_URL, token, actionId]);
 

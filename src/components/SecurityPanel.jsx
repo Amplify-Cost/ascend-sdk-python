@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const SecurityPanel = ({ getAuthHeaders }) => {
   const [findings, setFindings] = useState(null);
@@ -17,7 +18,7 @@ const SecurityPanel = ({ getAuthHeaders }) => {
         const data = await res.json();
         setFindings(data);
       } catch (err) {
-        console.error("Error fetching findings:", err);
+        logger.error("Error fetching findings:", err);
         setError("Could not load security insights.");
       } finally {
         setLoading(false);

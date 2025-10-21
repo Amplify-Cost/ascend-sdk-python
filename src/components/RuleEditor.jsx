@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 
 const RuleEditor = ({ getAuthHeaders }) => {
@@ -22,7 +23,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       const data = await response.json();
       setRules(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to fetch rules:", err);
+      logger.error("Failed to fetch rules:", err);
       setMessage({ type: "error", text: "Failed to load rules" });
     }
   };
@@ -61,7 +62,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       
       setMessage({ type: "success", text: "✅ Rules saved successfully" });
     } catch (err) {
-      console.error("Failed to save rules:", err);
+      logger.error("Failed to save rules:", err);
       setMessage({ type: "error", text: "❌ Failed to save rules" });
     } finally {
       setLoading(false);
@@ -86,7 +87,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       setGeneratedRule(data);
       setMessage({ type: "success", text: "✅ Smart rule generated" });
     } catch (err) {
-      console.error("Smart rule generation failed:", err);
+      logger.error("Smart rule generation failed:", err);
       setMessage({ type: "error", text: "❌ Failed to generate smart rule" });
     } finally {
       setGenerating(false);

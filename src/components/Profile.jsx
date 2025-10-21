@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const Profile = ({ user, onUpdateProfile }) => {
   const [email, setEmail] = useState(user?.email || "");
@@ -57,7 +58,7 @@ const Profile = ({ user, onUpdateProfile }) => {
       }
 
     } catch (err) {
-      console.error("Profile update failed:", err);
+      logger.error("Profile update failed:", err);
       setMessage({ type: "error", text: err.message || "Failed to update profile" });
     } finally {
       setLoading(false);

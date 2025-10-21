@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import axios from 'axios';
+import logger from '../utils/logger.js';
 
 /**
  * Enterprise Policy Pre-Execution Check Hook
@@ -44,7 +45,7 @@ export const usePolicyCheck = () => {
       return decision;
 
     } catch (error) {
-      console.error('Policy check failed:', error);
+      logger.error('Policy check failed:', error);
       
       // Fail-safe: On error, allow but log
       const failSafeDecision = {

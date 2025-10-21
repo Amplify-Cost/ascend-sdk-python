@@ -1,6 +1,7 @@
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 import { API_BASE_URL } from '../config/api';
+import logger from '../utils/logger.js';
 
 const SecurityDetails = ({ log, onClose }) => {
   const [auditTrail, setAuditTrail] = useState([]);
@@ -23,7 +24,7 @@ const SecurityDetails = ({ log, onClose }) => {
           const data = await response.json();
           setAuditTrail(Array.isArray(data) ? data : []);
         } catch (err) {
-          console.error("Error loading audit trail", err);
+          logger.error("Error loading audit trail", err);
           setError("Could not load audit history.");
         } finally {
           setLoading(false);

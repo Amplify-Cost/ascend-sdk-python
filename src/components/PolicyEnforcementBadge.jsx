@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
+import logger from '../utils/logger.js';
 
 /**
  * PolicyEnforcementBadge - Shows real-time policy status for an action
@@ -47,7 +48,7 @@ export const PolicyEnforcementBadge = ({ action, onPolicyCheck }) => {
         onPolicyCheck(response.data);
       }
     } catch (error) {
-      console.error('Policy check failed:', error);
+      logger.error('Policy check failed:', error);
       setPolicyStatus({
         allowed: true,
         decision: 'ALLOW',
