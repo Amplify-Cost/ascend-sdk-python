@@ -57,7 +57,7 @@ try:
         RiskCategory
     )
     REALTIME_POLICY_ENGINE_AVAILABLE = True
-    print("✅ Real-time Policy Engine loaded successfully")
+    logger.info("Real-time Policy Engine loaded successfully")
 except ImportError as e:
     logger.warning(f"Real-time Policy Engine not available: {e}")
     REALTIME_POLICY_ENGINE_AVAILABLE = False
