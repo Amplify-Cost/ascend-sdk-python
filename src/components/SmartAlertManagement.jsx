@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, AlertTriangle, CheckCircle, Clock, Shield, TrendingUp, Users, Activity, X, Eye, EyeOff } from 'lucide-react';
-import logger from '../utils/logger.js';
 
 const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   const [activeTab, setActiveTab] = useState("active");
@@ -36,7 +35,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.5);
       } catch (error) {
-        logger.debug('Audio not supported:', error);
+        console.log('Audio not supported:', error);
       }
     };
     
@@ -54,7 +53,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         websocketRef.current = new WebSocket(wsUrl);
 
         websocketRef.current.onopen = () => {
-          logger.debug('Alert WebSocket connected');
+          console.log('Alert WebSocket connected');
         };
 
         websocketRef.current.onmessage = (event) => {
@@ -79,16 +78,16 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         };
 
         websocketRef.current.onclose = () => {
-          logger.debug('Alert WebSocket disconnected, attempting to reconnect...');
+          console.log('Alert WebSocket disconnected, attempting to reconnect...');
           setTimeout(connectWebSocket, 5000);
         };
 
         websocketRef.current.onerror = (error) => {
-          logger.error('Alert WebSocket error:', error);
+          console.error('Alert WebSocket error:', error);
         };
 
       } catch (error) {
-        logger.error('Failed to connect to alert WebSocket:', error);
+        console.error('Failed to connect to alert WebSocket:', error);
         setTimeout(connectWebSocket, 5000);
       }
     };
@@ -107,6 +106,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     try {
       setLoading(true);
       const response = await fetch('/alerts/active', {
+        credentials: "include",
         headers: getAuthHeaders()
       });
 
@@ -118,7 +118,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         throw new Error(`Failed to fetch alerts: ${response.status}`);
       }
     } catch (error) {
-      logger.error('Error fetching active alerts:', error);
+      console.error('Error fetching active alerts:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -130,6 +130,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     try {
       setLoading(true);
       const response = await fetch('/alerts/history?days=30', {
+        credentials: "include",
         headers: getAuthHeaders()
       });
 
@@ -140,7 +141,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         throw new Error(`Failed to fetch alert history: ${response.status}`);
       }
     } catch (error) {
-      logger.error('Error fetching alert history:', error);
+      console.error('Error fetching alert history:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -151,6 +152,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   const acknowledgeAlert = async (alertId) => {
     try {
       const response = await fetch(`/alerts/${alertId}/acknowledge`, {
+        credentials: "include",
         method: 'POST',
         headers: getAuthHeaders()
       });
@@ -167,7 +169,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         throw new Error('Failed to acknowledge alert');
       }
     } catch (error) {
-      logger.error('Error acknowledging alert:', error);
+      console.error('Error acknowledging alert:', error);
     }
   };
 
@@ -175,6 +177,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   const resolveAlert = async (alertId) => {
     try {
       const response = await fetch(`/alerts/${alertId}/resolve`, {
+        credentials: "include",
         method: 'POST',
         headers: getAuthHeaders()
       });
@@ -185,7 +188,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
         throw new Error('Failed to resolve alert');
       }
     } catch (error) {
-      logger.error('Error resolving alert:', error);
+      console.error('Error resolving alert:', error);
     }
   };
 

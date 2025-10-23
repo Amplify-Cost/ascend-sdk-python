@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { useAuthorizationData } from '../hooks/useEnterpriseApi';
-import logger from '../utils/logger.js';
 
 export function AuthorizationExample() {
   const { 
@@ -19,18 +18,18 @@ export function AuthorizationExample() {
   const handleApproval = async (actionId) => {
     try {
       await approveAction(actionId, { approved: true, timestamp: new Date().toISOString() });
-      logger.debug('✅ Action approved successfully!');
+      console.log('✅ Action approved successfully!');
     } catch (error) {
-      logger.error('❌ Approval failed:', error);
+      console.error('❌ Approval failed:', error);
     }
   };
 
   const handleCreateTest = async () => {
     try {
       await createTestActions(5);
-      logger.debug('✅ Test actions created!');
+      console.log('✅ Test actions created!');
     } catch (error) {
-      logger.error('❌ Failed to create test actions:', error);
+      console.error('❌ Failed to create test actions:', error);
     }
   };
 

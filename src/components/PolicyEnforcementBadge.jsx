@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
-import logger from '../utils/logger.js';
 
 /**
  * PolicyEnforcementBadge - Shows real-time policy status for an action
@@ -27,6 +26,7 @@ export const PolicyEnforcementBadge = ({ action, onPolicyCheck }) => {
     
     setChecking(true);
     try {
+      const token = localStorage.getItem('access_token');
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/governance/policies/enforce`,
         {
@@ -36,8 +36,8 @@ export const PolicyEnforcementBadge = ({ action, onPolicyCheck }) => {
           context: action.context || {}
         },
         {
+          withCredentials: true,  // 🍪 ENTERPRISE: Send cookies automatically
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         }
@@ -48,7 +48,7 @@ export const PolicyEnforcementBadge = ({ action, onPolicyCheck }) => {
         onPolicyCheck(response.data);
       }
     } catch (error) {
-      logger.error('Policy check failed:', error);
+      console.error('Policy check failed:', error);
       setPolicyStatus({
         allowed: true,
         decision: 'ALLOW',

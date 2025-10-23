@@ -1,24 +1,23 @@
 import React, { useEffect, useState } from "react";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
 const SecurityPanel = ({ getAuthHeaders }) => {
   const [findings, setFindings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchSecurityFindings = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/security-findings`, {
+          credentials: "include",
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch security findings");
         const data = await res.json();
         setFindings(data);
       } catch (err) {
-        logger.error("Error fetching findings:", err);
+        console.error("Error fetching findings:", err);
         setError("Could not load security insights.");
       } finally {
         setLoading(false);

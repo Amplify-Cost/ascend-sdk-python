@@ -1,12 +1,35 @@
-
-
+// App.jsx - Enhanced Enterprise Cookie Authentication (Phase 2 Complete)
+import React, { useState, useEffect } from "react";
+import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider, useToast } from "./components/ToastNotification";
+import { AccessibilityProvider, useScreenReaderAnnounce } from "./contexts/AccessibilityContext";
+import Breadcrumb from "./components/Breadcrumb";
+import GlobalSearch from "./components/GlobalSearch";
+import Login from "./components/Login";
+import Register from "./components/Register";
+import ForgotPassword from "./components/ForgotPassword";
+import Sidebar from "./components/Sidebar";
+import SupportModal from "./components/SupportModal";
+import Dashboard from "./components/Dashboard";
+import SecurityInsights from "./components/SecurityInsights";
+import AgentActivityFeed from "./components/AgentActivityFeed";
+import SmartRuleGen from "./components/SmartRuleGen";
+import EnterpriseUserManagement from "./components/EnterpriseUserManagement";
+import EnterpriseSettings from "./components/EnterpriseSettings";
+import EnterpriseSecurityReports from "./components/EnterpriseSecurityReports";
+import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
+import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
+import { fetchWithAuth, logout, getCurrentUser } from "./utils/fetchWithAuth";
+import { useTheme } from "./contexts/ThemeContext";
+import RealTimeAnalyticsDashboard from './components/RealTimeAnalyticsDashboard';
+import SmartAlertManagement from './components/SmartAlertManagement';
+import Profile from './components/Profile';
+import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundaryTest from './components/ErrorBoundaryTest';
 import { API_BASE_URL } from './config/api';
 import logger from './utils/logger.js';
-// App.jsx - Enhanced Enterprise Cookie Authentication (Phase 2 Complete)
 
 
-
-// Consistent API URL handling
 
 // Enhanced Loading Screen with Enterprise Branding
 const LoadingScreen = () => {
@@ -53,6 +76,7 @@ const AppContent = () => {
   const [view, setView] = useState("login");
   const [user, setUser] = useState(null);
   const [showSupportModal, setShowSupportModal] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
   const [authMode, setAuthMode] = useState("unknown");
@@ -79,63 +103,35 @@ const AppContent = () => {
         logger.debug("🔍 Checking enterprise authentication status...");
         setLoading(true);
 
-        // 🍪 PRIMARY: Try cookie authentication first (enterprise preferred)
-        const currentUser = await getCurrentUser();
+        // 🍪 COOKIE-BASED AUTH: Simply try to get current user
+        // If cookies are valid, this will succeed
+        // If not, it will throw and we'll redirect to login
+        logger.debug("🍪 Enterprise: Attempting cookie authentication...");
         
-        if (currentUser && currentUser.enterprise_validated) {
-          logger.debug("✅ Enterprise cookie authentication confirmed:", currentUser.email);
+        const userData = await getCurrentUser();
+        
+        if (userData && userData.enterprise_validated) {
+          logger.debug("✅ Enterprise: Authentication successful", userData.email);
           
           setUser({
-            id: currentUser.user_id || currentUser.id,
-            email: currentUser.email,
-            role: currentUser.role,
+            id: userData.user_id || userData.id,
+            email: userData.email,
+            role: userData.role,
           });
+          setIsAuthenticated(true);
           setView("app");
-          setAuthMode(currentUser.auth_source || "cookie");
-          
-          // 🧹 Clean up any legacy tokens when using cookies
-          if (currentUser.auth_source === "cookie") {
-            logger.debug("🧹 Legacy tokens cleaned up - using secure cookies");
-          }
+          setAuthMode("cookie");
           
         } else {
-          // 🎫 FALLBACK: Check for legacy token authentication
-          logger.debug("🔍 No cookie authentication, checking legacy tokens...");
-          
-          if (storedToken) {
-            logger.debug("⚠️ Legacy token found, attempting validation...");
-            try {
-              // Import jwt-decode dynamically to avoid bundle issues
-              const { jwtDecode } = await import("jwt-decode");
-              const decoded = jwtDecode(storedToken);
-              const currentTime = Date.now() / 1000;
-              
-              if (decoded.exp && decoded.exp < currentTime) {
-                logger.warn("❌ Legacy token expired, clearing...");
-                handleLogout(false);
-              } else {
-                // Use legacy token temporarily
-                setUser({
-                  id: Number(decoded.sub),
-                  email: decoded.email || decoded.sub,
-                  role: decoded.role,
-                });
-                setView("app");
-                setAuthMode("token");
-                logger.debug("⚠️ Using legacy token authentication");
-                toast("Using legacy authentication - consider logging out and back in for enhanced security", "warning");
-              }
-            } catch (err) {
-              logger.error("❌ Invalid legacy token:", err);
-              handleLogout(false);
-            }
-          } else {
-            logger.debug("ℹ️ No authentication found, showing login");
-            setView("login");
-          }
+          logger.warn("⚠️ No valid authentication");
+          setIsAuthenticated(false);
+          setView("login");
         }
+        
       } catch (error) {
         logger.error("❌ Enterprise authentication check failed:", error);
+        setIsAuthenticated(false);
+        setUser(null);
         setView("login");
       } finally {
         setLoading(false);
@@ -146,6 +142,7 @@ const AppContent = () => {
   }, []);
 
   // 🍪 ENTERPRISE FIX: Handle login response without problematic toast calls
+  // 🍪 ENTERPRISE: Cookie-based login handler
   const handleLoginSuccess = async (loginResponse) => {
     try {
       logger.debug("🏢 Processing enterprise login response...");
@@ -153,57 +150,30 @@ const AppContent = () => {
       
       if (loginResponse && typeof loginResponse === 'object') {
         
-        // Handle the backend response format we see in logs
-        if (loginResponse.access_token && loginResponse.user) {
+        // Extract user data from response
+        const userData = loginResponse.user || loginResponse;
+        
+        if (userData && userData.email) {
           logger.debug("✅ Enterprise cookie authentication established");
-          
-          // Store tokens for compatibility (cookies are also set automatically)
-          if (loginResponse.refresh_token) {
-          }
           
           // Set user state from response
           setUser({
-            id: loginResponse.user.user_id || loginResponse.user.id,
-            email: loginResponse.user.email,
-            role: loginResponse.user.role,
+            id: userData.user_id || userData.id,
+            email: userData.email,
+            role: userData.role,
           });
           
           // Set auth mode - cookies are working in background
-          setAuthMode("cookie"); // Enterprise security active
-          
-          // FIXED: Use console.log instead of problematic toast
-          logger.debug("🍪 Secure cookie authentication activated");
-          
-        } else if (loginResponse.auth_mode === "cookie" && loginResponse.user) {
-          // Alternative cookie response format
-          logger.debug("✅ Enterprise cookie authentication (alt format)");
-          
-          setUser({
-            id: loginResponse.user.user_id || loginResponse.user.id,
-            email: loginResponse.user.email,
-            role: loginResponse.user.role,
-          });
           setAuthMode("cookie");
-          
-          // Clear any legacy tokens
+          setIsAuthenticated(true);
           
           logger.debug("🍪 Secure cookie authentication activated");
           
-        } else if (typeof loginResponse === 'string') {
-          // Legacy string token (backward compatibility)
-          logger.debug("⚠️ Legacy string token received");
-          
-          const { jwtDecode } = await import("jwt-decode");
-          const decoded = jwtDecode(loginResponse);
-          setUser({
-            id: Number(decoded.sub),
-            email: decoded.email || decoded.sub,
-            role: decoded.role,
-          });
-          setAuthMode("token");
-          
-          logger.debug("Legacy authentication - consider upgrading to cookies");
+        } else {
+          throw new Error("Invalid user data in login response");
         }
+      } else {
+        throw new Error("Invalid login response format");
       }
       
       setView("app");
@@ -215,10 +185,7 @@ const AppContent = () => {
       logger.error("❌ Error details:", err.message);
       logger.error("❌ Login response that failed:", loginResponse);
       
-      // FIXED: Use console.log instead of problematic toast
       logger.debug("Login processing failed - please try again");
-      
-      // Simple fallback - just show login again
       setView("login");
     }
   };
@@ -285,28 +252,16 @@ const AppContent = () => {
     }
   };
 
-  // 🔧 MASTER PROMPT FIX: ALWAYS send token when available (no conditions)
+  // Enterprise cookie-based auth headers
+  // Cookies are sent automatically by browser - no Authorization header needed\!
   const getAuthHeaders = () => {
     logger.debug("🔍 Getting auth headers for API call");
-    logger.debug("🔍 Current auth mode:", authMode);
+    logger.debug("🍪 Enterprise: Using cookie-based authentication");
     
-    // ENTERPRISE FIX: ALWAYS send token when available (regardless of auth mode)
-    logger.debug("🔍 Access token present:", !!token);
-    
-    if (token) {
-      logger.debug("🔄 Enterprise auth: Sending Authorization header");
-      return {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      };
-    }
-    
-    logger.debug("⚠️ No token available for auth headers");
     return {
       "Content-Type": "application/json"
     };
   };
-
   // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {
     logger.debug("🎯 Rendering tab:", activeTab);
@@ -347,7 +302,7 @@ const AppContent = () => {
     // PRESERVED: All your existing switch cases (unchanged)
     switch (activeTab) {
       case "dashboard":
-        return contentWithTransition(<Dashboard getAuthHeaders={getAuthHeaders} user={user} />);
+        return contentWithTransition(<Dashboard getAuthHeaders={getAuthHeaders} setActiveTab={setActiveTab} user={user} />);
       case "analytics":
         return contentWithTransition(<SecurityInsights getAuthHeaders={getAuthHeaders} />);
       case "realtime-analytics":
@@ -414,6 +369,12 @@ const AppContent = () => {
   return <SmartAlertManagement getAuthHeaders={getAuthHeaders} user={user} />;    
       case "profile":
         return contentWithTransition(<Profile user={user} onUpdateProfile={handleProfileUpdate} />);
+      case "errorTest":
+        return (
+          <ErrorBoundary fallbackMessage="This is a test error. The error boundary is working correctly!">
+            <ErrorBoundaryTest />
+          </ErrorBoundary>
+        );
       default:
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
@@ -530,13 +491,15 @@ const AppContent = () => {
 // PRESERVED: App wrapper (unchanged)
 const App = () => {
   return (
-    <ThemeProvider>
-      <AccessibilityProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
-      </AccessibilityProvider>
-    </ThemeProvider>
+    <ErrorBoundary fallbackMessage="The OW-AI Enterprise Platform encountered an unexpected error. Our team has been notified.">
+      <ThemeProvider>
+        <AccessibilityProvider>
+          <ToastProvider>
+            <AppContent />
+          </ToastProvider>
+        </AccessibilityProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 };
 

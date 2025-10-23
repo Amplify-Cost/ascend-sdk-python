@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { TestTube, Play, Check, X, AlertTriangle } from 'lucide-react';
-import logger from '../utils/logger.js';
 
 export const PolicyTester = ({ API_BASE_URL, getAuthHeaders }) => {
   const [testInput, setTestInput] = useState({
@@ -26,7 +25,7 @@ export const PolicyTester = ({ API_BASE_URL, getAuthHeaders }) => {
       const data = await response.json();
       setResult(data);
     } catch (error) {
-      logger.error('Test failed:', error);
+      console.error('Test failed:', error);
       setResult({ error: 'Test failed' });
     } finally {
       setLoading(false);

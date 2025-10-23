@@ -1,7 +1,5 @@
+import React, { useEffect, useState } from "react";
 import ReplayModal from "./ReplayModal";
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
 
 const AgentActivityFeed = ({ getAuthHeaders }) => {
   const [activities, setActivities] = useState([]);
@@ -17,16 +15,17 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const itemsPerPage = 5;
 
   // ✅ Added fallback URL
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const fetchActivity = async () => {
     try {
-      logger.debug("🔍 Fetching from:", API_BASE_URL); // Debug log
+      console.log("🔍 Fetching from:", API_BASE_URL); // Debug log
       const url =
         selectedRisk === "all"
           ? `${API_BASE_URL}/agent-activity`
           : `${API_BASE_URL}/agent-activity?risk=${selectedRisk}`;
       
-      logger.debug("📡 Full URL:", url); // Debug log
+      console.log("📡 Full URL:", url); // Debug log
       
       const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent activity`);
@@ -34,7 +33,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
       setActivities(Array.isArray(data) ? data : []);
       setError(null); // Clear any previous errors
     } catch (err) {
-      logger.error("❌ Fetch error:", err);
+      console.error("❌ Fetch error:", err);
       setError(`Unable to load activity: ${err.message}`);
     } finally {
       setLoading(false);
@@ -50,6 +49,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   const toggleFalsePositive = async (id) => {
     try {
       const res = await fetch(`${API_BASE_URL}/agent-action/false-positive/${id}`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
       });
@@ -63,6 +63,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
     setSupportStatus("");
     try {
       const res = await fetch(`${API_BASE_URL}/support/submit`, {
+        credentials: "include",
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -91,6 +92,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
 
     try {
       const res = await fetch(`${API_BASE_URL}/agent-actions/upload-json`, {
+        credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
         body: formData,

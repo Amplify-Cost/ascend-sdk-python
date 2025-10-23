@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import logger from '../utils/logger.js';
 
 const EnterpriseWorkflowBuilder = ({ 
   newWorkflow, 
@@ -132,7 +131,7 @@ const EnterpriseWorkflowBuilder = ({
                 business_justification_required: newWorkflow.approvalLevels > 1
               }
             };
-            logger.debug("Creating enterprise workflow:", enterpriseWorkflow);
+            console.log("Creating enterprise workflow:", enterpriseWorkflow);
             createWorkflow(enterpriseWorkflow);
           }}
           className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-md font-medium"

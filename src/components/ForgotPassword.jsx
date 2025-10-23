@@ -1,12 +1,11 @@
-
-
-import { API_BASE_URL } from '../config/api';
 // ForgotPassword.jsx
+import React, { useState } from "react";
 
 const ForgotPassword = ({ switchToLogin }) => {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleRequestReset = async (e) => {
     e.preventDefault();
@@ -14,6 +13,7 @@ const ForgotPassword = ({ switchToLogin }) => {
     setMessage("");
     try {
       const response = await fetch(`${API_BASE_URL}/auth/request-reset`, {
+        credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",

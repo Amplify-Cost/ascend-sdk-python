@@ -1,23 +1,22 @@
 import React, { useEffect, useState } from "react";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
 const RulePerformancePanel = ({ getAuthHeaders }) => {
   const [performance, setPerformance] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchPerformance = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/rules/performance`, {
+          credentials: "include",
           headers: await getAuthHeaders(),
         });
         const data = await res.json();
         setPerformance(data.performance || {});
       } catch (err) {
-        logger.error("Error fetching rule performance:", err);
+        console.error("Error fetching rule performance:", err);
         setError("Failed to load rule performance.");
       } finally {
         setLoading(false);

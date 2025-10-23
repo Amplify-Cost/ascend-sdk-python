@@ -1,7 +1,5 @@
+import React, { useState } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
 
 const Profile = ({ user, onUpdateProfile }) => {
   const [email, setEmail] = useState(user?.email || "");
@@ -11,6 +9,7 @@ const Profile = ({ user, onUpdateProfile }) => {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [loading, setLoading] = useState(false);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleUpdateProfile = async () => {
     if (!email && !newPassword) {
@@ -58,7 +57,7 @@ const Profile = ({ user, onUpdateProfile }) => {
       }
 
     } catch (err) {
-      logger.error("Profile update failed:", err);
+      console.error("Profile update failed:", err);
       setMessage({ type: "error", text: err.message || "Failed to update profile" });
     } finally {
       setLoading(false);

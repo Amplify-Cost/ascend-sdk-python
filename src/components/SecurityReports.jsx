@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useTheme } from "../contexts/ThemeContext";
-import logger from '../utils/logger.js';
 
 const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const { isDarkMode } = useTheme();
@@ -196,7 +195,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
       setReports(enterpriseReports);
       setScheduledReports(scheduledReportsData);
     } catch (error) {
-      logger.error("❌ Error loading reports:", error);
+      console.error("❌ Error loading reports:", error);
     } finally {
       setLoading(false);
     }
@@ -233,7 +232,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
       
       setReports(prev => [newReport, ...prev]);
     } catch (error) {
-      logger.error("❌ Error generating report:", error);
+      console.error("❌ Error generating report:", error);
     } finally {
       setGeneratingReport(false);
     }

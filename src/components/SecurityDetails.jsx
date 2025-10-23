@@ -1,13 +1,12 @@
+import React, { useEffect, useState } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
 
 const SecurityDetails = ({ log, onClose }) => {
   const [auditTrail, setAuditTrail] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     if (log?.id) {
@@ -24,7 +23,7 @@ const SecurityDetails = ({ log, onClose }) => {
           const data = await response.json();
           setAuditTrail(Array.isArray(data) ? data : []);
         } catch (err) {
-          logger.error("Error loading audit trail", err);
+          console.error("Error loading audit trail", err);
           setError("Could not load audit history.");
         } finally {
           setLoading(false);

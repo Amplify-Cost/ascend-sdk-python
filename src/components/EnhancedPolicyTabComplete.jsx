@@ -9,7 +9,6 @@ import { VisualPolicyBuilderAdvanced } from './VisualPolicyBuilderAdvanced';
 import { ComplianceMapping } from './ComplianceMapping';
 import { PolicyVersionControl } from './PolicyVersionControl';
 import { PolicyImpactAnalysis } from './PolicyImpactAnalysis';
-import logger from '../utils/logger.js';
 
 export const EnhancedPolicyTabComplete = ({ 
   policies, 
@@ -34,12 +33,12 @@ export const EnhancedPolicyTabComplete = ({
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/governance/policies/templates`,
-        { headers: getAuthHeaders() }
+        { credentials: "include", headers: getAuthHeaders() }
       );
       const data = await response.json();
       setTemplates(data.templates || []);
     } catch (error) {
-      logger.error('Failed to load templates:', error);
+      console.error('Failed to load templates:', error);
     }
   };
 

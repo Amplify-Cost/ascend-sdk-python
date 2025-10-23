@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
 const ResetPassword = ({ token, switchToLogin }) => {
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   const handleReset = async (e) => {
     e.preventDefault();
@@ -13,6 +11,7 @@ const ResetPassword = ({ token, switchToLogin }) => {
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+        credentials: "include",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, new_password: newPassword }),
@@ -25,7 +24,7 @@ const ResetPassword = ({ token, switchToLogin }) => {
         setMessage(data.detail || "Reset failed");
       }
     } catch (err) {
-      logger.error(err);
+      console.error(err);
       setMessage("Server error");
     }
   };

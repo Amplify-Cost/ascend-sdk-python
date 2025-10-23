@@ -250,7 +250,7 @@ const GlobalSearch = ({ onNavigate }) => {
     } else {
       stableAnnounce('No search results found', 'polite');
     }
-  }, [searchQuery, stableAnnounce]);
+  }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll selected item into view
   useEffect(() => {

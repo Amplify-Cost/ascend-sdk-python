@@ -1,8 +1,7 @@
+import React, { useState, useEffect } from "react";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const RuleEditor = ({ getAuthHeaders }) => {
   const [rules, setRules] = useState([]);
@@ -23,7 +22,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       const data = await response.json();
       setRules(Array.isArray(data) ? data : []);
     } catch (err) {
-      logger.error("Failed to fetch rules:", err);
+      console.error("Failed to fetch rules:", err);
       setMessage({ type: "error", text: "Failed to load rules" });
     }
   };
@@ -62,7 +61,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       
       setMessage({ type: "success", text: "✅ Rules saved successfully" });
     } catch (err) {
-      logger.error("Failed to save rules:", err);
+      console.error("Failed to save rules:", err);
       setMessage({ type: "error", text: "❌ Failed to save rules" });
     } finally {
       setLoading(false);
@@ -87,7 +86,7 @@ const RuleEditor = ({ getAuthHeaders }) => {
       setGeneratedRule(data);
       setMessage({ type: "success", text: "✅ Smart rule generated" });
     } catch (err) {
-      logger.error("Smart rule generation failed:", err);
+      console.error("Smart rule generation failed:", err);
       setMessage({ type: "error", text: "❌ Failed to generate smart rule" });
     } finally {
       setGenerating(false);

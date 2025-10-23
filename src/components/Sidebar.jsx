@@ -1,7 +1,6 @@
 import React from "react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAccessibility, useScreenReaderAnnounce } from "../contexts/AccessibilityContext";
-import logger from '../utils/logger.js';
 
 // ✅ SAFE: Using emoji icons to avoid import issues
 const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
@@ -43,7 +42,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
   const { announce } = useScreenReaderAnnounce();
   const { focusMode, prefersReducedMotion } = useAccessibility();
   
-  logger.debug("🔧 Sidebar rendering with user:", user?.role);
+  console.log("🔧 Sidebar rendering with user:", user?.role);
 
   // ✅ PRESERVED: All existing menu items unchanged
   const menuItems = [

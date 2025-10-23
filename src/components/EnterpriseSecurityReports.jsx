@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useTheme } from "../contexts/ThemeContext";
-import logger from '../utils/logger.js';
 
 const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const { isDarkMode } = useTheme();
@@ -30,16 +29,17 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const loadReportsData = async () => {
     setLoading(true);
     try {
-      logger.debug("🏢 Loading enterprise reports from your existing system...");
+      console.log("🏢 Loading enterprise reports from your existing system...");
       
       // Use your existing enterprise user analytics endpoint
       const reportsResponse = await fetch(`${BASE_URL}/api/enterprise-users/reports/library`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       
       if (reportsResponse.ok) {
         const reportsData = await reportsResponse.json();
-        logger.debug("✅ Reports loaded from your analytics system:", reportsData);
+        console.log("✅ Reports loaded from your analytics system:", reportsData);
         setReports(reportsData.reports || []);
         if (reportsData.summary) {
           setStats({
@@ -50,17 +50,18 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
           });
         }
       } else {
-        logger.debug("📊 Backend not connected, using demo stats");
+        console.log("📊 Backend not connected, using demo stats");
       }
 
       // Get scheduled reports using your system
       const scheduledResponse = await fetch(`${BASE_URL}/api/enterprise-users/reports/scheduled`, {
+        credentials: "include",
         headers: getAuthHeaders(),
       });
       
       if (scheduledResponse.ok) {
         const scheduledData = await scheduledResponse.json();
-        logger.debug("✅ Scheduled reports loaded:", scheduledData);
+        console.log("✅ Scheduled reports loaded:", scheduledData);
         setScheduledReports(scheduledData.scheduled_reports || []);
         setStats(prev => ({
           ...prev,
@@ -69,8 +70,8 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
       }
       
     } catch (error) {
-      logger.error("❌ Error loading reports:", error);
-      logger.debug("📊 Using demo data");
+      console.error("❌ Error loading reports:", error);
+      console.log("📊 Using demo data");
     } finally {
       setLoading(false);
     }
@@ -80,9 +81,10 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const handleGenerateReport = async (reportType, template) => {
     setGeneratingReport(true);
     try {
-      logger.debug("🏢 Generating enterprise report using your analytics:", template);
+      console.log("🏢 Generating enterprise report using your analytics:", template);
       
       const response = await fetch(`${BASE_URL}/api/enterprise-users/generate-report`, {
+        credentials: "include",
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
@@ -97,7 +99,7 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const result = await response.json();
-        logger.debug("✅ Report generated with your system:", result);
+        console.log("✅ Report generated with your system:", result);
         
         // Show success with live data preview
         const previewData = result.content_preview;
@@ -120,12 +122,12 @@ Classification: ${result.classification}`);
         await loadReportsData();
       } else {
         const error = await response.json();
-        logger.error("❌ Report generation failed:", error);
+        console.error("❌ Report generation failed:", error);
         alert(`❌ Report generation failed: ${error.detail || 'Unknown error'}`);
       }
       
     } catch (error) {
-      logger.error("❌ Error generating report:", error);
+      console.error("❌ Error generating report:", error);
       alert(`✅ ${template} generated successfully! (Demo mode)`);
       // Update stats for demo
       setStats(prev => ({
@@ -140,16 +142,17 @@ Classification: ${result.classification}`);
   // Enhanced download with your audit system
   const handleDownloadReport = async (reportId, reportTitle) => {
     try {
-      logger.debug("📥 Downloading report with audit logging:", reportId);
+      console.log("📥 Downloading report with audit logging:", reportId);
       
       const response = await fetch(`${BASE_URL}/api/enterprise-users/reports/download/${reportId}`, {
+        credentials: "include",
         method: 'POST',
         headers: getAuthHeaders(),
       });
 
       if (response.ok) {
         const result = await response.json();
-        logger.debug("✅ Download with audit trail:", result);
+        console.log("✅ Download with audit trail:", result);
         
         // Show live data from your system
         const liveData = result.live_data;
@@ -175,7 +178,7 @@ Classification: ${result.classification}`);
       }
       
     } catch (error) {
-      logger.error("❌ Download error:", error);
+      console.error("❌ Download error:", error);
       alert(`📥 ${reportTitle} download initiated! (Demo mode)`);
     }
   };

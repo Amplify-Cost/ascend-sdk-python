@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import logger from '../utils/logger.js';
 
 const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
   const [activeTab, setActiveTab] = useState("users");
@@ -65,7 +64,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
         loadAnalytics()
       ]);
     } catch (error) {
-      logger.error("❌ Error loading data:", error);
+      console.error("❌ Error loading data:", error);
       setError("Failed to load enterprise data");
     } finally {
       setLoading(false);
@@ -74,20 +73,21 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
 
   const loadUsers = async () => {
     try {
-      logger.debug("🔄 Loading users...");
+      console.log("🔄 Loading users...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
       if (response.ok) {
         const data = await response.json();
-        logger.debug("✅ Users loaded:", data);
+        console.log("✅ Users loaded:", data);
         setUsers(data.users || []);
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error loading users:", error);
+      console.error("❌ Error loading users:", error);
       // Fallback to demo data on error
       setUsers([]);
     }
@@ -95,60 +95,63 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
 
   const loadRoles = async () => {
     try {
-      logger.debug("🔄 Loading roles...");
+      console.log("🔄 Loading roles...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
       if (response.ok) {
         const data = await response.json();
-        logger.debug("✅ Roles loaded:", data);
+        console.log("✅ Roles loaded:", data);
         setRoles(data.roles || []);
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error loading roles:", error);
+      console.error("❌ Error loading roles:", error);
       setRoles([]);
     }
   };
 
   const loadAuditLogs = async () => {
     try {
-      logger.debug("🔄 Loading audit logs...");
+      console.log("🔄 Loading audit logs...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/audit-logs?limit=50`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
       if (response.ok) {
         const data = await response.json();
-        logger.debug("✅ Audit logs loaded:", data);
+        console.log("✅ Audit logs loaded:", data);
         setAuditLogs(data.logs || []);
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error loading audit logs:", error);
+      console.error("❌ Error loading audit logs:", error);
       setAuditLogs([]);
     }
   };
 
   const loadAnalytics = async () => {
     try {
-      logger.debug("🔄 Loading analytics...");
+      console.log("🔄 Loading analytics...");
       const response = await fetch(`${BASE_URL}/api/enterprise-users/analytics`, {
+        credentials: "include",
         headers: getAuthHeaders()
       });
       
       if (response.ok) {
         const data = await response.json();
-        logger.debug("✅ Analytics loaded:", data);
+        console.log("✅ Analytics loaded:", data);
         setAnalytics(data);
       } else {
         throw new Error(`HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error loading analytics:", error);
+      console.error("❌ Error loading analytics:", error);
       setAnalytics(null);
     }
   };
@@ -159,7 +162,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
 
   const handleCreateUser = async () => {
     try {
-      logger.debug("🔄 Creating user:", newUser);
+      console.log("🔄 Creating user:", newUser);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users`, {
         method: "POST",
         headers: {
@@ -174,7 +177,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const result = await response.json();
-        logger.debug("✅ User created:", result);
+        console.log("✅ User created:", result);
         alert(`✅ User created successfully!\nTemporary Password: ${result.temporary_password}\n\nPlease share this password securely with the new user.`);
         setShowUserModal(false);
         setNewUser({
@@ -193,7 +196,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
         throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error creating user:", error);
+      console.error("❌ Error creating user:", error);
       alert(`❌ Failed to create user: ${error.message}`);
     }
   };
@@ -202,8 +205,9 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     if (!editingUser) return;
 
     try {
-      logger.debug("🔄 Updating user:", editingUser);
+      console.log("🔄 Updating user:", editingUser);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users/${editingUser.id}`, {
+        credentials: "include",
         method: "PUT",
         headers: {
           ...getAuthHeaders(),
@@ -222,7 +226,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const result = await response.json();
-        logger.debug("✅ User updated:", result);
+        console.log("✅ User updated:", result);
         alert("✅ User updated successfully!");
         setEditingUser(null);
         await loadUsers(); // Reload users
@@ -232,7 +236,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
         throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error updating user:", error);
+      console.error("❌ Error updating user:", error);
       alert(`❌ Failed to update user: ${error.message}`);
     }
   };
@@ -243,15 +247,16 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     }
 
     try {
-      logger.debug("🔄 Deactivating user:", userId);
+      console.log("🔄 Deactivating user:", userId);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/users/${userId}`, {
+        credentials: "include",
         method: "DELETE",
         headers: getAuthHeaders()
       });
 
       if (response.ok) {
         const result = await response.json();
-        logger.debug("✅ User deactivated:", result);
+        console.log("✅ User deactivated:", result);
         alert("✅ User deactivated successfully!");
         await loadUsers(); // Reload users
         await loadAnalytics(); // Reload analytics
@@ -260,15 +265,16 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
         throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error deactivating user:", error);
+      console.error("❌ Error deactivating user:", error);
       alert(`❌ Failed to deactivate user: ${error.message}`);
     }
   };
 
   const handleCreateRole = async () => {
     try {
-      logger.debug("🔄 Creating role:", newRole);
+      console.log("🔄 Creating role:", newRole);
       const response = await fetch(`${BASE_URL}/api/enterprise-users/roles`, {
+        credentials: "include",
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -281,7 +287,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
 
       if (response.ok) {
         const result = await response.json();
-        logger.debug("✅ Role created:", result);
+        console.log("✅ Role created:", result);
         alert("✅ Role created successfully!");
         setShowRoleModal(false);
         setNewRole({
@@ -305,7 +311,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
         throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
     } catch (error) {
-      logger.error("❌ Error creating role:", error);
+      console.error("❌ Error creating role:", error);
       alert(`❌ Failed to create role: ${error.message}`);
     }
   };

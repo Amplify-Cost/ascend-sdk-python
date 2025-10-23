@@ -1,7 +1,5 @@
+import React, { useEffect, useState } from "react";
 import {
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
   BarChart,
   Bar,
   XAxis,
@@ -20,18 +18,20 @@ const SecurityInsights = ({ getAuthHeaders }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchInsights = async () => {
       try {
-        logger.debug("🔍 Fetching insights from:", `${API_BASE_URL}/analytics/trends`);
+        console.log("🔍 Fetching insights from:", `${API_BASE_URL}/analytics/trends`);
         const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
+          credentials: "include",
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch insights data");
         const data = await res.json();
         
-        logger.debug("📊 SecurityInsights API Response:", data);
+        console.log("📊 SecurityInsights API Response:", data);
         
         setTrends({
           high_risk_actions_by_day: data.high_risk_actions_by_day || [],
@@ -40,7 +40,7 @@ const SecurityInsights = ({ getAuthHeaders }) => {
           enriched_actions: data.enriched_actions || []
         });
       } catch (err) {
-        logger.error("SecurityInsights fetch error:", err);
+        console.error("SecurityInsights fetch error:", err);
         setError("Failed to load insights data.");
       } finally {
         setLoading(false);

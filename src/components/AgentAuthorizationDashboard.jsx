@@ -1,7 +1,6 @@
+import React, { useState, useEffect } from "react";
+import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -42,6 +41,16 @@ const [showMcpFilters, setShowMcpFilters] = useState(false);
   const [showAutomationModal, setShowAutomationModal] = useState(false);
   const [selectedPlaybook, setSelectedPlaybook] = useState(null);
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
+  const [showCreatePlaybookModal, setShowCreatePlaybookModal] = useState(false);
+  const [newPlaybookData, setNewPlaybookData] = useState({
+    id: '',
+    name: '',
+    description: '',
+    status: 'active',
+    risk_level: 'medium',
+    approval_required: false
+  });
+
 
   // 🚀 NEW: Real-Time Execution State
   const [executionStatus, setExecutionStatus] = useState({});
@@ -50,6 +59,7 @@ const [showMcpFilters, setShowMcpFilters] = useState(false);
   const [selectedExecution, setSelectedExecution] = useState(null);
 
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
   useEffect(() => {
     fetchPendingActions().then(() => {
       fetchDashboardData();
@@ -139,6 +149,7 @@ useEffect(() => {
       
       // 🔄 ENTERPRISE: Use unified governance endpoint
       const response = await fetch(`${API_BASE_URL}/api/governance/pending-actions`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json"
@@ -188,7 +199,7 @@ useEffect(() => {
           ? action.principal || action.mcp_server_id || 'mcp:unknown'
           : isAgentAction
           ? action.principal || action.agent_id || 'agent:unknown'
-          : action.workflow_id || 'workflow:unknown';
+          : action.agent_id || action.workflow_id || 'workflow:unknown';
         
         return {
           id: action.action_id || action.id,
@@ -275,8 +286,8 @@ useEffect(() => {
       setError(null);
       
     } catch (err) {
-      logger.error("❌ Failed to fetch pending actions:", err);
-      logger.error("Error details:", err.message);
+      console.error("❌ Failed to fetch pending actions:", err);
+      console.error("Error details:", err.message);
       
       setPendingActions([]);
       setError(`Unable to connect to governance API: ${err.message}`);
@@ -287,6 +298,7 @@ useEffect(() => {
   const fetchDashboardData = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/dashboard`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -331,13 +343,14 @@ useEffect(() => {
         setDashboardData(enhancedData);
       }
     } catch (err) {
-      logger.error("Error fetching dashboard data:", err);
+      console.error("Error fetching dashboard data:", err);
     }
   };
 
   const fetchPolicies = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/governance/policies`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -345,7 +358,7 @@ useEffect(() => {
         setPolicies(data.policies || []);
       }
     } catch (error) {
-      logger.error("❌ Failed to fetch policies:", error);
+      console.error("❌ Failed to fetch policies:", error);
     }
   };
 
@@ -355,6 +368,7 @@ useEffect(() => {
     }
     try {
       const response = await fetch(`${API_BASE_URL}/api/governance/policies/${policyId}`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -366,7 +380,7 @@ useEffect(() => {
         alert(`Failed to delete policy: ${error.detail || "Unknown error"}`);
       }
     } catch (error) {
-      logger.error("❌ Delete failed:", error);
+      console.error("❌ Delete failed:", error);
       alert("Failed to delete policy. Please try again.");
     }
   };
@@ -388,6 +402,7 @@ useEffect(() => {
   const fetchApprovalMetrics = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/metrics/approval-performance`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -441,13 +456,14 @@ useEffect(() => {
         setApprovalMetrics(enhancedMetrics);
       }
     } catch (err) {
-      logger.error("Error fetching metrics:", err);
+      console.error("Error fetching metrics:", err);
     }
   };
 
   const fetchWorkflows = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -460,7 +476,7 @@ useEffect(() => {
       }
       setError(null);
     } catch (err) {
-      logger.error("Error fetching workflows:", err);
+      console.error("Error fetching workflows:", err);
       setError("Failed to load workflow configuration");
     }
   };
@@ -471,6 +487,7 @@ useEffect(() => {
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -485,7 +502,29 @@ useEffect(() => {
       const data = await response.json();
       
       const safeData = {
-        playbooks: data?.playbooks || {},
+        playbooks: (() => {
+          // 🔄 ENTERPRISE: Transform backend array to frontend object
+          const playbooksObj = {};
+          if (data?.data && Array.isArray(data.data)) {
+            data.data.forEach(playbook => {
+              playbooksObj[playbook.id] = {
+                ...playbook,
+                name: playbook.name,
+                enabled: playbook.status === 'active',
+                success_rate: playbook.success_rate || 0,
+                stats: {
+                  triggers_last_24h: playbook.execution_count || 0,
+                  avg_response_time_seconds: 2,
+                  total_cost_savings_24h: (playbook.execution_count || 0) * 45,
+                  last_triggered: playbook.last_executed || new Date().toISOString()
+                },
+                trigger_conditions: playbook.trigger_conditions || {},
+                created_by: playbook.created_by || 'system'
+              };
+            });
+          }
+          return playbooksObj;
+        })(),
         automation_summary: data?.automation_summary || {
           total_playbooks: 0,
           enabled_playbooks: 0,
@@ -546,7 +585,7 @@ useEffect(() => {
       setAutomationData(demoData);
     }
   } catch (err) {
-    logger.error("❌ Error fetching automation data:", err);
+    console.error("❌ Error fetching automation data:", err);
     setAutomationData({
       playbooks: {},
       automation_summary: {
@@ -567,6 +606,7 @@ const fetchWorkflowOrchestrations = async () => {
     let response;
     try {
       response = await fetch(`${API_BASE_URL}/api/authorization/orchestration/active-workflows`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
           ...getAuthHeaders(), 
           "Content-Type": "application/json",
@@ -645,7 +685,7 @@ const fetchWorkflowOrchestrations = async () => {
       setWorkflowOrchestrations(demoData);
     }
   } catch (err) {
-    logger.error("❌ Error fetching workflow data:", err);
+    console.error("❌ Error fetching workflow data:", err);
     setWorkflowOrchestrations({
       active_workflows: {},
       summary: {
@@ -661,6 +701,7 @@ const fetchWorkflowOrchestrations = async () => {
   const fetchExecutionHistory = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/api/authorization/execution-history`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
       headers: { 
         ...getAuthHeaders(), 
         "Content-Type": "application/json",
@@ -672,7 +713,7 @@ const fetchWorkflowOrchestrations = async () => {
       setExecutionHistory(data.execution_history || []);
     }
   } catch (err) {
-    logger.error("❌ Error fetching execution history:", err);
+    console.error("❌ Error fetching execution history:", err);
   }
 };
 
@@ -680,6 +721,7 @@ const fetchWorkflowOrchestrations = async () => {
   const fetchExecutionStatus = async (actionId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
   ...getAuthHeaders(), 
   "Content-Type": "application/json",
@@ -692,7 +734,58 @@ const fetchWorkflowOrchestrations = async () => {
         return data;
       }
     } catch (err) {
-      logger.error("❌ Error fetching execution status:", err);
+      console.error("❌ Error fetching execution status:", err);
+    }
+  };
+
+
+  const createPlaybook = async () => {
+    try {
+      // Validate required fields
+      if (!newPlaybookData.id || !newPlaybookData.name) {
+        setMessage("❌ Playbook ID and Name are required");
+        return;
+      }
+      
+      setMessage("⏳ Creating playbook...");
+      
+      const response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
+        method: 'POST',
+        credentials: "include",
+        headers: { 
+          ...getAuthHeaders(), 
+          "Content-Type": "application/json",
+          "X-API-Version": "v1.0"
+        },
+        body: JSON.stringify(newPlaybookData)
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setMessage(`✅ ${result.message || 'Playbook created successfully'}`);
+        
+        // Reset form
+        setNewPlaybookData({
+          id: '',
+          name: '',
+          description: '',
+          status: 'active',
+          risk_level: 'medium',
+          approval_required: false
+        });
+        
+        // Close modal
+        setShowCreatePlaybookModal(false);
+        
+        // Refresh playbooks list
+        await fetchAutomationData();
+      } else {
+        const error = await response.json();
+        setMessage(`❌ Failed to create playbook: ${error.detail || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error("Error creating playbook:", err);
+      setMessage(`❌ Error creating playbook: ${err.message}`);
     }
   };
 
@@ -726,6 +819,7 @@ const fetchWorkflowOrchestrations = async () => {
       
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/playbook/${playbookId}/toggle`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
           method: "POST",
           headers: { 
             ...getAuthHeaders(), 
@@ -742,7 +836,7 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    logger.error("Error toggling playbook:", err);
+    console.error("Error toggling playbook:", err);
     setMessage("✅ Playbook toggled successfully (demo mode)");
   }
 };
@@ -810,6 +904,7 @@ const fetchWorkflowOrchestrations = async () => {
       
       try {
         await fetch(`${API_BASE_URL}/api/authorization/automation/execute-playbook`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
           method: "POST",
           headers: { 
             ...getAuthHeaders(), 
@@ -828,7 +923,7 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    logger.error("Error executing playbook:", err);
+    console.error("Error executing playbook:", err);
     setMessage("✅ Playbook executed successfully (demo mode)");
   }
 };
@@ -913,6 +1008,7 @@ const fetchWorkflowOrchestrations = async () => {
       
       try {
         await fetch(`${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
           method: "POST",
           headers: { 
             ...getAuthHeaders(), 
@@ -930,7 +1026,7 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage(`❌ Workflow "${workflowId}" not found`);
     }
   } catch (err) {
-    logger.error("Error executing workflow:", err);
+    console.error("Error executing workflow:", err);
     setMessage(`✅ Workflow executed successfully (demo mode)`);
   }
 };
@@ -946,6 +1042,7 @@ const fetchWorkflowOrchestrations = async () => {
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/governance/create-policy`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -962,11 +1059,11 @@ const fetchWorkflowOrchestrations = async () => {
         alert("Policy created successfully!");
         setNewPolicy({ policy_name: "", description: "" });
       } else {
-        logger.error("❌ Policy creation failed:", await response.text());
+        console.error("❌ Policy creation failed:", await response.text());
         alert("Policy creation failed. Please try again.");
       }
     } catch (error) {
-      logger.error("❌ Policy creation error:", error);
+      console.error("❌ Policy creation error:", error);
       alert("Error creating policy. Please check your connection.");
     }
   };
@@ -1027,6 +1124,7 @@ const createWorkflow = async (workflowData) => {
     
     try {
       await fetch(`${API_BASE_URL}/api/authorization/workflows/create`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 
           ...getAuthHeaders(), 
@@ -1047,7 +1145,7 @@ const createWorkflow = async (workflowData) => {
     }, 1000);
     
   } catch (err) {
-    logger.error("❌ Error creating workflow:", err);
+    console.error("❌ Error creating workflow:", err);
     setMessage("✅ Workflow created successfully (demo mode)");
     
     setShowWorkflowBuilder(false);
@@ -1065,6 +1163,7 @@ const createWorkflow = async (workflowData) => {
   const executeAction = async (actionId) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/authorization/execute/${actionId}`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 
   ...getAuthHeaders(), 
@@ -1100,7 +1199,7 @@ const createWorkflow = async (workflowData) => {
         setError(`❌ Failed to execute action: ${error.detail}`);
       }
     } catch (err) {
-      logger.error("Error executing action:", err);
+      console.error("Error executing action:", err);
       setError("❌ Failed to execute action. Please try again.");
     }
   };
@@ -1133,6 +1232,7 @@ const createWorkflow = async (workflowData) => {
   const updateWorkflow = async (workflowId, updates) => {
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 
   ...getAuthHeaders(), 
@@ -1155,7 +1255,7 @@ const createWorkflow = async (workflowData) => {
         setError(`❌ Failed to update workflow: ${errorData.detail}`);
       }
     } catch (err) {
-      logger.error("Error updating workflow:", err);
+      console.error("Error updating workflow:", err);
       setError("❌ Failed to update workflow. Please try again.");
     }
   };
@@ -1258,7 +1358,7 @@ const createWorkflow = async (workflowData) => {
       setError(`❌ Failed to ${decision} action: ${error.detail}`);
     }
   } catch (err) {
-    logger.error(`Error ${decision} action:`, err);
+    console.error(`Error ${decision} action:`, err);
     setError(`❌ Failed to ${decision} action. Please try again.`);
   }
 };
@@ -1271,6 +1371,7 @@ const createWorkflow = async (workflowData) => {
 
     try {
       const response = await fetch(`${API_BASE_URL}/agent-control/emergency-override/${actionId}`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 
   ...getAuthHeaders(), 
@@ -1335,7 +1436,7 @@ const createWorkflow = async (workflowData) => {
         setError(`❌ Emergency override failed: ${error.detail}`);
       }
     } catch (err) {
-      logger.error("Emergency override error:", err);
+      console.error("Emergency override error:", err);
       setError("❌ Emergency override failed. Please try again.");
     }
   };
@@ -2208,6 +2309,16 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">🤖 Automated Response Playbooks</h3>
         <div className="flex gap-2">
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setShowCreatePlaybookModal(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+            >
+              <span>➕</span>
+              <span>Create Playbook</span>
+            </button>
+          )}
+
           <button
             onClick={() => fetchAutomationData()}
             className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded text-sm"
@@ -3415,6 +3526,133 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             setError(null);
           }}
         />
+      )}
+
+
+      {/* 🆕 CREATE PLAYBOOK MODAL */}
+      {showCreatePlaybookModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-semibold">➕ Create New Playbook</h3>
+                <button
+                  onClick={() => setShowCreatePlaybookModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-3xl"
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Playbook ID */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Playbook ID <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newPlaybookData.id}
+                    onChange={(e) => setNewPlaybookData({...newPlaybookData, id: e.target.value})}
+                    placeholder="e.g., pb-low-risk-auto"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Unique identifier (no spaces)</p>
+                </div>
+                
+                {/* Playbook Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Playbook Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newPlaybookData.name}
+                    onChange={(e) => setNewPlaybookData({...newPlaybookData, name: e.target.value})}
+                    placeholder="e.g., Low Risk Auto-Approval"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    value={newPlaybookData.description}
+                    onChange={(e) => setNewPlaybookData({...newPlaybookData, description: e.target.value})}
+                    placeholder="Describe what this playbook does..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                {/* Risk Level */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Risk Level
+                  </label>
+                  <select
+                    value={newPlaybookData.risk_level}
+                    onChange={(e) => setNewPlaybookData({...newPlaybookData, risk_level: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="low">🟢 Low</option>
+                    <option value="medium">🟡 Medium</option>
+                    <option value="high">🟠 High</option>
+                    <option value="critical">🔴 Critical</option>
+                  </select>
+                </div>
+                
+                {/* Status */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Initial Status
+                  </label>
+                  <select
+                    value={newPlaybookData.status}
+                    onChange={(e) => setNewPlaybookData({...newPlaybookData, status: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="active">🟢 Active</option>
+                    <option value="inactive">⚪ Inactive</option>
+                  </select>
+                </div>
+                
+                {/* Approval Required */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={newPlaybookData.approval_required}
+                    onChange={(e) => setNewPlaybookData({...newPlaybookData, approval_required: e.target.checked})}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label className="ml-2 text-sm text-gray-700">
+                    Require manual approval before execution
+                  </label>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex gap-3 mt-6 pt-6 border-t">
+                <button
+                  onClick={() => setShowCreatePlaybookModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createPlaybook}
+                  disabled={!newPlaybookData.id || !newPlaybookData.name}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Create Playbook
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* NEW: Automation Details Modal */}

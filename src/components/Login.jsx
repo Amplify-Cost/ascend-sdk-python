@@ -1,9 +1,7 @@
-
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
 // components/Login.jsx - Enterprise Cookie Authentication (Phase 2 Complete)
+import React, { useState } from "react";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
   const [email, setEmail] = useState("");
@@ -18,7 +16,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
     setIsLoading(true);
 
     try {
-      logger.debug("🏢 Enterprise login attempt for:", email);
+      console.log("🏢 Enterprise login attempt for:", email);
 
       // Enterprise cookie authentication request
       const response = await fetch(`${API_BASE_URL}/auth/token`, {
@@ -34,7 +32,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       });
 
       const data = await response.json();
-      logger.debug("🏢 Enterprise login response:", data);
+      console.log("🏢 Enterprise login response:", data);
 
       if (!response.ok) {
         setError(data.detail || "Enterprise login failed");
@@ -44,8 +42,8 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       // CRITICAL FIX: Handle the actual backend response format
       if (data.access_token && data.user) {
         // 🍪 Enterprise Cookie Mode (cookies set automatically)
-        logger.debug("✅ Enterprise cookie authentication successful");
-        logger.debug("🍪 Secure cookies set automatically");
+        console.log("✅ Enterprise cookie authentication successful");
+        console.log("🍪 Secure cookies set automatically");
         
         // Pass the complete response to parent
         onLoginSuccess({
@@ -61,8 +59,8 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         
       } else if (data.auth_mode === "cookie" && data.user) {
         // Alternative cookie response format
-        logger.debug("✅ Enterprise cookie authentication successful");
-        logger.debug("🍪 Secure cookies set automatically");
+        console.log("✅ Enterprise cookie authentication successful");
+        console.log("🍪 Secure cookies set automatically");
         
         // No need to store tokens - cookies handle everything
         onLoginSuccess({
@@ -74,10 +72,12 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
         
       } else if (data.access_token) {
         // 🎫 Legacy Token Mode (Fallback Compatibility)
-        logger.debug("⚠️ Legacy token authentication - consider upgrading");
+        console.log("⚠️ Legacy token authentication - consider upgrading");
         
         // Store tokens for backward compatibility
+        localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) {
+          localStorage.setItem("refresh_token", data.refresh_token);
         }
         
         onLoginSuccess({
@@ -94,7 +94,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       }
 
     } catch (err) {
-      logger.error("🏢 Enterprise login error:", err);
+      console.error("🏢 Enterprise login error:", err);
       setError("Network error - please check your connection");
     } finally {
       setIsLoading(false);

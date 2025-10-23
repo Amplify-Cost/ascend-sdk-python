@@ -1,8 +1,6 @@
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
+import React, { useEffect, useState, useCallback } from "react";
 
 const Rules = ({ getAuthHeaders, user }) => {
   const [rules, setRules] = useState([]);
@@ -19,15 +17,16 @@ const Rules = ({ getAuthHeaders, user }) => {
 
   const fetchRules = useCallback(async () => {
     try {
-      logger.debug("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
+      console.log("🔍 Fetching rules from:", `${API_BASE_URL}/rules`);
       const res = await fetch(`${API_BASE_URL}/rules`, {
+        credentials: "include",
         headers: await getAuthHeaders(),
       });
       const data = await res.json();
-      logger.debug("📋 Rules data:", data);
+      console.log("📋 Rules data:", data);
       setRules(Array.isArray(data) ? data : []); // ✅ Ensure it's an array
     } catch (err) {
-      logger.error("❌ Failed to fetch rules", err);
+      console.error("❌ Failed to fetch rules", err);
       setRules([]); // ✅ Set empty array on error
     }
   }, [getAuthHeaders]);
@@ -37,6 +36,7 @@ const Rules = ({ getAuthHeaders, user }) => {
   const updateRules = async (updatedRules) => {
     try {
       const res = await fetch(`${API_BASE_URL}/rules`, {
+        credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -51,7 +51,7 @@ const Rules = ({ getAuthHeaders, user }) => {
         setNewRule({ condition: "", action: "", justification: "", tags: [] });
       }
     } catch (err) {
-      logger.error("Failed to update rules", err);
+      console.error("Failed to update rules", err);
     }
   };
 
@@ -76,13 +76,14 @@ const Rules = ({ getAuthHeaders, user }) => {
   const fetchAuditLog = async (ruleId) => {
     try {
       const res = await fetch(`${API_BASE_URL}/feedback/${ruleId}`, {
+        credentials: "include",
         headers: await getAuthHeaders(),
       });
       const log = await res.json();
       setAuditLog(log);
       setShowAuditModal(true);
     } catch (err) {
-      logger.error("Audit log fetch failed", err);
+      console.error("Audit log fetch failed", err);
     }
   };
 

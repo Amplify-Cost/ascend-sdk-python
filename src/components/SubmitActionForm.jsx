@@ -1,7 +1,5 @@
+import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
 
 const SubmitActionForm = ({ user, getAuthHeaders }) => {
   const [tool, setTool] = useState("");
@@ -13,6 +11,7 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     setTimestamp(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
@@ -36,11 +35,12 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
       timestamp: new Date(timestamp).toISOString(),
     };
 
-    logger.debug("Payload being sent:", payload);
+    console.log("Payload being sent:", payload);
 
     try {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/agent-action`, {
+        credentials: "include",
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -60,7 +60,7 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
       setDescription("");
       setTimestamp(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
     } catch (err) {
-      logger.error("Submission error:", err);
+      console.error("Submission error:", err);
       setMessage({ type: "error", text: err.message });
     } finally {
       setLoading(false);

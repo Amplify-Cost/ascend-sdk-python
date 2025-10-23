@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Register = ({ onRegisterSuccess, switchToLogin }) => {
   const [email, setEmail] = useState("");
@@ -31,6 +29,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
 
     try {
       const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        credentials: "include",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -54,7 +53,9 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
 
       // ✅ Registration includes tokens in response
       if (data.access_token) {
+        localStorage.setItem("access_token", data.access_token);
         if (data.refresh_token) {
+          localStorage.setItem("refresh_token", data.refresh_token);
         }
         onRegisterSuccess(data.access_token, data.refresh_token);
       } else {
@@ -62,7 +63,7 @@ const Register = ({ onRegisterSuccess, switchToLogin }) => {
       }
 
     } catch (err) {
-      logger.error("Registration error:", err);
+      console.error("Registration error:", err);
       setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);

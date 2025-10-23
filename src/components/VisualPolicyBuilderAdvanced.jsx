@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Shield, Plus, X, Code2, Eye } from 'lucide-react';
-import logger from '../utils/logger.js';
 
 export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, getAuthHeaders }) => {
   const [policy, setPolicy] = useState({
@@ -90,7 +89,7 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
       setCompiledPreview(data);
       setShowPreview(true);
     } catch (error) {
-      logger.error('Compilation failed:', error);
+      console.error('Compilation failed:', error);
     }
   };
 

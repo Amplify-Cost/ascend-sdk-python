@@ -1,8 +1,5 @@
 import React, { useState } from "react";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
 const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [agentId, setAgentId] = useState("");
   const [actionType, setActionType] = useState("");
@@ -14,6 +11,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   // Predefined test scenarios for quick testing
   const testScenarios = [
@@ -91,7 +89,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
     }
 
     try {
-      logger.debug('🚀 Submitting enterprise agent action...');
+      console.log('🚀 Submitting enterprise agent action...');
       
       const payload = {
         agent_id: agentId,
@@ -104,7 +102,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
         timestamp: Math.floor(Date.now() / 1000),
       };
 
-      logger.debug('📤 Payload:', payload);
+      console.log('📤 Payload:', payload);
 
       // Try multiple endpoints to find the working one
       const endpoints = [
@@ -118,9 +116,10 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
 
       for (const endpoint of endpoints) {
         try {
-          logger.debug(`🔍 Trying endpoint: ${endpoint}`);
+          console.log(`🔍 Trying endpoint: ${endpoint}`);
           
           const res = await fetch(endpoint, {
+            credentials: "include",
             method: "POST",
             headers: {
               ...getAuthHeaders(),
@@ -129,11 +128,11 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
             body: JSON.stringify(payload),
           });
 
-          logger.debug(`📊 Response status: ${res.status}`);
+          console.log(`📊 Response status: ${res.status}`);
           
           if (res.ok) {
             const result = await res.json();
-            logger.debug('✅ Success response:', result);
+            console.log('✅ Success response:', result);
             
             setMessage(`✅ Enterprise agent action submitted successfully! 
                        Action ID: ${result.action_id || result.authorization_id || 'Generated'}
@@ -145,11 +144,11 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
             break;
           } else {
             const errorText = await res.text();
-            logger.debug(`❌ Error response: ${res.status} - ${errorText}`);
+            console.log(`❌ Error response: ${res.status} - ${errorText}`);
             lastError = `${res.status}: ${errorText}`;
           }
         } catch (fetchError) {
-          logger.debug(`🔥 Fetch error for ${endpoint}:`, fetchError);
+          console.log(`🔥 Fetch error for ${endpoint}:`, fetchError);
           lastError = fetchError.message;
         }
       }
@@ -159,7 +158,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       }
 
     } catch (err) {
-      logger.error("💥 Enterprise submission error:", err);
+      console.error("💥 Enterprise submission error:", err);
       setError(`❌ Enterprise submission failed: ${err.message}`);
     } finally {
       setLoading(false);

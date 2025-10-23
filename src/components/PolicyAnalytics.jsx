@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Shield, AlertCircle, Activity } from 'lucide-react';
-import logger from '../utils/logger.js';
 
 export const PolicyAnalytics = ({ API_BASE_URL, getAuthHeaders }) => {
   const [metrics, setMetrics] = useState(null);
@@ -14,12 +13,12 @@ export const PolicyAnalytics = ({ API_BASE_URL, getAuthHeaders }) => {
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/governance/policies/engine-metrics`,
-        { headers: getAuthHeaders() }
+        { credentials: "include", headers: getAuthHeaders() }
       );
       const data = await response.json();
       setMetrics(data);
     } catch (error) {
-      logger.error('Failed to load metrics:', error);
+      console.error('Failed to load metrics:', error);
     } finally {
       setLoading(false);
     }

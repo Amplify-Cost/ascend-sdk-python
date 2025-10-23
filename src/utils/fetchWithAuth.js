@@ -1,316 +1,97 @@
+// ============================================
+// ENTERPRISE COOKIE-BASED AUTHENTICATION
+// ============================================
+// Cookies are sent automatically by browser
+// No token management needed
+// ============================================
 
-
-import { API_BASE_URL } from './config/api';
-import logger from './logger.js';
-// utils/fetchWithAuth.js — Enhanced Enterprise Token Lifecycle Management
-
-// Enterprise JWT Token Management
-class EnterpriseTokenManager {
-  static TOKEN_EXPIRY_BUFFER = 60; // 1 minute buffer before expiration
-  static MAX_REFRESH_ATTEMPTS = 1;
-  
-  /**
-   * Decode JWT payload safely
-   */
-  static decodeJWT(token) {
-    try {
-      if (!token || typeof token !== 'string') return null;
-      
-      const parts = token.split('.');
-      if (parts.length !== 3) return null;
-      
-      const payload = JSON.parse(atob(parts[1]));
-      return payload;
-    } catch (error) {
-      logger.warn("🔍 Enterprise: Invalid JWT format detected");
-      return null;
-    }
-  }
-  
-  /**
-   * Check if JWT token is expired or will expire soon
-   */
-  static isTokenExpired(token) {
-    const payload = this.decodeJWT(token);
-    if (!payload || !payload.exp) return true;
-    
-    const now = Math.floor(Date.now() / 1000);
-    const isExpired = payload.exp <= (now + this.TOKEN_EXPIRY_BUFFER);
-    
-    if (isExpired) {
-      logger.debug("🔄 Enterprise: Token expired or expiring soon");
-    }
-    
-    return isExpired;
-  }
-  
-  /**
-   * Get token metadata for audit logging
-   */
-  static getTokenMetadata(token) {
-    const payload = this.decodeJWT(token);
-    if (!payload) return null;
-    
-    return {
-      user_id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      issued_at: payload.iat,
-      expires_at: payload.exp,
-      issuer: payload.iss,
-      audience: payload.aud,
-      token_type: payload.type
-    };
-  }
-  
-  /**
-   * Clear expired or invalid tokens
-   */
-  static clearInvalidTokens() {
-    
-    let clearedTokens = false;
-    
-    if (accessToken && this.isTokenExpired(accessToken)) {
-      logger.debug("🧹 Enterprise: Cleared expired access token");
-      clearedTokens = true;
-    }
-    
-    if (refreshToken && this.isTokenExpired(refreshToken)) {
-      logger.debug("🧹 Enterprise: Cleared expired refresh token");
-      clearedTokens = true;
-    }
-    
-    return clearedTokens;
-  }
-  
-  /**
-   * Attempt to refresh access token using refresh token
-   */
-  static async refreshAccessToken() {
-    
-    if (!refreshToken || this.isTokenExpired(refreshToken)) {
-      logger.debug("❌ Enterprise: No valid refresh token available");
-      this.clearInvalidTokens();
-      return null;
-    }
-    
-    try {
-      logger.debug("🔄 Enterprise: Attempting token refresh");
-      
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Enterprise-Client": "OW-AI-Platform"
-        },
-        credentials: "include",
-        body: JSON.stringify({ 
-          refresh_token: refreshToken 
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Token refresh failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.access_token) {
-        if (data.refresh_token) {
-        }
-        
-        logger.debug("✅ Enterprise: Token refresh successful");
-        return data.access_token;
-      }
-      
-      throw new Error("Invalid refresh response format");
-      
-    } catch (error) {
-      logger.error("❌ Enterprise: Token refresh failed:", error);
-      this.clearInvalidTokens();
-      return null;
-    }
-  }
-  
-  /**
-   * Get valid access token (refreshes if needed)
-   */
-  static async getValidAccessToken() {
-    
-    // If no token or expired, try to refresh
-    if (!accessToken || this.isTokenExpired(accessToken)) {
-      accessToken = await this.refreshAccessToken();
-    }
-    
-    return accessToken;
-  }
-}
-
-// Read a simple cookie value (used for CSRF; session cookie is HttpOnly and not readable)
-function getCookie(name) {
-  const match = document.cookie.split("; ").find(c => c.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=", 2)[1]) : null;
-}
+import { API_BASE_URL } from "../config/api";
+import logger from "./logger";
 
 /**
- * Enterprise hybrid fetch helper with enhanced token lifecycle management:
- * - Automatic token expiration detection and cleanup
- * - Intelligent token refresh attempts
- * - Graceful fallback to cookie authentication
- * - Comprehensive audit logging
- * - CSRF protection for state-changing operations
+ * Enterprise cookie-based fetch with automatic retry
+ * Cookies are handled automatically by browser
  */
-export async function fetchWithAuth(url, options = {}) {
-  const absoluteUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
-  const init = {
-    method: options.method || "GET",
+const fetchWithAuth = async (url, options = {}) => {
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  
+  logger.debug("🌐 Enterprise API Call:", fullUrl);
+  logger.debug("🍪 Using cookie-based authentication");
+
+  const config = {
+    ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-Enterprise-Client": "OW-AI-Platform",
-      ...(options.headers || {})
+      ...options.headers,
     },
-    credentials: "include", // Enterprise cookie authentication
-    ...options
+    credentials: "include", // CRITICAL: Send cookies with request
   };
 
-  const method = (init.method || "GET").toUpperCase();
-
-  // CSRF Protection for state-changing operations
-  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
-    const csrf = getCookie("owai_csrf");
-    if (csrf) {
-      init.headers["X-CSRF-Token"] = csrf;
-    }
-  }
-
-  // ENHANCED ENTERPRISE TOKEN LIFECYCLE MANAGEMENT
   try {
-    // 1. Clear any expired tokens first
-    EnterpriseTokenManager.clearInvalidTokens();
-    
-    // 2. Attempt to get a valid access token
-    const validToken = await EnterpriseTokenManager.getValidAccessToken();
-    
-    if (validToken) {
-      init.headers.Authorization = `Bearer ${validToken}`;
-      logger.debug("🔐 Enterprise: Using refreshed token authentication");
-      
-      // Log token metadata for audit trail
-      const metadata = EnterpriseTokenManager.getTokenMetadata(validToken);
-      if (metadata) {
-        logger.debug(`🔍 Enterprise Audit: ${metadata.email} (${metadata.role}) - Token valid until ${new Date(metadata.expires_at * 1000).toISOString()}`);
-      }
-    } else {
-      logger.debug("🍪 Enterprise: Falling back to cookie-only authentication");
-    }
+    const response = await fetch(fullUrl, config);
 
-  } catch (tokenError) {
-    logger.warn("⚠️ Enterprise: Token management error, proceeding with cookies only:", tokenError);
-  }
-
-  // Execute the request
-  let response = await fetch(absoluteUrl, init);
-
-  // Handle CSRF token expiration (403 Forbidden)
-  if (response.status === 403) {
-    try {
-      logger.debug("🔄 Enterprise: CSRF token expired, refreshing");
-      await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" });
-      
-      const newCsrf = getCookie("owai_csrf");
-      if (newCsrf && ["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
-        init.headers["X-CSRF-Token"] = newCsrf;
-        response = await fetch(absoluteUrl, init);
-        logger.debug("✅ Enterprise: CSRF token refreshed successfully");
-      }
-    } catch (csrfError) {
-      logger.error("❌ Enterprise: CSRF refresh failed:", csrfError);
-    }
-  }
-
-  // Handle token expiration during request (401 Unauthorized)
-  if (response.status === 401) {
-    logger.debug("🔄 Enterprise: Authentication failed, attempting token refresh");
-    
-    try {
-      const refreshedToken = await EnterpriseTokenManager.refreshAccessToken();
-      
-      if (refreshedToken) {
-        init.headers.Authorization = `Bearer ${refreshedToken}`;
-        response = await fetch(absoluteUrl, init);
-        logger.debug("✅ Enterprise: Request retry with refreshed token successful");
-      } else {
-        logger.debug("🍪 Enterprise: Token refresh failed, relying on cookie authentication");
-      }
-    } catch (refreshError) {
-      logger.error("❌ Enterprise: Token refresh during request failed:", refreshError);
-    }
-  }
-
-  // Final response validation
-  if (!response.ok && response.status === 401) {
-    logger.debug("🚪 Enterprise: Authentication failed completely, user needs to re-login");
-    EnterpriseTokenManager.clearInvalidTokens();
-  }
-
-  return response;
-}
-
-// Enhanced logout with comprehensive cleanup
-export async function logout() {
-  try {
-    logger.debug("🚪 Enterprise: Initiating secure logout");
-    
-    // Server-side logout to invalidate server sessions
-    await fetchWithAuth("/auth/logout", { method: "POST" });
-    
-  } catch (error) {
-    logger.warn("⚠️ Enterprise: Server logout failed, proceeding with client cleanup:", error);
-  } finally {
-    // Comprehensive client-side cleanup
-    EnterpriseTokenManager.clearInvalidTokens();
-    sessionStorage.clear();
-    
-    // Clear any application state
-    if (window.appState) {
-      window.appState.clear();
-    }
-    
-    logger.debug("✅ Enterprise: Logout complete - all tokens and sessions cleared");
-    window.location.href = "/";
-  }
-}
-
-// Enhanced user info retrieval with token validation
-export async function getCurrentUser() {
-  try {
-    // Ensure we have a valid token before making the request
-    const validToken = await EnterpriseTokenManager.getValidAccessToken();
-    
-    if (!validToken) {
-      logger.debug("🔍 Enterprise: No valid token available for user info");
-      return null;
-    }
-    
-    const response = await fetchWithAuth("/auth/me");
-    
-    if (response.ok) {
-      const userData = await response.json();
-      logger.debug(`✅ Enterprise: User info retrieved for ${userData.email}`);
-      return userData;
-    }
-    
+    // Handle 401 - session expired
     if (response.status === 401) {
-      logger.debug("🔍 Enterprise: User session expired");
-      EnterpriseTokenManager.clearInvalidTokens();
+      logger.warn("⚠️ 401 Unauthorized - Session expired or invalid");
+      
+      // Redirect to login
+      if (window.location.pathname !== "/login") {
+        logger.debug("🔄 Redirecting to login...");
+        window.location.href = "/login";
+      }
+      
+      throw new Error("Authentication required");
     }
-    
-    return null;
+
+    // Handle other error responses
+    if (!response.ok) {
+      const errorText = await response.text();
+      logger.error(`❌ API Error ${response.status}:`, errorText);
+      throw new Error(`API returned ${response.status}: ${errorText}`);
+    }
+
+    // Parse JSON response
+    const data = await response.json();
+    logger.debug("✅ API Success:", fullUrl);
+    return data;
+
+  } catch (error) {
+    logger.error("❌ Enterprise fetch error:", error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get current authenticated user
+ */
+export const getCurrentUser = async () => {
+  logger.debug("🔍 Getting current user via cookie auth...");
+  try {
+    return await fetchWithAuth("/auth/me");
   } catch (error) {
     logger.error("❌ Enterprise: Get current user failed:", error);
-    return null;
+    throw error;
   }
-}
+};
 
-// Export the token manager for direct access if needed
-export { EnterpriseTokenManager };
+
+/**
+ * Enterprise logout - clears server-side session/cookies
+ */
+export const logout = async () => {
+  logger.debug("🚪 Calling enterprise logout API...");
+  try {
+    await fetchWithAuth("/auth/logout", {
+      method: "POST",
+    });
+    logger.debug("✅ Enterprise logout successful");
+  } catch (error) {
+    logger.warn("⚠️ Logout API call failed:", error);
+    // Don't throw - allow logout to continue even if API fails
+  }
+};
+
+export default fetchWithAuth;
+
+// Named export for backwards compatibility
+export { fetchWithAuth };

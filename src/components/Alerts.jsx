@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-import { API_BASE_URL } from '../config/api';
-import logger from '../utils/logger.js';
-
 const riskColors = {
   high: "bg-red-100 text-red-800",
   medium: "bg-yellow-100 text-yellow-800",
@@ -23,26 +20,28 @@ const Alerts = ({ getAuthHeaders, user }) => {
   const [summaryError, setSummaryError] = useState("");
   const [summaryResult, setSummaryResult] = useState("");
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
-        logger.debug("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
+        console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
         const res = await fetch(`${API_BASE_URL}/alerts`, {
+          credentials: "include",
           headers: getAuthHeaders(),
         });
         if (!res.ok) throw new Error("Failed to fetch alerts");
         const data = await res.json();
         
         // ✅ DEBUG: Log the actual response
-        logger.debug("🚨 Alerts API Response:", data);
-        logger.debug("🚨 Alerts array length:", Array.isArray(data) ? data.length : "Not an array");
-        logger.debug("🚨 First alert:", Array.isArray(data) && data.length > 0 ? data[0] : "No alerts");
+        console.log("🚨 Alerts API Response:", data);
+        console.log("🚨 Alerts array length:", Array.isArray(data) ? data.length : "Not an array");
+        console.log("🚨 First alert:", Array.isArray(data) && data.length > 0 ? data[0] : "No alerts");
         
         setAlerts(Array.isArray(data) ? data : []);
         setError(null);
       } catch (err) {
-        logger.error("❌ Alert fetch failed", err);
+        console.error("❌ Alert fetch failed", err);
         setError("Could not load alerts.");
         setAlerts([]);
       } finally {
@@ -66,12 +65,13 @@ const Alerts = ({ getAuthHeaders, user }) => {
     }
     
     setFiltered(filtered);
-    logger.debug("🚨 Filtered alerts:", filtered.length);
+    console.log("🚨 Filtered alerts:", filtered.length);
   }, [riskFilter, toolFilter, agentFilter, alerts]);
 
   const updateAlertStatus = async (alertId, status) => {
     try {
       const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
+        credentials: "include",
         method: "PATCH",
         headers: {
           ...getAuthHeaders(),
@@ -87,7 +87,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
         alert.id === alertId ? { ...alert, status } : alert
       ));
     } catch (err) {
-      logger.error("Status update error:", err);
+      console.error("Status update error:", err);
     }
   };
 
@@ -103,6 +103,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
           `Agent ${a.agent_id} using ${a.tool_name} triggered: ${a.message} (Risk: ${a.risk_level})`
       );
       const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
+        credentials: "include",
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -114,7 +115,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
       const data = await res.json();
       setSummaryResult(data.summary || "No summary returned.");
     } catch (err) {
-      logger.error(err);
+      console.error(err);
       setSummaryError("Error generating summary. Try again.");
     } finally {
       setSummaryLoading(false);
