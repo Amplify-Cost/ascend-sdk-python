@@ -1,26 +1,8 @@
 """
-Models Module
-Organized by domain for better maintainability
+Models Module - Placeholder for future organization
+Currently all models are in root models.py
 """
-# Import all models here for backward compatibility
-# This allows: from models import AgentAction, Alert, Workflow
-
-# Core models will be split into separate files
-# For now, we'll import from the main models.py file
-
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Import from parent directory's models.py
-from ..models import *
-
-__all__ = [
-    'AgentAction',
-    'Alert', 
-    'Workflow',
-    'WorkflowExecution',
-    'User',
-    'EnterpriseUser',
-    # Add other model names as needed
-]
+# This is a placeholder directory for future model organization
+# All models currently reside in the root models.py file
+# Import them from there for now
+pass
