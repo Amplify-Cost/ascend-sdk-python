@@ -16,14 +16,13 @@ class ActionCreate(BaseModel):
     
     @validator('description')
     def validate_description(cls, v):
-        """Prevent SQL injection in description"""
         dangerous = ['DROP TABLE', 'DELETE FROM', 'INSERT INTO', '--', '/*']
         if any(pattern.lower() in v.lower() for pattern in dangerous):
             raise ValueError('Description contains potentially dangerous content')
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "agent_id": "agent-security-001",
                 "action_type": "database_access",
@@ -54,16 +53,7 @@ class ActionResponse(BaseModel):
     
     class Config:
         from_attributes = True
-        schema_extra = {
-            "example": {
-                "id": 123,
-                "agent_id": "agent-security-001",
-                "action_type": "database_access",
-                "description": "Accessing production database",
-                "status": "pending_approval",
-                "risk_score": 65.0,
-                "risk_level": "medium",
-                "created_at": "2025-10-22T21:00:00",
-                "created_by": 1
-            }
-        }
+
+
+# Alias for backward compatibility
+AgentActionOut = ActionResponse
