@@ -1400,6 +1400,11 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 except Exception as e:
                     logger.warning(f"Orchestration failed: {e}")
                 
+            except Exception as e:
+                logger.error(f"Action processing error: {e}")
+                db.rollback()
+                raise HTTPException(status_code=500, detail=str(e))
+
             return {
                 "status": "success",
                 "message": "✅ Enterprise agent action submitted successfully",
