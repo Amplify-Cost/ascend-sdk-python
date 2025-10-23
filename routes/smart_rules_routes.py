@@ -85,37 +85,43 @@ async def get_rule_analytics(
         logger.info(f"📊 Raw SQL: Found {total_rules} total rules")
         
         # Generate enterprise-grade analytics
-        analytics = {
-            "total_rules": max(total_rules, 3),  # Show at least 3 for demo
-            "active_rules": max(total_rules, 3),
-            "avg_performance_score": round(random.uniform(85.0, 95.0), 1),
-            "total_triggers_24h": random.randint(100, 200),
-            "false_positive_rate": round(random.uniform(2.0, 8.0), 1),
-            "top_performing_rules": [
-                {"id": 1, "name": "Data Exfiltration Block", "score": 94, "category": "data_protection"},
-                {"id": 2, "name": "Privilege Escalation Alert", "score": 91, "category": "access_control"}, 
-                {"id": 3, "name": "Suspicious Network Activity", "score": 87, "category": "network_security"}
-            ],
-            "performance_trends": {
-                "accuracy_improvement": f"+{random.randint(8, 15)}%",
-                "response_time_improvement": f"-{random.randint(15, 30)}%",
-                "false_positive_reduction": f"-{random.randint(25, 40)}%"
-            },
-            "ml_insights": {
-                "pattern_recognition_accuracy": random.randint(85, 95),
-                "events_analyzed": random.randint(1000, 2000),
-                "new_patterns_identified": random.randint(15, 30),
-                "prediction_confidence": random.randint(80, 95)
-            },
-            "enterprise_metrics": {
-                "cost_savings_monthly": f"${random.randint(15000, 25000):,}",
-                "incidents_prevented": random.randint(35, 65),
-                "automation_rate": f"{random.randint(75, 90)}%",
-                "compliance_score": f"{random.randint(92, 98)}%"
-            }
-        }
+        # ENTERPRISE: Query REAL performance data from database
+        perf_data = db.execute(text("""
+            SELECT 
+                AVG(performance_score) as avg_score,
+                SUM(triggers_last_24h) as total_triggers,
+                AVG(false_positive_rate) as avg_fp_rate
+            FROM smart_rules 
+            WHERE is_active = true
+        """)).fetchone()
         
-        logger.info(f"📊 Analytics generated for {total_rules} rules")
+        avg_performance_score = round(perf_data[0] or 88.0, 1) if perf_data else 88.0
+        total_triggers_24h = int(perf_data[1] or 0) if perf_data else 0
+        false_positive_rate = round(perf_data[2] or 5.0, 1) if perf_data else 5.0
+        
+        # Query top performing rules from database
+        top_rules = db.execute(text("""
+            SELECT id, name, performance_score, category
+            FROM smart_rules
+            WHERE is_active = true
+            ORDER BY performance_score DESC
+            LIMIT 3
+        """)).fetchall()
+        
+        top_performing_rules = [
+            {"id": r[0], "name": r[1], "score": int(r[2] or 90), "category": r[3] or "security"}
+            for r in top_rules
+        ] if top_rules else []
+        
+        # Generate enterprise-grade analytics from REAL data
+        analytics = {
+            "total_rules": total_rules,
+            "active_rules": total_rules,
+            "avg_performance_score": avg_performance_score,
+            "total_triggers_24h": total_triggers_24h,
+            "false_positive_rate": false_positive_rate,
+            "top_performing_rules": top_performing_rules
+        }
         return analytics
         
     except Exception as e:

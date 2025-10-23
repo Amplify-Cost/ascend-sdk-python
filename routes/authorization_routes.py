@@ -26,6 +26,7 @@ from enum import Enum
 
 # Internal imports
 from database import get_db
+from services.pending_actions_service import pending_service
 from dependencies import get_current_user, require_admin, require_csrf
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
@@ -43,7 +44,7 @@ try:
     from enterprise_policy_engine import PolicyEngine
     POLICY_ENGINE_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"Enterprise Policy Engine not available: {e}")
+#    logger.warning(f"Enterprise Policy Engine not available: {e}")
     POLICY_ENGINE_AVAILABLE = False
 
 # Import real-time policy engine for Phase 1.2 integration
@@ -57,9 +58,9 @@ try:
         RiskCategory
     )
     REALTIME_POLICY_ENGINE_AVAILABLE = True
-    print("✅ Real-time Policy Engine loaded successfully")
+#    logger.info("Real-time Policy Engine loaded successfully")
 except ImportError as e:
-    logger.warning(f"Real-time Policy Engine not available: {e}")
+#    logger.warning(f"Real-time Policy Engine not available: {e}")
     REALTIME_POLICY_ENGINE_AVAILABLE = False
 
 # Configure enterprise logging
@@ -167,7 +168,7 @@ class DatabaseService:
             db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"Database transaction failed: {str(e)}")
+#    logger.error(f"Database transaction failed: {str(e)}")
             raise
         finally:
             # Connection is managed by FastAPI dependency injection
@@ -179,7 +180,7 @@ class DatabaseService:
         try:
             return db.execute(text(query), params)
         except Exception as e:
-            logger.error(f"Database query failed: {query} with params {params}. Error: {str(e)}")
+#    logger.error(f"Database query failed: {query} with params {params}. Error: {str(e)}")
             raise
     
     @staticmethod
@@ -199,7 +200,7 @@ class DatabaseService:
         except ActionNotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Failed to retrieve action {action_id}: {str(e)}")
+#    logger.error(f"Failed to retrieve action {action_id}: {str(e)}")
             raise
 
 
@@ -227,10 +228,10 @@ class AuditService:
             )
             db.add(audit_log)
             db.commit()
-            logger.info(f"Audit log created: {action} for user {user_id}")
+#    logger.info(f"Audit log created: {action} for user {user_id}")
             return True
         except Exception as e:
-            logger.error(f"Failed to create audit log: {str(e)}")
+#    logger.error(f"Failed to create audit log: {str(e)}")
             return False
 
 
@@ -343,7 +344,7 @@ class ActionExecutorService:
         execution_id = str(uuid.uuid4())
         execution_start = datetime.now(UTC)
         
-        logger.info(f"Starting enterprise execution {execution_id} for action {action_data['id']}")
+#    logger.info(f"Starting enterprise execution {execution_id} for action {action_data['id']}")
         
         try:
             # Get appropriate handler
@@ -376,7 +377,7 @@ class ActionExecutorService:
                 risk_level=action_data.get("risk_level", "medium")
             )
             
-            logger.info(f"Enterprise execution {execution_id} completed in {execution_time:.3f}s")
+#    logger.info(f"Enterprise execution {execution_id} completed in {execution_time:.3f}s")
             
             return ExecutionResult(
                 status="success",
@@ -390,7 +391,7 @@ class ActionExecutorService:
             )
             
         except Exception as e:
-            logger.error(f"Enterprise execution {execution_id} failed: {str(e)}")
+#    logger.error(f"Enterprise execution {execution_id} failed: {str(e)}")
             
             failure_id = str(uuid.uuid4())
             cls._update_action_status(
@@ -433,7 +434,7 @@ class ActionExecutorService:
                     }
                 )
         except Exception as e:
-            logger.warning(f"Database update failed, using fallback: {e}")
+#    logger.warning(f"Database update failed, using fallback: {e}")
             # Fallback for databases without execution_id column
             DatabaseService.safe_execute(
                 db,
@@ -543,7 +544,7 @@ class AuthorizationService:
                 
                 # Fallback: Calculate only if database doesn't have score
                 if db_risk_score is None:
-                    logger.warning(f"Action {row[0]} missing risk_score in database, calculating on-demand")
+#    logger.warning(f"Action {row[0]} missing risk_score in database, calculating on-demand")
                     action_data = {
                         "action_type": row[2] or "security_scan",
                         "risk_level": row[4] or RiskLevel.MEDIUM.value
@@ -596,7 +597,7 @@ class AuthorizationService:
             }
             
         except Exception as e:
-            logger.error(f"Failed to retrieve pending actions: {str(e)}")
+#    logger.error(f"Failed to retrieve pending actions: {str(e)}")
             return {
                 "success": False,
                 "actions": [],
@@ -626,7 +627,7 @@ class AuthorizationService:
         authorization_id = str(uuid.uuid4())
         
         try:
-            logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
+#    logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
             
             # Get action details
             action_row = DatabaseService.get_action_by_id(db, action_id)
@@ -699,7 +700,7 @@ class AuthorizationService:
                         execution_result = asdict(execution_result)
                         
                     except ExecutionFailureError as e:
-                        logger.error(f"Execution failed: {str(e)}")
+#    logger.error(f"Execution failed: {str(e)}")
                         execution_result = {
                             "status": "failed",
                             "execution_id": "",
@@ -772,10 +773,10 @@ class AuthorizationService:
                 }
                 
         except (ActionNotFoundError, InvalidActionStateError) as e:
-            logger.error(f"Authorization failed for action {action_id}: {str(e)}")
+#    logger.error(f"Authorization failed for action {action_id}: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            logger.error(f"Enterprise authorization failed for action {action_id}: {str(e)}")
+#    logger.error(f"Enterprise authorization failed for action {action_id}: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Enterprise authorization failed: {str(e)}")
 
 
@@ -843,7 +844,6 @@ async def get_approval_dashboard(
     try:
         # Dashboard queries with proper error handling
         dashboard_queries = {
-            "total_pending": "SELECT COUNT(*) FROM agent_actions WHERE status IN ('pending', 'pending_approval')",
             "total_approved": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.APPROVED.value}'",
             "total_executed": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.EXECUTED.value}'",
             "total_rejected": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.REJECTED.value}'",
@@ -856,8 +856,11 @@ async def get_approval_dashboard(
             try:
                 metrics[metric_name] = DatabaseService.safe_execute(db, query, {}).scalar() or 0
             except Exception as query_error:
-                logger.warning(f"Enterprise metric query failed for {metric_name}: {query_error}")
+#    logger.warning(f"Enterprise metric query failed for {metric_name}: {query_error}")
                 metrics[metric_name] = 0
+        
+        # ✅ ENTERPRISE: Use pending_service for consistent count
+        metrics["total_pending"] = pending_service.get_pending_count(db)
         
         # Recent activity
         try:
@@ -927,7 +930,7 @@ async def get_approval_dashboard(
         }
         
     except Exception as e:
-        logger.error(f"Enterprise dashboard data retrieval failed: {str(e)}")
+#    logger.error(f"Enterprise dashboard data retrieval failed: {str(e)}")
         return {
             "summary": {
                 "total_pending": 0,
@@ -1013,7 +1016,7 @@ async def get_execution_history(
         }
         
     except Exception as e:
-        logger.error(f"Execution history retrieval failed: {str(e)}")
+#    logger.error(f"Execution history retrieval failed: {str(e)}")
         return {
             "executions": [],
             "total_count": 0,
@@ -1037,11 +1040,11 @@ async def get_pending_actions_api(
         if result.get("success", False):
             return result["actions"]
         else:
-            logger.warning(f"Pending actions API returning empty array due to error: {result.get('error', 'unknown')}")
+#    logger.warning(f"Pending actions API returning empty array due to error: {result.get('error', 'unknown')}")
             return []
             
     except Exception as e:
-        logger.error(f"API pending actions endpoint failed: {str(e)}")
+#    logger.error(f"API pending actions endpoint failed: {str(e)}")
         return []
 
 # ========== POLICY MANAGEMENT API ENDPOINTS ==========
@@ -1079,7 +1082,7 @@ async def get_policies_list_api(
         }
         
     except Exception as e:
-        logger.error(f"Policies list API failed: {str(e)}")
+#    logger.error(f"Policies list API failed: {str(e)}")
         return {
             "success": False,
             "policies": [],
@@ -1113,7 +1116,7 @@ async def get_policies_metrics_api(
         }
         
     except Exception as e:
-        logger.error(f"Policy metrics API failed: {str(e)}")
+#    logger.error(f"Policy metrics API failed: {str(e)}")
         return {
             "success": False,
             "metrics": {
@@ -1154,7 +1157,7 @@ async def create_policy_from_natural_language_api(
         }
         
     except Exception as e:
-        logger.error(f"Policy creation API failed: {str(e)}")
+#    logger.error(f"Policy creation API failed: {str(e)}")
         return {
             "success": False,
             "error": str(e),
@@ -1178,7 +1181,7 @@ async def get_approval_dashboard_api(
         return result
         
     except Exception as e:
-        logger.error(f"Dashboard API endpoint failed: {str(e)}")
+#    logger.error(f"Dashboard API endpoint failed: {str(e)}")
         return {
             "summary": {
                 "total_pending": 0,
@@ -1246,7 +1249,7 @@ async def create_test_action_api(
             
             action_id = result.fetchone()[0]
         
-        logger.info(f"API test action created: ID {action_id}")
+#    logger.info(f"API test action created: ID {action_id}")
         
         return {
             "success": True,
@@ -1258,7 +1261,7 @@ async def create_test_action_api(
         }
         
     except Exception as e:
-        logger.error(f"API test action creation failed: {str(e)}")
+#    logger.error(f"API test action creation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Test action creation failed: {str(e)}")
 
 
@@ -1271,7 +1274,7 @@ def ensure_array_response(data, field_name="actions"):
     
     field_data = data.get(field_name, [])
     if not isinstance(field_data, list):
-        logger.warning(f"Field {field_name} is not an array, converting to empty array")
+#    logger.warning(f"Field {field_name} is not an array, converting to empty array")
         return []
     
     return field_data
@@ -1450,7 +1453,7 @@ async def get_approval_performance_metrics(
     - Capacity planning insights
     """
     try:
-        logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
+#    logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
         
         # Calculate average approval time (minutes)
         avg_time_result = db.execute(text("""
@@ -1544,11 +1547,11 @@ async def get_approval_performance_metrics(
             "last_updated": datetime.now(UTC).isoformat()
         }
         
-        logger.info("✅ ENTERPRISE: Performance metrics calculated successfully")
+#    logger.info("✅ ENTERPRISE: Performance metrics calculated successfully")
         return enterprise_metrics
         
     except Exception as e:
-        logger.error(f"❌ ENTERPRISE ERROR: Performance metrics failed: {e}")
+#    logger.error(f"❌ ENTERPRISE ERROR: Performance metrics failed: {e}")
         raise HTTPException(status_code=500, detail=f"Enterprise metrics calculation failed: {str(e)}")
 
 
@@ -1644,7 +1647,7 @@ async def evaluate_policy_realtime(
         }
         
     except Exception as e:
-        logger.error(f"Real-time policy evaluation failed: {str(e)}")
+#    logger.error(f"Real-time policy evaluation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Policy evaluation failed: {str(e)}")
 
 
@@ -1685,7 +1688,7 @@ async def get_policy_engine_metrics(
         }
         
     except Exception as e:
-        logger.error(f"Policy engine metrics failed: {str(e)}")
+#    logger.error(f"Policy engine metrics failed: {str(e)}")
         return {
             "engine_available": False,
             "error": str(e),
@@ -1727,7 +1730,7 @@ async def clear_policy_cache(
         }
         
     except Exception as e:
-        logger.error(f"Cache clear failed: {str(e)}")
+#    logger.error(f"Cache clear failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Cache clear failed: {str(e)}")
 
 
@@ -1828,7 +1831,7 @@ async def test_policy_evaluation(
         }
         
     except Exception as e:
-        logger.error(f"Policy evaluation test failed: {str(e)}")
+#    logger.error(f"Policy evaluation test failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
 

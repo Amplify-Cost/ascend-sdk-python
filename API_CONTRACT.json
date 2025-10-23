@@ -1,0 +1,82 @@
+{
+  "GET /api/authorization/automation/playbooks": {
+    "purpose": "List all automation playbooks",
+    "query_params": [
+      "status",
+      "risk_level"
+    ],
+    "response": {
+      "status": "success",
+      "data": [
+        {
+          "id": "string",
+          "name": "string",
+          "description": "string",
+          "status": "active|inactive",
+          "risk_level": "low|medium|high|critical",
+          "approval_required": "boolean",
+          "trigger_conditions": "object",
+          "actions": "array",
+          "execution_count": "number",
+          "success_rate": "number",
+          "created_at": "ISO date"
+        }
+      ],
+      "total": "number"
+    }
+  },
+  "POST /api/authorization/automation/playbooks": {
+    "purpose": "Create new playbook",
+    "auth": "Admin only",
+    "body": {
+      "id": "string",
+      "name": "string",
+      "description": "string",
+      "status": "active|inactive",
+      "risk_level": "low|medium|high|critical",
+      "approval_required": "boolean",
+      "trigger_conditions": "object",
+      "actions": "array"
+    },
+    "response": {
+      "status": "success",
+      "message": "string",
+      "data": {
+        "id": "string",
+        "name": "string"
+      }
+    }
+  },
+  "POST /api/authorization/automation/playbook/{id}/toggle": {
+    "purpose": "Enable/disable playbook",
+    "auth": "Admin only",
+    "response": {
+      "status": "success",
+      "message": "string",
+      "data": {
+        "status": "active|inactive"
+      }
+    }
+  },
+  "POST /api/authorization/automation/execute-playbook": {
+    "purpose": "Test execute playbook",
+    "body": {
+      "playbook_id": "string",
+      "input_data": "object"
+    },
+    "response": {
+      "status": "success",
+      "data": {
+        "execution_id": "number",
+        "execution_status": "string"
+      }
+    }
+  },
+  "GET /api/authorization/orchestration/active-workflows": {
+    "purpose": "List active workflow executions",
+    "response": {
+      "status": "success",
+      "data": "array of executions"
+    }
+  }
+}

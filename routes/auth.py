@@ -1,6 +1,7 @@
 # routes/auth.py - Enterprise Response Diagnostics (Find Exact Format Issue)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from security.cookies import SESSION_COOKIE_NAME
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
@@ -15,6 +16,9 @@ import jwt
 import os
 import logging
 import json
+
+# Enterprise rate limiting
+from security.rate_limiter import limiter, RATE_LIMITS
 
 class LoginRequest(BaseModel):
     email: str
@@ -186,7 +190,7 @@ def set_enterprise_cookies(response: Response, access_token: str, refresh_token:
     
     # 🔧 ENTERPRISE FIX: Simplified cookie configuration for maximum compatibility
     response.set_cookie(
-        key="access_token",
+        key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
         value=access_token,
         httponly=True,
         secure=False,  # CHANGED: Allow HTTP during development/testing
@@ -226,7 +230,8 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
 # =================== ENTERPRISE ENDPOINTS ===================
 
 @router.post("/token")
-async def enterprise_login_diagnostic(login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit(RATE_LIMITS["auth_login"])
+async def enterprise_login_diagnostic(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """🔍 Enterprise Login with Response Diagnostics"""
     
     try:
@@ -446,6 +451,7 @@ async def get_current_user_diagnostic(
         raise HTTPException(status_code=401, detail="Authentication validation failed")
 
 @router.post("/refresh-token")
+@limiter.limit(RATE_LIMITS["auth_refresh"])
 async def refresh_token_diagnostic(request: Request, response: Response):
     """🔍 Enterprise Token Refresh with Diagnostics - ENTERPRISE FIX: Correct cookie names"""
     
@@ -537,7 +543,7 @@ async def enterprise_logout(
         
         # Clear cookies with matching configuration
         response.set_cookie(
-            key="access_token",
+            key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
             value="",
             httponly=True,
             secure=False,  # Match the setting used when creating cookies
@@ -606,6 +612,7 @@ async def enterprise_auth_health():
     }
 # ================== CSRF TOKEN ENDPOINT ==================
 @router.get("/csrf")
+@limiter.limit(RATE_LIMITS["auth_csrf"])
 def get_csrf_token(response: Response, request: Request):
     """Issue/refresh CSRF cookie and return its value for AJAX requests"""
     import secrets

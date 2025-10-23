@@ -31,9 +31,10 @@ with engine.connect() as conn:
     
     # Insert or update admin user
     conn.execute(text("""
-        INSERT INTO users (email, password, role, approval_level, is_emergency_approver, max_risk_approval)
-        VALUES (:email, :password, 'admin', 5, TRUE, 100)
+        INSERT INTO users (email, password_hash, password, role, approval_level, is_emergency_approver, max_risk_approval)
+        VALUES (:email, :password_hash, :password, 'admin', 5, TRUE, 100)
         ON CONFLICT (email) DO UPDATE SET
+        password_hash = :password_hash,
         password = :password,
         role = 'admin',
         approval_level = 5,
@@ -41,6 +42,7 @@ with engine.connect() as conn:
         max_risk_approval = 100
     """), {
         'email': 'admin@owkai.com',
+        'password_hash': hashed_password,
         'password': hashed_password
     })
     

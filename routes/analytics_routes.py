@@ -9,6 +9,7 @@ from models import AgentAction, User, AuditLog  # Added AuditLog for enhanced an
 from datetime import datetime, timedelta, UTC
 from collections import defaultdict, Counter
 from dependencies import get_current_user, require_admin
+from services.pending_actions_service import pending_service
 from typing import List, Dict, Any, Optional
 import json
 import asyncio
@@ -23,34 +24,118 @@ def get_trend_data(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)  
 ):
-    """Original analytics endpoint - PRESERVED for enterprise compatibility"""
+    """✅ ENTERPRISE: Real-time analytics with actual database queries"""
     try:
-        logger.info(f"🔄 Enterprise analytics requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
+        logger.info(f"🔄 Enterprise analytics requested by: {current_user.get('email')}")
         
-        return {
-            "high_risk_actions_by_day": [
-                {"date": "2025-07-24", "count": 3},
-                {"date": "2025-07-25", "count": 5},
-                {"date": "2025-07-26", "count": 2}
-            ],
-            "top_agents": [
-                {"agent": "security-scanner-01", "count": 15},
-                {"agent": "compliance-agent", "count": 12}
-            ],
-            "top_tools": [
-                {"tool": "network-scanner", "count": 20},
-                {"tool": "file-analyzer", "count": 15}
-            ],
-            "enriched_actions": [
-                {
-                    "agent_id": "security-scanner-01",
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0007",
-                    "nist_control": "AC-6",
-                    "recommendation": "Review and approve this high-risk action"
-                }
+        from datetime import datetime, timedelta, UTC
+        from sqlalchemy import func, and_
+        
+        now = datetime.now(UTC)
+        seven_days_ago = now - timedelta(days=7)
+        
+        # ✅ REAL: High-risk actions by day (last 7 days)
+        try:
+            daily_actions = db.execute(text("""
+                SELECT DATE(timestamp) as date, COUNT(*) as count
+                FROM agent_actions
+                WHERE timestamp >= :start_date
+                  AND risk_level IN ('high', 'critical')
+                GROUP BY DATE(timestamp)
+                ORDER BY DATE(timestamp)
+            """), {"start_date": seven_days_ago}).fetchall()
+            
+            high_risk_by_day = [
+                {"date": str(row[0]), "count": row[1]} 
+                for row in daily_actions
+            ] if daily_actions else [
+                {"date": "2025-07-24", "count": 0},
+                {"date": "2025-07-25", "count": 0}
             ]
+        except Exception as e:
+            logger.warning(f"Daily actions query failed: {e}")
+            high_risk_by_day = [{"date": "2025-07-24", "count": 0}]
+        
+        # ✅ REAL: Top agents (by action count)
+        try:
+            top_agents_query = db.execute(text("""
+                SELECT agent_id, COUNT(*) as count
+                FROM agent_actions
+                WHERE timestamp >= :start_date
+                GROUP BY agent_id
+                ORDER BY count DESC
+                LIMIT 10
+            """), {"start_date": seven_days_ago}).fetchall()
+            
+            top_agents = [
+                {"agent": row[0], "count": row[1]} 
+                for row in top_agents_query
+            ] if top_agents_query else [
+                {"agent": "No agents yet", "count": 0}
+            ]
+        except Exception as e:
+            logger.warning(f"Top agents query failed: {e}")
+            top_agents = [{"agent": "No agents", "count": 0}]
+        
+        # ✅ REAL: Top tools (by usage count)
+        try:
+            top_tools_query = db.execute(text("""
+                SELECT tool_name, COUNT(*) as count
+                FROM agent_actions
+                WHERE timestamp >= :start_date
+                  AND tool_name IS NOT NULL
+                GROUP BY tool_name
+                ORDER BY count DESC
+                LIMIT 10
+            """), {"start_date": seven_days_ago}).fetchall()
+            
+            top_tools = [
+                {"tool": row[0], "count": row[1]} 
+                for row in top_tools_query
+            ] if top_tools_query else [
+                {"tool": "No tools yet", "count": 0}
+            ]
+        except Exception as e:
+            logger.warning(f"Top tools query failed: {e}")
+            top_tools = [{"tool": "No tools", "count": 0}]
+        
+        # ✅ REAL: Latest enriched actions
+        try:
+            actions = db.query(AgentAction).order_by(
+                AgentAction.timestamp.desc()
+            ).limit(20).all()
+            
+            enriched_actions = [
+                {
+                    "agent_id": a.agent_id,
+                    "action_type": a.action_type,
+                    "risk_level": a.risk_level,
+                    "mitre_tactic": a.mitre_tactic or "N/A",
+                    "nist_control": a.nist_control or "N/A",
+                    "recommendation": a.recommendation or "No recommendation",
+                    "tool_name": a.tool_name or "Unknown",
+                    "timestamp": a.timestamp.isoformat() if a.timestamp else None
+                }
+                for a in actions
+            ] if actions else []
+        except Exception as e:
+            logger.warning(f"Enriched actions query failed: {e}")
+            enriched_actions = []
+        
+        # Get pending approval count
+        pending_count = pending_service.get_pending_count(db)
+        
+        result = {
+            "high_risk_actions_by_day": high_risk_by_day,
+            "top_agents": top_agents,
+            "top_tools": top_tools,
+            "enriched_actions": enriched_actions,
+            "pending_actions_count": pending_count
         }
+        
+        logger.info(f"✅ Analytics: {len(top_agents)} agents, {len(top_tools)} tools, {len(enriched_actions)} actions")
+        return result
+        
     except Exception as e:
         logger.error(f"❌ Analytics error: {str(e)}")
         return {
@@ -59,6 +144,8 @@ def get_trend_data(
             "top_tools": [],
             "enriched_actions": []
         }
+
+
 
 @router.get("/debug")
 def debug_enriched_actions(

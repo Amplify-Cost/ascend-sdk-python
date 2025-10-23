@@ -18,6 +18,8 @@ from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from routes.auth import router as auth_router
+from security.rate_limiter import limiter, rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from routes.smart_rules_routes import router as smart_rules_router
 from contextlib import asynccontextmanager
 from auth_utils import hash_password, decode_refresh_token, create_access_token
@@ -264,8 +266,13 @@ async def lifespan(app: FastAPI):
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app (unchanged)
-from routes.alerts_router import router as alerts_router
+from routes.alert_routes import router as alerts_router
 app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0", lifespan=lifespan)
+
+# Register rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 
 
 # CORS Configuration (unchanged)
@@ -439,10 +446,24 @@ try:
 except Exception as e:
     print(f"❌ ENTERPRISE ERROR: Enterprise user routes failed: {e}")
 
+# ============================================================================
+# AUTHORIZATION ROUTERS
+# ============================================================================
+# authorization_router → Routes at /agent-control/* (legacy prefix)
+# authorization_api_router → Routes at /api/authorization/* (enterprise API)
+# 
+# These routers have prefixes defined in routes/authorization_routes.py:
+#   - router = APIRouter(prefix="/agent-control")
+#   - api_router = APIRouter(prefix="/api/authorization")
+# 
+# DO NOT add additional prefixes here - they're already defined in the router
+# ============================================================================
 try:
     app.include_router(authorization_router, tags=["Authorization"])
     app.include_router(authorization_api_router, tags=["Authorization API"])
     print("✅ ENTERPRISE: Authorization routes included")
+    print("   → /agent-control/* (legacy)")
+    print("   → /api/authorization/* (enterprise)")
 except Exception as e:
     print(f"❌ ENTERPRISE ERROR: Authorization routes failed: {e}")
 
@@ -1317,7 +1338,7 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 'action_type': data["action_type"],
                 'description': data["description"],
                 'risk_level': data.get("risk_level", "medium"),
-                'status': 'pending',
+                'status': 'pending_approval',
                 'approved': False,
                 'user_id': current_user.get("user_id", 1),
                 'tool_name': data.get("tool_name", "")
@@ -1363,7 +1384,82 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                               {"score": risk_score, "id": action_id})
                     db.commit()
                 
-                logger.info(f"✅ Enterprise assessment complete: ID={action_id}, CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result.get('techniques', []))}, NIST={len(nist_result.get('controls', []))}")
+                
+                # === ENTERPRISE ORCHESTRATION: Auto-trigger workflows and alerts ===
+                # 1. HIGH-RISK ACTIONS → Auto-create Alert
+                if data.get("risk_level", "medium") == "high":
+                    try:
+                        db.execute(text("""
+                            INSERT INTO alerts (
+                                alert_type, severity, message, agent_action_id, 
+                                agent_id, status, timestamp
+                            ) VALUES (
+                                :alert_type, :severity, :message, :action_id,
+                                :agent_id, :status, NOW()
+                            )
+                        """), {
+                            'alert_type': 'High Risk Agent Action',
+                            'severity': 'high',
+                            'message': f'High-risk action detected: {data["action_type"]} (ID: {action_id})',
+                            'action_id': action_id,
+                            'agent_id': data["agent_id"],
+                            'status': 'new'
+                        })
+                        db.commit()
+                        logger.info(f"✅ Auto-created alert for high-risk action {action_id}")
+                    except Exception as alert_error:
+                        logger.warning(f"⚠️ Alert creation failed: {alert_error}")
+                
+                # 2. PENDING ACTIONS → Check for active workflows to trigger
+                try:
+                    from models import Workflow, WorkflowExecution
+                    active_workflows = db.query(Workflow).filter(
+                        Workflow.status == 'active'
+                    ).all()
+                    
+                    for workflow in active_workflows:
+                        trigger_conditions = workflow.trigger_conditions or {}
+                        if isinstance(trigger_conditions, str):
+                            import json
+                            trigger_conditions = json.loads(trigger_conditions)
+                        
+                        # Match based on risk_score range
+                        should_trigger = False
+                        if trigger_conditions and "min_risk" in trigger_conditions:
+                            # Get action risk_score from database
+                            risk_result = db.execute(text(
+                                "SELECT risk_score FROM agent_actions WHERE id = :id"
+                            ), {"id": action_id}).fetchone()
+                            if risk_result and risk_result[0]:
+                                risk_score = risk_result[0]
+                                min_risk = trigger_conditions.get("min_risk", 0)
+                                max_risk = trigger_conditions.get("max_risk", 100)
+                                should_trigger = (min_risk <= risk_score <= max_risk)
+                        elif not trigger_conditions:
+                            should_trigger = True
+                        if should_trigger:
+                            db.execute(text("""
+                                INSERT INTO workflow_executions (
+                                    workflow_id, action_id, executed_by, execution_status,
+                                    current_stage, started_at, input_data
+                                ) VALUES (
+                                    :workflow_id, :action_id, :executed_by, :execution_status,
+                                    :current_stage, NOW(), :input_data
+                                )
+                            """), {
+                                'workflow_id': workflow.id,
+                                'action_id': action_id,
+                                'executed_by': current_user.get('email', 'system'),
+                                'execution_status': 'in_progress',
+                                'current_stage': '0',
+                                'input_data': '{}'
+                            })
+                            db.commit()
+                            logger.info(f"✅ Auto-triggered workflow {workflow.id} for action {action_id}")
+                except Exception as workflow_error:
+                    logger.warning(f"⚠️ Workflow trigger failed: {workflow_error}")
+                # === END ORCHESTRATION ===
+                logger.info(f"✅ Enterprise assessment complete: ID={action_id}, CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result) if isinstance(mitre_result, list) else 0}, NIST={len(nist_result) if isinstance(nist_result, list) else 0}")
                 
             except Exception as assessment_error:
                 logger.warning(f"⚠️ Enterprise assessment failed for action {action_id}: {str(assessment_error)}")
@@ -1745,7 +1841,7 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
                 'action_type': data["action_type"],
                 'description': data["description"],
                 'risk_level': data.get("risk_level", "medium"),
-                'status': 'pending',
+                'status': 'pending_approval',
                 'approved': False,
                 'user_id': current_user.get("user_id", 1),
                 'tool_name': data.get("tool_name", "")
@@ -1791,7 +1887,7 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
                               {"score": risk_score, "id": action_id})
                     db.commit()
                 
-                logger.info(f"✅ Enterprise assessment complete: ID={action_id}, CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result.get('techniques', []))}, NIST={len(nist_result.get('controls', []))}")
+                logger.info(f"✅ Enterprise assessment complete: ID={action_id}, CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result) if isinstance(mitre_result, list) else 0}, NIST={len(nist_result) if isinstance(nist_result, list) else 0}")
                 
             except Exception as assessment_error:
                 logger.warning(f"⚠️ Enterprise assessment failed for action {action_id}: {str(assessment_error)}")
@@ -1848,7 +1944,7 @@ async def create_sample_agent_actions_simplified():
                 'action_type': 'vulnerability_scan',
                 'description': 'Production infrastructure vulnerability assessment',
                 'risk_level': 'high',
-                'status': 'pending',
+                'status': 'pending_approval',
                 'approved': False
             },
             {
@@ -1857,7 +1953,7 @@ async def create_sample_agent_actions_simplified():
                 'action_type': 'compliance_check',
                 'description': 'Automated compliance audit of access controls',
                 'risk_level': 'medium',
-                'status': 'pending',
+                'status': 'pending_approval',
                 'approved': False
             },
             {
@@ -1866,7 +1962,7 @@ async def create_sample_agent_actions_simplified():
                 'action_type': 'anomaly_detection',
                 'description': 'Network traffic anomaly detection analysis',
                 'risk_level': 'low',
-                'status': 'pending',
+                'status': 'pending_approval',
                 'approved': False
             }
         ]
@@ -2021,7 +2117,7 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
                 new_action.risk_score = risk_score
                 db.commit()
             
-            logger.info(f"✅ Enterprise assessment complete for action {new_action.id}: CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result.get('techniques', []))}, NIST={len(nist_result.get('controls', []))}")
+            logger.info(f"✅ Enterprise assessment complete for action {new_action.id}: CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result) if isinstance(mitre_result, list) else 0}, NIST={len(nist_result) if isinstance(nist_result, list) else 0}")
             
         except Exception as assessment_error:
             logger.warning(f"⚠️ Enterprise assessment failed for action {new_action.id}: {str(assessment_error)}")
@@ -2041,28 +2137,49 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
 # Replace your authorization endpoints in main.py with these database-compatible versions
 
 @app.get("/agent-control/pending-actions")
+@app.get("/agent-control/pending-actions")
 async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """🏢 ENTERPRISE: Get pending actions with persistent demo data"""
+    """🏢 ENTERPRISE: Get pending actions with assessment data from JOINs"""
     try:
-        # Get real database actions first
+        # Query with JOINs to get NIST controls, MITRE techniques, and CVSS scores
         query = """
-            SELECT id, agent_id, action_type, description, risk_level, status, 
-                   tool_name, created_at, approved
-            FROM agent_actions 
-            WHERE status IN ('pending_approval', 'pending', 'submitted')
+            SELECT 
+                aa.id,
+                aa.agent_id,
+                aa.action_type,
+                aa.description,
+                aa.risk_level,
+                aa.status,
+                aa.tool_name,
+                aa.created_at,
+                aa.approved,
+                COALESCE(ca.risk_score, 50) as risk_score,
+                ARRAY_AGG(DISTINCT ncm.control_id) FILTER (WHERE ncm.control_id IS NOT NULL) as nist_controls,
+                ARRAY_AGG(DISTINCT mtm.technique_id) FILTER (WHERE mtm.technique_id IS NOT NULL) as mitre_techniques
+            FROM agent_actions aa
+            LEFT JOIN cvss_assessments ca ON aa.id = ca.action_id
+            LEFT JOIN nist_control_mappings ncm ON aa.id = ncm.action_id
+            LEFT JOIN mitre_technique_mappings mtm ON aa.id = mtm.action_id
+            WHERE aa.status IN ('pending_approval', 'pending', 'submitted')
         """
         params = {}
         
         if risk_filter:
-            query += " AND risk_level = :risk_filter"
+            query += " AND aa.risk_level = :risk_filter"
             params['risk_filter'] = risk_filter
         
-        query += " ORDER BY id DESC LIMIT 50"
+        query += """
+            GROUP BY aa.id, aa.agent_id, aa.action_type, aa.description, 
+                     aa.risk_level, aa.status, aa.tool_name, aa.created_at, 
+                     aa.approved, ca.risk_score
+            ORDER BY aa.id DESC 
+            LIMIT 50
+        """
         
         result = db.execute(text(query), params).fetchall()
         
@@ -2085,15 +2202,20 @@ async def get_pending_actions_persistent(
                     "time_remaining": "2:30:00",
                     "is_emergency": action["risk_level"] == "high",
                     "contextual_risk_factors": get_risk_factors(action["action_type"], action["risk_level"]),
-                    "authorization_status": "pending"
+                    "authorization_status": "pending",
+                    "nist_controls": ["AC-2", "SI-4"],
+                    "mitre_techniques": ["T1078", "T1087"]
                 })
         
         # Combine real and demo actions
         all_actions = []
         
-        # Add real database actions
+        # Add real database actions with assessment data
         for row in result:
-            risk_score = calculate_risk_score(row[2] or "unknown", row[4] or "medium")
+            risk_score = row[9] if row[9] is not None else 50  # From CVSS assessment or default 50
+            nist_controls = [c for c in (row[10] or []) if c is not None]
+            mitre_techniques = [t for t in (row[11] or []) if t is not None]
+            
             all_actions.append({
                 "id": row[0],
                 "agent_id": row[1] or "unknown-agent",
@@ -2109,7 +2231,9 @@ async def get_pending_actions_persistent(
                 "time_remaining": "4:00:00",
                 "is_emergency": (row[4] or "medium") == "high",
                 "contextual_risk_factors": get_risk_factors(row[2] or "unknown", row[4] or "medium"),
-                "authorization_status": "pending"
+                "authorization_status": "pending",
+                "nist_controls": nist_controls,
+                "mitre_techniques": mitre_techniques
             })
         
         # Add pending demo actions
@@ -2121,8 +2245,6 @@ async def get_pending_actions_persistent(
         
     except Exception as e:
         logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
-       
-
         return []
 
 @app.get("/agent-control/approval-dashboard")
@@ -2827,68 +2949,6 @@ async def get_approval_metrics_live(
         }    
     
 # Enhanced AI Alert Management Endpoints
-@app.get("/alerts/ai-insights")
-async def get_ai_alert_insights(current_user: dict = Depends(get_current_user)):
-    """🧠 ENTERPRISE: AI-powered alert insights and recommendations"""
-    try:
-        # Get current alerts for analysis
-        db: Session = next(get_db())
-        
-        try:
-            alerts_result = db.execute(text("""
-                SELECT id, alert_type, severity, message, timestamp, agent_id
-                FROM alerts 
-                ORDER BY timestamp DESC 
-                LIMIT 50
-            """)).fetchall()
-            
-            alert_count = len(alerts_result)
-            critical_count = len([a for a in alerts_result if a[2] == 'high'])
-            
-        except Exception:
-            alert_count = 15  # Fallback demo data
-            critical_count = 5
-        
-        # Generate AI insights
-        ai_insights = {
-            "threat_summary": {
-                "total_threats": alert_count,
-                "critical_threats": critical_count,
-                "automated_responses": int(alert_count * 0.3),
-                "false_positive_rate": 12.5,
-                "avg_response_time": "4.2 minutes",
-                "trends_analysis": f"↗️ {(critical_count/alert_count*100):.0f}% of alerts are high-severity"
-            },
-            "ai_recommendations": [
-                {
-                    "type": "immediate_action",
-                    "priority": "critical" if critical_count > 3 else "medium",
-                    "title": "Threat Correlation Analysis",
-                    "description": f"AI detected {critical_count} high-severity alerts requiring correlation analysis",
-                    "action": "Review alert patterns for potential coordinated attacks"
-                },
-                {
-                    "type": "process_improvement", 
-                    "priority": "medium",
-                    "title": "Alert Optimization",
-                    "description": "Machine learning suggests optimizing alert rules",
-                    "action": "Tune detection thresholds to reduce false positives"
-                }
-            ],
-            "predictive_analysis": {
-                "risk_score": min(100, 50 + critical_count * 10),
-                "trend_direction": "increasing" if critical_count > 3 else "stable",
-                "predicted_incidents": max(1, critical_count // 2),
-                "confidence_level": 87
-            }
-        }
-        
-        logger.info(f"🧠 AI insights generated for {alert_count} alerts")
-        return ai_insights
-        
-    except Exception as e:
-        logger.error(f"AI insights generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate AI insights")
 
 @app.get("/alerts/threat-intelligence")
 async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
@@ -2967,9 +3027,17 @@ async def get_ai_alert_insights(current_user: dict = Depends(get_current_user)):
         try:
             # Get current alerts for analysis
             alerts_result = db.execute(text("""
-                SELECT id, alert_type, severity, message, timestamp, agent_id, tool_name
-                FROM alerts 
-                ORDER BY timestamp DESC 
+                SELECT 
+                    a.id, 
+                    a.alert_type, 
+                    a.severity, 
+                    a.message, 
+                    a.timestamp,
+                    aa.agent_id,
+                    aa.tool_name
+                FROM alerts a
+                LEFT JOIN agent_actions aa ON a.agent_action_id = aa.id
+                ORDER BY a.timestamp DESC 
                 LIMIT 100
             """)).fetchall()
             
@@ -2997,7 +3065,10 @@ async def get_ai_alert_insights(current_user: dict = Depends(get_current_user)):
         
         # Generate AI insights based on real data
         false_positive_rate = max(5.0, min(25.0, (alert_count - critical_count) / max(alert_count, 1) * 100))
-        risk_score = min(100, 40 + critical_count * 8)
+        # ENTERPRISE: 100% Dynamic Risk Calculation
+        base_risk = int((critical_count / max(1, alert_count)) * 50)  # 0-50 based on critical percentage
+        severity_multiplier = min(50, critical_count * 5)  # 0-50 based on critical count
+        risk_score = min(100, base_risk + severity_multiplier)  # Total: 0-100
         
         ai_insights = {
             "threat_summary": {
@@ -3354,10 +3425,10 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
             """)).fetchone()
             
             total_alerts = alert_metrics[0] if alert_metrics else 0
-            high_severity = alert_metrics[1] if alert_metrics else 0
-            total_responses = response_metrics[0] if response_metrics else 0
-            approved = response_metrics[1] if response_metrics else 0
-            
+            total_alerts = (alert_metrics[0] or 0) if alert_metrics else 0
+            high_severity = (alert_metrics[1] or 0) if alert_metrics else 0
+            total_responses = (response_metrics[0] or 0) if response_metrics else 0
+            approved = (response_metrics[1] or 0) if response_metrics else 0
         except Exception as db_error:
             logger.warning(f"Performance metrics query failed: {db_error}")
             total_alerts = 45

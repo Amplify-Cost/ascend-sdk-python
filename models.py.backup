@@ -49,7 +49,6 @@ class Log(Base):
     __tablename__ = "logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.now(UTC))
     level = Column(String)  # DEBUG, INFO, WARNING, ERROR, CRITICAL
     message = Column(Text)
     source = Column(String)  # source component or service
@@ -62,57 +61,61 @@ class Log(Base):
 class AgentAction(Base):
     __tablename__ = "agent_actions"
     
+    # Primary key
     id = Column(Integer, primary_key=True, index=True)
-    agent_id = Column(String, index=True)
-    action_type = Column(String)
-    description = Column(Text)
-    risk_level = Column(String)  # low, medium, high, critical (text-based)
-    risk_score = Column(Float, nullable=True)  # 0-100 numerical score for enterprise analytics
-    status = Column(String, default="pending")  # pending, approved, denied, executed
+    
+    # Core fields (match production exactly)
+    agent_id = Column(String(255), nullable=False)
+    action_type = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    risk_level = Column(String(20), nullable=True)
+    risk_score = Column(Float, nullable=True)
+    status = Column(String(20), nullable=True)
+    approved = Column(Boolean, nullable=True)
+    
+    # Timestamps (production has both created_at and timestamp)
     created_at = Column(DateTime, default=datetime.now(UTC))
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
+    updated_at = Column(DateTime(timezone=True), default=func.now())
+    timestamp = Column(DateTime(timezone=True), default=func.now())
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
     
-    # Additional fields your routes expect
-    timestamp = Column(DateTime, default=datetime.now(UTC))
-    is_false_positive = Column(Boolean, default=False)
-    reviewed_by = Column(String, nullable=True)
-    
-    # Enterprise fields from your agent routes
-    tool_name = Column(String, nullable=True)
-    summary = Column(Text, nullable=True)
-    approved = Column(Boolean, default=False)
-    reviewed_at = Column(DateTime, nullable=True)
+    # User references
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_by = Column(String(255), nullable=True)
+    approved_by = Column(String(255), nullable=True)
     
-    # NIST/MITRE framework fields (core enterprise features)
-    nist_control = Column(String, nullable=True)
+    # JSON fields
+    extra_data = Column(JSONB, nullable=True)
+    approval_chain = Column(JSONB, default=list)
+    
+    # Boolean flags
+    is_false_positive = Column(Boolean, default=False)
+    requires_approval = Column(Boolean, default=True)
+    
+    # Enterprise fields
+    tool_name = Column(String(255), nullable=True)
+    summary = Column(Text, nullable=True)
+    nist_control = Column(String(255), nullable=True)
     nist_description = Column(Text, nullable=True)
-    mitre_tactic = Column(String, nullable=True)
-    mitre_technique = Column(String, nullable=True)
+    mitre_tactic = Column(String(255), nullable=True)
+    mitre_technique = Column(String(255), nullable=True)
     recommendation = Column(Text, nullable=True)
+    target_system = Column(String(255), nullable=True)
+    target_resource = Column(String(255), nullable=True)
     
-    # Target system information
-    target_system = Column(String, nullable=True)
-    target_resource = Column(String, nullable=True)
+    # Approval levels
+    approval_level = Column(Integer, default=1)
+    current_approval_level = Column(Integer, default=0)
+    required_approval_level = Column(Integer, default=1)
     
-    # Approval workflow (enterprise authorization features)
-    pending_approvers = Column(String, nullable=True)
-    
-    # Phase 3 Workflow Integration
+    # Workflow fields
     workflow_id = Column(String, nullable=True)
     workflow_execution_id = Column(Integer, ForeignKey("workflow_executions.id"), nullable=True)
     workflow_stage = Column(String, nullable=True)
-    current_approval_level = Column(Integer, default=0)
-    required_approval_level = Column(Integer, nullable=True)
-    sla_deadline = Column(DateTime, nullable=True)
-
-    requires_approval = Column(Boolean, default=True)
-    approval_level = Column(Integer, default=1)  # 1, 2, or 3 level approval
+    sla_deadline = Column(DateTime(timezone=True), nullable=True)
+    pending_approvers = Column(Text, nullable=True)
     
     # Relationships
-    approver = relationship("User", foreign_keys=[approved_by])
     user = relationship("User", foreign_keys=[user_id])
 
 class Rule(Base):
@@ -201,7 +204,6 @@ class LogAuditTrail(Base):
     __tablename__ = "log_audit_trails"
     
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.now(UTC))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT
     resource_type = Column(String)  # agents, actions, alerts, logs
@@ -323,7 +325,6 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
     
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.now(UTC))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT, APPROVE, DENY
     resource_type = Column(String)  # users, alerts, rules, agent_actions, etc.
