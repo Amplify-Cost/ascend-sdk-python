@@ -1,17 +1,44 @@
 """
 Pydantic Schemas
-Validation and serialization layer
+Complete validation and serialization layer
 """
+# Action schemas
 from schemas.action import (
-    ActionCreate, ActionResponse, ActionUpdate, AgentActionOut
+    ActionCreate, ActionResponse, ActionUpdate,
+    AgentActionOut, AgentActionCreate
 )
-from schemas.alert import AlertCreate, AlertResponse, AlertUpdate
+
+# Alert schemas
+from schemas.alert import (
+    AlertCreate, AlertResponse, AlertUpdate,
+    AlertOut
+)
+
+# Workflow schemas
 from schemas.workflow import WorkflowExecutionResponse
+
+# Smart rule schemas
 from schemas.smart_rule import SmartRuleOut, SmartRuleOutEnhanced
 
+# Auth schemas
+from schemas.auth import (
+    UserCreate, LoginInput, TokenResponse, UserOut
+)
+
 __all__ = [
-    "ActionCreate", "ActionResponse", "ActionUpdate", "AgentActionOut",
-    "AlertCreate", "AlertResponse", "AlertUpdate",
+    # Actions
+    "ActionCreate", "ActionResponse", "ActionUpdate",
+    "AgentActionOut", "AgentActionCreate",
+    
+    # Alerts
+    "AlertCreate", "AlertResponse", "AlertUpdate", "AlertOut",
+    
+    # Workflows
     "WorkflowExecutionResponse",
-    "SmartRuleOut", "SmartRuleOutEnhanced"
+    
+    # Smart Rules
+    "SmartRuleOut", "SmartRuleOutEnhanced",
+    
+    # Auth
+    "UserCreate", "LoginInput", "TokenResponse", "UserOut"
 ]

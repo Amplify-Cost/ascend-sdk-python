@@ -57,3 +57,6 @@ class ActionResponse(BaseModel):
 
 # Alias for backward compatibility
 AgentActionOut = ActionResponse
+
+# Backward compatibility aliases
+AgentActionCreate = ActionCreate

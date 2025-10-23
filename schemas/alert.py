@@ -50,3 +50,6 @@ class AlertResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+# Backward compatibility aliases
+AlertOut = AlertResponse
