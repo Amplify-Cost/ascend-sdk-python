@@ -1385,89 +1385,21 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                     db.commit()
                 
                 
-                # === ENTERPRISE ORCHESTRATION: Auto-trigger workflows and alerts ===
-                # 1. HIGH-RISK ACTIONS → Auto-create Alert
-                if data.get("risk_level", "medium") == "high":
-                    try:
-                        db.execute(text("""
-                            INSERT INTO alerts (
-                                alert_type, severity, message, agent_action_id, 
-                                agent_id, status, timestamp
-                            ) VALUES (
-                                :alert_type, :severity, :message, :action_id,
-                                :agent_id, :status, NOW()
-                            )
-                        """), {
-                            'alert_type': 'High Risk Agent Action',
-                            'severity': 'high',
-                            'message': f'High-risk action detected: {data["action_type"]} (ID: {action_id})',
-                            'action_id': action_id,
-                            'agent_id': data["agent_id"],
-                            'status': 'new'
-                        })
-                        db.commit()
-                        logger.info(f"✅ Auto-created alert for high-risk action {action_id}")
-                    except Exception as alert_error:
-                        logger.warning(f"⚠️ Alert creation failed: {alert_error}")
-                
-                # 2. PENDING ACTIONS → Check for active workflows to trigger
+                # === ENTERPRISE ORCHESTRATION (Service Layer) ===
                 try:
-                    from models import Workflow, WorkflowExecution
-                    active_workflows = db.query(Workflow).filter(
-                        Workflow.status == 'active'
-                    ).all()
-                    
-                    for workflow in active_workflows:
-                        trigger_conditions = workflow.trigger_conditions or {}
-                        if isinstance(trigger_conditions, str):
-                            import json
-                            trigger_conditions = json.loads(trigger_conditions)
-                        
-                        # Match based on risk_score range
-                        should_trigger = False
-                        if trigger_conditions and "min_risk" in trigger_conditions:
-                            # Get action risk_score from database
-                            risk_result = db.execute(text(
-                                "SELECT risk_score FROM agent_actions WHERE id = :id"
-                            ), {"id": action_id}).fetchone()
-                            if risk_result and risk_result[0]:
-                                risk_score = risk_result[0]
-                                min_risk = trigger_conditions.get("min_risk", 0)
-                                max_risk = trigger_conditions.get("max_risk", 100)
-                                should_trigger = (min_risk <= risk_score <= max_risk)
-                        elif not trigger_conditions:
-                            should_trigger = True
-                        if should_trigger:
-                            db.execute(text("""
-                                INSERT INTO workflow_executions (
-                                    workflow_id, action_id, executed_by, execution_status,
-                                    current_stage, started_at, input_data
-                                ) VALUES (
-                                    :workflow_id, :action_id, :executed_by, :execution_status,
-                                    :current_stage, NOW(), :input_data
-                                )
-                            """), {
-                                'workflow_id': workflow.id,
-                                'action_id': action_id,
-                                'executed_by': current_user.get('email', 'system'),
-                                'execution_status': 'in_progress',
-                                'current_stage': '0',
-                                'input_data': '{}'
-                            })
-                            db.commit()
-                            logger.info(f"✅ Auto-triggered workflow {workflow.id} for action {action_id}")
-                except Exception as workflow_error:
-                    logger.warning(f"⚠️ Workflow trigger failed: {workflow_error}")
-                # === END ORCHESTRATION ===
-                logger.info(f"✅ Enterprise assessment complete: ID={action_id}, CVSS={cvss_result.get('base_score', 'N/A')}, MITRE={len(mitre_result) if isinstance(mitre_result, list) else 0}, NIST={len(nist_result) if isinstance(nist_result, list) else 0}")
+                    from services.orchestration_service import get_orchestration_service
+                    orch = get_orchestration_service(db)
+                    result = orch.orchestrate_action(
+                        action_id=action_id,
+                        risk_level=risk_level,
+                        risk_score=action.risk_score,
+                        action_type=data["action_type"]
+                    )
+                    if result.get("alert_created"):
+                        logger.info(f"Alert created for action {action_id}")
+                except Exception as e:
+                    logger.warning(f"Orchestration failed: {e}")
                 
-            except Exception as assessment_error:
-                logger.warning(f"⚠️ Enterprise assessment failed for action {action_id}: {str(assessment_error)}")
-                # Don't fail the submission if assessment fails
-            
-            # Enterprise audit logging
-            logger.info(f"✅ Enterprise action submitted: ID={action_id}, Agent={data['agent_id']}, User={current_user.get('email', 'unknown')}")
-            
             return {
                 "status": "success",
                 "message": "✅ Enterprise agent action submitted successfully",
