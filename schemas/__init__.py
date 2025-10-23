@@ -1,7 +1,8 @@
 """
-Pydantic Schemas
-Complete validation and serialization layer
+Pydantic Schemas - Complete Enterprise Validation Layer
+Generated from codebase audit - all required schemas included
 """
+
 # Action schemas
 from schemas.action import (
     ActionCreate, ActionResponse, ActionUpdate,
@@ -15,30 +16,66 @@ from schemas.alert import (
 )
 
 # Workflow schemas
-from schemas.workflow import WorkflowExecutionResponse
+from schemas.workflow import (
+    WorkflowExecutionResponse,
+    ApprovalDecision,
+    WorkflowCreateRequest,
+    WorkflowExecutionRequest,
+    AuthorizationRequest
+)
+
+# Automation schemas
+from schemas.automation import (
+    AutomationPlaybookOut,
+    AutomationExecutionCreate
+)
 
 # Smart rule schemas
-from schemas.smart_rule import SmartRuleOut, SmartRuleOutEnhanced
+from schemas.smart_rule import (
+    SmartRuleOut,
+    SmartRuleOutEnhanced
+)
 
 # Auth schemas
 from schemas.auth import (
-    UserCreate, LoginInput, TokenResponse, UserOut
+    UserCreate,
+    LoginInput,
+    TokenResponse,
+    UserOut
 )
 
 __all__ = [
     # Actions
-    "ActionCreate", "ActionResponse", "ActionUpdate",
-    "AgentActionOut", "AgentActionCreate",
+    "ActionCreate",
+    "ActionResponse",
+    "ActionUpdate",
+    "AgentActionOut",
+    "AgentActionCreate",
     
     # Alerts
-    "AlertCreate", "AlertResponse", "AlertUpdate", "AlertOut",
+    "AlertCreate",
+    "AlertResponse",
+    "AlertUpdate",
+    "AlertOut",
     
-    # Workflows
+    # Workflows & Authorization
     "WorkflowExecutionResponse",
+    "ApprovalDecision",
+    "WorkflowCreateRequest",
+    "WorkflowExecutionRequest",
+    "AuthorizationRequest",
+    
+    # Automation
+    "AutomationPlaybookOut",
+    "AutomationExecutionCreate",
     
     # Smart Rules
-    "SmartRuleOut", "SmartRuleOutEnhanced",
+    "SmartRuleOut",
+    "SmartRuleOutEnhanced",
     
-    # Auth
-    "UserCreate", "LoginInput", "TokenResponse", "UserOut"
+    # Authentication
+    "UserCreate",
+    "LoginInput",
+    "TokenResponse",
+    "UserOut"
 ]
