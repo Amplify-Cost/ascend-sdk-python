@@ -1,0 +1,9 @@
+{
+  "total_tables": 29,
+  "workflow_tables": 3,
+  "automation_tables": 2,
+  "policy_tables": 2,
+  "rule_tables": 2,
+  "action_tables": 2,
+  "foreign_keys": 16
+}

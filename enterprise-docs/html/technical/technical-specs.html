@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>OW-AI Platform - Technical Specifications</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">OW-AI Platform - Technical Specifications</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#ow-ai-platform---technical-specifications"
+id="toc-ow-ai-platform---technical-specifications">OW-AI Platform -
+Technical Specifications</a>
+<ul>
+<li><a href="#table-of-contents" id="toc-table-of-contents">Table of
+Contents</a></li>
+<li><a href="#system-requirements" id="toc-system-requirements">System
+Requirements</a>
+<ul>
+<li><a href="#production-environment"
+id="toc-production-environment">Production Environment</a></li>
+<li><a href="#database-requirements"
+id="toc-database-requirements">Database Requirements</a></li>
+<li><a href="#load-balancer-requirements"
+id="toc-load-balancer-requirements">Load Balancer Requirements</a></li>
+<li><a href="#monitoring-requirements"
+id="toc-monitoring-requirements">Monitoring Requirements</a></li>
+</ul></li>
+<li><a href="#technology-stack" id="toc-technology-stack">Technology
+Stack</a>
+<ul>
+<li><a href="#backend-framework-languages"
+id="toc-backend-framework-languages">Backend Framework &amp;
+Languages</a></li>
+<li><a href="#database-data-management"
+id="toc-database-data-management">Database &amp; Data
+Management</a></li>
+<li><a href="#security-authentication"
+id="toc-security-authentication">Security &amp; Authentication</a></li>
+<li><a href="#policy-governance" id="toc-policy-governance">Policy &amp;
+Governance</a></li>
+<li><a href="#frontend-technologies"
+id="toc-frontend-technologies">Frontend Technologies</a></li>
+<li><a href="#infrastructure-cloud-services"
+id="toc-infrastructure-cloud-services">Infrastructure &amp; Cloud
+Services</a></li>
+</ul></li>
+<li><a href="#database-schema" id="toc-database-schema">Database
+Schema</a>
+<ul>
+<li><a href="#core-tables" id="toc-core-tables">Core Tables</a></li>
+<li><a href="#advanced-tables" id="toc-advanced-tables">Advanced
+Tables</a></li>
+</ul></li>
+<li><a href="#security-specifications"
+id="toc-security-specifications">Security Specifications</a>
+<ul>
+<li><a href="#authentication-security"
+id="toc-authentication-security">Authentication Security</a></li>
+<li><a href="#password-requirements"
+id="toc-password-requirements">Password Requirements</a></li>
+<li><a href="#api-security-controls" id="toc-api-security-controls">API
+Security Controls</a></li>
+<li><a href="#network-security" id="toc-network-security">Network
+Security</a></li>
+<li><a href="#data-protection" id="toc-data-protection">Data
+Protection</a></li>
+</ul></li>
+<li><a href="#performance-benchmarks"
+id="toc-performance-benchmarks">Performance Benchmarks</a>
+<ul>
+<li><a href="#response-time-targets-95th-percentile"
+id="toc-response-time-targets-95th-percentile">Response Time Targets
+(95th Percentile)</a></li>
+<li><a href="#throughput-specifications"
+id="toc-throughput-specifications">Throughput Specifications</a></li>
+<li><a href="#resource-utilization-targets"
+id="toc-resource-utilization-targets">Resource Utilization
+Targets</a></li>
+<li><a href="#database-performance"
+id="toc-database-performance">Database Performance</a></li>
+</ul></li>
+<li><a href="#compliance-certifications"
+id="toc-compliance-certifications">Compliance Certifications</a>
+<ul>
+<li><a href="#nist-800-53-compliance"
+id="toc-nist-800-53-compliance">NIST 800-53 Compliance</a></li>
+<li><a href="#soc-2-type-ii-controls"
+id="toc-soc-2-type-ii-controls">SOC 2 Type II Controls</a></li>
+<li><a href="#iso-270012013-controls"
+id="toc-iso-270012013-controls">ISO 27001:2013 Controls</a></li>
+<li><a href="#gdpr-compliance-features"
+id="toc-gdpr-compliance-features">GDPR Compliance Features</a></li>
+</ul></li>
+<li><a href="#infrastructure-specifications"
+id="toc-infrastructure-specifications">Infrastructure Specifications</a>
+<ul>
+<li><a href="#container-specifications"
+id="toc-container-specifications">Container Specifications</a></li>
+<li><a href="#load-balancer-configuration"
+id="toc-load-balancer-configuration">Load Balancer
+Configuration</a></li>
+<li><a href="#database-configuration"
+id="toc-database-configuration">Database Configuration</a></li>
+</ul></li>
+<li><a href="#integration-specifications"
+id="toc-integration-specifications">Integration Specifications</a>
+<ul>
+<li><a href="#api-integration-standards"
+id="toc-api-integration-standards">API Integration Standards</a></li>
+<li><a href="#message-queue-integration"
+id="toc-message-queue-integration">Message Queue Integration</a></li>
+<li><a href="#monitoring-integration"
+id="toc-monitoring-integration">Monitoring Integration</a></li>
+</ul></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="ow-ai-platform---technical-specifications">OW-AI Platform -
+Technical Specifications</h1>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#system-requirements">System Requirements</a></li>
+<li><a href="#technology-stack">Technology Stack</a></li>
+<li><a href="#database-schema">Database Schema</a></li>
+<li><a href="#security-specifications">Security Specifications</a></li>
+<li><a href="#performance-benchmarks">Performance Benchmarks</a></li>
+<li><a href="#compliance-certifications">Compliance
+Certifications</a></li>
+<li><a href="#infrastructure-specifications">Infrastructure
+Specifications</a></li>
+<li><a href="#integration-specifications">Integration
+Specifications</a></li>
+</ol>
+<h2 id="system-requirements">System Requirements</h2>
+<h3 id="production-environment">Production Environment</h3>
+<ul>
+<li><strong>CPU:</strong> 4 vCPUs minimum (8 vCPUs recommended for
+high-load environments)</li>
+<li><strong>Memory:</strong> 16GB RAM minimum (32GB recommended for
+concurrent users &gt;500)</li>
+<li><strong>Storage:</strong> 100GB SSD minimum with auto-scaling
+enabled</li>
+<li><strong>Network:</strong> 1Gbps network interface with low latency
+(&lt;5ms to database)</li>
+<li><strong>Operating System:</strong> Amazon Linux 2, Ubuntu 20.04+, or
+CentOS 8+</li>
+<li><strong>Container Runtime:</strong> Docker 20.10+ or containerd
+1.4+</li>
+</ul>
+<h3 id="database-requirements">Database Requirements</h3>
+<ul>
+<li><strong>Engine:</strong> PostgreSQL 14+ (PostgreSQL 15
+recommended)</li>
+<li><strong>CPU:</strong> 2 vCPUs minimum (4 vCPUs for
+high-throughput)</li>
+<li><strong>Memory:</strong> 8GB RAM minimum (16GB for optimal
+performance)</li>
+<li><strong>Storage:</strong> 50GB SSD with auto-scaling, IOPS
+provisioning recommended</li>
+<li><strong>Backup:</strong> Daily automated backups with 30-day
+retention minimum</li>
+<li><strong>High Availability:</strong> Multi-AZ deployment for
+production environments</li>
+</ul>
+<h3 id="load-balancer-requirements">Load Balancer Requirements</h3>
+<ul>
+<li><strong>Type:</strong> Application Load Balancer (Layer 7) with SSL
+termination</li>
+<li><strong>SSL Certificate:</strong> Wildcard certificate with
+automatic renewal</li>
+<li><strong>Health Checks:</strong> HTTP health checks every 30
+seconds</li>
+<li><strong>Target Groups:</strong> Multiple targets across availability
+zones</li>
+</ul>
+<h3 id="monitoring-requirements">Monitoring Requirements</h3>
+<ul>
+<li><strong>APM:</strong> Application Performance Monitoring with &lt;1%
+overhead</li>
+<li><strong>Logging:</strong> Centralized log aggregation with 90-day
+retention</li>
+<li><strong>Metrics:</strong> Real-time metrics collection and
+alerting</li>
+<li><strong>Uptime Monitoring:</strong> External uptime monitoring
+service</li>
+</ul>
+<h2 id="technology-stack">Technology Stack</h2>
+<h3 id="backend-framework-languages">Backend Framework &amp;
+Languages</h3>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 21%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+<th>Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Primary Framework</strong></td>
+<td>FastAPI</td>
+<td>0.104+</td>
+<td>REST API server</td>
+<td>High performance, automatic OpenAPI docs, type safety</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>Python</td>
+<td>3.11+</td>
+<td>Application logic</td>
+<td>Rich ecosystem, security libraries, AI/ML integration</td>
+</tr>
+<tr>
+<td><strong>ASGI Server</strong></td>
+<td>Uvicorn</td>
+<td>0.23+</td>
+<td>Production server</td>
+<td>High-performance ASGI server with multiple workers</td>
+</tr>
+<tr>
+<td><strong>Process Manager</strong></td>
+<td>Gunicorn</td>
+<td>21+</td>
+<td>Process management</td>
+<td>Production-grade WSGI/ASGI server management</td>
+</tr>
+</tbody>
+</table>
+<h3 id="database-data-management">Database &amp; Data Management</h3>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 21%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+<th>Configuration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Primary Database</strong></td>
+<td>PostgreSQL</td>
+<td>14+</td>
+<td>Transactional data</td>
+<td>Multi-AZ, automated backups</td>
+</tr>
+<tr>
+<td><strong>ORM</strong></td>
+<td>SQLAlchemy</td>
+<td>2.0+</td>
+<td>Database abstraction</td>
+<td>Async support, connection pooling</td>
+</tr>
+<tr>
+<td><strong>Migrations</strong></td>
+<td>Alembic</td>
+<td>1.12+</td>
+<td>Schema management</td>
+<td>Version-controlled migrations</td>
+</tr>
+<tr>
+<td><strong>Connection Pooling</strong></td>
+<td>SQLAlchemy Pool</td>
+<td>2.0+</td>
+<td>Connection optimization</td>
+<td>Pool size: 5-20 connections</td>
+</tr>
+</tbody>
+</table>
+<h3 id="security-authentication">Security &amp; Authentication</h3>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 21%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+<th>Configuration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>JWT Library</strong></td>
+<td>PyJWT</td>
+<td>2.8+</td>
+<td>Token management</td>
+<td>HS256 algorithm, 30min expiry</td>
+</tr>
+<tr>
+<td><strong>Password Hashing</strong></td>
+<td>bcrypt</td>
+<td>4.0+</td>
+<td>Password security</td>
+<td>Cost factor: 12</td>
+</tr>
+<tr>
+<td><strong>CORS</strong></td>
+<td>FastAPI CORS</td>
+<td>0.104+</td>
+<td>Cross-origin requests</td>
+<td>Configured whitelist only</td>
+</tr>
+<tr>
+<td><strong>Rate Limiting</strong></td>
+<td>slowapi</td>
+<td>0.1.9+</td>
+<td>API protection</td>
+<td>100 req/min per user</td>
+</tr>
+</tbody>
+</table>
+<h3 id="policy-governance">Policy &amp; Governance</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 22%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 24%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+<th>Integration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Policy Engine</strong></td>
+<td>Cedar</td>
+<td>3.0+</td>
+<td>Authorization decisions</td>
+<td>AWS-maintained engine</td>
+</tr>
+<tr>
+<td><strong>Rule Engine</strong></td>
+<td>Custom Python</td>
+<td>N/A</td>
+<td>Smart rules processing</td>
+<td>ML-powered optimization</td>
+</tr>
+<tr>
+<td><strong>Audit Service</strong></td>
+<td>Custom Service</td>
+<td>N/A</td>
+<td>Immutable audit trails</td>
+<td>Tamper-proof logging</td>
+</tr>
+</tbody>
+</table>
+<h3 id="frontend-technologies">Frontend Technologies</h3>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 23%" />
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 19%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+<th>Features</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Framework</strong></td>
+<td>React</td>
+<td>18+</td>
+<td>UI framework</td>
+<td>Hooks, Suspense, Concurrent features</td>
+</tr>
+<tr>
+<td><strong>Language</strong></td>
+<td>TypeScript</td>
+<td>5+</td>
+<td>Type-safe development</td>
+<td>Strict mode, path mapping</td>
+</tr>
+<tr>
+<td><strong>Build Tool</strong></td>
+<td>Vite</td>
+<td>4+</td>
+<td>Fast development builds</td>
+<td>Hot reload, optimized bundles</td>
+</tr>
+<tr>
+<td><strong>Styling</strong></td>
+<td>Tailwind CSS</td>
+<td>3+</td>
+<td>Utility-first CSS</td>
+<td>JIT compilation, purging</td>
+</tr>
+<tr>
+<td><strong>State Management</strong></td>
+<td>React Query</td>
+<td>4+</td>
+<td>Server state management</td>
+<td>Caching, background updates</td>
+</tr>
+<tr>
+<td><strong>HTTP Client</strong></td>
+<td>Axios</td>
+<td>1.5+</td>
+<td>API communication</td>
+<td>Request/response interceptors</td>
+</tr>
+</tbody>
+</table>
+<h3 id="infrastructure-cloud-services">Infrastructure &amp; Cloud
+Services</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 20%" />
+<col style="width: 34%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Service</th>
+<th>Configuration</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Compute</strong></td>
+<td>AWS ECS Fargate</td>
+<td>2 vCPU, 4GB RAM</td>
+<td>Serverless containers</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>AWS RDS PostgreSQL</td>
+<td>db.t3.medium</td>
+<td>Managed database</td>
+</tr>
+<tr>
+<td><strong>Load Balancer</strong></td>
+<td>AWS Application LB</td>
+<td>Internet-facing</td>
+<td>Traffic distribution</td>
+</tr>
+<tr>
+<td><strong>CDN</strong></td>
+<td>AWS CloudFront</td>
+<td>Global distribution</td>
+<td>Static asset delivery</td>
+</tr>
+<tr>
+<td><strong>Storage</strong></td>
+<td>AWS S3</td>
+<td>Standard/IA</td>
+<td>Object storage</td>
+</tr>
+<tr>
+<td><strong>DNS</strong></td>
+<td>AWS Route 53</td>
+<td>Health check routing</td>
+<td>DNS management</td>
+</tr>
+<tr>
+<td><strong>Certificate</strong></td>
+<td>AWS Certificate Manager</td>
+<td>Auto-renewal</td>
+<td>SSL/TLS certificates</td>
+</tr>
+<tr>
+<td><strong>Monitoring</strong></td>
+<td>AWS CloudWatch</td>
+<td>Custom metrics</td>
+<td>Application monitoring</td>
+</tr>
+</tbody>
+</table>
+<h2 id="database-schema">Database Schema</h2>
+<h3 id="core-tables">Core Tables</h3>
+<h4 id="users">users</h4>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> users (</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    email <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">UNIQUE</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    password_hash <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="kw">password</span> <span class="dt">VARCHAR</span>(<span class="dv">255</span>), <span class="co">-- Legacy compatibility</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">role</span> <span class="dt">VARCHAR</span>(<span class="dv">50</span>) <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">DEFAULT</span> <span class="st">&#39;viewer&#39;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    is_active <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">TRUE</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    created_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    updated_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    last_login <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Enterprise fields</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    approval_level <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">1</span>,</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    is_emergency_approver <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">FALSE</span>,</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    max_risk_approval <span class="dt">VARCHAR</span>(<span class="dv">20</span>) <span class="kw">DEFAULT</span> <span class="st">&#39;LOW&#39;</span>,</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>    status <span class="dt">VARCHAR</span>(<span class="dv">20</span>) <span class="kw">DEFAULT</span> <span class="st">&#39;active&#39;</span>,</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    mfa_enabled <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">FALSE</span>,</span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>    login_attempts <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">0</span>,</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>    department <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">DEFAULT</span> <span class="st">&#39;Engineering&#39;</span>,</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>    first_name <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    last_name <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>    access_level <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">DEFAULT</span> <span class="st">&#39;Level 1 - Read Only&#39;</span>,</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_role <span class="kw">CHECK</span> (<span class="kw">role</span> <span class="kw">IN</span> (<span class="st">&#39;admin&#39;</span>, <span class="st">&#39;security_analyst&#39;</span>, <span class="st">&#39;approver&#39;</span>, <span class="st">&#39;viewer&#39;</span>)),</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_status <span class="kw">CHECK</span> (status <span class="kw">IN</span> (<span class="st">&#39;active&#39;</span>, <span class="st">&#39;inactive&#39;</span>, <span class="st">&#39;suspended&#39;</span>, <span class="st">&#39;pending&#39;</span>))</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a><span class="co">-- Indexes for performance</span></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_users_email <span class="kw">ON</span> users(email);</span>
+<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_users_role <span class="kw">ON</span> users(<span class="kw">role</span>);</span>
+<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_users_active <span class="kw">ON</span> users(is_active);</span>
+<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_users_department <span class="kw">ON</span> users(department);</span></code></pre></div>
+<h4 id="alerts">alerts</h4>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> alerts (</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    title <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    message TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    severity <span class="dt">VARCHAR</span>(<span class="dv">20</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    status <span class="dt">VARCHAR</span>(<span class="dv">20</span>) <span class="kw">DEFAULT</span> <span class="st">&#39;open&#39;</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">source</span> <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    created_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    updated_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    resolved_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    extra_data JSONB,</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    pending_action_id <span class="dt">INTEGER</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    created_by <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> users(<span class="kw">id</span>),</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Correlation and tracking</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    correlation_id <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    escalation_level <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">1</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>    assigned_to <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    sla_deadline <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_severity <span class="kw">CHECK</span> (severity <span class="kw">IN</span> (<span class="st">&#39;low&#39;</span>, <span class="st">&#39;medium&#39;</span>, <span class="st">&#39;high&#39;</span>, <span class="st">&#39;critical&#39;</span>)),</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_status <span class="kw">CHECK</span> (status <span class="kw">IN</span> (<span class="st">&#39;open&#39;</span>, <span class="st">&#39;acknowledged&#39;</span>, <span class="st">&#39;in_progress&#39;</span>, <span class="st">&#39;resolved&#39;</span>, <span class="st">&#39;closed&#39;</span>))</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a><span class="co">-- Indexes for alert management</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_alerts_severity <span class="kw">ON</span> alerts(severity);</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_alerts_status <span class="kw">ON</span> alerts(status);</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_alerts_created_at <span class="kw">ON</span> alerts(created_at);</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_alerts_correlation <span class="kw">ON</span> alerts(correlation_id);</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_alerts_assigned <span class="kw">ON</span> alerts(assigned_to);</span></code></pre></div>
+<h4 id="agent_actions">agent_actions</h4>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> agent_actions (</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    agent_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    action_type <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    description TEXT,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    risk_level <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    risk_score <span class="dt">DECIMAL</span>(<span class="dv">5</span>,<span class="dv">2</span>),</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    status <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    approved <span class="dt">BOOLEAN</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Timestamps</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    created_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    updated_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    <span class="dt">timestamp</span> <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    reviewed_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- User references</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    user_id <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> users(<span class="kw">id</span>),</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    reviewed_by <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    approved_by <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- JSON data</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    extra_data JSONB,</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    approval_chain JSONB <span class="kw">DEFAULT</span> <span class="st">&#39;[]&#39;</span>:<span class="ch">:jsonb</span>,</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Boolean flags</span></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>    is_false_positive <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">FALSE</span>,</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>    requires_approval <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">TRUE</span>,</span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Enterprise compliance fields</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    tool_name <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="kw">summary</span> TEXT,</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    nist_control <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    nist_description TEXT,</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>    mitre_tactic <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a>    mitre_technique <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a>    recommendation TEXT,</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a>    target_system <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a>    target_resource <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Approval workflow</span></span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    approval_level <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">1</span>,</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    current_approval_level <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">0</span>,</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    required_approval_level <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">1</span>,</span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    workflow_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    workflow_execution_id <span class="dt">INTEGER</span>,</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    workflow_stage <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a>    sla_deadline <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a>    pending_approvers TEXT,</span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_risk_level <span class="kw">CHECK</span> (risk_level <span class="kw">IN</span> (<span class="st">&#39;low&#39;</span>, <span class="st">&#39;medium&#39;</span>, <span class="st">&#39;high&#39;</span>, <span class="st">&#39;critical&#39;</span>)),</span>
+<span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_status <span class="kw">CHECK</span> (status <span class="kw">IN</span> (<span class="st">&#39;pending&#39;</span>, <span class="st">&#39;approved&#39;</span>, <span class="st">&#39;rejected&#39;</span>, <span class="st">&#39;executed&#39;</span>, <span class="st">&#39;failed&#39;</span>))</span>
+<span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a><span class="co">-- Performance indexes</span></span>
+<span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_agent_actions_agent_id <span class="kw">ON</span> agent_actions(agent_id);</span>
+<span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_agent_actions_status <span class="kw">ON</span> agent_actions(status);</span>
+<span id="cb3-58"><a href="#cb3-58" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_agent_actions_risk_level <span class="kw">ON</span> agent_actions(risk_level);</span>
+<span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_agent_actions_created_at <span class="kw">ON</span> agent_actions(created_at);</span>
+<span id="cb3-60"><a href="#cb3-60" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_agent_actions_workflow <span class="kw">ON</span> agent_actions(workflow_id);</span></code></pre></div>
+<h4 id="smart_rules">smart_rules</h4>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> smart_rules (</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    agent_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    action_type <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    description TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    condition TEXT,</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    action <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    risk_level <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    recommendation TEXT,</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    justification TEXT,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    enabled <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">TRUE</span>,</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    created_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    updated_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>    created_by <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> users(<span class="kw">id</span>),</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Rule definition</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    conditions JSONB,</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    actions JSONB,</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Compliance framework mapping</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    nist_controls JSONB,</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    mitre_tactics JSONB,</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    mitre_techniques JSONB,</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Performance metrics</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    trigger_count <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">0</span>,</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>    false_positive_count <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">0</span>,</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>    last_triggered <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>    effectiveness_score <span class="dt">DECIMAL</span>(<span class="dv">5</span>,<span class="dv">2</span>),</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- A/B testing</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    ab_test_group <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>    performance_baseline JSONB,</span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_risk_level <span class="kw">CHECK</span> (risk_level <span class="kw">IN</span> (<span class="st">&#39;low&#39;</span>, <span class="st">&#39;medium&#39;</span>, <span class="st">&#39;high&#39;</span>, <span class="st">&#39;critical&#39;</span>))</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a><span class="co">-- Rule performance indexes</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_smart_rules_enabled <span class="kw">ON</span> smart_rules(enabled);</span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_smart_rules_agent_id <span class="kw">ON</span> smart_rules(agent_id);</span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_smart_rules_action_type <span class="kw">ON</span> smart_rules(action_type);</span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_smart_rules_effectiveness <span class="kw">ON</span> smart_rules(effectiveness_score);</span></code></pre></div>
+<h4 id="audit_logs">audit_logs</h4>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> audit_logs (</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    event_type <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    user_id <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> users(<span class="kw">id</span>),</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    user_email <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    resource_type <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    resource_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    action <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    outcome <span class="dt">VARCHAR</span>(<span class="dv">50</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    <span class="dt">timestamp</span> <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    ip_address INET,</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    user_agent TEXT,</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    session_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>    request_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Event details</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    event_data JSONB,</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    changes JSONB,</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Compliance fields</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    compliance_tags <span class="dt">VARCHAR</span>(<span class="dv">255</span>)[],</span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>    risk_score <span class="dt">INTEGER</span>,</span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    severity <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Immutability protection</span></span>
+<span id="cb5-26"><a href="#cb5-26" aria-hidden="true" tabindex="-1"></a>    hash_chain <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb5-27"><a href="#cb5-27" aria-hidden="true" tabindex="-1"></a>    previous_hash <span class="dt">VARCHAR</span>(<span class="dv">255</span>),</span>
+<span id="cb5-28"><a href="#cb5-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-29"><a href="#cb5-29" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_outcome <span class="kw">CHECK</span> (outcome <span class="kw">IN</span> (<span class="st">&#39;success&#39;</span>, <span class="st">&#39;failure&#39;</span>, <span class="st">&#39;error&#39;</span>, <span class="st">&#39;blocked&#39;</span>)),</span>
+<span id="cb5-30"><a href="#cb5-30" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_severity <span class="kw">CHECK</span> (severity <span class="kw">IN</span> (<span class="st">&#39;low&#39;</span>, <span class="st">&#39;medium&#39;</span>, <span class="st">&#39;high&#39;</span>, <span class="st">&#39;critical&#39;</span>))</span>
+<span id="cb5-31"><a href="#cb5-31" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb5-32"><a href="#cb5-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-33"><a href="#cb5-33" aria-hidden="true" tabindex="-1"></a><span class="co">-- Audit query optimization</span></span>
+<span id="cb5-34"><a href="#cb5-34" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_audit_logs_timestamp <span class="kw">ON</span> audit_logs(<span class="dt">timestamp</span>);</span>
+<span id="cb5-35"><a href="#cb5-35" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_audit_logs_user_id <span class="kw">ON</span> audit_logs(user_id);</span>
+<span id="cb5-36"><a href="#cb5-36" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_audit_logs_event_type <span class="kw">ON</span> audit_logs(event_type);</span>
+<span id="cb5-37"><a href="#cb5-37" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_audit_logs_compliance <span class="kw">ON</span> audit_logs <span class="kw">USING</span> gin(compliance_tags);</span></code></pre></div>
+<h4 id="sessions">sessions</h4>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> sessions (</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    session_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">UNIQUE</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    user_id <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> users(<span class="kw">id</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    created_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    expires_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    is_active <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">TRUE</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>    ip_address INET,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    user_agent TEXT,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Session metadata</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>    login_method <span class="dt">VARCHAR</span>(<span class="dv">50</span>), <span class="co">-- password, sso, mfa</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    risk_score <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">0</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    last_activity <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- MFA tracking</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    mfa_verified <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">FALSE</span>,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    mfa_required <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">FALSE</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co">-- Session management indexes</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_sessions_session_id <span class="kw">ON</span> sessions(session_id);</span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_sessions_user_id <span class="kw">ON</span> sessions(user_id);</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_sessions_expires_at <span class="kw">ON</span> sessions(expires_at);</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_sessions_active <span class="kw">ON</span> sessions(is_active);</span></code></pre></div>
+<h3 id="advanced-tables">Advanced Tables</h3>
+<h4 id="workflow_executions">workflow_executions</h4>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> workflow_executions (</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    workflow_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    action_id <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> agent_actions(<span class="kw">id</span>),</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    status <span class="dt">VARCHAR</span>(<span class="dv">50</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    started_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    completed_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    started_by <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> users(<span class="kw">id</span>),</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Workflow context</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    execution_context JSONB,</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    current_stage <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    stages_completed JSONB <span class="kw">DEFAULT</span> <span class="st">&#39;[]&#39;</span>:<span class="ch">:jsonb</span>,</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Approval tracking</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    approvers JSONB <span class="kw">DEFAULT</span> <span class="st">&#39;[]&#39;</span>:<span class="ch">:jsonb</span>,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    approval_history JSONB <span class="kw">DEFAULT</span> <span class="st">&#39;[]&#39;</span>:<span class="ch">:jsonb</span>,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- SLA and deadlines</span></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    sla_deadline <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    escalation_level <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">1</span>,</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_status <span class="kw">CHECK</span> (status <span class="kw">IN</span> (<span class="st">&#39;pending&#39;</span>, <span class="st">&#39;in_progress&#39;</span>, <span class="st">&#39;completed&#39;</span>, <span class="st">&#39;failed&#39;</span>, <span class="st">&#39;cancelled&#39;</span>))</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<h4 id="ab_tests">ab_tests</h4>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> ab_tests (</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">id</span> SERIAL <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    test_id <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">UNIQUE</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    rule_id <span class="dt">INTEGER</span> <span class="kw">REFERENCES</span> smart_rules(<span class="kw">id</span>),</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    test_name <span class="dt">VARCHAR</span>(<span class="dv">255</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    description TEXT,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    variant_a TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>, <span class="co">-- Control group</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    variant_b TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>, <span class="co">-- Treatment group</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    status <span class="dt">VARCHAR</span>(<span class="dv">50</span>) <span class="kw">DEFAULT</span> <span class="st">&#39;active&#39;</span>,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    created_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="kw">DEFAULT</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    started_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>    ended_at <span class="dt">TIMESTAMP</span> <span class="kw">WITH</span> <span class="dt">TIME</span> <span class="dt">ZONE</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Test configuration</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>    traffic_split <span class="dt">DECIMAL</span>(<span class="dv">3</span>,<span class="dv">2</span>) <span class="kw">DEFAULT</span> <span class="fl">0.50</span>, <span class="co">-- 50/50 split</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>    confidence_level <span class="dt">DECIMAL</span>(<span class="dv">3</span>,<span class="dv">2</span>) <span class="kw">DEFAULT</span> <span class="fl">0.95</span>,</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    min_sample_size <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">1000</span>,</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>    <span class="co">-- Results tracking</span></span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    variant_a_performance JSONB,</span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    variant_b_performance JSONB,</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    statistical_significance <span class="dt">BOOLEAN</span> <span class="kw">DEFAULT</span> <span class="kw">FALSE</span>,</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    winner <span class="dt">VARCHAR</span>(<span class="dv">10</span>), <span class="co">-- &#39;A&#39;, &#39;B&#39;, or &#39;tie&#39;</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    <span class="kw">CONSTRAINT</span> valid_status <span class="kw">CHECK</span> (status <span class="kw">IN</span> (<span class="st">&#39;draft&#39;</span>, <span class="st">&#39;active&#39;</span>, <span class="st">&#39;paused&#39;</span>, <span class="st">&#39;completed&#39;</span>, <span class="st">&#39;cancelled&#39;</span>))</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<h2 id="security-specifications">Security Specifications</h2>
+<h3 id="authentication-security">Authentication Security</h3>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 35%" />
+<col style="width: 38%" />
+</colgroup>
+<thead>
+<tr>
+<th>Component</th>
+<th>Specification</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Password Hashing</strong></td>
+<td>bcrypt with cost factor 12</td>
+<td>2^12 iterations, salt included</td>
+</tr>
+<tr>
+<td><strong>JWT Algorithm</strong></td>
+<td>HS256 (HMAC with SHA-256)</td>
+<td>256-bit secret key</td>
+</tr>
+<tr>
+<td><strong>Token Expiry</strong></td>
+<td>Access: 30 minutes, Refresh: 7 days</td>
+<td>Automatic refresh before expiry</td>
+</tr>
+<tr>
+<td><strong>Session Management</strong></td>
+<td>Secure httpOnly cookies</td>
+<td>SameSite=Strict, Secure flag</td>
+</tr>
+<tr>
+<td><strong>Account Lockout</strong></td>
+<td>5 failed attempts, 15-minute lockout</td>
+<td>Progressive lockout periods</td>
+</tr>
+</tbody>
+</table>
+<h3 id="password-requirements">Password Requirements</h3>
+<ul>
+<li><strong>Minimum Length:</strong> 8 characters</li>
+<li><strong>Character Requirements:</strong> Uppercase, lowercase,
+number, special character</li>
+<li><strong>Password History:</strong> Last 5 passwords stored and
+prevented</li>
+<li><strong>Complexity Score:</strong> Minimum score of 60/100 using
+zxcvbn algorithm</li>
+<li><strong>Common Password Protection:</strong> Check against breach
+databases</li>
+</ul>
+<h3 id="api-security-controls">API Security Controls</h3>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 47%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr>
+<th>Control</th>
+<th>Implementation</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Rate Limiting</strong></td>
+<td>100 requests/minute per user</td>
+<td>DDoS protection</td>
+</tr>
+<tr>
+<td><strong>CSRF Protection</strong></td>
+<td>Token-based validation</td>
+<td>Cross-site request forgery prevention</td>
+</tr>
+<tr>
+<td><strong>Input Validation</strong></td>
+<td>Pydantic models with strict validation</td>
+<td>Injection attack prevention</td>
+</tr>
+<tr>
+<td><strong>SQL Injection</strong></td>
+<td>Parameterized queries only</td>
+<td>Database security</td>
+</tr>
+<tr>
+<td><strong>XSS Protection</strong></td>
+<td>Content Security Policy + React escaping</td>
+<td>Cross-site scripting prevention</td>
+</tr>
+</tbody>
+</table>
+<h3 id="network-security">Network Security</h3>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 35%" />
+<col style="width: 44%" />
+</colgroup>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Protection</th>
+<th>Configuration</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>TLS</strong></td>
+<td>TLS 1.3 minimum</td>
+<td>Perfect Forward Secrecy enabled</td>
+</tr>
+<tr>
+<td><strong>Certificate</strong></td>
+<td>SHA-256 with RSA 2048-bit</td>
+<td>Auto-renewal via ACM</td>
+</tr>
+<tr>
+<td><strong>HSTS</strong></td>
+<td>Strict-Transport-Security header</td>
+<td>max-age=31536000; includeSubDomains</td>
+</tr>
+<tr>
+<td><strong>Security Headers</strong></td>
+<td>CSP, X-Frame-Options, X-Content-Type-Options</td>
+<td>OWASP recommendations</td>
+</tr>
+<tr>
+<td><strong>WAF</strong></td>
+<td>AWS WAF with OWASP Top 10 rules</td>
+<td>DDoS and application attack protection</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-protection">Data Protection</h3>
+<table>
+<colgroup>
+<col style="width: 24%" />
+<col style="width: 40%" />
+<col style="width: 35%" />
+</colgroup>
+<thead>
+<tr>
+<th>Data Type</th>
+<th>Protection Method</th>
+<th>Key Management</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data at Rest</strong></td>
+<td>AES-256 encryption</td>
+<td>AWS KMS with automatic rotation</td>
+</tr>
+<tr>
+<td><strong>Data in Transit</strong></td>
+<td>TLS 1.3 encryption</td>
+<td>Certificate pinning</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>Transparent Data Encryption</td>
+<td>RDS managed encryption</td>
+</tr>
+<tr>
+<td><strong>Backups</strong></td>
+<td>Encrypted snapshots</td>
+<td>Separate encryption keys</td>
+</tr>
+<tr>
+<td><strong>Logs</strong></td>
+<td>Server-side encryption</td>
+<td>CloudWatch encryption</td>
+</tr>
+</tbody>
+</table>
+<h2 id="performance-benchmarks">Performance Benchmarks</h2>
+<h3 id="response-time-targets-95th-percentile">Response Time Targets
+(95th Percentile)</h3>
+<table>
+<thead>
+<tr>
+<th>Endpoint Category</th>
+<th>Target</th>
+<th>Current Performance</th>
+<th>SLA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Authentication</strong></td>
+<td>&lt;200ms</td>
+<td>145ms</td>
+<td>250ms</td>
+</tr>
+<tr>
+<td><strong>Policy Evaluation</strong></td>
+<td>&lt;150ms</td>
+<td>142ms</td>
+<td>200ms</td>
+</tr>
+<tr>
+<td><strong>Alert Retrieval</strong></td>
+<td>&lt;100ms</td>
+<td>87ms</td>
+<td>150ms</td>
+</tr>
+<tr>
+<td><strong>Dashboard Load</strong></td>
+<td>&lt;500ms</td>
+<td>420ms</td>
+<td>750ms</td>
+</tr>
+<tr>
+<td><strong>Rule Creation</strong></td>
+<td>&lt;300ms</td>
+<td>275ms</td>
+<td>500ms</td>
+</tr>
+<tr>
+<td><strong>User Management</strong></td>
+<td>&lt;200ms</td>
+<td>180ms</td>
+<td>300ms</td>
+</tr>
+</tbody>
+</table>
+<h3 id="throughput-specifications">Throughput Specifications</h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Target</th>
+<th>Current</th>
+<th>Peak Tested</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Concurrent Users</strong></td>
+<td>1,000+</td>
+<td>750</td>
+<td>1,200</td>
+</tr>
+<tr>
+<td><strong>Requests per Second</strong></td>
+<td>100+</td>
+<td>85</td>
+<td>150</td>
+</tr>
+<tr>
+<td><strong>Database QPS</strong></td>
+<td>500+</td>
+<td>420</td>
+<td>650</td>
+</tr>
+<tr>
+<td><strong>Policy Evaluations/sec</strong></td>
+<td>50+</td>
+<td>42</td>
+<td>75</td>
+</tr>
+<tr>
+<td><strong>Alert Processing/sec</strong></td>
+<td>25+</td>
+<td>22</td>
+<td>40</td>
+</tr>
+</tbody>
+</table>
+<h3 id="resource-utilization-targets">Resource Utilization Targets</h3>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Normal Load</th>
+<th>High Load</th>
+<th>Critical Threshold</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CPU Usage</strong></td>
+<td>&lt;60%</td>
+<td>&lt;80%</td>
+<td>90%</td>
+</tr>
+<tr>
+<td><strong>Memory Usage</strong></td>
+<td>&lt;70%</td>
+<td>&lt;85%</td>
+<td>95%</td>
+</tr>
+<tr>
+<td><strong>Database CPU</strong></td>
+<td>&lt;50%</td>
+<td>&lt;70%</td>
+<td>85%</td>
+</tr>
+<tr>
+<td><strong>Database Memory</strong></td>
+<td>&lt;60%</td>
+<td>&lt;80%</td>
+<td>90%</td>
+</tr>
+<tr>
+<td><strong>Network I/O</strong></td>
+<td>&lt;40%</td>
+<td>&lt;60%</td>
+<td>80%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="database-performance">Database Performance</h3>
+<table>
+<colgroup>
+<col style="width: 22%" />
+<col style="width: 42%" />
+<col style="width: 34%" />
+</colgroup>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Specification</th>
+<th>Monitoring</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Connection Pool</strong></td>
+<td>5-20 connections</td>
+<td>Pool exhaustion alerts</td>
+</tr>
+<tr>
+<td><strong>Query Timeout</strong></td>
+<td>30 seconds maximum</td>
+<td>Slow query logging</td>
+</tr>
+<tr>
+<td><strong>Index Usage</strong></td>
+<td>&gt;95% index coverage</td>
+<td>Query plan analysis</td>
+</tr>
+<tr>
+<td><strong>Deadlock Rate</strong></td>
+<td>&lt;0.1% of transactions</td>
+<td>Deadlock monitoring</td>
+</tr>
+<tr>
+<td><strong>Backup Performance</strong></td>
+<td>&lt;30 minutes for full backup</td>
+<td>Backup completion tracking</td>
+</tr>
+</tbody>
+</table>
+<h2 id="compliance-certifications">Compliance Certifications</h2>
+<h3 id="nist-800-53-compliance">NIST 800-53 Compliance</h3>
+<table>
+<colgroup>
+<col style="width: 38%" />
+<col style="width: 38%" />
+<col style="width: 23%" />
+</colgroup>
+<thead>
+<tr>
+<th>Control Family</th>
+<th>Implementation</th>
+<th>Coverage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AC (Access Control)</strong></td>
+<td>RBAC, MFA, session management</td>
+<td>90%</td>
+</tr>
+<tr>
+<td><strong>AU (Audit and Accountability)</strong></td>
+<td>Comprehensive audit logging</td>
+<td>95%</td>
+</tr>
+<tr>
+<td><strong>CM (Configuration Management)</strong></td>
+<td>Infrastructure as Code</td>
+<td>85%</td>
+</tr>
+<tr>
+<td><strong>IA (Identification and Authentication)</strong></td>
+<td>Multi-factor authentication</td>
+<td>92%</td>
+</tr>
+<tr>
+<td><strong>SC (System and Communications Protection)</strong></td>
+<td>TLS, encryption, secure protocols</td>
+<td>88%</td>
+</tr>
+<tr>
+<td><strong>SI (System and Information Integrity)</strong></td>
+<td>Monitoring, alerting, incident response</td>
+<td>85%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Overall NIST 800-53 Coverage:</strong> 87%</p>
+<h3 id="soc-2-type-ii-controls">SOC 2 Type II Controls</h3>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Description</th>
+<th>Implementation Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CC6.1</strong></td>
+<td>Logical and physical access controls</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC6.2</strong></td>
+<td>Prior authorization of logical access</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC6.3</strong></td>
+<td>User access management</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC7.1</strong></td>
+<td>Detection of unauthorized access</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC7.2</strong></td>
+<td>System monitoring</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC7.3</strong></td>
+<td>Evaluation of security events</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC7.4</strong></td>
+<td>Response to security incidents</td>
+<td>✅ Implemented</td>
+</tr>
+<tr>
+<td><strong>CC8.1</strong></td>
+<td>Change management procedures</td>
+<td>✅ Implemented</td>
+</tr>
+</tbody>
+</table>
+<p><strong>SOC 2 Type II Readiness:</strong> 95%</p>
+<h3 id="iso-270012013-controls">ISO 27001:2013 Controls</h3>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 34%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr>
+<th>Control</th>
+<th>Description</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A.9.1</strong></td>
+<td>Business requirements for access control</td>
+<td>Policy-based access control</td>
+</tr>
+<tr>
+<td><strong>A.9.2</strong></td>
+<td>User access management</td>
+<td>Automated user lifecycle</td>
+</tr>
+<tr>
+<td><strong>A.12.4</strong></td>
+<td>Logging and monitoring</td>
+<td>Comprehensive audit trails</td>
+</tr>
+<tr>
+<td><strong>A.13.1</strong></td>
+<td>Network security management</td>
+<td>WAF, TLS, network segmentation</td>
+</tr>
+<tr>
+<td><strong>A.18.1</strong></td>
+<td>Compliance with legal requirements</td>
+<td>Data protection controls</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gdpr-compliance-features">GDPR Compliance Features</h3>
+<table>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 33%" />
+<col style="width: 39%" />
+</colgroup>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Implementation</th>
+<th>Technical Controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Data Minimization</strong></td>
+<td>Collect only necessary data</td>
+<td>Field-level encryption</td>
+</tr>
+<tr>
+<td><strong>Right to Access</strong></td>
+<td>User data export API</td>
+<td>Self-service data access</td>
+</tr>
+<tr>
+<td><strong>Right to Erasure</strong></td>
+<td>Data deletion procedures</td>
+<td>Cascading deletion</td>
+</tr>
+<tr>
+<td><strong>Data Portability</strong></td>
+<td>Structured data export</td>
+<td>JSON/CSV export formats</td>
+</tr>
+<tr>
+<td><strong>Consent Management</strong></td>
+<td>Granular permission controls</td>
+<td>Audit trail of consent</td>
+</tr>
+</tbody>
+</table>
+<h2 id="infrastructure-specifications">Infrastructure
+Specifications</h2>
+<h3 id="container-specifications">Container Specifications</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Production container configuration</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="fu">apiVersion</span><span class="kw">:</span><span class="at"> v1</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="fu">kind</span><span class="kw">:</span><span class="at"> Pod</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">spec</span><span class="kw">:</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">containers</span><span class="kw">:</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> owkai-backend</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">image</span><span class="kw">:</span><span class="at"> owkai/backend:latest</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">resources</span><span class="kw">:</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">requests</span><span class="kw">:</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">memory</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;2Gi&quot;</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">cpu</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;1000m&quot;</span></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">limits</span><span class="kw">:</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">memory</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;4Gi&quot;</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">cpu</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;2000m&quot;</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">env</span><span class="kw">:</span></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> DATABASE_URL</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">valueFrom</span><span class="kw">:</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="at">        </span><span class="fu">secretKeyRef</span><span class="kw">:</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">name</span><span class="kw">:</span><span class="at"> db-credentials</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="at">          </span><span class="fu">key</span><span class="kw">:</span><span class="at"> url</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">ports</span><span class="kw">:</span></span>
+<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">containerPort</span><span class="kw">:</span><span class="at"> </span><span class="dv">8000</span></span>
+<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">healthcheck</span><span class="kw">:</span></span>
+<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">path</span><span class="kw">:</span><span class="at"> /health</span></span>
+<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">interval</span><span class="kw">:</span><span class="at"> 30s</span></span>
+<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">timeout</span><span class="kw">:</span><span class="at"> 5s</span></span>
+<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">retries</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span></code></pre></div>
+<h3 id="load-balancer-configuration">Load Balancer Configuration</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># AWS Application Load Balancer</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="fu">Type</span><span class="kw">:</span><span class="at"> AWS::ElasticLoadBalancingV2::LoadBalancer</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="fu">Properties</span><span class="kw">:</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">Type</span><span class="kw">:</span><span class="at"> application</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">Scheme</span><span class="kw">:</span><span class="at"> internet-facing</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">IpAddressType</span><span class="kw">:</span><span class="at"> ipv4</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">SecurityGroups</span><span class="kw">:</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> !Ref ALBSecurityGroup</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">Subnets</span><span class="kw">:</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> !Ref PublicSubnet1</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> !Ref PublicSubnet2</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">LoadBalancerAttributes</span><span class="kw">:</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">Key</span><span class="kw">:</span><span class="at"> idle_timeout.timeout_seconds</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">Value</span><span class="kw">:</span><span class="at"> </span><span class="dv">60</span></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">Key</span><span class="kw">:</span><span class="at"> routing.http2.enabled</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">Value</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="kw">-</span><span class="at"> </span><span class="fu">Key</span><span class="kw">:</span><span class="at"> access_logs.s3.enabled</span></span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">Value</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code></pre></div>
+<h3 id="database-configuration">Database Configuration</h3>
+<div class="sourceCode" id="cb11"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co">-- Production PostgreSQL configuration</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- postgresql.conf settings</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>max_connections <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>shared_buffers <span class="op">=</span> <span class="dv">256</span>MB</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>effective_cache_size <span class="op">=</span> <span class="dv">1</span>GB</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>work_mem <span class="op">=</span> <span class="dv">16</span>MB</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>maintenance_work_mem <span class="op">=</span> <span class="dv">256</span>MB</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>checkpoint_completion_target <span class="op">=</span> <span class="fl">0.9</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>wal_buffers <span class="op">=</span> <span class="dv">16</span>MB</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>default_statistics_target <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a>random_page_cost <span class="op">=</span> <span class="fl">1.1</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>effective_io_concurrency <span class="op">=</span> <span class="dv">200</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="co">-- Performance monitoring</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>log_statement <span class="op">=</span> <span class="st">&#39;all&#39;</span></span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a>log_duration <span class="op">=</span> <span class="kw">on</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>log_checkpoints <span class="op">=</span> <span class="kw">on</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a>log_lock_waits <span class="op">=</span> <span class="kw">on</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>log_temp_files <span class="op">=</span> <span class="dv">0</span></span></code></pre></div>
+<h2 id="integration-specifications">Integration Specifications</h2>
+<h3 id="api-integration-standards">API Integration Standards</h3>
+<table>
+<thead>
+<tr>
+<th>Standard</th>
+<th>Version</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>REST API</strong></td>
+<td>OpenAPI 3.0.3</td>
+<td>Primary API interface</td>
+</tr>
+<tr>
+<td><strong>JSON Schema</strong></td>
+<td>Draft 2020-12</td>
+<td>Request/response validation</td>
+</tr>
+<tr>
+<td><strong>OAuth 2.0</strong></td>
+<td>RFC 6749</td>
+<td>Third-party integrations</td>
+</tr>
+<tr>
+<td><strong>SAML 2.0</strong></td>
+<td>OASIS Standard</td>
+<td>Enterprise SSO</td>
+</tr>
+<tr>
+<td><strong>Webhooks</strong></td>
+<td>HTTP POST</td>
+<td>Event notifications</td>
+</tr>
+</tbody>
+</table>
+<h3 id="message-queue-integration">Message Queue Integration</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># AWS SQS Configuration</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="fu">QueueConfiguration</span><span class="kw">:</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">VisibilityTimeout</span><span class="kw">:</span><span class="at"> </span><span class="dv">300</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">MessageRetentionPeriod</span><span class="kw">:</span><span class="at"> </span><span class="dv">1209600</span><span class="co">  # 14 days</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">ReceiveMessageWaitTimeSeconds</span><span class="kw">:</span><span class="at"> </span><span class="dv">20</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">DelaySeconds</span><span class="kw">:</span><span class="at"> </span><span class="dv">0</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">ReddrivePolicy</span><span class="kw">:</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">deadLetterTargetArn</span><span class="kw">:</span><span class="at"> !GetAtt DeadLetterQueue.Arn</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">maxReceiveCount</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span></code></pre></div>
+<h3 id="monitoring-integration">Monitoring Integration</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># CloudWatch Custom Metrics</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="fu">CustomMetrics</span><span class="kw">:</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">MetricName</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;PolicyEvaluationTime&quot;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">Namespace</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;OWKAIPlatform/Authorization&quot;</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">Unit</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;Milliseconds&quot;</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">MetricName</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;AlertProcessingRate&quot;</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">Namespace</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;OWKAIPlatform/Alerts&quot;</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">Unit</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;Count/Second&quot;</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">MetricName</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;RuleEffectiveness&quot;</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">Namespace</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;OWKAIPlatform/SmartRules&quot;</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">Unit</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;Percent&quot;</span></span></code></pre></div>
+<p>This technical specification provides the comprehensive technical
+foundation required for enterprise deployment, maintenance, and scaling
+of the OW-AI Platform.</p>
+</body>
+</html>

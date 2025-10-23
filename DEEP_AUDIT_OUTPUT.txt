@@ -1,0 +1,386 @@
+================================================================================
+🏢 ENTERPRISE DEEP DIVE AUDIT
+================================================================================
+
+📡 SECTION 1: REGISTERED ROUTERS (What's Actually Active)
+--------------------------------------------------------------------------------
+Total routers registered: 30
+
+Active Route Imports:
+  • routes/auth.py → auth_router
+  • routes/smart_rules_routes.py → smart_rules_router
+  • routes/enterprise_user_management_routes.py → enterprise_user_router
+  • routes/authorization_routes.py → authorization_router
+  • routes/enterprise_secrets_routes.py → secrets_router
+  • routes/analytics_routes.py → analytics_router
+  • routes/smart_alerts.py → smart_alerts_router
+  • routes/data_rights_routes.py → data_rights_router
+  • routes/mcp_governance_routes.py → mcp_governance_router
+  • routes/unified_governance_routes.py → unified_governance_router
+  • routes/automation_orchestration_routes.py → automation_orchestration_router
+  • routes/sso_routes.py → sso_router
+  • routes/auth.py → auth_router
+  • routes/smart_rules_routes.py → smart_rules_router
+  • routes/analytics_routes.py → analytics_router
+  • routes/smart_alerts.py → smart_alerts_router
+  • routes/data_rights_routes.py → data_rights_router
+  • routes/unified_governance_routes.py → unified_governance_router
+  • routes/automation_orchestration_routes.py → automation_orchestration_router
+  • routes/sso_routes.py → sso_router
+  • routes/alert_routes.py → alerts_router
+
+Router Registration Calls:
+  • auth_router
+  • smart_rules_router
+  • enterprise_user_router
+  • authorization_router
+  • authorization_api_router
+  • secrets_router
+  • analytics_router
+  • smart_alerts_router
+  • alerts_router
+  • data_rights_router
+  • mcp_governance_router
+  • unified_governance_router
+  • health_router
+  • sso_router
+  • router
+  • router
+  • router
+  • router
+  • router
+  • router
+  • router
+  • router
+  • enterprise_user_router
+  • authorization_router
+  • authorization_api_router
+  • secrets_router
+  • agent_router
+  • rule_router
+  • authorization_router
+  • audit_routes
+
+================================================================================
+📁 SECTION 2: ROUTES DIRECTORY ANALYSIS
+--------------------------------------------------------------------------------
+
+✅ ACTIVE FILES (Imported in main.py): 13
+  • alert_routes.py
+  • analytics_routes.py
+  • auth.py
+  • authorization_routes.py
+  • automation_orchestration_routes.py
+  • data_rights_routes.py
+  • enterprise_secrets_routes.py
+  • enterprise_user_management_routes.py
+  • mcp_governance_routes.py
+  • smart_alerts.py
+  • smart_rules_routes.py
+  • sso_routes.py
+  • unified_governance_routes.py
+
+⚠️  UNKNOWN FILES (Not imported, but not backup): 15
+  • admin_routes.py
+  • agent_routes.py
+  • alert_summary.py
+  • audit_routes.py
+  • auth_routes.py
+  • authorization_api_adapter.py
+  • enrichment.py
+  • log_routes.py
+  • main_routes.py
+  • mcp_enterprise_secure.py
+  • mcp_governance_adapter.py
+  • rule_routes.py
+  • siem_integration.py
+  • siem_simple.py
+  • support_routes.py
+
+📦 BACKUP FILES (Can likely be deleted): 0
+
+🗑️  DEPRECATED FILES: 0
+
+================================================================================
+🔌 SECTION 3: ENDPOINT ANALYSIS
+--------------------------------------------------------------------------------
+
+API Endpoints by Route File:
+
+alert_routes.py (prefix: /)
+  • GET    //
+  • GET    //count
+  • PATCH  //{alert_id}
+  • POST   //create-test-data
+
+analytics_routes.py (prefix: /)
+  • GET    //trends
+  • GET    //debug
+  • GET    //realtime/metrics
+  • GET    //predictive/trends
+  • GET    //executive/dashboard
+  • GET    //performance
+  • GET    //performance/system
+
+auth.py (prefix: /auth)
+  • POST   /auth/token
+  • GET    /auth/me
+  • POST   /auth/refresh-token
+  • POST   /auth/logout
+  • GET    /auth/diagnostic
+  • GET    /auth/health
+  • GET    /auth/csrf
+
+authorization_routes.py (prefix: /agent-control)
+  • GET    /agent-control/pending-actions
+  • POST   /agent-control/authorize/{action_id:path}
+  • POST   /agent-control/authorize-with-audit/{action_id}
+  • GET    /agent-control/dashboard
+  • GET    /agent-control/execution-history
+  • POST   /agent-control/policies/create-from-natural-language
+  • POST   /agent-control/policies/{policy_id}/deploy
+  • POST   /agent-control/policies/{policy_id}/rollback/{target_version_id}
+  • POST   /agent-control/mcp-discovery/scan-network
+  • GET    /agent-control/mcp-discovery/server-status
+  • GET    /agent-control/mcp-discovery/health-monitor
+  • GET    /agent-control/debug/policies
+
+data_rights_routes.py (prefix: /)
+  • POST   //access/request
+  • GET    //access/{request_id}/data
+  • POST   //erasure/request
+  • POST   //erasure/{request_id}/execute
+  • POST   //portability/request
+  • POST   //consent/record
+  • POST   //lineage/record
+  • GET    //lineage/subject/{subject_identifier}
+  • GET    //compliance/report
+  • GET    //requests
+  • GET    //requests/{request_id}
+  • GET    //health
+
+enterprise_secrets_routes.py (prefix: /enterprise/secrets)
+  • GET    /enterprise/secrets/status
+  • POST   /enterprise/secrets/rotate
+  • POST   /enterprise/secrets/rotate-all
+  • POST   /enterprise/secrets/schedule
+  • GET    /enterprise/secrets/schedules
+  • DELETE /enterprise/secrets/schedule/{secret_name}
+  • GET    /enterprise/secrets/compliance-report
+  • GET    /enterprise/secrets/audit-trail
+  • GET    /enterprise/secrets/rotation-history
+  • POST   /enterprise/secrets/emergency-rotation
+  • POST   /enterprise/secrets/validate-secrets
+  • GET    /enterprise/secrets/health
+
+enterprise_user_management_routes.py (prefix: /api/enterprise-users)
+  • GET    /api/enterprise-users/users
+  • POST   /api/enterprise-users/users
+  • PUT    /api/enterprise-users/users/{user_id}
+  • DELETE /api/enterprise-users/users/{user_id}
+  • GET    /api/enterprise-users/roles
+  • POST   /api/enterprise-users/roles
+  • GET    /api/enterprise-users/audit-logs
+  • GET    /api/enterprise-users/analytics
+  • POST   /api/enterprise-users/generate-report
+  • GET    /api/enterprise-users/reports/library
+  • GET    /api/enterprise-users/reports/scheduled
+  • POST   /api/enterprise-users/reports/download/{report_id}
+
+mcp_governance_routes.py (prefix: /)
+  • POST   //evaluate
+  • POST   //execute
+  • POST   //servers/register
+  • GET    //servers
+  • GET    //actions/pending
+  • POST   //actions/{action_id}/approve
+  • POST   //policies
+  • GET    //policies
+  • GET    //analytics/dashboard
+  • GET    //actions/all
+  • GET    //health
+  • POST   //test/evaluate
+
+smart_alerts.py (prefix: /)
+  • GET    //active
+  • POST   //{alert_id}/acknowledge
+  • POST   //{alert_id}/resolve
+  • POST   //{alert_id}/escalate
+
+smart_rules_routes.py (prefix: /)
+  • GET    //analytics
+  • GET    //ab-tests
+  • POST   //ab-test
+  • GET    //ab-test/{test_id}
+  • DELETE //ab-test/{test_id}
+  • GET    //debug-ab-tests-table
+  • GET    //ab-test/{test_id}
+  • POST   //setup-ab-testing-table
+  • GET    //suggestions
+  • POST   //generate-from-nl
+  • POST   //optimize/{rule_id}
+  • DELETE //{rule_id}
+  • POST   //generate
+  • POST   //seed
+
+sso_routes.py (prefix: /auth/sso)
+  • GET    /auth/sso/providers
+  • GET    /auth/sso/login/{provider}
+  • GET    /auth/sso/callback/{provider}
+  • POST   /auth/sso/logout
+  • GET    /auth/sso/user-profile
+
+unified_governance_routes.py (prefix: /)
+  • GET    //unified-stats
+  • GET    //unified-actions
+  • POST   //mcp-governance/evaluate-action
+  • GET    //health
+  • GET    //admin/unified-report
+  • POST   //create-policy
+  • GET    //policies
+  • PUT    //policies/{policy_id}
+  • DELETE //policies/{policy_id}
+  • POST   //policies/evaluate-realtime
+  • GET    //policies/engine-metrics
+  • POST   //policies/{policy_id}/deploy
+  • POST   //authorization/policies/evaluate-realtime
+  • GET    //authorization/policies/engine-metrics
+  • POST   //policies/compile
+  • POST   //policies/enforce
+  • GET    //policies/enforcement-stats
+  • POST   //agent/actions/pre-execute-check
+  • GET    //policies/templates
+  • GET    //policies/templates/{template_id}
+  • POST   //policies/from-template
+  • POST   //policies/custom/build
+  • GET    //policies/resources/types
+  • GET    //policies/actions/types
+  • GET    //dashboard/pending-approvals
+  • POST   //workflows/{workflow_execution_id}/approve
+  • GET    //pending-actions
+
+================================================================================
+🖥️  SECTION 4: FRONTEND API CALLS
+--------------------------------------------------------------------------------
+
+Frontend Components and Their API Calls:
+
+AIAlertManagementSystem.jsx:
+  • ${API_BASE_URL}/alerts
+  • ${API_BASE_URL}/alerts/ai-insights
+  • ${API_BASE_URL}/alerts/correlate
+  • ${API_BASE_URL}/alerts/executive-brief
+  • ${API_BASE_URL}/alerts/performance-metrics
+  • ${API_BASE_URL}/alerts/threat-intelligence
+
+AgentActionsPanel.jsx:
+  • ${API_BASE_URL}/admin/create-sample-agent-actions-enterprise
+  • ${API_BASE_URL}/admin/enterprise-status
+  • ${API_BASE_URL}/agent-action/${id}/${statusType}
+  • ${API_BASE_URL}/agent-actions
+
+AgentActivityFeed.jsx:
+  • ${API_BASE_URL}/agent-action/false-positive/${id}
+  • ${API_BASE_URL}/agent-actions/upload-json
+  • ${API_BASE_URL}/support/submit
+
+AgentAuthorizationDashboard.jsx:
+  • ${API_BASE_URL}/agent-control/emergency-override/${actionId}
+  • ${API_BASE_URL}/agent-control/execution-status/${actionId}
+  • ${API_BASE_URL}/agent-control/workflow-config
+  • ${API_BASE_URL}/api/authorization/automation/execute-playbook
+  • ${API_BASE_URL}/api/authorization/automation/playbook/${playbookId}/toggle
+  • ${API_BASE_URL}/api/authorization/automation/playbooks
+  • ${API_BASE_URL}/api/authorization/dashboard
+  • ${API_BASE_URL}/api/authorization/execute/${actionId}
+  • ${API_BASE_URL}/api/authorization/execution-history
+  • ${API_BASE_URL}/api/authorization/metrics/approval-performance
+  • ${API_BASE_URL}/api/authorization/orchestration/active-workflows
+  • ${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}
+  • ${API_BASE_URL}/api/authorization/workflows/create
+  • ${API_BASE_URL}/api/governance/create-policy
+  • ${API_BASE_URL}/api/governance/pending-actions
+  • ${API_BASE_URL}/api/governance/policies
+  • ${API_BASE_URL}/api/governance/policies/${policyId}
+
+AgentHistoryModal.jsx:
+  • ${API_BASE_URL}/agent-actions?agent_id=${agentId}
+
+AlertPanel.jsx:
+  • ${API_BASE_URL}/alerts
+  • ${API_BASE_URL}/alerts/${alertId}
+  • ${API_BASE_URL}/alerts/summary
+
+Alerts.jsx:
+  • ${API_BASE_URL}/alerts
+  • ${API_BASE_URL}/alerts/${alertId}
+  • ${API_BASE_URL}/alerts/summary
+
+Analytics.jsx:
+  • ${API_BASE_URL}/logs
+
+AuditTrailModal.jsx:
+  • ${API_BASE_URL}/audit-trail
+
+EnterpriseSecurityReports.jsx:
+  • ${BASE_URL}/api/enterprise-users/generate-report
+  • ${BASE_URL}/api/enterprise-users/reports/download/${reportId}
+  • ${BASE_URL}/api/enterprise-users/reports/library
+  • ${BASE_URL}/api/enterprise-users/reports/scheduled
+
+EnterpriseUserManagement.jsx:
+  • ${BASE_URL}/api/enterprise-users/analytics
+  • ${BASE_URL}/api/enterprise-users/audit-logs?limit=50
+  • ${BASE_URL}/api/enterprise-users/roles
+  • ${BASE_URL}/api/enterprise-users/users
+  • ${BASE_URL}/api/enterprise-users/users/${editingUser.id}
+  • ${BASE_URL}/api/enterprise-users/users/${userId}
+
+ForgotPassword.jsx:
+  • ${API_BASE_URL}/auth/request-reset
+
+Login.jsx:
+  • ${API_BASE_URL}/auth/token
+
+RealTimeAnalyticsDashboard.jsx:
+  • ${import.meta.env.VITE_API_URL || 
+
+Register.jsx:
+  • ${API_BASE_URL}/auth/register
+
+ResetPassword.jsx:
+  • ${API_BASE_URL}/auth/reset-password
+
+RulePerformancePanel.jsx:
+  • ${API_BASE_URL}/rules/performance
+
+RulesPanel.jsx:
+  • ${API_BASE_URL}/feedback/${ruleId}
+  • ${API_BASE_URL}/rules
+
+SecurityInsights.jsx:
+  • ${API_BASE_URL}/analytics/trends
+
+SecurityPanel.jsx:
+  • ${API_BASE_URL}/security-findings
+
+SmartAlertManagement.jsx:
+  • /alerts/${alertId}/acknowledge
+  • /alerts/${alertId}/resolve
+  • /alerts/active
+  • /alerts/history?days=30
+
+SmartRuleGen.jsx:
+  • ${API_BASE_URL}/api/smart-rules
+  • ${API_BASE_URL}/api/smart-rules/${id}
+  • ${API_BASE_URL}/api/smart-rules/ab-test?rule_id=${ruleId}
+  • ${API_BASE_URL}/api/smart-rules/ab-tests
+  • ${API_BASE_URL}/api/smart-rules/analytics
+  • ${API_BASE_URL}/api/smart-rules/generate-from-nl
+  • ${API_BASE_URL}/api/smart-rules/suggestions
+
+SubmitActionForm.jsx:
+  • ${API_BASE_URL}/agent-action
+
+================================================================================
+✅ Detailed report saved to DEEP_AUDIT_REPORT.txt

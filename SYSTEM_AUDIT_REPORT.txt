@@ -1,0 +1,73 @@
+================================================================================
+🏢 OW-KAI ENTERPRISE SYSTEM AUDIT
+================================================================================
+
+📊 SECTION 1: DATABASE SCHEMA
+--------------------------------------------------------------------------------
+Total Tables: 29
+
+🔄 WORKFLOW SYSTEM:
+  • workflow_executions: 12 columns, 2 foreign keys, 0 rows
+  • workflow_steps: 8 columns, 1 foreign keys, 0 rows
+  • workflows: 10 columns, 0 foreign keys, 4 rows
+
+🤖 AUTOMATION SYSTEM:
+  • automation_playbooks: 15 columns, 2 foreign keys, 1 rows
+  • playbook_executions: 11 columns, 2 foreign keys, 0 rows
+
+📋 POLICY SYSTEM:
+  • enterprise_policies: 12 columns, 0 foreign keys, 0 rows
+  • mcp_policies: 13 columns, 0 foreign keys, 0 rows
+
+🎯 RULE SYSTEM:
+  • rule_optimizations: 11 columns, 0 foreign keys, 1 rows
+  • smart_rules: 14 columns, 0 foreign keys, 3 rows
+
+⚡ ACTION SYSTEM:
+  • agent_actions: 36 columns, 0 foreign keys, 84 rows
+  • mcp_actions: 8 columns, 0 foreign keys, 0 rows
+
+================================================================================
+🔗 SECTION 2: FOREIGN KEY RELATIONSHIPS
+--------------------------------------------------------------------------------
+
+alerts:
+  • agent_action_id → agent_actions.id
+
+audit:
+  • user_id → users.id
+
+automation_playbooks:
+  • created_by → users.id
+  • updated_by → users.id
+
+cvss_assessments:
+  • action_id → agent_actions.id
+
+mitre_technique_mappings:
+  • action_id → agent_actions.id
+  • technique_id → mitre_techniques.technique_id
+
+mitre_techniques:
+  • tactic_id → mitre_tactics.tactic_id
+
+nist_control_mappings:
+  • action_id → agent_actions.id
+  • control_id → nist_controls.control_id
+
+playbook_executions:
+  • executed_by → users.id
+  • playbook_id → automation_playbooks.id
+
+sessions:
+  • user_id → users.id
+
+workflow_executions:
+  • action_id → agent_actions.id
+  • workflow_id → workflows.id
+
+workflow_steps:
+  • workflow_id → workflows.id
+
+================================================================================
+✅ Audit data saved to AUDIT_RESULTS.json
