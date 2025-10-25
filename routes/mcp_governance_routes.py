@@ -16,6 +16,7 @@ import uuid
 
 from database import get_db
 from dependencies import get_current_user
+from dependencies_websocket import verify_websocket_token, cleanup_connection
 from models_mcp_governance import MCPServerAction, MCPServer, MCPSession, MCPPolicy
 from services.mcp_governance_service import MCPGovernanceService
 from services.immutable_audit_service import ImmutableAuditService
@@ -898,15 +899,38 @@ async def mcp_governance_health_check(db: Session = Depends(get_db)):
 @router.websocket("/ws/realtime")
 async def mcp_governance_websocket(
     websocket: WebSocket,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(verify_websocket_token)  # ✅ ENTERPRISE AUTH
 ):
     """
-    WebSocket endpoint for real-time MCP governance updates
+    WebSocket endpoint for real-time MCP governance updates (AUTHENTICATED)
     Used by Authorization Center for live action notifications
-    """
-    await websocket.accept()
     
+    Security:
+    - Requires valid JWT cookie (HttpOnly)
+    - Rate limited (5 connections per user)
+    - All connections monitored and logged
+    - Proper cleanup on disconnect
+    """
     try:
+        # ✅ Authentication already verified by verify_websocket_token
+        # No need for websocket.accept() - auth handler manages connection
+        
+        logger.info(
+            f"✅ MCP Governance WebSocket connected: {current_user['email']} "
+            f"(role: {current_user['role']})"
+        )
+        
+        # Send initial connection confirmation
+        await websocket.send_json({
+            'type': 'connection',
+            'status': 'connected',
+            'message': 'MCP governance updates connected',
+            'authenticated': True,
+            'user': current_user['email'],
+            'timestamp': datetime.now(UTC).isoformat()
+        })
+        
         while True:
             # Check for new pending actions every 5 seconds
             await asyncio.sleep(5)
@@ -930,10 +954,20 @@ async def mcp_governance_websocket(
             })
             
     except WebSocketDisconnect:
-        logger.info("MCP governance WebSocket client disconnected")
+        await cleanup_connection(current_user, websocket)
+        logger.info(
+            f"🔌 MCP governance WebSocket disconnected: {current_user['email']}"
+        )
     except Exception as e:
-        logger.error(f"MCP governance WebSocket error: {e}")
-        await websocket.close()
+        logger.error(
+            f"❌ MCP governance WebSocket error for {current_user['email']}: {e}",
+            exc_info=True
+        )
+        await cleanup_connection(current_user, websocket)
+        try:
+            await websocket.close()
+        except:
+            pass
 
 # ============================================================================
 # SIMPLIFIED TEST ENDPOINTS
