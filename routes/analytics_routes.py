@@ -9,7 +9,6 @@ from models import AgentAction, User, AuditLog  # Added AuditLog for enhanced an
 from datetime import datetime, timedelta, UTC
 from collections import defaultdict, Counter
 from dependencies import get_current_user, require_admin
-from dependencies_websocket import verify_websocket_token, cleanup_connection
 from services.pending_actions_service import pending_service
 from typing import List, Dict, Any, Optional
 import json
@@ -540,59 +539,17 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 @router.websocket("/ws/realtime/{user_email}")
-async def websocket_endpoint(
-    websocket: WebSocket, 
-    user_email: str,
-    current_user: dict = Depends(verify_websocket_token)  # ✅ ENTERPRISE AUTH
-):
-    """
-    WebSocket endpoint for real-time analytics streaming (AUTHENTICATED)
+async def websocket_endpoint(websocket: WebSocket, user_email: str):
+    """WebSocket endpoint for real-time analytics streaming"""
+    await manager.connect(websocket, user_email)
     
-    Security:
-    - Requires valid JWT cookie (HttpOnly)
-    - Verifies email matches authenticated user
-    - Requires admin role
-    - Rate limited (5 connections per user)
-    - All connections monitored and logged
-    """
     try:
-        # ✅ SECURITY CHECK 1: Verify email matches authenticated user
-        if current_user["email"] != user_email:
-            logger.warning(
-                f"🔒 WebSocket auth failed: Email mismatch. "
-                f"Token={current_user['email']}, Requested={user_email}"
-            )
-            await websocket.close(
-                code=1008, 
-                reason="Unauthorized: Email mismatch with authenticated user"
-            )
-            await cleanup_connection(current_user, websocket)
-            return
-        
-        # ✅ SECURITY CHECK 2: Require admin role for analytics
-        if current_user.get("role") != "admin":
-            logger.warning(
-                f"🔒 WebSocket auth failed: Non-admin access attempt by {current_user['email']}"
-            )
-            await websocket.close(
-                code=1008, 
-                reason="Unauthorized: Admin access required for analytics"
-            )
-            await cleanup_connection(current_user, websocket)
-            return
-        
-        # ✅ Authentication passed - connect
-        await manager.connect(websocket, user_email)
-        logger.info(f"✅ Analytics WebSocket connected: {user_email} (admin)")
-        
         # Send initial connection confirmation
         await websocket.send_text(json.dumps({
             "type": "connection",
             "status": "connected",
             "message": f"Real-time analytics connected for {user_email}",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "authenticated": True,
-            "role": current_user["role"]
+            "timestamp": datetime.now(UTC).isoformat()
         }))
         
         # Start real-time data streaming
@@ -614,9 +571,7 @@ async def websocket_endpoint(
             
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_email)
-        await cleanup_connection(current_user, websocket)
         logger.info(f"🔌 WebSocket disconnected: {user_email}")
     except Exception as e:
         logger.error(f"❌ WebSocket error for {user_email}: {str(e)}")
         manager.disconnect(websocket, user_email)
-        await cleanup_connection(current_user, websocket)
