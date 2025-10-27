@@ -27,7 +27,7 @@
         },
         {
           "name": "SECRET_KEY",
-          "value": "***REMOVED***"
+          "value": "PLACEHOLDER_USE_AWS_SECRETS_MANAGER"
         },
         {
           "name": "DATABASE_URL",
