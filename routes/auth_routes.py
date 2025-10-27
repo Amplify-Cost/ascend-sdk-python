@@ -1,10 +1,11 @@
-# auth_routes.py - Updated for enterprise cookie sessions + CSRF (Phase 1, surgical)
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Response
-from fastapi.security import HTTPBearer
+# auth_routes.py - Enterprise Authentication with Dual Format Support (SEC-006)
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Response, Form
+from fastapi.security import HTTPBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import datetime, UTC
+from typing import Optional
 import logging
 from passlib.context import CryptContext
 from auth_utils import verify_password
@@ -182,15 +183,79 @@ async def register(
 async def login(
     request: Request,
     response: Response,
-    login_data: LoginInput,
     db: Session = Depends(get_db)
 ):
-    """Login with dual auth support + CSRF issuance for cookie mode."""
+    """
+    Enterprise login endpoint with dual format support.
+
+    Supports TWO authentication formats:
+    1. JSON: {"email": "user@example.com", "password": "password"}
+    2. OAuth2 Form-data: username=user@example.com&password=password
+
+    Returns JWT tokens in either:
+    - Bearer token format (response body)
+    - Cookie-based format (HttpOnly cookies)
+
+    Security Features:
+    - Rate limiting: 5 requests/minute
+    - Security event logging
+    - CSRF protection for cookie mode
+    - Input validation
+    """
     try:
-        user = db.query(User).filter(User.email == login_data.email).first()
-        if not user or not verify_password(login_data.password, user.password):
-            logger.warning(f"❌ Failed login attempt: {login_data.email}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        content_type = request.headers.get("content-type", "").lower()
+
+        # Determine which format was used and extract credentials
+        if "application/x-www-form-urlencoded" in content_type:
+            # OAuth2 form-data format (uses 'username' field)
+            form = await request.form()
+            email = form.get("username")  # OAuth2 spec uses 'username' but we treat it as email
+            password = form.get("password")
+            auth_format = "form-data"
+
+            if not email or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Both username and password required for OAuth2 form-data format"
+                )
+
+            logger.info(f"🔐 Login attempt (OAuth2 form-data): {email}")
+        elif "application/json" in content_type:
+            # JSON format (uses 'email' field)
+            try:
+                body = await request.json()
+                email = body.get("email")
+                password = body.get("password")
+                auth_format = "json"
+
+                if not email or not password:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Both email and password required for JSON format"
+                    )
+
+                logger.info(f"🔐 Login attempt (JSON): {email}")
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid JSON format: {str(e)}"
+                )
+        else:
+            # Neither format provided
+            logger.warning("❌ Login attempt with unsupported content-type")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Login credentials required. Send either JSON {\"email\":\"...\",\"password\":\"...\"} or form-data username=...&password=..."
+            )
+
+        # Validate credentials
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not verify_password(password, user.password):
+            logger.warning(f"❌ Failed login attempt ({auth_format}): {email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
 
         if not user.is_active:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account deactivated")
@@ -238,7 +303,7 @@ async def login(
 
             _set_csrf_cookie(response, request)
 
-            logger.info(f"✅ Cookie-based login: {user.email}")
+            logger.info(f"✅ Cookie-based login ({auth_format}): {user.email}")
             return TokenResponse(
                 access_token="",
                 refresh_token="",
@@ -247,7 +312,7 @@ async def login(
             )
 
         # Legacy token mode
-        logger.info(f"✅ Token-based login: {user.email}")
+        logger.info(f"✅ Token-based login ({auth_format}): {user.email}")
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,

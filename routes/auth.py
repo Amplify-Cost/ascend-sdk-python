@@ -1,6 +1,6 @@
 # routes/auth.py - Enterprise Response Diagnostics (Find Exact Format Issue)
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from security.cookies import SESSION_COOKIE_NAME
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -231,24 +231,77 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
 
 @router.post("/token")
 @limiter.limit(RATE_LIMITS["auth_login"])
-async def enterprise_login_diagnostic(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    """🔍 Enterprise Login with Response Diagnostics"""
-    
+async def enterprise_login_diagnostic(request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    🔍 Enterprise Login with Dual Format Support (SEC-006)
+
+    Supports TWO authentication formats:
+    1. JSON: {"email": "user@example.com", "password": "password"}
+    2. OAuth2 Form-data: username=user@example.com&password=password
+
+    Returns JWT tokens with enterprise diagnostics
+    """
+
     try:
-        logger.info(f"🔍 DIAGNOSTIC LOGIN for email: {login_data.email}")
-        
-        email = login_data.email.strip().lower()
-        password = login_data.password
-        
+        content_type = request.headers.get("content-type", "").lower()
+
+        # Determine which format was used and extract credentials
+        if "application/x-www-form-urlencoded" in content_type:
+            # OAuth2 form-data format (uses 'username' field)
+            form = await request.form()
+            email = form.get("username")  # OAuth2 spec uses 'username' but we treat it as email
+            password = form.get("password")
+            auth_format = "form-data"
+
+            if not email or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Both username and password required for OAuth2 form-data format"
+                )
+
+            logger.info(f"🔐 Login attempt (OAuth2 form-data): {email}")
+        elif "application/json" in content_type:
+            # JSON format (uses 'email' field)
+            try:
+                body = await request.json()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid JSON format - please send valid JSON"
+                )
+
+            email = body.get("email")
+            password = body.get("password")
+            auth_format = "json"
+
+            if not email or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Both email and password required for JSON format"
+                )
+
+            logger.info(f"🔐 Login attempt (JSON): {email}")
+        else:
+            # Neither format provided
+            logger.warning("❌ Login attempt with unsupported content-type")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Login credentials required. Send either JSON {\"email\":\"...\",\"password\":\"...\"} or form-data username=...&password=..."
+            )
+
+        email = email.strip().lower()
+
         if not email or not password:
             raise HTTPException(status_code=400, detail="Email and password required")
-        
+
         # Validate user
         user = db.query(User).filter(User.email == email).first()
         if not user:
+            logger.warning(f"❌ Failed login attempt ({auth_format}): {email} - User not found")
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+
         if not verify_password(password, user.password):
+            logger.warning(f"❌ Failed login attempt ({auth_format}): {email} - Invalid password")
             raise HTTPException(status_code=401, detail="Invalid credentials")
         
         # Create tokens

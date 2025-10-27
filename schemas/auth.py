@@ -13,16 +13,44 @@ class UserCreate(BaseModel):
 
 
 class LoginInput(BaseModel):
-    """Schema for user login"""
-    email: EmailStr
-    password: str
+    """
+    Schema for user login - JSON format
+    Accepts: {"email": "user@example.com", "password": "password"}
+    """
+    email: EmailStr = Field(
+        ...,
+        description="User email address",
+        json_schema_extra={"example": "user@owkai.com"}
+    )
+    password: str = Field(
+        ...,
+        min_length=1,
+        description="User password",
+        json_schema_extra={"example": "SecurePassword123!"}
+    )
 
 
 class TokenResponse(BaseModel):
-    """Schema for authentication token response"""
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: Optional[int] = None
+    """
+    Schema for authentication token response
+    Supports both bearer tokens and cookie-based authentication
+    """
+    access_token: str = Field(
+        ...,
+        description="JWT access token (empty string for cookie mode)"
+    )
+    token_type: str = Field(
+        default="bearer",
+        description="Authentication type: 'bearer' or 'cookie'"
+    )
+    expires_in: Optional[int] = Field(
+        default=None,
+        description="Token expiration time in seconds"
+    )
+    refresh_token: Optional[str] = Field(
+        default="",
+        description="JWT refresh token (empty string for cookie mode)"
+    )
 
 
 class UserOut(BaseModel):
