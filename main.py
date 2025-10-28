@@ -375,11 +375,13 @@ audit_trail_storage = []
 app.include_router(auth_router)
 #app.include_router(smart_rules_router)
 #app.include_router(enterprise_user_router)
-#app.include_router(authorization_router)  
+#app.include_router(authorization_router)
 #app.include_router(authorization_api_router)
 #app.include_router(secrets_router)
-app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
-app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
+# ARCH-002: Removed hardcoded router registrations - now handled by dynamic loop below
+# This prevents duplicate registrations and ensures consistent /api/* prefixes
+#app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+#app.include_router(smart_alerts_router, prefix="/alerts", tags=["alerts"])
 app.include_router(alerts_router, prefix="/api/alerts", tags=["alerts"])
 #app.include_router(data_rights_router, prefix="/api/data-rights", tags=["data-rights"])
 #app.include_router(mcp_governance_router, prefix="/api/mcp-governance", tags=["mcp-governance"])
@@ -415,11 +417,13 @@ for route_name, router in ROUTE_MODULES.items():
 
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /smart-rules")
             elif route_name == "analytics":
-                app.include_router(router, prefix="/analytics", tags=["Analytics"])
-                print(f"✅ ENTERPRISE: {route_name} router included with prefix /analytics")
+                app.include_router(router, prefix="/api/analytics", tags=["Analytics"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/analytics")
             elif route_name == "smart_alerts":
-                app.include_router(router, prefix="/alerts", tags=["Smart Alerts"])
-                print(f"✅ ENTERPRISE: {route_name} router included with prefix /alerts")
+                # ARCH-002: Removed legacy /alerts/* prefix - use /api/alerts/* only
+                # This eliminates duplicate routes and ensures frontend compatibility
+                app.include_router(router, prefix="/api/alerts", tags=["Smart Alerts"])
+                print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/alerts")
             elif route_name == "data_rights":
                 app.include_router(router, prefix="/api/data-rights", tags=["Data Rights"])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/data-rights")
@@ -914,7 +918,7 @@ async def generate_smart_rule_enterprise(request: Request, current_user: dict = 
         logger.error(f"❌ Smart rule generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate smart rule")
 # ================== YOUR ALERTS ROUTES (PRESERVED) ==================
-@app.get("/alerts")
+@app.get("/api/alerts")
 async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
     """Enterprise alerts endpoint with database integration and rich fallback data"""
     try:
@@ -1586,9 +1590,12 @@ def mark_false_positive(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to mark as false positive")
 
-@app.post("/alerts/summary")
+@app.post("/api/alerts/summary")
 async def alerts_summary_llm(request: Request, current_user: dict = Depends(get_current_user)):
-    """Enterprise LLM-generated alert summary using your existing LLM infrastructure"""
+    """Enterprise LLM-generated alert summary using your existing LLM infrastructure
+
+    ARCH-002: Moved from /alerts/summary to /api/alerts/summary for consistency
+    """
     try:
         data = await request.json()
         logger.info(f"🧠 LLM Alert summary requested by: {current_user.get('email', 'unknown')}")
@@ -2887,174 +2894,7 @@ async def get_approval_metrics_live(
     
 # Enhanced AI Alert Management Endpoints
 
-@app.get("/alerts/threat-intelligence")
-async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
-    """📡 ENTERPRISE: Global threat intelligence feed"""
-    try:
-        threat_intel = {
-            "active_campaigns": [
-                {
-                    "name": "Operation CloudStrike",
-                    "severity": "high", 
-                    "targets": "Cloud Infrastructure",
-                    "first_seen": "2025-07-28",
-                    "indicators": 15,
-                    "description": "Sophisticated APT targeting cloud environments"
-                },
-                {
-                    "name": "Ransomware-as-a-Service",
-                    "severity": "critical",
-                    "targets": "Healthcare, Finance", 
-                    "first_seen": "2025-07-25",
-                    "indicators": 32,
-                    "description": "New ransomware variant targeting critical infrastructure"
-                }
-            ],
-            "ioc_matches": 7,
-            "new_indicators": 23, 
-            "threat_actors": [
-                {"name": "APT-2024-07", "activity": "Active", "risk_level": "High"},
-                {"name": "Lazarus Group", "activity": "Monitoring", "risk_level": "Critical"}
-            ]
-        }
-        
-        logger.info("📡 Threat intelligence data retrieved")
-        return threat_intel
-        
-    except Exception as e:
-        logger.error(f"Threat intelligence fetch failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
-
-@app.post("/alerts/correlate")
-async def correlate_alerts(request: Request, current_user: dict = Depends(get_current_user)):
-    """🔗 ENTERPRISE: AI-powered alert correlation"""
-    try:
-        data = await request.json()
-        alert_ids = data.get("alert_ids", [])
-        
-        # AI correlation logic would go here
-        correlation_result = {
-            "correlation_id": f"corr-{len(alert_ids)}-{int(datetime.now().timestamp())}",
-            "related_alerts": len(alert_ids),
-            "correlation_strength": 85,
-            "threat_category": "Advanced Persistent Threat",
-            "recommended_actions": [
-                "Isolate affected systems",
-                "Initiate incident response procedures", 
-                "Collect forensic evidence"
-            ]
-        }
-        
-        logger.info(f"🔗 Alert correlation completed for {len(alert_ids)} alerts")
-        return correlation_result
-        
-    except Exception as e:
-        logger.error(f"Alert correlation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to correlate alerts")    
-
-# ================== ENTERPRISE AI ALERT MANAGEMENT ENDPOINTS ==================
-# Add these endpoints to your main.py file
-
-@app.get("/alerts/ai-insights")
-async def get_ai_alert_insights(current_user: dict = Depends(get_current_user)):
-    """🧠 ENTERPRISE: AI-powered alert insights and recommendations"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            # Get current alerts for analysis
-            alerts_result = db.execute(text("""
-                SELECT 
-                    a.id, 
-                    a.alert_type, 
-                    a.severity, 
-                    a.message, 
-                    a.timestamp,
-                    aa.agent_id,
-                    aa.tool_name
-                FROM alerts a
-                LEFT JOIN agent_actions aa ON a.agent_action_id = aa.id
-                ORDER BY a.timestamp DESC 
-                LIMIT 100
-            """)).fetchall()
-            
-            alert_count = len(alerts_result)
-            critical_count = len([a for a in alerts_result if a[2] == 'high'])
-            
-            # Get recent agent actions for correlation
-            actions_result = db.execute(text("""
-                SELECT COUNT(*) as total, 
-                       SUM(CASE WHEN approved = true THEN 1 ELSE 0 END) as approved_count
-                FROM agent_actions 
-                WHERE created_at >= NOW() - INTERVAL '24 hours' OR created_at IS NULL
-            """)).fetchone()
-            
-            automated_responses = int((actions_result[1] or 0) * 0.3) if actions_result else 0
-            
-        except Exception as db_error:
-            logger.warning(f"Database query failed, using fallback data: {db_error}")
-            alert_count = 15  # Fallback demo data
-            critical_count = 5
-            automated_responses = 4
-        
-        finally:
-            db.close()
-        
-        # Generate AI insights based on real data
-        false_positive_rate = max(5.0, min(25.0, (alert_count - critical_count) / max(alert_count, 1) * 100))
-        # ENTERPRISE: 100% Dynamic Risk Calculation
-        base_risk = int((critical_count / max(1, alert_count)) * 50)  # 0-50 based on critical percentage
-        severity_multiplier = min(50, critical_count * 5)  # 0-50 based on critical count
-        risk_score = min(100, base_risk + severity_multiplier)  # Total: 0-100
-        
-        ai_insights = {
-            "threat_summary": {
-                "total_threats": alert_count,
-                "critical_threats": critical_count,
-                "automated_responses": automated_responses,
-                "false_positive_rate": round(false_positive_rate, 1),
-                "avg_response_time": f"{3.2 + (critical_count * 0.3):.1f} minutes",
-                "trends_analysis": f"{'↗️ Increasing' if critical_count > 3 else '→ Stable'} threat activity detected"
-            },
-            "ai_recommendations": [
-                {
-                    "type": "immediate_action",
-                    "priority": "critical" if critical_count > 5 else "high" if critical_count > 2 else "medium",
-                    "title": "Threat Correlation Analysis Required",
-                    "description": f"AI detected {critical_count} high-severity alerts requiring immediate correlation analysis",
-                    "action": "Review alert patterns for potential coordinated attacks and activate threat hunting procedures"
-                },
-                {
-                    "type": "process_improvement", 
-                    "priority": "medium",
-                    "title": "Alert Rule Optimization",
-                    "description": f"ML analysis suggests {int(false_positive_rate)}% false positive rate - optimization recommended",
-                    "action": "Tune detection thresholds and review alert rules to reduce noise"
-                },
-                {
-                    "type": "threat_intelligence",
-                    "priority": "low" if critical_count < 3 else "medium",
-                    "title": "Emerging Threat Pattern Detection",
-                    "description": "AI correlation engine identified potential new attack vectors in recent alerts",
-                    "action": "Update threat intelligence feeds and enhance detection rules"
-                }
-            ],
-            "predictive_analysis": {
-                "risk_score": risk_score,
-                "trend_direction": "increasing" if critical_count > 4 else "stable",
-                "predicted_incidents": max(1, critical_count // 2),
-                "confidence_level": min(95, 75 + (alert_count // 2))
-            }
-        }
-        
-        logger.info(f"🧠 AI insights generated: {alert_count} alerts, {critical_count} critical, risk score {risk_score}")
-        return ai_insights
-        
-    except Exception as e:
-        logger.error(f"AI insights generation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate AI insights")
-
-@app.get("/alerts/threat-intelligence")
+@app.get("/api/alerts/threat-intelligence")
 async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
     """📡 ENTERPRISE: Global threat intelligence feed with real-time data"""
     try:
@@ -3139,7 +2979,7 @@ async def get_threat_intelligence(current_user: dict = Depends(get_current_user)
         logger.error(f"Threat intelligence fetch failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
 
-@app.post("/alerts/correlate")
+@app.post("/api/alerts/correlate")
 async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get_current_user)):
     """🔗 ENTERPRISE: AI-powered alert correlation engine"""
     try:
@@ -3230,7 +3070,7 @@ async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get
         logger.error(f"Alert correlation failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to correlate alerts")
 
-@app.post("/alerts/executive-brief")
+@app.post("/api/alerts/executive-brief")
 async def generate_executive_brief_ai(request: Request, current_user: dict = Depends(get_current_user)):
     """👔 ENTERPRISE: AI-generated executive security briefing"""
     try:
@@ -3333,7 +3173,7 @@ This briefing was generated by your enterprise AI security operations center. Fo
         logger.error(f"Executive brief generation failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate executive security briefing")
 
-@app.get("/alerts/performance-metrics")
+@app.get("/api/alerts/performance-metrics")
 async def get_ai_performance_metrics(current_user: dict = Depends(get_current_user)):
     """📊 ENTERPRISE: AI alert management performance analytics"""
     try:
@@ -3744,88 +3584,4 @@ async def get_enterprise_auth_metrics(
 # Deployment 1759160003
 
 # ================== ALERT ACTION ENDPOINTS ==================
-@app.post("/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert(
-    alert_id: int,
-    current_user: dict = Depends(get_current_user)
-):
-    """Acknowledge an alert"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            result = db.execute(text("""
-                UPDATE alerts 
-                SET status = 'acknowledged',
-                    acknowledged_by = :user_email,
-                    acknowledged_at = NOW()
-                WHERE id = :alert_id
-                RETURNING id
-            """), {
-                "alert_id": alert_id,
-                "user_email": current_user.get("email", "unknown")
-            })
-            
-            if result.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Alert not found")
-            
-            db.commit()
-            logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
-            
-            return {
-                "success": True,
-                "message": "Alert acknowledged successfully",
-                "alert_id": alert_id,
-                "acknowledged_by": current_user.get("email")
-            }
-        finally:
-            db.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to acknowledge alert: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to acknowledge alert")
 
-@app.post("/alerts/{alert_id}/escalate")
-async def escalate_alert(
-    alert_id: int,
-    current_user: dict = Depends(get_current_user)
-):
-    """Escalate an alert to security team"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            result = db.execute(text("""
-                UPDATE alerts 
-                SET status = 'escalated',
-                    severity = 'high',
-                    escalated_by = :user_email,
-                    escalated_at = NOW()
-                WHERE id = :alert_id
-                RETURNING id, message
-            """), {
-                "alert_id": alert_id,
-                "user_email": current_user.get("email", "unknown")
-            })
-            
-            alert_data = result.fetchone()
-            if not alert_data:
-                raise HTTPException(status_code=404, detail="Alert not found")
-            
-            db.commit()
-            logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
-            
-            return {
-                "success": True,
-                "message": "Alert escalated to security team",
-                "alert_id": alert_id,
-                "escalated_by": current_user.get("email")
-            }
-        finally:
-            db.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to escalate alert: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to escalate alert")
