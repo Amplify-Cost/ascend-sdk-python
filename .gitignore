@@ -23,3 +23,6 @@ env/
 # Cache
 .pytest_cache/
 .mypy_cache/
+# Backup files from security remediation
+*.backup-*
+*.bak
