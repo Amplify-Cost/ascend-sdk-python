@@ -56,11 +56,18 @@ async def create_agent_action(
             logger.warning(f"OpenAI summary generation failed: {e}")
             summary = f"[ENTERPRISE FALLBACK] Agent '{data['agent_id']}' executed '{data['action_type']}' requiring security review."
 
-        # Security enrichment with enterprise fallback
+        # ARCH-001: Security enrichment with CVSS v3.1 integration
         try:
+            # First pass: Get enrichment without action_id (for initial risk assessment)
             enrichment = evaluate_action_enrichment(
                 action_type=data["action_type"],
-                description=data["description"]
+                description=data["description"],
+                db=db,  # Pass db session for CVSS calculation
+                action_id=None,  # No action_id yet, will update after creation
+                context={
+                    "tool_name": data.get("tool_name"),
+                    "user_id": current_user.get("user_id", 1)
+                }
             )
         except Exception as e:
             logger.warning(f"Security enrichment failed: {e}")
@@ -71,7 +78,10 @@ async def create_agent_action(
                 "mitre_technique": "T1055",  # Process Injection (common)
                 "nist_control": "AC-6",  # Least Privilege
                 "nist_description": "Enterprise security review required for agent action",
-                "recommendation": "Manual security review required - automated analysis unavailable."
+                "recommendation": "Manual security review required - automated analysis unavailable.",
+                "cvss_score": None,
+                "cvss_severity": None,
+                "cvss_vector": None
             }
 
         # Create agent action record with bulletproof database handling
@@ -90,12 +100,48 @@ async def create_agent_action(
                 nist_description=enrichment["nist_description"],
                 recommendation=enrichment["recommendation"],
                 summary=summary,
-                status="pending"
+                status="pending",
+                # ARCH-001: Add CVSS fields
+                cvss_score=enrichment.get("cvss_score"),
+                cvss_severity=enrichment.get("cvss_severity"),
+                cvss_vector=enrichment.get("cvss_vector"),
+                risk_score=enrichment.get("cvss_score") * 10 if enrichment.get("cvss_score") else None  # 0-100 scale
             )
 
             db.add(action)
             db.commit()
             db.refresh(action)
+
+            # ARCH-001: Second pass - Create CVSS assessment with action_id and update agent_actions
+            try:
+                from services.cvss_auto_mapper import cvss_auto_mapper
+                cvss_result = cvss_auto_mapper.auto_assess_action(
+                    db=db,
+                    action_id=action.id,
+                    action_type=data["action_type"],
+                    context={
+                        "risk_level": enrichment["risk_level"],
+                        "contains_pii": "pii" in (data.get("description") or "").lower(),
+                        "production_system": "production" in (data.get("description") or "").lower(),
+                        "requires_admin": enrichment["risk_level"] == "high"
+                    }
+                )
+
+                # Update agent_actions with CVSS fields from detailed assessment
+                action.cvss_score = cvss_result["base_score"]
+                action.cvss_severity = cvss_result["severity"]
+                action.cvss_vector = cvss_result["vector_string"]
+                action.risk_score = cvss_result["base_score"] * 10  # 0-100 scale
+
+                # CRITICAL FIX: Explicitly track changes in session
+                db.add(action)      # Re-add to session to ensure SQLAlchemy tracks modifications
+                db.flush()          # Flush changes to database immediately
+                db.commit()         # Commit the transaction
+                db.refresh(action)  # Reload from DB to verify persistence
+
+                logger.info(f"✅ CVSS integrated: Action {action.id} -> {cvss_result['base_score']} ({cvss_result['severity']})")
+            except Exception as cvss_error:
+                logger.warning(f"⚠️  CVSS integration failed for action {action.id}: {cvss_error}")
 
             # Create enterprise alert if high risk
             if enrichment["risk_level"] == "high":
