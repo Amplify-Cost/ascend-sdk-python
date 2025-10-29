@@ -333,40 +333,8 @@ demo_actions_storage = {
 }
 
 # Enterprise workflow configuration storage
-workflow_config = {
-    "risk_90_100": {
-        "name": "Critical Risk (90-100)",
-        "approval_levels": 3,
-        "approvers": ["security@company.com", "senior@company.com", "executive@company.com"],
-        "timeout_hours": 2,
-        "emergency_override": True,
-        "escalation_minutes": 30
-    },
-    "risk_70_89": {
-        "name": "High Risk (70-89)", 
-        "approval_levels": 2,
-        "approvers": ["security@company.com", "senior@company.com"],
-        "timeout_hours": 4,
-        "emergency_override": False,
-        "escalation_minutes": 60
-    },
-    "risk_50_69": {
-        "name": "Medium Risk (50-69)",
-        "approval_levels": 2,
-        "approvers": ["security@company.com", "security2@company.com"],
-        "timeout_hours": 8,
-        "emergency_override": False,
-        "escalation_minutes": 120
-    },
-    "risk_0_49": {
-        "name": "Low Risk (0-49)",
-        "approval_levels": 1,
-        "approvers": ["security@company.com"],
-        "timeout_hours": 24,
-        "emergency_override": False,
-        "escalation_minutes": 480
-    }
-}
+# Import workflow config from shared config file
+from config_workflows import workflow_config
 
 # Enterprise audit trail storage
 audit_trail_storage = []
@@ -2715,56 +2683,10 @@ async def get_approved_actions(
         logger.error(f"Failed to get approved actions: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve approved actions")    
     
-@app.get("/api/authorization/workflow-config")
-async def get_workflow_config(current_user: dict = Depends(get_current_user)):
-    """🏢 ENTERPRISE: Get current workflow configuration"""
-    try:
-        return {
-            "workflows": workflow_config,
-            "last_modified": datetime.now(UTC).isoformat(),
-            "modified_by": "system",
-            "total_workflows": len(workflow_config),
-            "emergency_override_enabled": any(w["emergency_override"] for w in workflow_config.values())
-        }
-    except Exception as e:
-        logger.error(f"Failed to get workflow config: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to get workflow configuration")
-
-@app.post("/api/authorization/workflow-config")
-async def update_workflow_config(
-    request: Request,
-    current_user: dict = Depends(require_admin)
-):
-    """🏢 ENTERPRISE: Update workflow configuration (admin only)"""
-    try:
-        data = await request.json()
-        workflow_id = data.get("workflow_id")
-        updates = data.get("updates", {})
-        
-        if workflow_id not in workflow_config:
-            raise HTTPException(status_code=404, detail="Workflow not found")
-        
-        # Update workflow configuration
-        for key, value in updates.items():
-            if key in workflow_config[workflow_id]:
-                workflow_config[workflow_id][key] = value
-        
-        # Log the change
-        logger.info(f"🔧 ENTERPRISE: Workflow {workflow_id} updated by {current_user['email']}")
-        
-        return {
-            "message": "✅ Workflow configuration updated successfully",
-            "workflow_id": workflow_id,
-            "updated_fields": list(updates.keys()),
-            "modified_by": current_user["email"],
-            "timestamp": datetime.now(UTC).isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Failed to update workflow config: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to update workflow configuration")
+# MOVED TO ROUTER: These endpoints are now in routes/automation_orchestration_routes.py
+# They were being registered too late (after the router), causing 404 errors
+# @app.get("/api/authorization/workflow-config")
+# @app.post("/api/authorization/workflow-config")
 
 # Enhanced metrics that actually track your actions
 metrics_storage = {

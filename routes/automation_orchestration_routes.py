@@ -12,6 +12,7 @@ import logging
 from database import get_db
 from models import AutomationPlaybook, PlaybookExecution, WorkflowExecution, Workflow, User
 from dependencies import get_current_user, require_admin
+from config_workflows import workflow_config
 
 # Configure logging
 logger = logging.getLogger("enterprise.automation")
@@ -461,3 +462,58 @@ async def list_workflow_templates(
     except Exception as e:
         logger.error(f"❌ Error fetching workflows: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# WORKFLOW CONFIGURATION ENDPOINTS
+# ============================================================================
+
+@router.get("/workflow-config")
+async def get_workflow_config(current_user: dict = Depends(get_current_user)):
+    """🏢 ENTERPRISE: Get current workflow configuration"""
+    try:
+        from datetime import datetime, timezone
+        return {
+            "workflows": workflow_config,
+            "last_modified": datetime.now(timezone.utc).isoformat(),
+            "modified_by": "system",
+            "total_workflows": len(workflow_config),
+            "emergency_override_enabled": any(w["emergency_override"] for w in workflow_config.values())
+        }
+    except Exception as e:
+        logger.error(f"Failed to get workflow config: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get workflow configuration")
+
+@router.post("/workflow-config")
+async def update_workflow_config(
+    workflow_id: str,
+    updates: dict,
+    current_user: dict = Depends(require_admin)
+):
+    """🏢 ENTERPRISE: Update workflow configuration (admin only)"""
+    try:
+        from datetime import datetime, timezone
+
+        if workflow_id not in workflow_config:
+            raise HTTPException(status_code=404, detail="Workflow not found")
+
+        # Update workflow configuration
+        for key, value in updates.items():
+            if key in workflow_config[workflow_id]:
+                workflow_config[workflow_id][key] = value
+
+        # Log the change
+        logger.info(f"🔧 ENTERPRISE: Workflow {workflow_id} updated by {current_user['email']}")
+
+        return {
+            "message": "✅ Workflow configuration updated successfully",
+            "workflow_id": workflow_id,
+            "updated_fields": list(updates.keys()),
+            "modified_by": current_user["email"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update workflow config: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update workflow configuration")
