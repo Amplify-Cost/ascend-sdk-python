@@ -97,6 +97,11 @@ class AgentAction(Base):
     recommendation = Column(Text, nullable=True)
     target_system = Column(String(255), nullable=True)
     target_resource = Column(String(255), nullable=True)
+
+    # ARCH-001: CVSS v3.1 Integration fields
+    cvss_score = Column(Float, nullable=True)           # 0.0-10.0 (official NIST base score)
+    cvss_severity = Column(String(20), nullable=True)   # NONE|LOW|MEDIUM|HIGH|CRITICAL
+    cvss_vector = Column(String(100), nullable=True)    # CVSS:3.1/AV:N/AC:L/PR:L/...
     
     # Approval levels
     approval_level = Column(Integer, default=1)
@@ -512,3 +517,38 @@ class PlaybookExecution(Base):
     
     # Relationships
     playbook = relationship("AutomationPlaybook", back_populates="executions")
+
+
+# ARCH-001: CVSS v3.1 Assessment Model
+class CVSSAssessment(Base):
+    """
+    Stores detailed CVSS v3.1 metric breakdowns for agent actions.
+    Provides audit trail for compliance reporting (SOX, PCI-DSS, HIPAA).
+    """
+    __tablename__ = "cvss_assessments"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+    action_id = Column(Integer, ForeignKey("agent_actions.id", ondelete="CASCADE"), nullable=False)
+
+    # CVSS v3.1 Base Metrics (8 required metrics)
+    attack_vector = Column(String(20), nullable=False)          # NETWORK|ADJACENT|LOCAL|PHYSICAL
+    attack_complexity = Column(String(20), nullable=False)      # LOW|HIGH
+    privileges_required = Column(String(20), nullable=False)    # NONE|LOW|HIGH
+    user_interaction = Column(String(20), nullable=False)       # NONE|REQUIRED
+    scope = Column(String(20), nullable=False)                  # UNCHANGED|CHANGED
+    confidentiality_impact = Column(String(20), nullable=False) # NONE|LOW|HIGH
+    integrity_impact = Column(String(20), nullable=False)       # NONE|LOW|HIGH
+    availability_impact = Column(String(20), nullable=False)    # NONE|LOW|HIGH
+
+    # Calculated Scores (from official NIST formula)
+    base_score = Column(Float, nullable=False, index=True)      # 0.0-10.0
+    severity = Column(String(20), nullable=False, index=True)   # NONE|LOW|MEDIUM|HIGH|CRITICAL
+    vector_string = Column(String(100), nullable=False)         # CVSS:3.1/AV:N/AC:L/PR:L/...
+
+    # Metadata
+    assessed_by = Column(String(50), nullable=False, default='system')  # system|auto_mapper|manual
+    assessed_at = Column(DateTime, nullable=False, default=func.now())
+
+    # Relationships
+    action = relationship("AgentAction", backref="cvss_assessments")

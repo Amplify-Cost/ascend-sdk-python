@@ -434,7 +434,7 @@ for route_name, router in ROUTE_MODULES.items():
                 app.include_router(router, tags=["Automation & Orchestration"])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/authorization")
             else:
-                app.include_router(router, prefix=f"/{route_name}", tags=[route_name.title()])
+                app.include_router(router, prefix=f"/api/{route_name}", tags=[route_name.title()])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /{route_name}")
                 
         except Exception as e:
@@ -497,7 +497,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 # ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-@app.get("/agent-activity")
+@app.get("/api/agent-activity")
 async def get_agent_activity():
     """Get agent activity data"""
     try:
@@ -535,7 +535,7 @@ async def get_agent_activity():
 
 # ================== ENTERPRISE RULES ROUTER INTEGRATION ==================
 
-@app.get("/rules")
+@app.get("/api/rules")
 async def get_rules_enhanced(current_user: dict = Depends(get_current_user)):
     """Enhanced rules endpoint with database integration and fallback"""
     try:
@@ -682,7 +682,7 @@ async def get_rules_enhanced(current_user: dict = Depends(get_current_user)):
         return []
 
 # STEP 3: Replace your existing /rules endpoint with this enhanced version
-@app.post("/rules")
+@app.post("/api/rules")
 async def create_rules_enterprise_fixed(request: Request, current_user: dict = Depends(get_current_user)):
     """Enterprise rules creation endpoint - Database schema compatible"""
     try:
@@ -769,7 +769,7 @@ async def create_rules_enterprise_fixed(request: Request, current_user: dict = D
         logger.error(f"❌ Enterprise rules creation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create rules")
 
-@app.delete("/rules/{rule_id}")
+@app.delete("/api/rules/{rule_id}")
 async def delete_rule_enterprise(rule_id: int, current_user: dict = Depends(get_current_user)):
     """Delete a specific rule - Enterprise implementation"""
     try:
@@ -807,7 +807,7 @@ async def delete_rule_enterprise(rule_id: int, current_user: dict = Depends(get_
         logger.error(f"❌ Rule deletion error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to delete rule")
 
-@app.get("/feedback/{rule_id}")
+@app.get("/api/feedback/{rule_id}")
 async def get_rule_feedback_enterprise(rule_id: int, current_user: dict = Depends(get_current_user)):
     """Get audit log/feedback for a specific rule - Enterprise implementation"""
     try:
@@ -867,7 +867,7 @@ async def get_rule_feedback_enterprise(rule_id: int, current_user: dict = Depend
         logger.error(f"Failed to get rule feedback: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve rule feedback: {str(e)}")
 
-@app.post("/smart-rules/generate")
+@app.post("/api/smart-rules/generate")
 async def generate_smart_rule_enterprise(request: Request, current_user: dict = Depends(get_current_user)):
     """Enterprise smart rule generation using LLM - Direct implementation"""
     try:
@@ -1074,7 +1074,7 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
 
 # ================== YOUR AGENT ACTIONS ROUTE (PRESERVED) ==================
 
-@app.get("/agent-actions", response_model=None)
+@app.get("/api/agent-actions", response_model=None)
 def get_agent_actions_live(
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -1217,7 +1217,7 @@ def get_agent_actions_live(
 
 # ================== YOUR DATABASE FIX ENDPOINTS (PRESERVED) ==================
 
-@app.post("/admin/fix-agent-actions-table")
+@app.post("/api/admin/fix-agent-actions-table")
 async def fix_agent_actions_table():
     """Database schema fix for agent_actions table"""
     try:
@@ -1267,7 +1267,7 @@ async def fix_agent_actions_table():
             "message": f"Failed to fix table: {str(e)}"
         }
 
-@app.post("/admin/fix-database-schema")
+@app.post("/api/admin/fix-database-schema")
 async def fix_database_schema():
     """Complete database schema fix"""
     try:
@@ -1313,7 +1313,7 @@ async def fix_database_schema():
 
 # ================== YOUR AGENT ACTION SUBMISSION ENDPOINT ==================
 
-@app.post("/agent-actions")
+@app.post("/api/agent-actions")
 async def submit_agent_action_fixed(request: Request, current_user: dict = Depends(get_current_user)):
     """Submit new agent action - Fixed with raw SQL like other working endpoints"""
     try:
@@ -1437,7 +1437,7 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
 
 # ================== MISSING APPROVAL ENDPOINTS (FIXES THE 405 ERRORS) ==================
 
-@app.post("/agent-action/{action_id}/approve")
+@app.post("/api/agent-action/{action_id}/approve")
 def approve_agent_action(
     action_id: int,
     db: Session = Depends(get_db),
@@ -1491,7 +1491,7 @@ def approve_agent_action(
         logger.error(f"Approval process error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to approve action")
 
-@app.post("/agent-action/{action_id}/reject")
+@app.post("/api/agent-action/{action_id}/reject")
 def reject_agent_action(
     action_id: int,
     db: Session = Depends(get_db),
@@ -1544,7 +1544,7 @@ def reject_agent_action(
         raise HTTPException(status_code=500, detail="Failed to reject action")
 
 
-@app.post("/agent-action/{action_id}/false-positive")
+@app.post("/api/agent-action/{action_id}/false-positive")
 def mark_false_positive(
     action_id: int,
     db: Session = Depends(get_db),
@@ -1757,7 +1757,7 @@ Note: This summary was generated using enterprise security protocols. For detail
 # ================== ENTERPRISE FIX: ADD MISSING /agent-action ENDPOINT ==================
 # Add this endpoint to your main.py right after your existing /agent-actions endpoints
 
-@app.post("/agent-action")
+@app.post("/api/agent-action")
 async def submit_agent_action_singular(request: Request, current_user: dict = Depends(get_current_user)):
     """Submit new agent action - Enterprise database-compatible endpoint"""
     try:
@@ -1868,7 +1868,7 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
 
 # ================== SAMPLE DATA CREATION ENDPOINT ==================
 
-@app.post("/admin/create-sample-agent-actions-simplified")
+@app.post("/api/admin/create-sample-agent-actions-simplified")
 async def create_sample_agent_actions_simplified():
     """Create sample agent actions with only existing columns"""
     try:
@@ -2001,7 +2001,7 @@ if __name__ == "__main__":
 
 #Authorization Endpoints
 
-@app.post("/agent-control/request-authorization")
+@app.post("/api/agent-control/request-authorization")
 async def request_authorization(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     """🏢 ENTERPRISE: Request authorization for high-risk agent actions"""
     try:
