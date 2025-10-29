@@ -201,7 +201,7 @@ npm run build
 ### Hosting Providers
 
 Recommended hosting providers:
-- **Railway** (Current production)
+- **AWS** (Current production - S3 + CloudFront)
 - Vercel
 - Netlify
 - AWS Amplify
