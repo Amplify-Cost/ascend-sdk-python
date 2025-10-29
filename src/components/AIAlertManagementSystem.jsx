@@ -331,7 +331,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   const fetchAlerts = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts`, {
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });

@@ -21,8 +21,8 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
     const fetchAlerts = async () => {
       setLoading(true);
       try {
-        console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/alerts`);
-        const res = await fetch(`${API_BASE_URL}/alerts`, {
+        console.log("🚨 Fetching alerts from:", `${API_BASE_URL}/api/alerts`);
+        const res = await fetch(`${API_BASE_URL}/api/alerts`, {
           credentials: "include",
           headers: getAuthHeaders(),
         });
