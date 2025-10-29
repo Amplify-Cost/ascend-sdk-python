@@ -161,32 +161,48 @@ The Authorization Center provides real-time policy evaluation, approval workflow
     "total_executed": 134,
     "total_rejected": 23,
     "approval_rate": 86.5,
-    "avg_approval_time_hours": 2.3
+    "execution_rate": 91.2
+  },
+  "enterprise_kpis": {
+    "high_risk_pending": 2,
+    "today_actions": 12,
+    "sla_compliance": 96.8,
+    "security_posture_score": 87.4,
+    "compliance_score": 94.2,
+    "threat_detection_accuracy": 91.7
   },
   "recent_activity": [
     {
       "id": 1001,
       "action_type": "file_access",
       "status": "approved",
-      "approved_by": "security_analyst@company.com",
-      "timestamp": "2025-10-12T10:30:00Z"
-    }
-  ],
-  "pending_actions": [
-    {
-      "id": 1002,
+      "timestamp": "2025-10-12T10:30:00Z",
+      "risk_level": "medium",
       "agent_id": "ai-agent-001",
-      "action_type": "database_query",
-      "risk_level": "high",
-      "created_at": "2025-10-12T11:15:00Z",
-      "description": "Query customer database for analysis"
+      "description": "Read configuration files",
+      "enterprise_priority": "normal"
     }
   ],
-  "performance_metrics": {
-    "avg_evaluation_time_ms": 145,
-    "policy_cache_hit_rate": 87.2,
-    "total_evaluations_24h": 1247
-  }
+  "user_context": {
+    "role": "admin",
+    "permissions": ["approve", "reject", "view_all"],
+    "access_level": "elevated",
+    "enterprise_privileges": true
+  },
+  "user_info": {
+    "approval_level": 5,
+    "is_emergency_approver": true,
+    "max_risk_approval": 100,
+    "role": "admin",
+    "email": "admin@company.com"
+  },
+  "system_status": {
+    "siem_integration": "operational",
+    "threat_intelligence": "active",
+    "automation_engine": "running",
+    "compliance_monitoring": "enabled"
+  },
+  "last_updated": "2025-10-12T11:30:00Z"
 }
 ```
 

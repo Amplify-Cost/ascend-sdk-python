@@ -896,6 +896,23 @@ async def get_approval_dashboard(
         approval_rate = (metrics["total_approved"] / max(total_actions, 1)) * 100 if total_actions > 0 else 0
         execution_rate = (metrics["total_executed"] / max(metrics["total_approved"], 1)) * 100 if metrics["total_approved"] > 0 else 0
         
+        # ✅ ENTERPRISE: Fetch full user data from database for approval_level
+        user_approval_level = 1  # Default approval level
+        user_is_emergency_approver = False
+        user_max_risk_approval = 50
+
+        try:
+            from models import User
+            user_id = current_user.get("user_id")
+            if user_id:
+                db_user = db.query(User).filter(User.id == user_id).first()
+                if db_user:
+                    user_approval_level = db_user.approval_level or 1
+                    user_is_emergency_approver = db_user.is_emergency_approver or False
+                    user_max_risk_approval = db_user.max_risk_approval or 50
+        except Exception as user_fetch_error:
+            logger.warning(f"Could not fetch user approval data: {user_fetch_error}")
+
         return {
             "summary": {
                 "total_pending": metrics["total_pending"],
@@ -919,6 +936,13 @@ async def get_approval_dashboard(
                 "permissions": current_user.get("permissions", []),
                 "access_level": current_user.get("access_level", "standard"),
                 "enterprise_privileges": current_user.get("role") in ["admin", "security_manager", "ciso"]
+            },
+            "user_info": {
+                "approval_level": user_approval_level,
+                "is_emergency_approver": user_is_emergency_approver,
+                "max_risk_approval": user_max_risk_approval,
+                "role": current_user.get("role", "user"),
+                "email": current_user.get("email", "")
             },
             "system_status": {
                 "siem_integration": "operational",
@@ -949,6 +973,19 @@ async def get_approval_dashboard(
                 "threat_detection_accuracy": 0
             },
             "recent_activity": [],
+            "user_context": {
+                "role": current_user.get("role", "user"),
+                "permissions": [],
+                "access_level": "standard",
+                "enterprise_privileges": False
+            },
+            "user_info": {
+                "approval_level": 1,
+                "is_emergency_approver": False,
+                "max_risk_approval": 50,
+                "role": current_user.get("role", "user"),
+                "email": current_user.get("email", "")
+            },
             "error": str(e),
             "enterprise_fallback": True
         }
