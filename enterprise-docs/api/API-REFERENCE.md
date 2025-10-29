@@ -146,7 +146,7 @@ curl -X GET https://pilot.owkai.app/auth/me \
 
 The Authorization Center provides real-time policy evaluation, approval workflows, and enterprise governance capabilities.
 
-### GET /agent-control/dashboard
+### GET /api/authorization/dashboard
 **Description:** Get comprehensive approval dashboard with KPIs and metrics
 
 **Authentication:** Required
@@ -192,11 +192,11 @@ The Authorization Center provides real-time policy evaluation, approval workflow
 
 **Example:**
 ```bash
-curl -X GET https://pilot.owkai.app/agent-control/dashboard \
+curl -X GET https://pilot.owkai.app/api/authorization/dashboard \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-### GET /agent-control/pending-actions
+### GET /api/authorization/pending-actions
 **Description:** Get all pending actions requiring approval with filtering capabilities
 
 **Authentication:** Required
@@ -244,11 +244,11 @@ curl -X GET https://pilot.owkai.app/agent-control/dashboard \
 
 **Example:**
 ```bash
-curl -X GET "https://pilot.owkai.app/agent-control/pending-actions?risk_level=high&limit=10" \
+curl -X GET "https://pilot.owkai.app/api/authorization/pending-actions?risk_level=high&limit=10" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-### POST /agent-control/authorize/{action_id}
+### POST /api/authorization/authorize/{action_id}
 **Description:** Authorize a specific action with comprehensive audit trail
 
 **Authentication:** Required
@@ -313,7 +313,7 @@ curl -X GET "https://pilot.owkai.app/agent-control/pending-actions?risk_level=hi
 
 **Example:**
 ```bash
-curl -X POST https://pilot.owkai.app/agent-control/authorize/1003 \
+curl -X POST https://pilot.owkai.app/api/authorization/authorize/1003 \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -323,7 +323,7 @@ curl -X POST https://pilot.owkai.app/agent-control/authorize/1003 \
   }'
 ```
 
-### GET /agent-control/execution-history
+### GET /api/authorization/execution-history
 **Description:** Get comprehensive execution history with enterprise metadata
 
 **Authentication:** Required
@@ -429,13 +429,90 @@ curl -X POST https://pilot.owkai.app/agent-control/authorize/1003 \
 }
 ```
 
+### GET /api/authorization/workflow-config
+**Description:** Get current workflow configuration for approval workflows
+
+**Authentication:** Required
+
+**Response 200:**
+```json
+{
+  "workflows": {
+    "risk_90_100": {
+      "name": "Critical Risk (90-100)",
+      "approval_levels": 3,
+      "approvers": ["security@company.com", "senior@company.com", "executive@company.com"],
+      "timeout_hours": 2,
+      "emergency_override": true,
+      "escalation_minutes": 30
+    },
+    "risk_70_89": {
+      "name": "High Risk (70-89)",
+      "approval_levels": 2,
+      "approvers": ["security@company.com", "senior@company.com"],
+      "timeout_hours": 4,
+      "emergency_override": false,
+      "escalation_minutes": 60
+    },
+    "risk_50_69": {
+      "name": "Medium Risk (50-69)",
+      "approval_levels": 2,
+      "approvers": ["security@company.com", "security2@company.com"],
+      "timeout_hours": 8,
+      "emergency_override": false,
+      "escalation_minutes": 120
+    },
+    "risk_0_49": {
+      "name": "Low Risk (0-49)",
+      "approval_levels": 1,
+      "approvers": ["security@company.com"],
+      "timeout_hours": 24,
+      "emergency_override": false,
+      "escalation_minutes": 480
+    }
+  },
+  "last_modified": "2025-10-12T14:00:00Z",
+  "modified_by": "system",
+  "total_workflows": 4,
+  "emergency_override_enabled": true
+}
+```
+
+### POST /api/authorization/workflow-config
+**Description:** Update workflow configuration
+
+**Authentication:** Required
+**Permissions:** Admin role
+
+**Request Body:**
+```json
+{
+  "workflow_id": "risk_90_100",
+  "config": {
+    "approval_levels": 3,
+    "timeout_hours": 1,
+    "emergency_override": true
+  }
+}
+```
+
+**Response 200:**
+```json
+{
+  "success": true,
+  "updated_workflow": "risk_90_100",
+  "changes_applied": 2,
+  "effective_immediately": true
+}
+```
+
 ---
 
 ## Alert Management APIs
 
 The Alert Management System provides real-time threat detection, alert correlation, and automated response capabilities.
 
-### GET /alerts
+### GET /api/alerts
 **Description:** Get all alerts with filtering and pagination
 
 **Authentication:** Required
@@ -472,11 +549,11 @@ The Alert Management System provides real-time threat detection, alert correlati
 
 **Example:**
 ```bash
-curl -X GET "https://pilot.owkai.app/alerts?severity=high&limit=20" \
+curl -X GET "https://pilot.owkai.app/api/alerts?severity=high&limit=20" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-### GET /alerts/active
+### GET /api/alerts/active
 **Description:** Get all currently active alerts with real-time statistics
 
 **Authentication:** Required
@@ -510,7 +587,7 @@ curl -X GET "https://pilot.owkai.app/alerts?severity=high&limit=20" \
 }
 ```
 
-### POST /alerts/{alert_id}/acknowledge
+### POST /api/alerts/{alert_id}/acknowledge
 **Description:** Acknowledge an alert and add acknowledgment details
 
 **Authentication:** Required
@@ -547,7 +624,7 @@ curl -X GET "https://pilot.owkai.app/alerts?severity=high&limit=20" \
 }
 ```
 
-### POST /alerts/{alert_id}/escalate
+### POST /api/alerts/{alert_id}/escalate
 **Description:** Escalate alert to higher security level or different team
 
 **Authentication:** Required
@@ -581,7 +658,7 @@ curl -X GET "https://pilot.owkai.app/alerts?severity=high&limit=20" \
 }
 ```
 
-### POST /alerts/{alert_id}/resolve
+### POST /api/alerts/{alert_id}/resolve
 **Description:** Mark alert as resolved with resolution details
 
 **Authentication:** Required
@@ -615,6 +692,83 @@ curl -X GET "https://pilot.owkai.app/alerts?severity=high&limit=20" \
     "stored_location": "s3://compliance-docs/incidents/2025/10/",
     "retention_period_years": 7
   }
+}
+```
+
+### GET /api/alerts/ai-insights
+**Description:** Get AI-powered alert insights and recommendations
+
+**Authentication:** Required
+
+**Response 200:**
+```json
+{
+  "threat_summary": {
+    "total_threats": 15,
+    "critical_threats": 3,
+    "automated_responses": 6,
+    "false_positive_rate": 12.5,
+    "avg_response_time": "4.2 minutes"
+  },
+  "predictive_analysis": {
+    "risk_score": 75,
+    "trend_direction": "increasing",
+    "predicted_incidents": 2,
+    "confidence_level": 87
+  },
+  "patterns_detected": [
+    {
+      "pattern_type": "Geographic Anomaly",
+      "occurrences": 8,
+      "severity": "medium"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "high",
+      "recommendation": "Implement stricter rate limiting",
+      "reason": "Detected unusual API access patterns"
+    }
+  ]
+}
+```
+
+### GET /api/alerts/threat-intelligence
+**Description:** Get real-time threat intelligence data
+
+**Authentication:** Required
+
+**Response 200:**
+```json
+{
+  "active_threats": 12,
+  "threat_level": "elevated",
+  "recent_threats": [
+    {
+      "threat_type": "Brute Force Attack",
+      "severity": "high",
+      "first_detected": "2025-10-12T14:00:00Z",
+      "affected_systems": 3
+    }
+  ],
+  "mitigation_status": "active"
+}
+```
+
+### GET /api/alerts/performance-metrics
+**Description:** Get alert system performance metrics and AI effectiveness
+
+**Authentication:** Required
+
+**Response 200:**
+```json
+{
+  "detection_accuracy": 94.5,
+  "response_time_avg": "3.8 minutes",
+  "false_positive_rate": 5.2,
+  "ai_confidence": 89,
+  "alerts_processed_24h": 247,
+  "automated_resolution_rate": 42.3
 }
 ```
 
