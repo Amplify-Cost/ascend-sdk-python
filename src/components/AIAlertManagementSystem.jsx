@@ -942,7 +942,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">🎯 AI Recommendations</h3>
             <div className="space-y-4">
-              {aiInsights.ai_recommendations.map((rec, idx) => (
+              {aiInsights.ai_recommendations?.map((rec, idx) => (
                 <div key={idx} className={`border-l-4 p-4 ${
                   rec.priority === 'critical' ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'
                 }`}>
