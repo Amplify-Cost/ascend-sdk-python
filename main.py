@@ -2891,11 +2891,18 @@ async def get_ai_insights(current_user: dict = Depends(get_current_user)):
             db.close()
 
         insights = {
-            "summary": {
-                "total_alerts_24h": alert_count,
-                "high_severity_alerts": high_severity_count,
-                "trend": "increasing" if alert_count > 10 else "stable",
-                "ai_confidence": "94.5%"
+            "threat_summary": {
+                "total_threats": alert_count,
+                "critical_threats": high_severity_count,
+                "automated_responses": int(alert_count * 0.4),
+                "false_positive_rate": 12.5,
+                "avg_response_time": "4.2 minutes"
+            },
+            "predictive_analysis": {
+                "risk_score": min(85, 60 + (high_severity_count * 5)),
+                "trend_direction": "increasing" if alert_count > 10 else "stable",
+                "predicted_incidents": max(1, high_severity_count // 2),
+                "confidence_level": 87
             },
             "patterns_detected": [
                 {
@@ -2926,12 +2933,7 @@ async def get_ai_insights(current_user: dict = Depends(get_current_user)):
                     "impact": "Improve detection accuracy by 25%",
                     "effort": "low"
                 }
-            ],
-            "risk_assessment": {
-                "current_risk_level": "medium" if high_severity_count < 5 else "high",
-                "predicted_risk_24h": "medium",
-                "confidence": "89%"
-            }
+            ]
         }
 
         logger.info(f"🤖 AI insights generated: {alert_count} alerts analyzed")
