@@ -2777,91 +2777,93 @@ metrics_storage = {
 }
 
 # Enhanced AI Alert Management Endpoints
+# COMMENTED OUT: These demo endpoints conflict with alert router's parameterized routes
+# Causing 405 errors when accessed. To be moved to proper router in Phase 2.
 
-@app.get("/api/alerts/threat-intelligence")
-async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
-    """📡 ENTERPRISE: Global threat intelligence feed with real-time data"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            # Get threat indicators from recent alerts
-            recent_threats = db.execute(text("""
-                SELECT alert_type, severity, agent_id, COUNT(*) as frequency
-                FROM alerts 
-                WHERE timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL
-                GROUP BY alert_type, severity, agent_id
-                ORDER BY frequency DESC
-                LIMIT 10
-            """)).fetchall()
-            
-            threat_count = len(recent_threats)
-            high_severity_count = len([t for t in recent_threats if t[1] == 'high'])
-            
-        except Exception as db_error:
-            logger.warning(f"Threat intelligence query failed: {db_error}")
-            threat_count = 8
-            high_severity_count = 3
-        finally:
-            db.close()
-        
-        # Generate dynamic threat intelligence based on real data
-        current_date = datetime.now(UTC).strftime("%Y-%m-%d")
-        
-        threat_intel = {
-            "active_campaigns": [
-                {
-                    "name": "Operation CloudStrike 2025",
-                    "severity": "high" if high_severity_count > 2 else "medium", 
-                    "targets": "Cloud Infrastructure, SaaS Platforms",
-                    "first_seen": current_date,
-                    "indicators": 15 + threat_count,
-                    "description": f"Sophisticated APT campaign targeting cloud environments - {threat_count} related indicators detected"
-                },
-                {
-                    "name": "Ransomware-as-a-Service Evolution",
-                    "severity": "critical" if high_severity_count > 4 else "high",
-                    "targets": "Healthcare, Finance, Critical Infrastructure", 
-                    "first_seen": (datetime.now(UTC) - timedelta(days=3)).strftime("%Y-%m-%d"),
-                    "indicators": 32 + (high_severity_count * 2),
-                    "description": "Next-generation ransomware with AI-powered evasion techniques targeting enterprise networks"
-                },
-                {
-                    "name": "Supply Chain Infiltration",
-                    "severity": "medium",
-                    "targets": "Software Vendors, DevOps Pipelines",
-                    "first_seen": (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%d"),
-                    "indicators": 18,
-                    "description": "Advanced persistent threat targeting software supply chains and CI/CD infrastructure"
-                }
-            ],
-            "ioc_matches": 7 + (threat_count // 2),
-            "new_indicators": 23 + threat_count, 
-            "threat_actors": [
-                {
-                    "name": "APT-2025-Alpha", 
-                    "activity": "Active" if high_severity_count > 3 else "Monitoring", 
-                    "risk_level": "Critical" if high_severity_count > 4 else "High"
-                },
-                {
-                    "name": "Lazarus Group", 
-                    "activity": "Monitoring", 
-                    "risk_level": "Critical"
-                },
-                {
-                    "name": "Quantum Spider", 
-                    "activity": "Active" if threat_count > 5 else "Low", 
-                    "risk_level": "High"
-                }
-            ]
-        }
-        
-        logger.info(f"📡 Threat intelligence generated: {len(threat_intel['active_campaigns'])} campaigns, {threat_intel['ioc_matches']} IoC matches")
-        return threat_intel
-        
-    except Exception as e:
-        logger.error(f"Threat intelligence fetch failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
+# @app.get("/api/alerts/threat-intelligence")
+# async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
+#     """📡 ENTERPRISE: Global threat intelligence feed with real-time data"""
+#     try:
+#         db: Session = next(get_db())
+#
+#         try:
+#             # Get threat indicators from recent alerts
+#             recent_threats = db.execute(text("""
+#                 SELECT alert_type, severity, agent_id, COUNT(*) as frequency
+#                 FROM alerts
+#                 WHERE timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL
+#                 GROUP BY alert_type, severity, agent_id
+#                 ORDER BY frequency DESC
+#                 LIMIT 10
+#             """)).fetchall()
+#
+#             threat_count = len(recent_threats)
+#             high_severity_count = len([t for t in recent_threats if t[1] == 'high'])
+#
+#         except Exception as db_error:
+#             logger.warning(f"Threat intelligence query failed: {db_error}")
+#             threat_count = 8
+#             high_severity_count = 3
+#         finally:
+#             db.close()
+#
+#         # Generate dynamic threat intelligence based on real data
+#         current_date = datetime.now(UTC).strftime("%Y-%m-%d")
+#
+#         threat_intel = {
+#             "active_campaigns": [
+#                 {
+#                     "name": "Operation CloudStrike 2025",
+#                     "severity": "high" if high_severity_count > 2 else "medium",
+#                     "targets": "Cloud Infrastructure, SaaS Platforms",
+#                     "first_seen": current_date,
+#                     "indicators": 15 + threat_count,
+#                     "description": f"Sophisticated APT campaign targeting cloud environments - {threat_count} related indicators detected"
+#                 },
+#                 {
+#                     "name": "Ransomware-as-a-Service Evolution",
+#                     "severity": "critical" if high_severity_count > 4 else "high",
+#                     "targets": "Healthcare, Finance, Critical Infrastructure",
+#                     "first_seen": (datetime.now(UTC) - timedelta(days=3)).strftime("%Y-%m-%d"),
+#                     "indicators": 32 + (high_severity_count * 2),
+#                     "description": "Next-generation ransomware with AI-powered evasion techniques targeting enterprise networks"
+#                 },
+#                 {
+#                     "name": "Supply Chain Infiltration",
+#                     "severity": "medium",
+#                     "targets": "Software Vendors, DevOps Pipelines",
+#                     "first_seen": (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%d"),
+#                     "indicators": 18,
+#                     "description": "Advanced persistent threat targeting software supply chains and CI/CD infrastructure"
+#                 }
+#             ],
+#             "ioc_matches": 7 + (threat_count // 2),
+#             "new_indicators": 23 + threat_count,
+#             "threat_actors": [
+#                 {
+#                     "name": "APT-2025-Alpha",
+#                     "activity": "Active" if high_severity_count > 3 else "Monitoring",
+#                     "risk_level": "Critical" if high_severity_count > 4 else "High"
+#                 },
+#                 {
+#                     "name": "Lazarus Group",
+#                     "activity": "Monitoring",
+#                     "risk_level": "Critical"
+#                 },
+#                 {
+#                     "name": "Quantum Spider",
+#                     "activity": "Active" if threat_count > 5 else "Low",
+#                     "risk_level": "High"
+#                 }
+#             ]
+#         }
+#
+#         logger.info(f"📡 Threat intelligence generated: {len(threat_intel['active_campaigns'])} campaigns, {threat_intel['ioc_matches']} IoC matches")
+#         return threat_intel
+#
+#     except Exception as e:
+#         logger.error(f"Threat intelligence fetch failed: {str(e)}")
+#         raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
 
 @app.post("/api/alerts/correlate")
 async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get_current_user)):
@@ -3057,87 +3059,87 @@ This briefing was generated by your enterprise AI security operations center. Fo
         logger.error(f"Executive brief generation failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate executive security briefing")
 
-@app.get("/api/alerts/performance-metrics")
-async def get_ai_performance_metrics(current_user: dict = Depends(get_current_user)):
-    """📊 ENTERPRISE: AI alert management performance analytics"""
-    try:
-        db: Session = next(get_db())
-        
-        try:
-            # Get alert processing metrics
-            alert_metrics = db.execute(text("""
-                SELECT 
-                    COUNT(*) as total_alerts,
-                    SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high_severity,
-                    SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium_severity,
-                    SUM(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) as low_severity
-                FROM alerts 
-                WHERE timestamp >= NOW() - INTERVAL '30 days' OR timestamp IS NULL
-            """)).fetchone()
-            
-            # Get response time metrics from agent actions
-            response_metrics = db.execute(text("""
-                SELECT 
-                    COUNT(*) as total_responses,
-                    SUM(CASE WHEN approved = true THEN 1 ELSE 0 END) as approved_responses,
-                    SUM(CASE WHEN approved = false THEN 1 ELSE 0 END) as denied_responses
-                FROM agent_actions 
-                WHERE created_at >= NOW() - INTERVAL '30 days' OR created_at IS NULL
-            """)).fetchone()
-            
-            total_alerts = alert_metrics[0] if alert_metrics else 0
-            total_alerts = (alert_metrics[0] or 0) if alert_metrics else 0
-            high_severity = (alert_metrics[1] or 0) if alert_metrics else 0
-            total_responses = (response_metrics[0] or 0) if response_metrics else 0
-            approved = (response_metrics[1] or 0) if response_metrics else 0
-        except Exception as db_error:
-            logger.warning(f"Performance metrics query failed: {db_error}")
-            total_alerts = 45
-            high_severity = 12
-            total_responses = 38
-            approved = 31
-        finally:
-            db.close()
-        
-        # Calculate AI performance metrics
-        false_positive_rate = max(5.0, min(20.0, (total_alerts - high_severity) / max(total_alerts, 1) * 100))
-        response_accuracy = (approved / max(total_responses, 1) * 100) if total_responses > 0 else 85.0
-        automation_rate = min(75.0, (total_responses * 0.6))
-        
-        performance_metrics = {
-            "alert_processing": {
-                "total_processed": total_alerts,
-                "high_severity_detected": high_severity,
-                "medium_severity_detected": total_alerts - high_severity,
-                "processing_accuracy": round(100 - false_positive_rate, 1),
-                "false_positive_rate": round(false_positive_rate, 1)
-            },
-            "ai_response_metrics": {
-                "automated_responses": int(total_responses * 0.4),
-                "response_accuracy": round(response_accuracy, 1),
-                "average_response_time": f"{2.8 + (high_severity * 0.2):.1f} minutes",
-                "automation_rate": round(automation_rate, 1)
-            },
-            "threat_detection": {
-                "threat_patterns_identified": max(3, high_severity // 2),
-                "correlation_success_rate": "94.2%",
-                "prediction_accuracy": "89.7%",
-                "threat_intelligence_matches": max(5, high_severity)
-            },
-            "operational_efficiency": {
-                "analyst_time_saved": f"{int(total_responses * 0.3)} hours",
-                "cost_savings": f"${int(total_responses * 150)}",
-                "sla_compliance": "96.8%",
-                "escalation_rate": f"{max(5, min(15, high_severity // total_alerts * 100)) if total_alerts > 0 else 8}%"
-            }
-        }
-        
-        logger.info(f"📊 AI performance metrics calculated: {total_alerts} alerts, {response_accuracy:.1f}% accuracy")
-        return performance_metrics
-        
-    except Exception as e:
-        logger.error(f"AI performance metrics failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to calculate AI performance metrics")       
+# @app.get("/api/alerts/performance-metrics")
+# async def get_ai_performance_metrics(current_user: dict = Depends(get_current_user)):
+#     """📊 ENTERPRISE: AI alert management performance analytics"""
+#     try:
+#         db: Session = next(get_db())
+#
+#         try:
+#             # Get alert processing metrics
+#             alert_metrics = db.execute(text("""
+#                 SELECT
+#                     COUNT(*) as total_alerts,
+#                     SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high_severity,
+#                     SUM(CASE WHEN severity = 'medium' THEN 1 ELSE 0 END) as medium_severity,
+#                     SUM(CASE WHEN severity = 'low' THEN 1 ELSE 0 END) as low_severity
+#                 FROM alerts
+#                 WHERE timestamp >= NOW() - INTERVAL '30 days' OR timestamp IS NULL
+#             """)).fetchone()
+#
+#             # Get response time metrics from agent actions
+#             response_metrics = db.execute(text("""
+#                 SELECT
+#                     COUNT(*) as total_responses,
+#                     SUM(CASE WHEN approved = true THEN 1 ELSE 0 END) as approved_responses,
+#                     SUM(CASE WHEN approved = false THEN 1 ELSE 0 END) as denied_responses
+#                 FROM agent_actions
+#                 WHERE created_at >= NOW() - INTERVAL '30 days' OR created_at IS NULL
+#             """)).fetchone()
+#
+#             total_alerts = alert_metrics[0] if alert_metrics else 0
+#             total_alerts = (alert_metrics[0] or 0) if alert_metrics else 0
+#             high_severity = (alert_metrics[1] or 0) if alert_metrics else 0
+#             total_responses = (response_metrics[0] or 0) if response_metrics else 0
+#             approved = (response_metrics[1] or 0) if response_metrics else 0
+#         except Exception as db_error:
+#             logger.warning(f"Performance metrics query failed: {db_error}")
+#             total_alerts = 45
+#             high_severity = 12
+#             total_responses = 38
+#             approved = 31
+#         finally:
+#             db.close()
+#
+#         # Calculate AI performance metrics
+#         false_positive_rate = max(5.0, min(20.0, (total_alerts - high_severity) / max(total_alerts, 1) * 100))
+#         response_accuracy = (approved / max(total_responses, 1) * 100) if total_responses > 0 else 85.0
+#         automation_rate = min(75.0, (total_responses * 0.6))
+#
+#         performance_metrics = {
+#             "alert_processing": {
+#                 "total_processed": total_alerts,
+#                 "high_severity_detected": high_severity,
+#                 "medium_severity_detected": total_alerts - high_severity,
+#                 "processing_accuracy": round(100 - false_positive_rate, 1),
+#                 "false_positive_rate": round(false_positive_rate, 1)
+#             },
+#             "ai_response_metrics": {
+#                 "automated_responses": int(total_responses * 0.4),
+#                 "response_accuracy": round(response_accuracy, 1),
+#                 "average_response_time": f"{2.8 + (high_severity * 0.2):.1f} minutes",
+#                 "automation_rate": round(automation_rate, 1)
+#             },
+#             "threat_detection": {
+#                 "threat_patterns_identified": max(3, high_severity // 2),
+#                 "correlation_success_rate": "94.2%",
+#                 "prediction_accuracy": "89.7%",
+#                 "threat_intelligence_matches": max(5, high_severity)
+#             },
+#             "operational_efficiency": {
+#                 "analyst_time_saved": f"{int(total_responses * 0.3)} hours",
+#                 "cost_savings": f"${int(total_responses * 150)}",
+#                 "sla_compliance": "96.8%",
+#                 "escalation_rate": f"{max(5, min(15, high_severity // total_alerts * 100)) if total_alerts > 0 else 8}%"
+#             }
+#         }
+#
+#         logger.info(f"📊 AI performance metrics calculated: {total_alerts} alerts, {response_accuracy:.1f}% accuracy")
+#         return performance_metrics
+#
+#     except Exception as e:
+#         logger.error(f"AI performance metrics failed: {str(e)}")
+#         raise HTTPException(status_code=500, detail="Failed to calculate AI performance metrics")       
 
 
 # Add this to your main.py file - temporary setup endpoint
