@@ -145,11 +145,11 @@ class EnterpriseApiService {
 
   // Analytics endpoints
   async getAnalytics() {
-    return this.request('/api/analytics/dashboard');
+    return this.request('/api/api/analytics/dashboard');
   }
 
   async getRealtimeMetrics() {
-    return this.request('/analytics/realtime/metrics');
+    return this.request('/api/analytics/realtime/metrics');
   }
 
   // Authentication endpoints

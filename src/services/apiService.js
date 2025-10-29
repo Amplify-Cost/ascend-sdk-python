@@ -88,14 +88,14 @@ class ApiService {
   }
 
   async acknowledgeAlert(alertId, comment) {
-    return this.request(`/api/alerts/${alertId}/acknowledge`, {
+    return this.request(`/api/api/alerts/${alertId}/acknowledge`, {
       method: 'PUT',
       body: JSON.stringify({ comment })
     });
   }
 
   async deleteAlert(alertId) {
-    return this.request(`/api/alerts/${alertId}`, {
+    return this.request(`/api/api/alerts/${alertId}`, {
       method: 'DELETE'
     });
   }

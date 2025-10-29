@@ -22,8 +22,8 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
       console.log("🔍 Fetching from:", API_BASE_URL); // Debug log
       const url =
         selectedRisk === "all"
-          ? `${API_BASE_URL}/agent-activity`
-          : `${API_BASE_URL}/agent-activity?risk=${selectedRisk}`;
+          ? `${API_BASE_URL}/api/agent-activity`
+          : `${API_BASE_URL}/api/agent-activity?risk=${selectedRisk}`;
       
       console.log("📡 Full URL:", url); // Debug log
       

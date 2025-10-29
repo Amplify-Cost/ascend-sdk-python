@@ -67,7 +67,7 @@ const fetchWithAuth = async (url, options = {}) => {
 export const getCurrentUser = async () => {
   logger.debug("🔍 Getting current user via cookie auth...");
   try {
-    return await fetchWithAuth("/auth/me");
+    return await fetchWithAuth("/api/auth/me");
   } catch (error) {
     logger.error("❌ Enterprise: Get current user failed:", error);
     throw error;

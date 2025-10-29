@@ -49,7 +49,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
     const connectWebSocket = () => {
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/alerts/stream`;
+        const wsUrl = `${protocol}//${window.location.host}/api/alerts/stream`;
         websocketRef.current = new WebSocket(wsUrl);
 
         websocketRef.current.onopen = () => {
@@ -105,7 +105,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   const fetchActiveAlerts = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/alerts/active', {
+      const response = await fetch('/api/alerts/active', {
         credentials: "include",
         headers: getAuthHeaders()
       });
@@ -129,7 +129,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   const fetchAlertHistory = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/alerts/history?days=30', {
+      const response = await fetch('/api/alerts/history?days=30', {
         credentials: "include",
         headers: getAuthHeaders()
       });
@@ -151,7 +151,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   // Acknowledge alert
   const acknowledgeAlert = async (alertId) => {
     try {
-      const response = await fetch(`/alerts/${alertId}/acknowledge`, {
+      const response = await fetch(`/api/alerts/${alertId}/acknowledge`, {
         credentials: "include",
         method: 'POST',
         headers: getAuthHeaders()
@@ -176,7 +176,7 @@ const SmartAlertManagement = ({ getAuthHeaders, user }) => {
   // Resolve alert
   const resolveAlert = async (alertId) => {
     try {
-      const response = await fetch(`/alerts/${alertId}/resolve`, {
+      const response = await fetch(`/api/alerts/${alertId}/resolve`, {
         credentials: "include",
         method: 'POST',
         headers: getAuthHeaders()

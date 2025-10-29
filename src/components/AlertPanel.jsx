@@ -78,7 +78,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
       const alertTexts = filteredAlerts.map(
         (a) => `Agent ${a.agent_id} using ${a.tool_name} triggered: ${a.message} (Risk: ${a.risk_level})`
       );
-      const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/summary`, {
         credentials: "include",
         method: "POST",
         headers: {
@@ -100,7 +100,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
 
   const handleStatusChange = async (alertId, newStatus) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}`, {
         credentials: "include",
         method: "PATCH",
         headers: {

@@ -74,7 +74,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
     }
 
     const userEmail = user.email;
-    const wsUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').replace('http', 'ws')}/analytics/ws/realtime/${userEmail}`;
+    const wsUrl = `${(import.meta.env.VITE_API_URL || 'http://localhost:8000').replace('http', 'ws')}/api/analytics/ws/realtime/${userEmail}`;
     
     try {
       console.log('🔌 Initializing WebSocket:', wsUrl);
@@ -150,9 +150,9 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
 
       // 🎯 MASTER PROMPT: Call your advanced analytics endpoints
       const [metricsResult, predictiveResult, performanceResult] = await Promise.allSettled([
-        fetchWithAuth('/analytics/realtime/metrics'),
-        fetchWithAuth('/analytics/predictive/trends'),
-        fetchWithAuth('/analytics/performance/system')
+        fetchWithAuth('/api/analytics/realtime/metrics'),
+        fetchWithAuth('/api/analytics/predictive/trends'),
+        fetchWithAuth('/api/analytics/performance/system')
       ]);
 
       console.log('🔄 Results:', {
@@ -369,7 +369,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
                 <p>API URL: {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
                 <p>Auth Headers: {getAuthHeaders ? 'Available' : 'Not available'}</p>
                 <p>User Role: {user?.role || 'Unknown'}</p>
-                <p>Endpoints: /analytics/realtime/metrics, /analytics/predictive/trends, /analytics/performance/system</p>
+                <p>Endpoints: /api/analytics/realtime/metrics, /api/analytics/predictive/trends, /api/analytics/performance/system</p>
               </div>
             </div>
           </div>
@@ -650,9 +650,9 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
               <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
               <p><strong>Expected Endpoints:</strong></p>
               <ul className="ml-4 text-xs text-gray-600">
-                <li>• /analytics/realtime/metrics</li>
-                <li>• /analytics/predictive/trends</li>
-                <li>• /analytics/performance/system</li>
+                <li>• /api/analytics/realtime/metrics</li>
+                <li>• /api/analytics/predictive/trends</li>
+                <li>• /api/analytics/performance/system</li>
               </ul>
             </div>
             <button 

@@ -23,8 +23,8 @@ const SecurityInsights = ({ getAuthHeaders }) => {
   useEffect(() => {
     const fetchInsights = async () => {
       try {
-        console.log("🔍 Fetching insights from:", `${API_BASE_URL}/analytics/trends`);
-        const res = await fetch(`${API_BASE_URL}/analytics/trends`, {
+        console.log("🔍 Fetching insights from:", `${API_BASE_URL}/api/analytics/trends`);
+        const res = await fetch(`${API_BASE_URL}/api/analytics/trends`, {
           credentials: "include",
           headers: getAuthHeaders(),
         });

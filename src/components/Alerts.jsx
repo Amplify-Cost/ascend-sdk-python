@@ -70,7 +70,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
 
   const updateAlertStatus = async (alertId, status) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/alerts/${alertId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/${alertId}`, {
         credentials: "include",
         method: "PATCH",
         headers: {
@@ -102,7 +102,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
         (a) =>
           `Agent ${a.agent_id} using ${a.tool_name} triggered: ${a.message} (Risk: ${a.risk_level})`
       );
-      const res = await fetch(`${API_BASE_URL}/alerts/summary`, {
+      const res = await fetch(`${API_BASE_URL}/api/alerts/summary`, {
         credentials: "include",
         method: "POST",
         headers: {

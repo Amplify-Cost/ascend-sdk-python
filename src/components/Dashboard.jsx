@@ -243,8 +243,8 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
     console.log("📊 Loading Dashboard");
     const fetchTrends = async () => {
       try {
-        console.log("🔍 Fetching dashboard data from: /analytics/trends");
-        const data = await fetchWithAuth('/analytics/trends');
+        console.log("🔍 Fetching dashboard data from: /api/analytics/trends");
+        const data = await fetchWithAuth('/api/analytics/trends');
         
         console.log("📊 Dashboard API Response:", data);
         

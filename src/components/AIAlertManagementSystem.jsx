@@ -26,7 +26,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const handleAcknowledgeAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
-      const response = await fetchWithAuth(`/alerts/${alertId}/acknowledge`, {
+      const response = await fetchWithAuth(`/api/alerts/${alertId}/acknowledge`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -47,7 +47,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const handleEscalateAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
-      const response = await fetchWithAuth(`/alerts/${alertId}/escalate`, {
+      const response = await fetchWithAuth(`/api/alerts/${alertId}/escalate`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -304,7 +304,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const fetchPerformanceMetrics = async () => {
     console.log("🔄 Fetching performance metrics...");
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/performance-metrics`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/performance-metrics`, {
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
@@ -357,7 +357,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   const fetchAIInsights = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/ai-insights`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/ai-insights`, {
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
@@ -380,7 +380,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   const fetchThreatIntelligence = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/threat-intelligence`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/threat-intelligence`, {
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
@@ -406,7 +406,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
     setCorrelationLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/correlate`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/correlate`, {
         credentials: "include",
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -442,7 +442,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     setBriefLoading(true);
     
     try {
-      const response = await fetch(`${API_BASE_URL}/alerts/executive-brief`, {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/executive-brief`, {
         credentials: "include",
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
