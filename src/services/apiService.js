@@ -62,7 +62,7 @@ class ApiService {
 
   // AUTH ENDPOINTS
   async login(email, password) {
-    const response = await this.request('/auth/token', {
+    const response = await this.request('/api/auth/token', {
       method: 'POST',
       body: JSON.stringify({ email, password })
     });

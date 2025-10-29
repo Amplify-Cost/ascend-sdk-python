@@ -19,7 +19,7 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       console.log("🏢 Enterprise login attempt for:", email);
 
       // Enterprise cookie authentication request
-      const response = await fetch(`${API_BASE_URL}/auth/token`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

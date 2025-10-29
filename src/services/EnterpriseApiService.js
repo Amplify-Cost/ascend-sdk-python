@@ -68,7 +68,7 @@ class EnterpriseApiService {
       const dashboardData = await this.request('/api/authorization/dashboard');
       
       // Also get pending actions 
-      const pendingActions = await this.request('/agent-control/pending-actions');
+      const pendingActions = await this.request('/api/authorization/pending-actions');
       
       // Combine the data in the format the frontend expects
       return {
@@ -88,7 +88,7 @@ class EnterpriseApiService {
 
   // CORRECTED: Use actual working approval endpoint
   async approveAction(actionId, approvalData = {}) {
-    return this.request(`/agent-control/authorize-with-audit/${actionId}`, {
+    return this.request(`/api/authorization/authorize-with-audit/${actionId}`, {
       method: 'POST',
       body: JSON.stringify({
         approved: true,
@@ -100,7 +100,7 @@ class EnterpriseApiService {
 
   // CORRECTED: Use actual working deny endpoint
   async denyAction(actionId, reason = 'Denied by administrator') {
-    return this.request(`/agent-control/authorize-with-audit/${actionId}`, {
+    return this.request(`/api/authorization/authorize-with-audit/${actionId}`, {
       method: 'POST',
       body: JSON.stringify({
         approved: false,
@@ -154,7 +154,7 @@ class EnterpriseApiService {
 
   // Authentication endpoints
   async login(credentials) {
-    const response = await this.request('/auth/token', {
+    const response = await this.request('/api/auth/token', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -191,7 +191,7 @@ class EnterpriseApiService {
   // Test data creation (for development/testing)
   async createTestActions(count = 5) {
     try {
-      return this.request('/agent-control/create-test-actions', {
+      return this.request('/api/authorization/create-test-actions', {
         method: 'POST',
         body: JSON.stringify({ count }),
       });
@@ -206,7 +206,7 @@ class EnterpriseApiService {
     const tests = [
       { name: 'Health Check', endpoint: '/health' },
       { name: 'Dashboard', endpoint: '/api/authorization/dashboard' },
-      { name: 'Pending Actions', endpoint: '/agent-control/pending-actions' },
+      { name: 'Pending Actions', endpoint: '/api/authorization/pending-actions' },
       { name: 'Agent Actions', endpoint: '/agent-actions' },
       { name: 'MCP Actions', endpoint: '/api/mcp-governance/actions' }
     ];

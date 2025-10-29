@@ -462,7 +462,7 @@ useEffect(() => {
 
   const fetchWorkflows = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/workflow-config`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
   ...getAuthHeaders(), 
@@ -720,7 +720,7 @@ const fetchWorkflowOrchestrations = async () => {
   // 🚀 NEW: Get execution status for specific action
   const fetchExecutionStatus = async (actionId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/execution-status/${actionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/execution-status/${actionId}`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: { 
   ...getAuthHeaders(), 
@@ -1231,7 +1231,7 @@ const createWorkflow = async (workflowData) => {
 
   const updateWorkflow = async (workflowId, updates) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/workflow-config`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/workflow-config`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 
@@ -1370,7 +1370,7 @@ const createWorkflow = async (workflowData) => {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/agent-control/emergency-override/${actionId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/emergency-override/${actionId}`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 

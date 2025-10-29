@@ -108,7 +108,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       const endpoints = [
         `${API_BASE_URL}/agent-actions`,
         `${API_BASE_URL}/agent-action`,
-        `${API_BASE_URL}/agent-control/request-authorization`
+        `${API_BASE_URL}/api/authorization/request-authorization`
       ];
 
       let success = false;
