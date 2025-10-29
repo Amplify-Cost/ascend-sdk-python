@@ -1734,7 +1734,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold">Your Level</h3>
-                <p className="text-2xl font-bold">L{dashboardData.user_info.approval_level}</p>
+                <p className="text-2xl font-bold">L{dashboardData.user_info?.approval_level || 1}</p>
               </div>
               <div className="text-3xl opacity-80">👤</div>
             </div>
