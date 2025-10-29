@@ -19,7 +19,7 @@ from config import _config as config
 logger = logging.getLogger(__name__)
 
 # Initialize router
-router = APIRouter(prefix="/enterprise/secrets", tags=["Enterprise Secrets Management"])
+router = APIRouter(prefix="/api/secrets", tags=["Enterprise Secrets Management"])
 security = HTTPBearer()
 
 # Pydantic models for request/response

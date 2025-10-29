@@ -783,7 +783,7 @@ class AuthorizationService:
 # ========== ENTERPRISE ROUTERS ==========
 
 # Primary router - Original /agent-control prefix for all existing enterprise features
-router = APIRouter(prefix="/agent-control", tags=["authorization"])
+router = APIRouter(prefix="/api/authorization", tags=["authorization"])
 
 # API router - New /api/authorization prefix for Authorization Center frontend compatibility
 api_router = APIRouter(prefix="/api/authorization", tags=["authorization-api"])

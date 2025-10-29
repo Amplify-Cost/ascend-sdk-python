@@ -29,7 +29,7 @@ from jwt_manager import jwt_manager
 from sso_manager import enterprise_sso
 from rbac_manager import enterprise_rbac
 
-router = APIRouter(prefix="/auth/sso", tags=["Enterprise SSO"])
+router = APIRouter(prefix="/api/auth/sso", tags=["Enterprise SSO"])
 logger = logging.getLogger(__name__)
 
 # Store SSO state temporarily (in production, use Redis)

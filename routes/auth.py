@@ -26,7 +26,7 @@ class LoginRequest(BaseModel):
 
 # =================== ENTERPRISE DIAGNOSTIC CONFIGURATION ===================
 
-router = APIRouter(prefix="/auth", tags=["Enterprise Authentication"])
+router = APIRouter(prefix="/api/auth", tags=["Enterprise Authentication"])
 security = HTTPBearer(auto_error=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

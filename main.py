@@ -2080,8 +2080,7 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
 
 # Replace your authorization endpoints in main.py with these database-compatible versions
 
-@app.get("/agent-control/pending-actions")
-@app.get("/agent-control/pending-actions")
+@app.get("/api/authorization/pending-actions")
 async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
@@ -2191,7 +2190,7 @@ async def get_pending_actions_persistent(
         logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
         return []
 
-@app.get("/agent-control/approval-dashboard")
+@app.get("/api/authorization/approval-dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -2274,7 +2273,7 @@ async def get_approval_dashboard(
             }
         }
 
-@app.post("/agent-control/authorize/{action_id}")
+@app.post("/api/authorization/authorize/{action_id}")
 async def authorize_action_with_audit(
     action_id: int,
     request: Request,
@@ -2399,7 +2398,7 @@ async def authorize_action_with_audit(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to process authorization")
 
-@app.get("/agent-control/metrics/approval-performance")
+@app.get("/api/authorization/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -2475,7 +2474,7 @@ async def get_approval_metrics(
             }
         }
 
-@app.post("/agent-control/emergency-override/{action_id}")
+@app.post("/api/authorization/emergency-override/{action_id}")
 async def emergency_override(
     action_id: int,
     request: Request,
@@ -2594,7 +2593,7 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
     
     return factors if factors else ["Standard risk assessment"]
 
-@app.get("/enterprise/audit-trail")
+@app.get("/api/enterprise/audit-trail")
 async def get_audit_trail(
     limit: int = 50,
     current_user: dict = Depends(get_current_user)
@@ -2646,7 +2645,7 @@ async def get_audit_trail(
         logger.error(f"Failed to get audit trail: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve audit trail")
     
-@app.get("/enterprise/approved-actions")
+@app.get("/api/enterprise/approved-actions")
 async def get_approved_actions(
     limit: int = 20,
     current_user: dict = Depends(get_current_user)
@@ -2716,7 +2715,7 @@ async def get_approved_actions(
         logger.error(f"Failed to get approved actions: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve approved actions")    
     
-@app.get("/agent-control/workflow-config")
+@app.get("/api/authorization/workflow-config")
 async def get_workflow_config(current_user: dict = Depends(get_current_user)):
     """🏢 ENTERPRISE: Get current workflow configuration"""
     try:
@@ -2731,7 +2730,7 @@ async def get_workflow_config(current_user: dict = Depends(get_current_user)):
         logger.error(f"Failed to get workflow config: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get workflow configuration")
 
-@app.post("/agent-control/workflow-config")
+@app.post("/api/authorization/workflow-config")
 async def update_workflow_config(
     request: Request,
     current_user: dict = Depends(require_admin)
@@ -2777,121 +2776,6 @@ metrics_storage = {
     "last_updated": datetime.now(UTC).isoformat()
 }
 
-@app.get("/agent-control/metrics/approval-performance")
-async def get_approval_metrics_live(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """🏢 ENTERPRISE: Live approval performance metrics that update with each action"""
-    try:
-        # Count approved/denied demo actions
-        demo_approved = sum(1 for action in demo_actions_storage.values() if action["status"] == "approved")
-        demo_denied = sum(1 for action in demo_actions_storage.values() if action["status"] == "denied")
-        demo_emergency = sum(1 for action in demo_actions_storage.values() if action["status"] == "emergency_approved")
-        demo_pending = sum(1 for action in demo_actions_storage.values() if action["status"] == "pending")
-        
-        # Get real database metrics
-        try:
-            thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
-            result = db.execute(text("""
-                SELECT status, risk_level, approved
-                FROM agent_actions 
-                WHERE created_at >= :thirty_days_ago OR created_at IS NULL
-            """), {'thirty_days_ago': thirty_days_ago}).fetchall()
-            
-            db_approved = len([r for r in result if r[0] == "approved" or r[2] == True])
-            db_denied = len([r for r in result if r[0] == "denied" or r[2] == False])
-            db_pending = len([r for r in result if r[0] in ["pending", "pending_approval", "submitted"]])
-            db_high_risk = len([r for r in result if r[1] == "high"])
-            
-        except Exception:
-            db_approved = db_denied = db_pending = db_high_risk = 0
-        
-        # Combine demo and real metrics
-        total_approved = demo_approved + db_approved
-        total_denied = demo_denied + db_denied
-        total_pending = demo_pending + db_pending
-        total_emergency = demo_emergency
-        total_requests = total_approved + total_denied + total_pending
-        
-        # Calculate live approval rate
-        approval_rate = (total_approved / total_requests * 100) if total_requests > 0 else 0
-        
-        # Update metrics storage
-        metrics_storage.update({
-            "total_actions_processed": total_requests,
-            "approved_count": total_approved,
-            "denied_count": total_denied,
-            "emergency_overrides": total_emergency,
-            "last_updated": datetime.now(UTC).isoformat()
-        })
-        
-        return {
-            "decision_breakdown": {
-                "approved": total_approved,
-                "denied": total_denied,
-                "pending": total_pending,
-                "emergency_overrides": total_emergency,
-                "approval_rate": round(approval_rate, 1)
-            },
-            "performance_metrics": {
-                "average_processing_time_minutes": 45,
-                "average_risk_score": 65,
-                "sla_compliance_rate": 95.0
-            },
-            "risk_analysis": {
-                "high_risk_requests": db_high_risk + sum(1 for a in demo_actions_storage.values() if a["risk_level"] == "high"),
-                "emergency_requests": total_emergency,
-                "after_hours_requests": 0
-            },
-            "period_summary": {
-                "days_analyzed": 30,
-                "total_requests": total_requests,
-                "completion_rate": ((total_approved + total_denied) / total_requests * 100) if total_requests > 0 else 0
-            },
-            "live_metrics": {
-                "demo_actions": {
-                    "approved": demo_approved,
-                    "denied": demo_denied,
-                    "pending": demo_pending,
-                    "emergency": demo_emergency
-                },
-                "database_actions": {
-                    "approved": db_approved,
-                    "denied": db_denied,
-                    "pending": db_pending
-                }
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"🏢 ENTERPRISE: Failed to get live approval metrics: {str(e)}")
-        # Return fallback metrics
-        return {
-            "decision_breakdown": {
-                "approved": metrics_storage["approved_count"],
-                "denied": metrics_storage["denied_count"],
-                "pending": 0,
-                "emergency_overrides": metrics_storage["emergency_overrides"],
-                "approval_rate": 0
-            },
-            "performance_metrics": {
-                "average_processing_time_minutes": 45,
-                "average_risk_score": 65,
-                "sla_compliance_rate": 95.0
-            },
-            "risk_analysis": {
-                "high_risk_requests": 0,
-                "emergency_requests": 0,
-                "after_hours_requests": 0
-            },
-            "period_summary": {
-                "days_analyzed": 30,
-                "total_requests": 0,
-                "completion_rate": 0
-            }
-        }    
-    
 # Enhanced AI Alert Management Endpoints
 
 @app.get("/api/alerts/threat-intelligence")
@@ -3258,7 +3142,7 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
 
 # Add this to your main.py file - temporary setup endpoint
 
-@app.post("/admin/setup-enterprise-user-tables")
+@app.post("/api/admin/setup-enterprise-user-tables")
 async def setup_enterprise_user_tables(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
@@ -3427,7 +3311,7 @@ try:
 except Exception as e:
     print(f"=== DEBUG: JWT manager failed: {e} ===")
 
-@app.post("/auth/create-first-admin")
+@app.post("/api/auth/create-first-admin")
 async def create_first_admin():
     """One-time admin user creation - removes itself after use"""
     try:
@@ -3463,7 +3347,7 @@ async def create_first_admin():
 
 
 
-@app.post("/auth/refresh")
+@app.post("/api/auth/refresh")
 async def refresh_token_endpoint(request: Request):
     """Enterprise token refresh - No authentication required"""
     try:
@@ -3507,7 +3391,7 @@ async def refresh_token_endpoint(request: Request):
         print(f"Token refresh error: {e}")
         raise HTTPException(status_code=401, detail="Token refresh failed")
 
-@app.post("/admin/enterprise-user-notifications")
+@app.post("/api/admin/enterprise-user-notifications")
 async def notify_sso_users_temp_passwords(
     request: Request,
     db: Session = Depends(get_db),
@@ -3552,7 +3436,7 @@ async def notify_sso_users_temp_passwords(
         logger.error(f"Enterprise notification system error: {e}")
         raise HTTPException(status_code=500, detail="Enterprise notification system unavailable")
 
-@app.get("/admin/enterprise-auth-metrics")
+@app.get("/api/admin/enterprise-auth-metrics")
 async def get_enterprise_auth_metrics(
     request: Request,
     db: Session = Depends(get_db),
