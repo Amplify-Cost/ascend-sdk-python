@@ -61,9 +61,9 @@ ow-ai-platform/
 - Fetch API for HTTP requests
 
 **Infrastructure:**
-- Railway for deployment
-- AWS Secrets Manager for credentials
-- PostgreSQL for data persistence
+- AWS (ECS, RDS, Secrets Manager) for deployment
+- PostgreSQL on AWS RDS for data persistence
+- AWS Secrets Manager for credentials management
 
 ## 🚀 Quick Start
 
@@ -223,8 +223,8 @@ git push origin feature/your-feature-name
 ### Production URLs
 
 - **Frontend:** https://pilot.owkai.app
-- **Backend API:** https://owai-production.up.railway.app
-- **API Docs:** https://owai-production.up.railway.app/docs
+- **Backend API:** https://pilot.owkai.app (AWS ECS)
+- **API Docs:** https://pilot.owkai.app/docs
 
 ### Environment Variables
 
@@ -239,7 +239,7 @@ OPENAI_API_KEY=your-openai-key
 
 **Frontend (.env):**
 ```env
-VITE_API_URL=https://owai-production.up.railway.app
+VITE_API_URL=https://pilot.owkai.app
 VITE_API_VERSION=v1
 VITE_ENVIRONMENT=production
 ```
