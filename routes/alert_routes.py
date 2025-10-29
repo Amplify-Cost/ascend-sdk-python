@@ -60,13 +60,13 @@ def alert_count(db: Session = Depends(get_db), user: dict = Depends(get_current_
         logger.error(f"Failed to count alerts: {str(e)}")
         return {"count": 0}
 
-@router.patch("/{alert_id}")
+@router.patch("/{alert_id:int}")
 async def update_alert_status(
     alert_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user), 
-    
+    user: dict = Depends(get_current_user),
+
 ):
     """Update alert status (admin only)"""
     if user["role"] != "admin":
