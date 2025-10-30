@@ -294,6 +294,55 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   };
 
   // A/B Test Button Handlers
+  const handleStopTest = async (testId, testName) => {
+    if (!confirm(`Stop "${testName}"? This cannot be undone.`)) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/ab-test/${testId}/stop`, {
+        credentials: "include",
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        alert("✅ Test stopped successfully");
+        fetchAbTests();
+      } else {
+        const error = await response.text();
+        alert(`❌ Failed to stop test: ${error}`);
+      }
+    } catch (err) {
+      console.error("Error stopping test:", err);
+      alert("❌ Network error");
+    }
+  };
+
+  const handleDeployWinner = async (testId, testName, winner) => {
+    const winnerName = winner === 'variant_a' ? 'Variant A (Control)' : 'Variant B (Optimized)';
+    if (!confirm(`Deploy ${winnerName} for "${testName}"?\n\nThis will update the original rule with the winning variant's logic.`)) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules/ab-test/${testId}/deploy`, {
+        credentials: "include",
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`✅ ${result.message}\n\nRule updated: ${result.base_rule_name}\nImprovement: ${result.improvement}`);
+        fetchAbTests();
+        fetchRules(); // Refresh rules to show updated rule
+      } else {
+        const error = await response.text();
+        alert(`❌ Failed to deploy winner: ${error}`);
+      }
+    } catch (err) {
+      console.error("Error deploying winner:", err);
+      alert("❌ Network error");
+    }
+  };
+
   const handleViewTestDetails = (test) => {
     const details = `
 📊 Test: ${test.test_name}
@@ -944,6 +993,27 @@ Sample Size: ${test.sample_size}
                           Created by {test.created_by || 'System'} • {test.created_at ? new Date(test.created_at).toLocaleDateString() : 'Recently'}
                         </div>
                         <div className="flex gap-2">
+                          {/* Stop Test - Only for running REAL tests (not demos) */}
+                          {test.status === 'running' && !test.test_name?.startsWith('[DEMO]') && (
+                            <button
+                              onClick={() => handleStopTest(test.test_id, test.test_name)}
+                              className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded text-sm font-medium transition-colors"
+                            >
+                              🛑 Stop Test
+                            </button>
+                          )}
+
+                          {/* Deploy Winner - Only for completed tests with a winner (not demos) */}
+                          {test.winner && test.status !== 'stopped' && !test.test_name?.startsWith('[DEMO]') && (
+                            <button
+                              onClick={() => handleDeployWinner(test.test_id, test.test_name, test.winner)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-semibold transition-colors shadow-sm"
+                            >
+                              🚀 Deploy Winner
+                            </button>
+                          )}
+
+                          {/* View Details - Available for all tests */}
                           <button
                             onClick={() => handleViewTestDetails(test)}
                             className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded text-sm font-medium"
