@@ -374,6 +374,7 @@ async def get_ab_tests(
                 t.statistical_significance, t.improvement,
                 t.created_by, t.created_at, t.completed_at,
                 t.variant_a_performance, t.variant_b_performance,
+                t.sample_size,
                 ra.name as variant_a_name,
                 ra.condition as variant_a_condition,
                 rb.name as variant_b_name,
