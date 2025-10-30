@@ -566,31 +566,45 @@ async def get_policies(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Get all governance policies"""
+    """
+    🏢 ENTERPRISE: Get all governance policies
+    Returns enterprise policies for Policy Management dashboard
+    """
     try:
-        policies = db.query(AgentAction).filter(
-            AgentAction.action_type == "governance_policy",
-            AgentAction.status == "active"
-        ).all()
-        
+        # 🔧 ENTERPRISE FIX: Query correct model (EnterprisePolicy, not AgentAction)
+        policies = db.query(EnterprisePolicy).filter(
+            EnterprisePolicy.status == "active"
+        ).order_by(desc(EnterprisePolicy.created_at)).all()
+
+        logger.info(f"✅ Retrieved {len(policies)} active policies for user {current_user.get('email', 'unknown')}")
+
         return {
             "success": True,
             "policies": [{
                 "id": p.id,
-                "policy_name": p.extra_data.get("policy_name"),
-                "description": p.description,
-                "risk_level": p.risk_level,
-                "requires_approval": p.extra_data.get("requires_approval"),
-                "created_at": p.created_at.isoformat(),
-                "created_by": p.extra_data.get("created_by"),
-                "compliance_framework": p.extra_data.get("compliance_framework")
+                "policy_name": p.policy_name,
+                "description": p.description or "Enterprise governance policy",
+                "effect": p.effect,  # "allow" or "deny"
+                "actions": p.actions or [],
+                "resources": p.resources or [],
+                "conditions": p.conditions or {},
+                "priority": p.priority,
+                "status": p.status,
+                "requires_approval": True,  # All enterprise policies require approval
+                "created_at": p.created_at.isoformat() if p.created_at else datetime.now(UTC).isoformat(),
+                "created_by": p.created_by or "system",
+                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+                # Map to frontend expected fields
+                "risk_level": "medium",  # Default, can be calculated from conditions
+                "compliance_framework": p.conditions.get("compliance_framework") if isinstance(p.conditions, dict) else None
             } for p in policies],
             "total_count": len(policies)
         }
-        
+
     except Exception as e:
-        logger.error(f"Failed to fetch policies: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"❌ Failed to fetch policies: {str(e)}")
+        logger.error(f"❌ Error type: {type(e).__name__}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch policies: {str(e)}")
 
 @router.put("/policies/{policy_id}")
 async def update_governance_policy(

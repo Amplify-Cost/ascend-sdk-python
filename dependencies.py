@@ -72,14 +72,25 @@ def _decode_jwt(token: str):
 # ===== NEW: Enterprise Database Dependency =====
 def get_db() -> Session:
     """
-    Enterprise database session dependency
+    🏢 ENTERPRISE: Database session dependency with proper error handling
     Provides database access with proper connection management
+
+    IMPORTANT: This function should NOT mask HTTP exceptions (401, 403, etc)
+    from authentication/authorization dependencies. Only true database errors
+    should be caught and re-raised as 500 errors.
     """
     db = None
     try:
         db = SessionLocal()
         yield db
+    except HTTPException:
+        # 🔐 ENTERPRISE: Re-raise HTTP exceptions (401, 403, 404, etc) without modification
+        # These come from auth/authorization dependencies and should pass through
+        if db:
+            db.rollback()
+        raise
     except Exception as e:
+        # 🔧 ENTERPRISE: Only catch true database connection/query errors
         logger.error(f"Database session error: {e}")
         if db:
             db.rollback()
