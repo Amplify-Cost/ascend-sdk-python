@@ -17,6 +17,18 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [abTests, setAbTests] = useState([]);
   const [creatingTest, setCreatingTest] = useState(false);
 
+  // Manual Rule Creation
+  const [createMethod, setCreateMethod] = useState("natural-language");
+  const [manualRule, setManualRule] = useState({
+    name: "",
+    condition: "",
+    action: "alert",
+    risk_level: "medium",
+    description: "",
+    justification: ""
+  });
+  const [creatingManualRule, setCreatingManualRule] = useState(false);
+
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
   useEffect(() => {
@@ -235,6 +247,71 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
     }
   };
 
+  // Manual Rule Creation
+  const createManualRule = async () => {
+    if (!manualRule.name.trim()) {
+      alert("❌ Please enter a rule name");
+      return;
+    }
+    if (!manualRule.condition.trim()) {
+      alert("❌ Please enter a condition");
+      return;
+    }
+
+    setCreatingManualRule(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/smart-rules`, {
+        credentials: "include",
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...manualRule,
+          agent_id: "manual-creation",
+          action_type: "smart_rule"
+        })
+      });
+
+      if (response.ok) {
+        alert("✅ Manual rule created successfully!");
+        setManualRule({
+          name: "",
+          condition: "",
+          action: "alert",
+          risk_level: "medium",
+          description: "",
+          justification: ""
+        });
+        fetchRules();
+      } else {
+        alert("❌ Failed to create rule");
+      }
+    } catch (err) {
+      console.error("Error creating manual rule:", err);
+      alert("❌ Network error");
+    } finally {
+      setCreatingManualRule(false);
+    }
+  };
+
+  // A/B Test Button Handlers
+  const handleViewTestDetails = (test) => {
+    const details = `
+📊 Test: ${test.test_name}
+Status: ${test.status}
+Progress: ${test.progress_percentage}%
+
+🅰️ Variant A: ${test.variant_a_performance}%
+🅱️ Variant B: ${test.variant_b_performance}%
+
+${test.winner ? `Winner: ${test.winner}` : 'No winner yet'}
+Confidence: ${test.confidence_level}%
+Sample Size: ${test.sample_size}
+
+💼 ${test.enterprise_insights?.cost_savings || 'Calculating...'}
+    `.trim();
+    alert(details);
+  };
+
   // ENTERPRISE: Remove all demo data generation functions
   // No generateDemoRules, generateDemoAnalytics, generateDemoAbTests, generateDemoSuggestions
 
@@ -414,43 +491,179 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
       {/* Natural Language Rule Creation Tab */}
       {activeTab === "create" && (
         <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">✨ Create Rules with Natural Language</h3>
-            <p className="text-gray-600 mb-6">
-              Describe what you want to protect against in plain English, and our AI will generate the appropriate security rule.
-            </p>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Describe your security rule:
-                </label>
-                <textarea
-                  value={nlInput}
-                  onChange={(e) => setNlInput(e.target.value)}
-                  className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows="4"
-                  placeholder="Example: Block all API calls from new countries during weekends and holidays..."
-                />
-              </div>
-              
+          {/* Creation Method Tabs */}
+          <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <nav className="flex border-b">
               <button
-                onClick={generateRuleFromNaturalLanguage}
-                disabled={generatingRule || !nlInput.trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setCreateMethod("natural-language")}
+                className={`flex-1 py-3 px-4 text-sm font-medium ${
+                  createMethod === "natural-language"
+                    ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
               >
-                {generatingRule ? "🤖 Generating Rule..." : "✨ Generate Smart Rule"}
+                ✨ Natural Language
               </button>
-            </div>
+              <button
+                onClick={() => setCreateMethod("manual-form")}
+                className={`flex-1 py-3 px-4 text-sm font-medium ${
+                  createMethod === "manual-form"
+                    ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                📋 Manual Form
+              </button>
+            </nav>
 
-            <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-              <h4 className="font-semibold text-blue-900 mb-3">💡 Example Rule Prompts:</h4>
-              <div className="space-y-2 text-sm text-blue-800">
-                <div>• "Alert when agents access more than 100 files in 5 minutes"</div>
-                <div>• "Block database queries containing sensitive table names after business hours"</div>
-                <div>• "Quarantine agents that attempt privilege escalation on production systems"</div>
-                <div>• "Monitor API calls from IP addresses not seen in the last 30 days"</div>
-              </div>
+            <div className="p-6">
+              {/* Natural Language Method */}
+              {createMethod === "natural-language" && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">✨ Create Rules with Natural Language</h3>
+                  <p className="text-gray-600">
+                    Describe what you want to protect against in plain English, and our AI will generate the appropriate security rule.
+                  </p>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Describe your security rule:
+                    </label>
+                    <textarea
+                      value={nlInput}
+                      onChange={(e) => setNlInput(e.target.value)}
+                      className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      rows="4"
+                      placeholder="Example: Block all API calls from new countries during weekends and holidays..."
+                    />
+                  </div>
+
+                  <button
+                    onClick={generateRuleFromNaturalLanguage}
+                    disabled={generatingRule || !nlInput.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg disabled:opacity-50"
+                  >
+                    {generatingRule ? "🤖 Generating Rule..." : "✨ Generate Smart Rule"}
+                  </button>
+
+                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-semibold text-blue-900 mb-3">💡 Example Rule Prompts:</h4>
+                    <div className="space-y-2 text-sm text-blue-800">
+                      <div>• "Alert when agents access more than 100 files in 5 minutes"</div>
+                      <div>• "Block database queries containing sensitive table names after business hours"</div>
+                      <div>• "Quarantine agents that attempt privilege escalation on production systems"</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Manual Form Method */}
+              {createMethod === "manual-form" && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">📋 Manual Rule Configuration</h3>
+                  <p className="text-gray-600">
+                    Create a rule by specifying each field. This gives you full control over the rule's behavior.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Rule Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={manualRule.name}
+                        onChange={(e) => setManualRule({...manualRule, name: e.target.value})}
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="e.g., Suspicious Login Detection"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Risk Level <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={manualRule.risk_level}
+                        onChange={(e) => setManualRule({...manualRule, risk_level: e.target.value})}
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="low">🟢 Low</option>
+                        <option value="medium">🟡 Medium</option>
+                        <option value="high">🟠 High</option>
+                        <option value="critical">🔴 Critical</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Condition (When to trigger) <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={manualRule.condition}
+                      onChange={(e) => setManualRule({...manualRule, condition: e.target.value})}
+                      className="w-full p-3 border rounded-lg font-mono text-sm"
+                      rows="3"
+                      placeholder="e.g., failed_login_attempts > 5 AND time_window = '10_minutes'"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Use logical expressions: field_name operator value AND/OR another_condition
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Action (What to do) <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={manualRule.action}
+                      onChange={(e) => setManualRule({...manualRule, action: e.target.value})}
+                      className="w-full p-3 border rounded-lg"
+                    >
+                      <option value="alert">🔔 Alert - Notify security team</option>
+                      <option value="block">🚫 Block - Prevent action</option>
+                      <option value="block_and_alert">🛑 Block & Alert</option>
+                      <option value="quarantine">🔒 Quarantine - Isolate agent</option>
+                      <option value="monitor">👁️ Monitor - Log for analysis</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={manualRule.description}
+                      onChange={(e) => setManualRule({...manualRule, description: e.target.value})}
+                      className="w-full p-3 border rounded-lg"
+                      rows="2"
+                      placeholder="Brief description of what this rule detects..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Justification
+                    </label>
+                    <textarea
+                      value={manualRule.justification}
+                      onChange={(e) => setManualRule({...manualRule, justification: e.target.value})}
+                      className="w-full p-3 border rounded-lg"
+                      rows="2"
+                      placeholder="Why this rule is important..."
+                    />
+                  </div>
+
+                  <button
+                    onClick={createManualRule}
+                    disabled={creatingManualRule || !manualRule.name || !manualRule.condition}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg disabled:opacity-50"
+                  >
+                    {creatingManualRule ? "Creating Rule..." : "✅ Create Manual Rule"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -536,12 +749,23 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
             ) : (
               <div className="space-y-4">
                 {abTests.map((test) => (
-                  <div key={test.id} className="border rounded-lg p-6">
+                  <div key={test.test_id} className="border rounded-lg p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-lg font-semibold">{test.rule_name}</h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-lg font-semibold">{test.test_name || test.rule_name}</h4>
+                        {test.test_name && test.test_name.startsWith('[DEMO]') ? (
+                          <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded">
+                            DEMO
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded">
+                            LIVE
+                          </span>
+                        )}
+                      </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        test.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                        test.status === 'running' ? 'bg-blue-100 text-blue-800' : 
+                        test.status === 'completed' ? 'bg-green-100 text-green-800' :
+                        test.status === 'running' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {test.status.toUpperCase()}
@@ -564,15 +788,23 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
                       <div className="text-sm text-gray-600">
-                        <strong>Confidence Level:</strong> {test.confidence_level}%
+                        <strong>Confidence Level:</strong> {test.confidence_level}% • Sample Size: {test.sample_size || 0}
                       </div>
-                      {test.winner && (
-                        <div className="text-sm font-medium text-green-600">
-                          🏆 Winner: {test.winner === 'variant_a' ? 'Variant A' : 'Variant B'}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {test.winner && (
+                          <div className="text-sm font-medium text-green-600">
+                            🏆 Winner: {test.winner === 'variant_a' ? 'Variant A' : 'Variant B'}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleViewTestDetails(test)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded text-sm"
+                        >
+                          📊 View Details
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
