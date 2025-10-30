@@ -104,11 +104,9 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
 
       console.log('📤 Payload:', payload);
 
-      // Try multiple endpoints to find the working one
+      // 🏢 ENTERPRISE: Use the correct test action endpoint
       const endpoints = [
-        `${API_BASE_URL}/agent-actions`,
-        `${API_BASE_URL}/agent-action`,
-        `${API_BASE_URL}/api/authorization/request-authorization`
+        `${API_BASE_URL}/api/authorization/test-action`
       ];
 
       let success = false;

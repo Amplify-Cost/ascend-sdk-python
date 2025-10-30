@@ -12,7 +12,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [error, setError] = useState(null);
   const [selectedAlerts, setSelectedAlerts] = useState([]);
   const [filterSeverity, setFilterSeverity] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("active"); // Default to showing only active alerts
   const [correlationLoading, setCorrelationLoading] = useState(false);
   const [executiveBrief, setExecutiveBrief] = useState(null);
   const [briefLoading, setBriefLoading] = useState(false);
@@ -26,19 +26,23 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const handleAcknowledgeAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
-      const response = await fetchWithAuth(`/api/alerts/${alertId}/acknowledge`, {
+      // fetchWithAuth returns parsed JSON data (not Response object)
+      const data = await fetchWithAuth(`/api/alerts/${alertId}/acknowledge`, {
         method: 'POST'
       });
-      if (response.ok) {
+
+      // Check if backend returned success
+      if (data.success) {
         setMessage('✅ Alert acknowledged successfully');
         fetchAlerts();
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setError('Failed to acknowledge alert');
+        console.error('❌ Acknowledge failed:', data);
+        setError(`Failed to acknowledge alert: ${data.message || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Failed to acknowledge alert:', err);
-      setError('Failed to acknowledge alert');
+      setError(`Failed to acknowledge alert: ${err.message}`);
     } finally {
       setActionLoading(prev => ({...prev, [alertId]: false}));
     }
@@ -47,19 +51,23 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const handleEscalateAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
-      const response = await fetchWithAuth(`/api/alerts/${alertId}/escalate`, {
+      // fetchWithAuth returns parsed JSON data (not Response object)
+      const data = await fetchWithAuth(`/api/alerts/${alertId}/escalate`, {
         method: 'POST'
       });
-      if (response.ok) {
+
+      // Check if backend returned success
+      if (data.success) {
         setMessage('⚠️ Alert escalated to security team');
         fetchAlerts();
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setError('Failed to escalate alert');
+        console.error('❌ Escalate failed:', data);
+        setError(`Failed to escalate alert: ${data.message || 'Unknown error'}`);
       }
     } catch (err) {
       console.error('Failed to escalate alert:', err);
-      setError('Failed to escalate alert');
+      setError(`Failed to escalate alert: ${err.message}`);
     } finally {
       setActionLoading(prev => ({...prev, [alertId]: false}));
     }
@@ -558,9 +566,25 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   const filteredAlerts = alerts.filter(alert => {
     const severityMatch = filterSeverity === "all" || alert.severity === filterSeverity;
-    const statusMatch = filterStatus === "all" || 
-      (filterStatus === "correlated" && alert.correlation_id) ||
-      (filterStatus === "uncorrelated" && !alert.correlation_id);
+
+    // Status filter - improved to handle alert status
+    let statusMatch = true;
+    if (filterStatus === "active") {
+      // Only show new/unhandled alerts (exclude acknowledged, escalated, resolved)
+      statusMatch = alert.status === "new" || !alert.status;
+    } else if (filterStatus === "acknowledged") {
+      statusMatch = alert.status === "acknowledged";
+    } else if (filterStatus === "escalated") {
+      statusMatch = alert.status === "escalated";
+    } else if (filterStatus === "resolved") {
+      statusMatch = alert.status === "resolved";
+    } else if (filterStatus === "correlated") {
+      statusMatch = !!alert.correlation_id;
+    } else if (filterStatus === "uncorrelated") {
+      statusMatch = !alert.correlation_id;
+    }
+    // "all" shows everything
+
     return severityMatch && statusMatch;
   });
 
@@ -614,6 +638,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         <nav className="-mb-px flex space-x-8">
           {[
             { id: "dashboard", label: "🎯 Alert Dashboard", desc: "Real-time security alerts" },
+            { id: "history", label: "📜 Alert History", desc: "Past & handled alerts" },
             { id: "correlation", label: "🔗 AI Correlation", desc: "Smart alert grouping" },
             { id: "insights", label: "🧠 AI Insights", desc: "Predictive analysis" },
             { id: "intelligence", label: "📡 Threat Intel", desc: "Global threat feeds" },
@@ -672,7 +697,11 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                   onChange={(e) => setFilterStatus(e.target.value)}
                   className="border border-gray-300 rounded-md px-3 py-1 text-sm"
                 >
+                  <option value="active">Active (New)</option>
                   <option value="all">All Alerts</option>
+                  <option value="acknowledged">Acknowledged</option>
+                  <option value="escalated">Escalated</option>
+                  <option value="resolved">Resolved</option>
                   <option value="correlated">Correlated</option>
                   <option value="uncorrelated">Uncorrelated</option>
                 </select>
@@ -680,6 +709,11 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
               <div className="flex-1"></div>
               <div className="text-sm text-gray-600">
                 Showing {filteredAlerts.length} of {alerts.length} alerts
+                {filterStatus === "active" && (
+                  <span className="ml-2 text-purple-600 font-medium">
+                    ({alerts.filter(a => a.status === "new" || !a.status).length} active)
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -776,6 +810,136 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Alert History Tab */}
+      {activeTab === "history" && (
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">📜 Alert History</h3>
+              <div className="text-sm text-gray-500">
+                Viewing handled & past alerts
+              </div>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <div className="text-2xl font-bold text-green-700">
+                  {alerts.filter(a => a.status === "acknowledged").length}
+                </div>
+                <div className="text-sm text-green-600">Acknowledged</div>
+              </div>
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <div className="text-2xl font-bold text-orange-700">
+                  {alerts.filter(a => a.status === "escalated").length}
+                </div>
+                <div className="text-sm text-orange-600">Escalated</div>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="text-2xl font-bold text-blue-700">
+                  {alerts.filter(a => a.status === "resolved").length}
+                </div>
+                <div className="text-sm text-blue-600">Resolved</div>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="text-2xl font-bold text-gray-700">
+                  {alerts.filter(a => a.status !== "new" && a.status !== null).length}
+                </div>
+                <div className="text-sm text-gray-600">Total Handled</div>
+              </div>
+            </div>
+
+            {/* Filter for history view */}
+            <div className="mb-4 flex items-center space-x-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">View</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                >
+                  <option value="acknowledged">Acknowledged Only</option>
+                  <option value="escalated">Escalated Only</option>
+                  <option value="resolved">Resolved Only</option>
+                  <option value="all">All Alerts</option>
+                </select>
+              </div>
+              <div className="flex-1"></div>
+              <div className="text-sm text-gray-600">
+                {filteredAlerts.length} alerts in this view
+              </div>
+            </div>
+
+            {/* History List */}
+            <div className="space-y-3">
+              {filteredAlerts.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-4">📭</div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">No History Yet</h4>
+                  <p className="text-gray-500">Acknowledged and resolved alerts will appear here</p>
+                </div>
+              ) : (
+                filteredAlerts.map((alert) => (
+                  <div
+                    key={alert.id}
+                    className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              alert.status === "acknowledged"
+                                ? "bg-green-100 text-green-800"
+                                : alert.status === "escalated"
+                                ? "bg-orange-100 text-orange-800"
+                                : alert.status === "resolved"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {alert.status || "new"}
+                          </span>
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              alert.severity === "critical"
+                                ? "bg-red-100 text-red-800"
+                                : alert.severity === "high"
+                                ? "bg-orange-100 text-orange-800"
+                                : alert.severity === "medium"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {alert.severity}
+                          </span>
+                          <span className="text-sm text-gray-500">ID: {alert.id}</span>
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 mb-1">
+                          {alert.alert_type || alert.message}
+                        </div>
+                        <div className="text-sm text-gray-600 mb-2">
+                          {alert.message}
+                        </div>
+                        <div className="text-xs text-gray-500 space-y-1">
+                          {alert.acknowledged_by && (
+                            <div>✅ Acknowledged by {alert.acknowledged_by} at {new Date(alert.acknowledged_at).toLocaleString()}</div>
+                          )}
+                          {alert.escalated_by && (
+                            <div>⚠️ Escalated by {alert.escalated_by} at {new Date(alert.escalated_at).toLocaleString()}</div>
+                          )}
+                          <div>📅 Created: {new Date(alert.timestamp).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       )}
 

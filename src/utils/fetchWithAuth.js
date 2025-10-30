@@ -2,28 +2,78 @@
 // ENTERPRISE COOKIE-BASED AUTHENTICATION
 // ============================================
 // Cookies are sent automatically by browser
-// No token management needed
+// CSRF protection via double-submit cookie pattern
 // ============================================
 
 import { API_BASE_URL } from "../config/api";
 import logger from "./logger";
 
 /**
- * Enterprise cookie-based fetch with automatic retry
- * Cookies are handled automatically by browser
+ * 🏢 ENTERPRISE: Extract CSRF token from cookies
+ * Implements double-submit cookie pattern for CSRF protection
+ *
+ * @returns {string|null} CSRF token value or null if not found
+ */
+const getCsrfToken = () => {
+  try {
+    // Parse document.cookie into key-value pairs
+    const cookies = document.cookie.split(';').map(c => c.trim());
+
+    // Find the owai_csrf cookie
+    const csrfCookie = cookies.find(c => c.startsWith('owai_csrf='));
+
+    if (csrfCookie) {
+      const token = csrfCookie.split('=')[1];
+      logger.debug("🔐 CSRF token extracted from cookie");
+      return token;
+    }
+
+    logger.debug("⚠️ CSRF cookie not found - may not be authenticated");
+    return null;
+  } catch (error) {
+    logger.error("❌ Error extracting CSRF token:", error);
+    return null;
+  }
+};
+
+/**
+ * Enterprise cookie-based fetch with automatic CSRF protection
+ *
+ * Features:
+ * - Automatic cookie transmission (credentials: "include")
+ * - CSRF double-submit token for POST/PUT/PATCH/DELETE
+ * - Automatic session expiry handling (401 → redirect to login)
+ * - Enterprise-grade error handling
  */
 const fetchWithAuth = async (url, options = {}) => {
   const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
-  
+  const method = (options.method || "GET").toUpperCase();
+
   logger.debug("🌐 Enterprise API Call:", fullUrl);
   logger.debug("🍪 Using cookie-based authentication");
 
+  // Build headers
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
+
+  // 🏢 ENTERPRISE: Add CSRF token for mutating methods
+  // Double-submit cookie pattern: owai_csrf cookie + X-CSRF-Token header
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    const csrfToken = getCsrfToken();
+
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+      logger.debug(`🔐 CSRF token added to ${method} request`);
+    } else {
+      logger.warn(`⚠️ No CSRF token available for ${method} request - may fail if CSRF is enforced`);
+    }
+  }
+
   const config = {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers,
     credentials: "include", // CRITICAL: Send cookies with request
   };
 

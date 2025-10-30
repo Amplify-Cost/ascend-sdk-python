@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -1286,10 +1287,10 @@ const createWorkflow = async (workflowData) => {
       endpoint = `${API_BASE_URL}/api/authorization/authorize/${numericId}`;
     }
     
-    const response = await fetch(endpoint, {
+    // 🏢 ENTERPRISE: Use fetchWithAuth for cookie-based authentication + CSRF
+    const result = await fetchWithAuth(endpoint, {
       method: "POST",
-      headers: { 
-        ...getAuthHeaders(), 
+      headers: {
         "Content-Type": "application/json",
         "X-API-Version": "v1.0"
       },
@@ -1306,8 +1307,8 @@ const createWorkflow = async (workflowData) => {
       })
     });
 
-    if (response.ok) {
-      const result = await response.json();
+    if (result) {
+      // fetchWithAuth returns parsed JSON directly
               
       setPendingActions(prev => {
         const updated = prev.filter(action => 

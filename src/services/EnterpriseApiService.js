@@ -2,61 +2,32 @@
 
 import { API_BASE_URL } from './config/api';
 import logger from '../utils/logger.js';
+import { fetchWithAuth } from '../utils/fetchWithAuth.js';
 /**
  * Enterprise API Service Layer - CORRECTED VERSION
  * Maps frontend API calls to actual working backend endpoints
  * Eliminates demo data fallback by using correct API paths
+ * Uses fetchWithAuth for enterprise cookie-based authentication
  */
 
 
 class EnterpriseApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.authToken = null;
-  }
-
-  // Authentication management
-  setAuthToken(token) {
-    this.authToken = token;
-  }
-
-  getAuthHeaders() {
-    const headers = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
-    }
-    
-    return headers;
+    // 🏢 ENTERPRISE: Cookie-based authentication - no token storage needed
+    // All authentication handled by fetchWithAuth via HttpOnly cookies
   }
 
   async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    const config = {
-      headers: {
-        ...this.getAuthHeaders(),
-        ...options.headers,
-      },
-      ...options,
-    };
-
+    // 🏢 ENTERPRISE: Use fetchWithAuth for cookie-based authentication + CSRF
+    // This ensures credentials: "include" and automatic CSRF token handling
     try {
-      logger.debug(`🔄 API Request: ${options.method || 'GET'} ${url}`);
-      const response = await fetch(url, config);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error(`❌ API Error ${response.status}:`, errorText);
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      logger.debug(`✅ API Response:`, data);
+      logger.debug(`🔄 Enterprise API Request: ${options.method || 'GET'} ${endpoint}`);
+      const data = await fetchWithAuth(endpoint, options);
+      logger.debug(`✅ Enterprise API Response:`, data);
       return data;
     } catch (error) {
-      logger.error('💥 API Request failed:', error);
+      logger.error('💥 Enterprise API Request failed:', error);
       throw error;
     }
   }
@@ -86,24 +57,24 @@ class EnterpriseApiService {
     }
   }
 
-  // CORRECTED: Use actual working approval endpoint
+  // 🏢 ENTERPRISE: Approve action endpoint
   async approveAction(actionId, approvalData = {}) {
-    return this.request(`/api/authorization/authorize-with-audit/${actionId}`, {
+    return this.request(`/api/authorization/authorize/${actionId}`, {
       method: 'POST',
       body: JSON.stringify({
-        approved: true,
+        action: 'approve',
         reason: approvalData.reason || 'Approved by administrator',
         ...approvalData
       }),
     });
   }
 
-  // CORRECTED: Use actual working deny endpoint
+  // 🏢 ENTERPRISE: Deny action endpoint
   async denyAction(actionId, reason = 'Denied by administrator') {
-    return this.request(`/api/authorization/authorize-with-audit/${actionId}`, {
+    return this.request(`/api/authorization/authorize/${actionId}`, {
       method: 'POST',
       body: JSON.stringify({
-        approved: false,
+        action: 'deny',
         reason: reason
       }),
     });
@@ -154,23 +125,21 @@ class EnterpriseApiService {
 
   // Authentication endpoints
   async login(credentials) {
+    // 🏢 ENTERPRISE: Cookie-based login
+    // Backend sets HttpOnly cookies automatically - no token storage needed
     const response = await this.request('/api/auth/token', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
-    
-    if (response.access_token) {
-      this.setAuthToken(response.access_token);
-    }
-    
+
     return response;
   }
 
   async logout() {
-    this.authToken = null;
-    // If backend has logout endpoint, call it
+    // 🏢 ENTERPRISE: Cookie-based logout
+    // Backend clears cookies automatically
     try {
-      await this.request('/auth/logout', { method: 'POST' });
+      await this.request('/api/auth/logout', { method: 'POST' });
     } catch (error) {
       logger.warn('Logout endpoint not available:', error);
     }
