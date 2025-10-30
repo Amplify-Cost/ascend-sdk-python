@@ -63,11 +63,11 @@ class OrchestrationService:
             result = self.db.execute(text("""
                 INSERT INTO alerts (
                     agent_action_id, alert_type, severity, status,
-                    message, timestamp, source
+                    message, timestamp
                 )
                 VALUES (
                     :action_id, 'High Risk Agent Action', :severity, 'new',
-                    :message, :timestamp, 'orchestration_service'
+                    :message, :timestamp
                 )
                 RETURNING id
             """), {

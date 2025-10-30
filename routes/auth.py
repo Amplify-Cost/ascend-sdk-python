@@ -1,7 +1,7 @@
 # routes/auth.py - Enterprise Response Diagnostics (Find Exact Format Issue)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from security.cookies import SESSION_COOKIE_NAME
+from security.cookies import SESSION_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any
 from dependencies import get_current_user, require_csrf
 from pydantic import BaseModel
+from secrets import token_urlsafe
 import jwt
 import os
 import logging
@@ -158,30 +159,86 @@ def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
 
 # 🔧 ENTERPRISE FIX: Enhanced debugging for cookie detection
 
+def detect_auth_preference(request: Request) -> str:
+    """
+    🏢 ENTERPRISE: Smart authentication mode detection
+
+    Priority order:
+    1. Explicit header (X-Auth-Mode: cookie/token) - Highest priority
+    2. User-Agent detection (browsers use cookies, APIs use tokens)
+    3. Default to token for unknown clients
+    """
+    # 1. Check for explicit preference header
+    mode = (request.headers.get("X-Auth-Mode") or "").lower()
+    if mode in {"cookie", "cookies"}:
+        logger.debug("🔐 Auth mode: cookie (explicit header)")
+        return "cookie"
+    if mode in {"token", "bearer"}:
+        logger.debug("🔐 Auth mode: token (explicit header)")
+        return "token"
+
+    # 2. Auto-detect from User-Agent (browsers vs API clients)
+    user_agent = (request.headers.get("User-Agent") or "").lower()
+
+    # Common browser User-Agent keywords
+    browser_keywords = [
+        "mozilla", "chrome", "safari", "firefox",
+        "edge", "opera", "msie", "trident"
+    ]
+
+    # If User-Agent contains browser keywords, use cookie mode
+    if any(keyword in user_agent for keyword in browser_keywords):
+        logger.debug(f"🔐 Auth mode: cookie (detected browser: {user_agent[:50]}...)")
+        return "cookie"
+
+    # 3. Default to token for API clients, mobile apps, unknown clients
+    logger.debug(f"🔐 Auth mode: token (API client or unknown: {user_agent[:50]}...)")
+    return "token"
+
+def _set_csrf_cookie(response: Response, request: Request) -> str:
+    """
+    🏢 ENTERPRISE: Issue a non-HttpOnly CSRF cookie for double-submit protection.
+    The frontend will echo this value in the X-CSRF-Token header
+    for any POST/PUT/PATCH/DELETE request.
+    """
+    csrf = token_urlsafe(32)
+    # CSRF cookie is NOT HttpOnly (frontend must read it)
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf,
+        httponly=False,  # CRITICAL: Frontend must read this
+        secure=False,  # Allow HTTP during development
+        samesite="lax",
+        path="/",
+        max_age=60 * 30,  # 30 minutes
+    )
+    logger.debug(f"🔐 CSRF cookie set: {csrf[:10]}...")
+    return csrf
+
 def get_authentication_source(request: Request, credentials: HTTPAuthorizationCredentials) -> tuple[str, str, str]:
     """Get auth source - MINIMAL ENTERPRISE FIX"""
-    
+
     # 🔧 ENTERPRISE FIX: Check Authorization header first (primary method)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         logger.info(f"🎫 ENTERPRISE: Authorization header found, length = {len(token)}")
         return token, "bearer", "enterprise"
-    
+
     # Check cookies (secondary method)
     access_cookie = request.cookies.get("access_token")
     if not access_cookie:
         access_cookie = request.cookies.get("ow_access_token")
-    
+
     if access_cookie:
         logger.info(f"🍪 ENTERPRISE: Cookie found, length = {len(access_cookie)}")
         return access_cookie, "cookie", "enterprise"
-    
+
     # FastAPI HTTPBearer fallback
     if credentials and credentials.credentials:
         logger.info(f"🎫 ENTERPRISE: FastAPI credentials found, length = {len(credentials.credentials)}")
         return credentials.credentials, "bearer", "fastapi"
-    
+
     logger.warning("🚨 ENTERPRISE: No authentication found")
     return None, "none", "none"
 
@@ -314,37 +371,32 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         
         access_token = create_enterprise_token(user_data, "access")
         refresh_token = create_enterprise_token(user_data, "refresh")
-        
-        # Set cookies with correct names
-        set_enterprise_cookies(response, access_token, refresh_token)
-        
-        # TRY MULTIPLE RESPONSE FORMATS - Let's test which one works
-        
-        # FORMAT 1: Minimal (like original working version)
-        format_1 = {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
+
+        # 🏢 ENTERPRISE: Detect auth mode (User-Agent smart detection)
+        auth_mode = detect_auth_preference(request)
+
+        if auth_mode == "cookie":
+            # Cookie-based authentication for browsers
+            set_enterprise_cookies(response, access_token, refresh_token)
+            _set_csrf_cookie(response, request)  # CRITICAL: Set CSRF cookie
+
+            logger.info(f"✅ Cookie-based login ({auth_format}): {user.email}")
+            return {
+                "access_token": "",  # Empty for cookie mode
+                "refresh_token": "",  # Empty for cookie mode
+                "token_type": "cookie",
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                "user": {
+                    "email": user.email,
+                    "role": user.role,
+                    "user_id": user.id
+                },
+                "auth_mode": "cookie"
             }
-        }
-        
-        # FORMAT 2: With refresh token
-        format_2 = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
-            }
-        }
-        
-        # FORMAT 3: With all original fields
-        format_3 = {
+
+        # Token-based authentication for API clients
+        logger.info(f"✅ Token-based login ({auth_format}): {user.email}")
+        return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
@@ -356,58 +408,6 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
             },
             "auth_mode": "token"
         }
-        
-        # FORMAT 4: Exactly what frontend might expect (guess)
-        format_4 = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
-            },
-            "auth_mode": "token",
-            "enterprise_metadata": {
-                "features_enabled": {"enhanced_logging": True},
-                "security_level": "enterprise",
-                "audit_logged": True,
-                "issued_at": datetime.now(UTC).isoformat()
-            }
-        }
-        
-        # Log all formats for comparison
-        logger.info("🔍 DIAGNOSTIC: Testing Format 1 (Minimal):")
-        log_response_diagnostics(format_1, "FORMAT_1")
-        
-        logger.info("🔍 DIAGNOSTIC: Testing Format 2 (With Refresh):")
-        log_response_diagnostics(format_2, "FORMAT_2")
-        
-        logger.info("🔍 DIAGNOSTIC: Testing Format 3 (Full Original):")
-        log_response_diagnostics(format_3, "FORMAT_3")
-        
-        logger.info("🔍 DIAGNOSTIC: Testing Format 4 (With Metadata):")
-        log_response_diagnostics(format_4, "FORMAT_4")
-        
-        # CRITICAL: Return EXACT format that frontend expects to prevent TypeError
-        response_data = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
-            },
-            "auth_mode": "token"  # Frontend expects "token" not "cookie"
-        }
-        
-        logger.info("✅ DIAGNOSTIC: Login response prepared - EXACT frontend format")
-        log_response_diagnostics(response_data, "LOGIN_RESPONSE")
-        
-        return response_data
         
     except HTTPException:
         raise

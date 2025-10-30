@@ -87,13 +87,25 @@ class EnterpriseBatchLoaderV2:
         
         # Build transformed actions (matching original format exactly)
         transformed_actions = []
-        
+
         for action in pending_actions:
-            cvss = cvss_map.get(action.id, {"risk_score": 50, "severity": "MEDIUM"})
+            cvss = cvss_map.get(action.id, {})
             nist_controls = nist_map.get(action.id, ["AC-3", "AU-2"])
             mitre_techniques = mitre_map.get(action.id, ["T1078"])
-            
-            risk_score = float(cvss.get("risk_score", 50))
+
+            # 🏢 ENTERPRISE FIX: Use agent_actions.risk_score first (from CVSS calculation during creation)
+            if action.risk_score:
+                risk_score = float(action.risk_score)
+                logger.debug(f"Action {action.id}: Using stored risk_score from agent_actions: {risk_score}")
+            elif cvss.get("risk_score"):
+                risk_score = float(cvss.get("risk_score"))
+                logger.debug(f"Action {action.id}: Using risk_score from cvss_assessments: {risk_score}")
+            else:
+                # 🏢 ENTERPRISE: Intelligent fallback based on risk_level (not always 50!)
+                risk_level_scores = {"low": 30, "medium": 50, "high": 75, "critical": 95}
+                risk_level = action.risk_level.lower() if action.risk_level else "medium"
+                risk_score = float(risk_level_scores.get(risk_level, 50))
+                logger.warning(f"Action {action.id} missing risk_score - using fallback from risk_level '{risk_level}': {risk_score}")
             
             transformed_action = {
                 "id": action.id,
