@@ -55,12 +55,50 @@ def get_cookie_config(request: Request) -> dict:
 
 def detect_auth_preference(request: Request) -> str:
     """
-    Detect client preference (header-driven). Defaults to 'token'
-    to avoid surprises; you can switch default to 'cookie' later.
+    🏢 ENTERPRISE: Smart authentication mode detection
+
+    Priority order:
+    1. Explicit header (X-Auth-Mode: cookie/token) - Highest priority
+    2. User-Agent detection (browsers use cookies, APIs use tokens)
+    3. Default to token for unknown clients
+
+    This approach:
+    - Automatically selects cookie mode for web browsers (secure, HttpOnly)
+    - Automatically selects token mode for API clients (stateless)
+    - Allows explicit override via X-Auth-Mode header
+    - Follows industry best practices (Auth0, AWS Cognito, Google)
     """
+    # 1. Check for explicit preference header
     mode = (request.headers.get("X-Auth-Mode") or "").lower()
     if mode in {"cookie", "cookies"}:
+        logger.debug("🔐 Auth mode: cookie (explicit header)")
         return "cookie"
+    if mode in {"token", "bearer"}:
+        logger.debug("🔐 Auth mode: token (explicit header)")
+        return "token"
+
+    # 2. Auto-detect from User-Agent (browsers vs API clients)
+    user_agent = (request.headers.get("User-Agent") or "").lower()
+
+    # Common browser User-Agent keywords
+    browser_keywords = [
+        "mozilla",      # Firefox, Chrome, Safari, Edge
+        "chrome",       # Google Chrome
+        "safari",       # Safari
+        "firefox",      # Firefox
+        "edge",         # Microsoft Edge
+        "opera",        # Opera
+        "msie",         # Internet Explorer (legacy)
+        "trident"       # IE 11+
+    ]
+
+    # If User-Agent contains browser keywords, use cookie mode
+    if any(keyword in user_agent for keyword in browser_keywords):
+        logger.debug(f"🔐 Auth mode: cookie (detected browser: {user_agent[:50]}...)")
+        return "cookie"
+
+    # 3. Default to token for API clients, mobile apps, unknown clients
+    logger.debug(f"🔐 Auth mode: token (API client or unknown: {user_agent[:50]}...)")
     return "token"
 
 def _set_csrf_cookie(response: Response, request: Request) -> str:
