@@ -735,81 +735,292 @@ Sample Size: ${test.sample_size}
       {activeTab === "ab-testing" && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">🧪 Enterprise Rule A/B Testing</h3>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">🧪 Enterprise Rule A/B Testing</h2>
             <p className="text-gray-600 mb-6">
-              Test different versions of your security rules to optimize performance and reduce false positives.
+              Test rule variants side-by-side to optimize detection accuracy, reduce false positives, and measure business impact in real-time.
             </p>
-            
+
             {abTests.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-4xl mb-4">🧪</div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">No A/B Tests Running</h4>
-                <p className="text-gray-500">Create A/B tests from the Smart Rules tab to optimize performance</p>
+              <div className="text-center py-12 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
+                <div className="text-6xl mb-4">🧪</div>
+                <h3 className="text-xl font-semibold text-gray-700 mb-2">No A/B Tests Yet</h3>
+                <p className="text-gray-500 mb-6">Create A/B tests from any rule in the Smart Rules tab to optimize performance</p>
+                <button
+                  onClick={() => setActiveTab("rules")}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold"
+                >
+                  Go to Smart Rules
+                </button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {abTests.map((test) => (
-                  <div key={test.test_id} className="border rounded-lg p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-lg font-semibold">{test.test_name || test.rule_name}</h4>
-                        {test.test_name && test.test_name.startsWith('[DEMO]') ? (
-                          <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded">
-                            DEMO
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded">
-                            LIVE
-                          </span>
-                        )}
-                      </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        test.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        test.status === 'running' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {test.status.toUpperCase()}
-                      </span>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <h5 className="font-medium text-gray-900 mb-2">🅰️ Variant A (Control)</h5>
-                        <p className="text-sm text-gray-600 mb-3">{test.variant_a}</p>
-                        <div className="text-2xl font-bold text-blue-600">{test.variant_a_performance}%</div>
-                        <div className="text-sm text-gray-500">Performance Score</div>
-                      </div>
-                      
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <h5 className="font-medium text-gray-900 mb-2">🅱️ Variant B (Test)</h5>
-                        <p className="text-sm text-gray-600 mb-3">{test.variant_b}</p>
-                        <div className="text-2xl font-bold text-green-600">{test.variant_b_performance}%</div>
-                        <div className="text-sm text-gray-500">Performance Score</div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t">
-                      <div className="text-sm text-gray-600">
-                        <strong>Confidence Level:</strong> {test.confidence_level}% • Sample Size: {test.sample_size || 0}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {test.winner && (
-                          <div className="text-sm font-medium text-green-600">
-                            🏆 Winner: {test.winner === 'variant_a' ? 'Variant A' : 'Variant B'}
+                  <div key={test.test_id} className="border-2 border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
+                    {/* Test Header */}
+                    <div className={`px-6 py-4 border-b ${test.test_name && test.test_name.startsWith('[DEMO]') ? 'bg-gradient-to-r from-gray-50 to-gray-100' : 'bg-gradient-to-r from-blue-50 to-indigo-50'}`}>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h4 className="text-lg font-bold text-gray-900">{test.test_name || test.rule_name}</h4>
+                            {test.test_name && test.test_name.startsWith('[DEMO]') ? (
+                              <span className="px-3 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded-full">
+                                DEMO EXAMPLE
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full animate-pulse">
+                                ✓ LIVE TEST
+                              </span>
+                            )}
                           </div>
-                        )}
-                        <button
-                          onClick={() => handleViewTestDetails(test)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded text-sm"
-                        >
-                          📊 View Details
-                        </button>
+                          {test.description && <p className="text-sm text-gray-600">{test.description}</p>}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-4 py-2 rounded-full text-xs font-bold ${
+                            test.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            test.status === 'running' ? 'bg-blue-100 text-blue-800 animate-pulse' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {test.status === 'completed' ? '✅ COMPLETED' :
+                             test.status === 'running' ? '🔄 RUNNING' :
+                             '⏸️ PAUSED'}
+                          </span>
+                          {test.progress_percentage !== undefined && (
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-gray-700">{test.progress_percentage}%</div>
+                              <div className="text-xs text-gray-500">Complete</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Test Content */}
+                    <div className="p-6">
+                      {/* Progress Bar */}
+                      {test.progress_percentage !== undefined && (
+                        <div className="mb-6">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">Test Progress</span>
+                            <span className="text-sm text-gray-600">{test.progress_percentage}% ({test.duration_hours}h total)</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className={`h-3 rounded-full transition-all duration-500 ${
+                                test.progress_percentage === 100 ? 'bg-green-500' : 'bg-blue-500'
+                              }`}
+                              style={{ width: `${test.progress_percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Variants Comparison */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div className={`p-5 rounded-lg border-2 ${
+                          test.winner === 'variant_a'
+                            ? 'bg-green-50 border-green-300'
+                            : 'bg-blue-50 border-blue-200'
+                        }`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-bold text-gray-900 flex items-center gap-2">
+                              🅰️ Variant A (Control)
+                              {test.winner === 'variant_a' && <span className="text-green-600 text-xl">🏆</span>}
+                            </h5>
+                            <div className={`text-3xl font-black ${
+                              test.winner === 'variant_a' ? 'text-green-600' : 'text-blue-600'
+                            }`}>
+                              {test.variant_a_performance}%
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-700 font-mono bg-white p-3 rounded border mb-3 line-clamp-2">
+                            {test.variant_a || "Control rule"}
+                          </p>
+                          {test.results && (
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Detection Rate:</span>
+                                <span className="font-semibold">{test.results.threat_detection_rate?.variant_a || test.variant_a_performance + '%'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">False Positives:</span>
+                                <span className="font-semibold">{test.results.false_positive_rate?.variant_a || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Response Time:</span>
+                                <span className="font-semibold">{test.results.response_time?.variant_a || 'N/A'}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className={`p-5 rounded-lg border-2 ${
+                          test.winner === 'variant_b'
+                            ? 'bg-green-50 border-green-300'
+                            : 'bg-purple-50 border-purple-200'
+                        }`}>
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-bold text-gray-900 flex items-center gap-2">
+                              🅱️ Variant B (Optimized)
+                              {test.winner === 'variant_b' && <span className="text-green-600 text-xl">🏆</span>}
+                            </h5>
+                            <div className={`text-3xl font-black ${
+                              test.winner === 'variant_b' ? 'text-green-600' : 'text-purple-600'
+                            }`}>
+                              {test.variant_b_performance}%
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-700 font-mono bg-white p-3 rounded border mb-3 line-clamp-2">
+                            {test.variant_b || "Optimized rule"}
+                          </p>
+                          {test.results && (
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Detection Rate:</span>
+                                <span className="font-semibold">{test.results.threat_detection_rate?.variant_b || test.variant_b_performance + '%'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">False Positives:</span>
+                                <span className="font-semibold">{test.results.false_positive_rate?.variant_b || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">Response Time:</span>
+                                <span className="font-semibold">{test.results.response_time?.variant_b || 'N/A'}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Test Metrics */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-blue-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-blue-600 mb-1">Sample Size</div>
+                          <div className="text-lg font-bold text-blue-900">{test.sample_size?.toLocaleString() || '0'}</div>
+                        </div>
+                        <div className="bg-purple-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-purple-600 mb-1">Confidence</div>
+                          <div className="text-lg font-bold text-purple-900">{test.confidence_level}%</div>
+                        </div>
+                        <div className="bg-green-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-green-600 mb-1">Improvement</div>
+                          <div className="text-sm font-bold text-green-900">{test.improvement || '+0%'}</div>
+                        </div>
+                        <div className="bg-orange-50 rounded-lg p-3 text-center">
+                          <div className="text-xs text-orange-600 mb-1">Duration</div>
+                          <div className="text-lg font-bold text-orange-900">{test.duration_hours || 24}h</div>
+                        </div>
+                      </div>
+
+                      {/* Enterprise Insights */}
+                      {test.enterprise_insights && (
+                        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-lg p-4 mb-4">
+                          <h5 className="font-bold text-amber-900 mb-3 flex items-center gap-2">
+                            💼 Enterprise Business Impact
+                          </h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <div className="text-amber-700 font-semibold mb-1">💰 Cost Savings</div>
+                              <div className="text-amber-900 font-bold">{test.enterprise_insights.cost_savings || 'Calculating...'}</div>
+                            </div>
+                            <div>
+                              <div className="text-amber-700 font-semibold mb-1">📉 False Positive Reduction</div>
+                              <div className="text-amber-900 font-bold">{test.enterprise_insights.false_positive_reduction || 'Calculating...'}</div>
+                            </div>
+                            <div>
+                              <div className="text-amber-700 font-semibold mb-1">⚡ Efficiency Gain</div>
+                              <div className="text-amber-900 font-bold">{test.enterprise_insights.efficiency_gain || 'Calculating...'}</div>
+                            </div>
+                            <div>
+                              <div className="text-amber-700 font-semibold mb-1">📋 Recommendation</div>
+                              <div className="text-amber-900 font-bold">{test.enterprise_insights.recommendation || 'Test in progress...'}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center justify-between pt-4 border-t">
+                        <div className="text-xs text-gray-500">
+                          Created by {test.created_by || 'System'} • {test.created_at ? new Date(test.created_at).toLocaleDateString() : 'Recently'}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleViewTestDetails(test)}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded text-sm font-medium"
+                          >
+                            📊 View Full Details
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+
+          {/* How to Create A/B Tests */}
+          <div className="bg-white p-6 rounded-lg shadow-sm border">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🎓 How to Create Your Own A/B Tests</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center p-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">1️⃣</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-2">Select a Rule</h4>
+                <p className="text-sm text-gray-600">
+                  Go to Smart Rules tab and click the "🧪 A/B Test" button on any rule you want to optimize
+                </p>
+              </div>
+              <div className="text-center p-4">
+                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">2️⃣</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-2">Automatic Setup</h4>
+                <p className="text-sm text-gray-600">
+                  System creates Variant A (control) and Variant B (AI-optimized) automatically
+                </p>
+              </div>
+              <div className="text-center p-4">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">3️⃣</span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-2">Monitor & Deploy</h4>
+                <p className="text-sm text-gray-600">
+                  Track performance in real-time and deploy the winning variant when test completes
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* What is A/B Testing */}
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-indigo-900 mb-3">🔬 What is Enterprise A/B Testing?</h3>
+            <div className="space-y-2 text-sm text-indigo-800">
+              <p>
+                <strong>A/B testing</strong> lets you compare two versions of a security rule side-by-side to determine which performs better before rolling out changes to production.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <h4 className="font-semibold mb-2">✅ Benefits:</h4>
+                  <ul className="space-y-1 text-xs">
+                    <li>• Reduce false positives by 20-40%</li>
+                    <li>• Improve detection accuracy</li>
+                    <li>• Measure business impact ($$$)</li>
+                    <li>• Data-driven decision making</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-2">📊 What We Track:</h4>
+                  <ul className="space-y-1 text-xs">
+                    <li>• Detection rate & accuracy</li>
+                    <li>• False positive rate</li>
+                    <li>• Response time</li>
+                    <li>• Cost savings & efficiency gains</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
