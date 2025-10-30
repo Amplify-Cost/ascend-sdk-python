@@ -394,13 +394,32 @@ async def get_ab_tests(
             else:
                 progress = test.progress_percentage or 100
 
-            # Calculate sample size (simulated for now - can connect to real alerts later)
-            sample_size = int(progress * 30)  # Rough estimate: 30 alerts per 100% progress
+            # Calculate REAL metrics from alert data (not simulated)
+            try:
+                from services.ab_test_alert_router import ABTestAlertRouter
+                router = ABTestAlertRouter(db)
+                real_metrics = router.calculate_ab_test_metrics(test.test_id)
 
-            # Calculate performance scores
-            variant_a_perf = float(test.variant_a_performance or 75.0)
-            variant_b_perf = float(test.variant_b_performance or 80.0)
-            improvement_pct = ((variant_b_perf - variant_a_perf) / variant_a_perf) * 100
+                if real_metrics and real_metrics.get("comparison", {}).get("sample_size", 0) > 0:
+                    # Use real metrics from database
+                    sample_size = real_metrics["comparison"]["sample_size"]
+                    variant_a_perf = float(real_metrics["variant_a"]["performance_score"])
+                    variant_b_perf = float(real_metrics["variant_b"]["performance_score"])
+                    improvement_pct = real_metrics["comparison"]["improvement_percentage"]
+                    logger.info(f"✅ Using REAL metrics for test {test.test_id}: {sample_size} samples")
+                else:
+                    # Fallback to database stored values (may be from initial setup)
+                    sample_size = test.sample_size or int(progress * 30)
+                    variant_a_perf = float(test.variant_a_performance or 75.0)
+                    variant_b_perf = float(test.variant_b_performance or 80.0)
+                    improvement_pct = ((variant_b_perf - variant_a_perf) / variant_a_perf) * 100 if variant_a_perf > 0 else 0
+                    logger.info(f"⚠️ No real alert data yet for test {test.test_id}, using stored values")
+            except Exception as metrics_error:
+                logger.warning(f"Failed to calculate real metrics: {metrics_error}, using stored values")
+                sample_size = test.sample_size or int(progress * 30)
+                variant_a_perf = float(test.variant_a_performance or 75.0)
+                variant_b_perf = float(test.variant_b_performance or 80.0)
+                improvement_pct = ((variant_b_perf - variant_a_perf) / variant_a_perf) * 100 if variant_a_perf > 0 else 0
 
             # Determine winner if test is sufficiently complete
             winner = test.winner

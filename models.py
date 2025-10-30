@@ -26,9 +26,9 @@ class User(Base):
 
 class Alert(Base):
     __tablename__ = "alerts"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    alert_type = Column(String, index=True)  
+    alert_type = Column(String, index=True)
     severity = Column(String)
     message = Column(Text)
     timestamp = Column(DateTime, default=datetime.now(UTC))
@@ -39,6 +39,15 @@ class Alert(Base):
     acknowledged_at = Column(DateTime, nullable=True)
     escalated_by = Column(String, nullable=True)
     escalated_at = Column(DateTime, nullable=True)
+
+    # A/B Test Tracking (for real metrics)
+    ab_test_id = Column(String(100), nullable=True, index=True)  # UUID of A/B test
+    evaluated_by_variant = Column(String(20), nullable=True, index=True)  # 'variant_a' or 'variant_b'
+    variant_rule_id = Column(Integer, nullable=True, index=True)  # Which variant rule evaluated this
+    detected_by_rule_id = Column(Integer, nullable=True, index=True)  # Which rule detected this
+    detection_time_ms = Column(Integer, nullable=True)  # Response time in milliseconds
+    is_true_positive = Column(Boolean, nullable=True)  # NULL = not yet determined
+    is_false_positive = Column(Boolean, default=False)
 
 class Log(Base):
     __tablename__ = "logs"

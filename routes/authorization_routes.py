@@ -1478,9 +1478,8 @@ async def create_test_action_api(
                 "status": "new"
             }
 
-            DatabaseService.safe_execute(
-                db,
-                """
+            # Insert alert and get its ID
+            result = db.execute(text("""
                 INSERT INTO alerts (
                     alert_type, severity, message, timestamp, agent_id,
                     agent_action_id, status
@@ -1489,9 +1488,19 @@ async def create_test_action_api(
                     :alert_type, :severity, :message, :timestamp, :agent_id,
                     :agent_action_id, :status
                 )
-                """,
-                alert_data
-            )
+                RETURNING id
+            """), alert_data)
+            alert_id = result.fetchone()[0]
+            db.commit()
+
+            # Route alert to active A/B tests for real metrics tracking
+            try:
+                from services.ab_test_alert_router import ABTestAlertRouter
+                router = ABTestAlertRouter(db)
+                router.route_alert_to_ab_test(alert_id, alert_data)
+            except Exception as ab_error:
+                logger.warning(f"⚠️ Failed to route alert to A/B test: {ab_error}")
+                # Don't fail the whole request if A/B routing fails
 
         logger.info(f"✅ Enterprise agent action created: ID {action_id} by {current_user.get('email')} - Alert generated")
 

@@ -259,7 +259,26 @@ async def lifespan(app: FastAPI):
     import asyncio
     asyncio.create_task(start_alert_monitoring())
     print("🚨 ENTERPRISE: Alert monitoring activated")
+
+    # Start A/B Test auto-completion scheduler
+    try:
+        from database import SessionLocal
+        from services.ab_test_scheduler import start_scheduler
+        start_scheduler(SessionLocal, check_interval_minutes=60)
+        print("🧪 ENTERPRISE: A/B Test auto-completion scheduler started (checks every 60 minutes)")
+    except Exception as scheduler_error:
+        print(f"⚠️  A/B Test scheduler failed to start: {scheduler_error}")
+
     yield
+
+    # Shutdown
+    print("🔧 Enterprise shutdown initiated...")
+    try:
+        from services.ab_test_scheduler import stop_scheduler
+        stop_scheduler()
+        print("🛑 A/B Test scheduler stopped")
+    except Exception as e:
+        print(f"⚠️  Error stopping scheduler: {e}")
     print("🔧 Enterprise shutdown complete")
 
 
