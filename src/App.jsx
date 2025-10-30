@@ -252,15 +252,28 @@ const AppContent = () => {
     }
   };
 
-  // Enterprise cookie-based auth headers
-  // Cookies are sent automatically by browser - no Authorization header needed\!
+  // 🏢 ENTERPRISE: Dual authentication support (Cookie + Bearer Token)
+  // Supports both cookie-based session auth AND Bearer token auth for maximum compatibility
   const getAuthHeaders = () => {
     logger.debug("🔍 Getting auth headers for API call");
-    logger.debug("🍪 Enterprise: Using cookie-based authentication");
-    
-    return {
+
+    const headers = {
       "Content-Type": "application/json"
     };
+
+    // 🔐 ENTERPRISE: Add Bearer token if available (for endpoints requiring explicit auth)
+    // Cookie authentication is still sent automatically by browser
+    // This dual approach ensures compatibility with all backend endpoints
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      logger.debug("✅ Enterprise: Bearer token added to headers");
+    } else {
+      logger.debug("🍪 Enterprise: Using cookie-based authentication only");
+    }
+
+    return headers;
   };
   // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {
