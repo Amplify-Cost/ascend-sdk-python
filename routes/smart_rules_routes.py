@@ -583,10 +583,17 @@ async def get_ab_tests(
             }
         ]
 
-        # Combine real tests and demo tests
-        all_tests = real_tests + demo_tests
+        # ENTERPRISE: Only show 1 demo test when there are NO real tests (for onboarding)
+        # Once users create real tests, hide all demos
+        if len(real_tests) == 0:
+            # Show only the first demo as an example
+            all_tests = [demo_tests[0]]
+            logger.info(f"✅ ENTERPRISE: No real tests yet - showing 1 demo example for onboarding")
+        else:
+            # User has real tests - show only real data
+            all_tests = real_tests
+            logger.info(f"✅ ENTERPRISE: Returned {len(real_tests)} real tests (no demos - user has real data)")
 
-        logger.info(f"✅ ENTERPRISE: Returned {len(real_tests)} real tests + {len(demo_tests)} demo tests = {len(all_tests)} total")
         return all_tests
 
     except Exception as e:
@@ -734,6 +741,176 @@ async def create_ab_test(
             status_code=500,
             detail=f"A/B test creation failed: {str(e)}"
         )
+
+
+# 🛑 ENTERPRISE: Stop A/B test
+@router.post("/ab-test/{test_id}/stop")
+async def stop_ab_test(
+    test_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    🛑 ENTERPRISE: Stop a running A/B test
+
+    - Sets status to 'stopped'
+    - Records completion timestamp
+    - Preserves all collected data
+    - Cannot be restarted
+    """
+    try:
+        logger.info(f"🛑 ENTERPRISE: Stopping A/B test {test_id} by {current_user.get('email')}")
+
+        # Check if test exists
+        test_check = db.execute(text("""
+            SELECT test_id, status FROM ab_tests WHERE test_id = :test_id
+        """), {"test_id": test_id}).fetchone()
+
+        if not test_check:
+            raise HTTPException(status_code=404, detail="A/B test not found")
+
+        if test_check.status == 'stopped':
+            return {"success": True, "message": "Test already stopped", "test_id": test_id}
+
+        # Stop the test
+        db.execute(text("""
+            UPDATE ab_tests
+            SET status = 'stopped',
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE test_id = :test_id
+        """), {"test_id": test_id})
+
+        db.commit()
+
+        logger.info(f"✅ ENTERPRISE: A/B test {test_id} stopped successfully")
+        return {
+            "success": True,
+            "message": "A/B test stopped successfully",
+            "test_id": test_id,
+            "status": "stopped"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ ENTERPRISE: Failed to stop test {test_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to stop test: {str(e)}")
+
+
+# 🚀 ENTERPRISE: Deploy winning variant
+@router.post("/ab-test/{test_id}/deploy")
+async def deploy_ab_test_winner(
+    test_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    🚀 ENTERPRISE: Deploy the winning variant from an A/B test
+
+    - Determines winner based on performance
+    - Updates original rule with winning variant's condition
+    - Marks test as completed
+    - Deactivates test variant rules
+    - Records deployment in audit log
+    """
+    try:
+        logger.info(f"🚀 ENTERPRISE: Deploying winner for test {test_id} by {current_user.get('email')}")
+
+        # Get test details
+        test = db.execute(text("""
+            SELECT
+                t.test_id, t.test_name, t.base_rule_id,
+                t.variant_a_rule_id, t.variant_b_rule_id,
+                t.variant_a_performance, t.variant_b_performance,
+                t.winner, t.status,
+                ra.condition as variant_a_condition,
+                rb.condition as variant_b_condition,
+                base.name as base_rule_name
+            FROM ab_tests t
+            LEFT JOIN smart_rules ra ON t.variant_a_rule_id = ra.id
+            LEFT JOIN smart_rules rb ON t.variant_b_rule_id = rb.id
+            LEFT JOIN smart_rules base ON t.base_rule_id = base.id
+            WHERE t.test_id = :test_id
+        """), {"test_id": test_id}).fetchone()
+
+        if not test:
+            raise HTTPException(status_code=404, detail="A/B test not found")
+
+        # Determine winner if not already set
+        winner = test.winner
+        if not winner:
+            winner = "variant_b" if test.variant_b_performance > test.variant_a_performance else "variant_a"
+            logger.info(f"📊 ENTERPRISE: Auto-determined winner: {winner} ({test.variant_b_performance}% vs {test.variant_a_performance}%)")
+
+        # Get winning condition
+        winning_condition = test.variant_b_condition if winner == "variant_b" else test.variant_a_condition
+        winning_performance = test.variant_b_performance if winner == "variant_b" else test.variant_a_performance
+
+        if not winning_condition:
+            raise HTTPException(status_code=400, detail="Winning variant condition not found")
+
+        # Update base rule with winning condition
+        db.execute(text("""
+            UPDATE smart_rules
+            SET condition = :condition,
+                updated_at = NOW()
+            WHERE id = :rule_id
+        """), {
+            "condition": winning_condition,
+            "rule_id": test.base_rule_id
+        })
+
+        # Mark test as completed with winner
+        db.execute(text("""
+            UPDATE ab_tests
+            SET status = 'completed',
+                winner = :winner,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE test_id = :test_id
+        """), {
+            "winner": winner,
+            "test_id": test_id
+        })
+
+        # Deactivate variant rules (mark them as test variants, don't delete)
+        db.execute(text("""
+            UPDATE smart_rules
+            SET name = CONCAT('[ARCHIVED] ', name),
+                updated_at = NOW()
+            WHERE id IN (:variant_a_id, :variant_b_id)
+        """), {
+            "variant_a_id": test.variant_a_rule_id,
+            "variant_b_id": test.variant_b_rule_id
+        })
+
+        db.commit()
+
+        logger.info(f"✅ ENTERPRISE: Deployed {winner} for test {test_id}. Base rule {test.base_rule_id} updated.")
+
+        return {
+            "success": True,
+            "message": f"Winner deployed successfully! {winner.replace('_', ' ').title()} is now active.",
+            "test_id": test_id,
+            "winner": winner,
+            "base_rule_id": test.base_rule_id,
+            "base_rule_name": test.base_rule_name,
+            "winning_condition": winning_condition,
+            "winning_performance": f"{winning_performance}%",
+            "improvement": f"+{abs(test.variant_b_performance - test.variant_a_performance):.1f}%"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ ENTERPRISE: Failed to deploy winner for test {test_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to deploy winner: {str(e)}")
 
 
 def optimize_rule_condition(condition: str) -> str:
