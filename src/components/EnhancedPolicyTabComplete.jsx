@@ -97,7 +97,7 @@ export const EnhancedPolicyTabComplete = ({
         return (
           <VisualPolicyBuilderAdvanced
             onSave={async (policy) => {
-              await onCreatePolicy();
+              await onCreatePolicy(policy);
               setView('list');
             }}
             onCancel={() => setView('list')}

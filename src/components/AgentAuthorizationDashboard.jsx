@@ -1035,12 +1035,20 @@ const fetchWorkflowOrchestrations = async () => {
 
 // 🏗️ NEW: Enterprise Workflow Creation Function
 
-  const createEnterprisePolicy = async () => {
-    if (!newPolicy.policy_name || !newPolicy.description) {
-      alert("Please fill in both policy name and description");
+  const createEnterprisePolicy = async (policyData) => {
+    // If called with policy data from Advanced Builder, use it; otherwise use newPolicy state
+    const policy = policyData || newPolicy;
+
+    if (!policy.policy_name) {
+      alert("Please provide a policy name");
       return;
     }
-    
+
+    if (!policy.description) {
+      alert("Please provide a policy description");
+      return;
+    }
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/governance/create-policy`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
@@ -1050,8 +1058,8 @@ const fetchWorkflowOrchestrations = async () => {
           ...getAuthHeaders()
         },
         body: JSON.stringify({
-          policy_name: newPolicy.policy_name,
-          description: newPolicy.description
+          policy_name: policy.policy_name,
+          description: policy.description
         })
       });
       
