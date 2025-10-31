@@ -471,7 +471,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
         {/* Horizontal Divider */}
         <div className="border-t border-gray-300"></div>
 
-        {/* 🎯 PHASE 1: System Health Monitoring - Phase 2 Status */}
+        {/* 🎯 System Health Monitoring - Real-Time Data */}
         {realTimeMetrics?.system_health && (
           <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-l-4 border-blue-500 p-8 shadow-md">
             <h3 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
@@ -480,49 +480,30 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
               System Health
             </h3>
 
-            {/* Phase 2 planned - show status message */}
-            {realTimeMetrics.system_health.status === 'phase_2_planned' ? (
-              <div className="space-y-6">
-                <div className="p-6 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-shrink-0">
-                      <Server className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-lg font-semibold text-blue-900 mb-3">
-                        AWS CloudWatch Integration - Coming Soon
-                      </h4>
-                      <p className="text-sm text-blue-800 mb-4">
-                        {realTimeMetrics.system_health.message}
+            {/* Always show actual metrics or unavailable status */}
+            {realTimeMetrics.system_health.status === 'cloudwatch_required' || realTimeMetrics.system_health.status === 'cloudwatch_disabled' ? (
+              <div className="p-6 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <Server className="h-8 w-8 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-blue-900 mb-3">
+                      AWS CloudWatch Integration
+                    </h4>
+                    <p className="text-sm text-blue-800 mb-4">
+                      {realTimeMetrics.system_health.message || 'Configure CloudWatch to enable real-time system metrics'}
+                    </p>
+                    {realTimeMetrics.system_health.note && (
+                      <p className="text-xs text-blue-600 bg-blue-50 p-3 rounded">
+                        {realTimeMetrics.system_health.note}
                       </p>
-                      <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
-                        {realTimeMetrics.system_health.available_metrics?.map((metric, index) => (
-                          <div key={index} className="flex items-center space-x-2 text-sm text-blue-700 bg-blue-50 p-3 rounded-lg">
-                            <CheckCircle className="h-5 w-5 text-blue-500" />
-                            <span className="font-medium">{metric}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-6 flex items-center space-x-2">
-                        <span className="px-4 py-2 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
-                          Estimated: {realTimeMetrics.system_health.estimated_availability}
-                        </span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Show Performance Metrics if available */}
-                {realTimeMetrics.performance_metrics?.status === 'phase_2_planned' && (
-                  <div className="p-6 bg-white border-2 border-yellow-200 rounded-lg shadow-sm">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Performance Tracking:</strong> {realTimeMetrics.performance_metrics.message}
-                    </p>
-                  </div>
-                )}
               </div>
             ) : (
-              /* Phase 2+ - show actual metrics */
+              /* Show actual metrics from CloudWatch */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <div className="space-y-6 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                   <ProgressBar
@@ -573,7 +554,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
         {/* Horizontal Divider */}
         <div className="border-t border-gray-300"></div>
 
-        {/* 🎯 PHASE 1: Predictive Analytics Section - Phase 3 Status with Progress */}
+        {/* 🎯 Predictive Analytics - Machine Learning Insights */}
         {predictiveData && (
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-l-4 border-purple-500 p-8 shadow-md">
             <h3 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
@@ -582,100 +563,42 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
               Predictive Analytics
             </h3>
 
-            {/* Phase 3 - Collecting Data or Ready */}
-            {predictiveData.status === 'collecting_data' || predictiveData.status === 'phase_3_planned' ? (
-              <div className="space-y-6">
-                {/* Status Message */}
-                <div className="p-6 bg-white border-2 border-purple-200 rounded-lg shadow-sm">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-shrink-0">
-                      <Target className="h-8 w-8 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="text-lg font-semibold text-purple-900 mb-3">
-                        Machine Learning Models - Building Predictions
-                      </h4>
-                      <p className="text-sm text-purple-800 mb-6">
-                        {predictiveData.message}
-                      </p>
-
-                      {/* Data Collection Progress */}
-                      {predictiveData.data_collection && (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-purple-900">Data Collection Progress</span>
-                            <span className="text-sm text-purple-700">
-                              {predictiveData.data_collection.days_collected} / {predictiveData.data_collection.minimum_required} days
-                            </span>
-                          </div>
-                          <ProgressBar
-                            label=""
-                            value={predictiveData.data_collection.collection_progress || 0}
-                            color="purple"
-                          />
-                          <div className="flex items-center justify-between text-xs text-purple-700">
-                            <span>{predictiveData.data_collection.total_actions} total actions recorded</span>
-                            <span>Ready by: {predictiveData.data_collection.estimated_ready_date}</span>
-                          </div>
-                        </div>
-                      )}
+            {/* Show data collection progress if still collecting */}
+            {predictiveData.status === 'collecting_data' && predictiveData.data_collection ? (
+              <div className="p-6 bg-white border-2 border-purple-200 rounded-lg shadow-sm">
+                <div className="flex items-start space-x-4">
+                  <div className="flex-shrink-0">
+                    <Target className="h-8 w-8 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-lg font-semibold text-purple-900 mb-3">
+                      Machine Learning Models - Building Predictions
+                    </h4>
+                    <p className="text-sm text-purple-800 mb-6">
+                      {predictiveData.message}
+                    </p>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-purple-900">Data Collection Progress</span>
+                        <span className="text-sm text-purple-700">
+                          {predictiveData.data_collection.days_collected} / {predictiveData.data_collection.minimum_required} days
+                        </span>
+                      </div>
+                      <ProgressBar
+                        label=""
+                        value={predictiveData.data_collection.collection_progress || 0}
+                        color="purple"
+                      />
+                      <div className="flex items-center justify-between text-xs text-purple-700">
+                        <span>{predictiveData.data_collection.total_actions} total actions recorded</span>
+                        <span>Ready by: {predictiveData.data_collection.estimated_ready_date}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-
-                {/* Planned Features */}
-                {predictiveData.planned_features && predictiveData.planned_features.length > 0 && (
-                  <div className="p-6 bg-white border-2 border-purple-100 rounded-lg shadow-sm">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-                      <CheckCircle className="h-6 w-6 mr-2 text-purple-600" />
-                      Coming Soon: AI-Powered Predictions
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {predictiveData.planned_features.map((feature, index) => (
-                        <div key={index} className="p-5 bg-purple-50 rounded-lg border-2 border-purple-100 shadow-sm">
-                          <div className="flex items-start space-x-3">
-                            <div className="flex-shrink-0 mt-1">
-                              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                            </div>
-                            <div className="flex-1">
-                              <h5 className="text-sm font-bold text-purple-900 mb-2">
-                                {feature.feature}
-                              </h5>
-                              <p className="text-xs text-purple-700 mb-3">
-                                {feature.description}
-                              </p>
-                              <div className="flex items-center space-x-3 text-xs">
-                                {feature.accuracy_target && (
-                                  <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded font-medium">
-                                    {feature.accuracy_target} accuracy
-                                  </span>
-                                )}
-                                {feature.benefit && (
-                                  <span className="text-purple-600 font-medium">
-                                    {feature.benefit}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Phase Metadata */}
-                {predictiveData.meta && (
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
-                    <span>Phase: {predictiveData.meta.phase}</span>
-                    {predictiveData.meta.estimated_availability && (
-                      <span>Estimated: {predictiveData.meta.estimated_availability}</span>
-                    )}
-                  </div>
-                )}
               </div>
-            ) : (
-              /* Phase 3+ - Show actual predictions */
+            ) : predictiveData.risk_forecast && predictiveData.risk_forecast.length > 0 ? (
+              /* Show actual predictions when available */
               <div className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
@@ -739,6 +662,17 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
                     </ul>
                   </div>
                 )}
+              </div>
+            ) : (
+              /* No predictions available yet */
+              <div className="p-6 bg-white border-2 border-purple-200 rounded-lg shadow-sm text-center">
+                <Target className="h-12 w-12 mx-auto text-purple-400 mb-4" />
+                <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                  Predictive Analytics Unavailable
+                </h4>
+                <p className="text-sm text-gray-600">
+                  Insufficient data for predictions. System will begin forecasting once minimum data threshold is reached.
+                </p>
               </div>
             )}
           </div>
