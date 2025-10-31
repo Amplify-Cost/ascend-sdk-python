@@ -516,49 +516,56 @@ async def create_governance_policy(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_manager_or_admin)
 ):
-    """Enterprise Policy Creation - Uses agent_actions table"""
+    """Enterprise Policy Creation - Uses EnterprisePolicy table"""
     try:
         logger.info(f"Policy creation by {current_user.get('email')}")
-        
+
         # Validate required fields
         policy_name = policy_data.get("policy_name") or policy_data.get("name")
         if not policy_name:
-            raise HTTPException(status_code=400, detail="Policy name required")
-        
-        # Create policy as AgentAction record
-        new_policy = AgentAction(
-            agent_id="policy-engine",
-            action_type="governance_policy",
-            description=policy_data.get("description", ""),
-            risk_level=policy_data.get("risk_threshold", "medium"),
+            raise HTTPException(status_code=400, detail="Policy name is required")
+
+        description = policy_data.get("description", "")
+        if not description:
+            raise HTTPException(status_code=400, detail="Policy description is required")
+
+        # Get effect with default (required field for EnterprisePolicy)
+        effect = policy_data.get("effect", "deny")
+        if effect not in ["allow", "deny", "require_approval"]:
+            effect = "deny"
+
+        # Create policy in CORRECT table (EnterprisePolicy)
+        new_policy = EnterprisePolicy(
+            policy_name=policy_name,
+            description=description,
+            effect=effect,
+            actions=policy_data.get("actions", []),
+            resources=policy_data.get("resources", []),
+            conditions=policy_data.get("conditions", {}),
+            priority=policy_data.get("priority", 100),
             status="active",
-            extra_data={
-                "policy_name": policy_name,
-                "requires_approval": policy_data.get("requires_approval", False),
-                "created_by": current_user.get("email"),
-                "policy_type": "governance",
-                "compliance_framework": policy_data.get("compliance_framework"),
-                "version": 1
-            }
+            created_by=current_user.get("email", "system")
         )
-        
+
         db.add(new_policy)
         db.commit()
         db.refresh(new_policy)
-        
+
         logger.info(f"✅ Policy created: {policy_name} (ID: {new_policy.id})")
-        
+
         return {
             "success": True,
             "policy_id": new_policy.id,
             "policy_name": policy_name,
             "message": "Policy created successfully"
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Policy creation failed: {str(e)}")
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Policy creation failed: {str(e)}")
 
 
 @router.get("/policies")
@@ -1521,44 +1528,36 @@ async def create_policy_from_template(
     try:
         template_id = request_data.get("template_id")
         customizations = request_data.get("customizations", {})
-        
+
         if template_id not in ENTERPRISE_TEMPLATES:
             raise HTTPException(status_code=404, detail="Template not found")
-        
+
         # Get template config
         template_config = ENTERPRISE_TEMPLATES[template_id].copy()
-        
+
         # Apply customizations if provided
         if customizations:
             template_config.update(customizations)
-        
-        # Create policy in database
-        new_policy = AgentAction(
-            agent_id="policy-engine",
-            action_type="governance_policy",
+
+        # Create policy in CORRECT table (EnterprisePolicy)
+        new_policy = EnterprisePolicy(
+            policy_name=template_config['name'],
             description=template_config['description'],
-            risk_level=template_config['severity'].lower(),
+            effect=template_config['effect'],
+            actions=template_config.get('actions', []),
+            resources=template_config.get('resource_types', []),
+            conditions=template_config.get('conditions', {}),
+            priority=100,
             status="active",
-            extra_data={
-                "policy_name": template_config['name'],
-                "template_id": template_id,
-                "resource_types": template_config['resource_types'],
-                "actions": template_config['actions'],
-                "effect": template_config['effect'],
-                "conditions": template_config.get('conditions', {}),
-                "compliance_frameworks": template_config.get('compliance_frameworks', []),
-                "created_by": current_user.get("email"),
-                "policy_type": "enterprise_template",
-                "version": 1
-            }
+            created_by=current_user.get("email", "system")
         )
-        
+
         db.add(new_policy)
         db.commit()
         db.refresh(new_policy)
-        
+
         logger.info(f"✅ Policy created from template {template_id}: {new_policy.id}")
-        
+
         return {
             "success": True,
             "policy_id": new_policy.id,
