@@ -1059,6 +1059,8 @@ const fetchWorkflowOrchestrations = async () => {
         const result = await response.json();
         alert("Policy created successfully!");
         setNewPolicy({ policy_name: "", description: "" });
+        // Refresh the policy list to show the new policy
+        await fetchPolicies();
       } else {
         console.error("❌ Policy creation failed:", await response.text());
         alert("Policy creation failed. Please try again.");
