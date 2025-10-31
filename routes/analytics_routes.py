@@ -193,62 +193,87 @@ def get_realtime_metrics(
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
         
-        # Real-time active sessions (simulated with audit logs)
-        try:
-            active_sessions = db.query(func.count(AuditLog.id)).filter(
-                AuditLog.timestamp >= hour_ago
-            ).scalar() or 0
-        except Exception:
-            active_sessions = 15  # 🎯 FIX: Added fallback
-        
+        # ===== PHASE 1: REAL DATABASE QUERIES (NO FALLBACKS) =====
+
+        # Real-time active sessions from audit logs
+        active_sessions = db.query(func.count(AuditLog.id)).filter(
+            AuditLog.timestamp >= hour_ago
+        ).scalar() or 0
+
         # Recent high-risk actions
-        try:
-            recent_high_risk = db.query(func.count(AgentAction.id)).filter(
-                and_(
-                    AgentAction.timestamp >= hour_ago,
-                    AgentAction.risk_level == "high"
-                )
-            ).scalar() or 0
-        except Exception:
-            recent_high_risk = 3  # 🎯 FIX: Added fallback
-        
+        recent_high_risk = db.query(func.count(AgentAction.id)).filter(
+            and_(
+                AgentAction.timestamp >= hour_ago,
+                AgentAction.risk_level.in_(['high', 'critical'])
+            )
+        ).scalar() or 0
+
         # Active agents in last hour
-        try:
-            active_agents = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
-                AgentAction.timestamp >= hour_ago
-            ).scalar() or 0
-        except Exception:
-            active_agents = 5  # 🎯 FIX: Added fallback
-        
-        # Real-time system health simulation
+        active_agents = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
+            AgentAction.timestamp >= hour_ago
+        ).scalar() or 0
+
+        # Total actions in last hour
+        total_actions = db.query(func.count(AgentAction.id)).filter(
+            AgentAction.timestamp >= hour_ago
+        ).scalar() or 0
+
+        # Total actions today
+        actions_today = db.query(func.count(AgentAction.id)).filter(
+            AgentAction.timestamp >= day_ago
+        ).scalar() or 0
+
+        # ===== DATA QUALITY INDICATORS =====
+        has_data = total_actions > 0
+        data_quality = {
+            "source": "production_database",
+            "timestamp": now.isoformat(),
+            "has_historical_data": actions_today > 0,
+            "has_recent_activity": has_data,
+            "data_status": "live" if has_data else "no_recent_activity"
+        }
+
+        # ===== PHASE 2 PLACEHOLDERS (Coming in Week 1) =====
         system_health = {
-            "cpu_usage": 45.2,
-            "memory_usage": 68.1,
-            "disk_usage": 34.7,
-            "network_latency": 12.3,
-            "api_response_time": 156.8
+            "status": "phase_2_planned",
+            "message": "System health monitoring with AWS CloudWatch will be available in Phase 2 (Week 1)",
+            "available_metrics": ["CPU", "Memory", "Disk", "Network", "API Response Time"],
+            "estimated_availability": "Week 1"
         }
-        
-        # Performance metrics
+
         performance_metrics = {
-            "requests_per_second": 24.7,
-            "error_rate": 0.02,
-            "average_response_time": 145.2,
-            "concurrent_users": active_sessions,
-            "cache_hit_rate": 94.3
+            "status": "phase_2_planned",
+            "message": "Performance tracking with CloudWatch Logs Insights will be available in Phase 2 (Week 1)",
+            "planned_metrics": ["Requests/sec", "Error rate", "Response time", "Cache hit rate"],
+            "estimated_availability": "Week 1"
         }
-        
+
         return {
             "timestamp": now.isoformat(),
             "real_time_overview": {
                 "active_sessions": active_sessions,
                 "recent_high_risk_actions": recent_high_risk,
                 "active_agents": active_agents,
-                "total_actions_last_hour": active_sessions + recent_high_risk
+                "total_actions_last_hour": total_actions,
+                "actions_last_24h": actions_today,
+
+                # User-friendly status
+                "status": {
+                    "has_data": has_data,
+                    "message": "Live data from production database" if has_data else "No activity in last hour",
+                    "data_age_minutes": 0 if has_data else None
+                }
             },
             "system_health": system_health,
             "performance_metrics": performance_metrics,
-            "status": "healthy" if system_health["cpu_usage"] < 80 else "warning"
+            "data_quality": data_quality,
+            "meta": {
+                "version": "1.0.0-phase1",
+                "enterprise_grade": True,
+                "mock_data": False,
+                "real_data_sources": ["postgresql_rds"],
+                "phase": "1_of_3"
+            }
         }
         
     except Exception as e:
@@ -258,68 +283,82 @@ def get_realtime_metrics(
 @router.get("/predictive/trends")
 def get_predictive_trends(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
+    current_user: dict = Depends(get_current_user)
 ):
-    """AI-powered predictive analytics for enterprise planning"""
+    """
+    Predictive Analytics - Phase 3 Feature
+
+    Returns status information instead of mock data.
+    ML-powered predictions will be available after collecting sufficient historical data.
+    """
     try:
-        logger.info(f"🔮 Predictive analytics requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
-        
-        # Historical data analysis for predictions
-        last_30_days = datetime.now(UTC) - timedelta(days=30)
-        
-        # Risk trend prediction (simulated AI analysis)
-        risk_forecast = [
-            {"date": "2025-08-11", "predicted_high_risk": 4, "confidence": 0.87},
-            {"date": "2025-08-12", "predicted_high_risk": 6, "confidence": 0.82},
-            {"date": "2025-08-13", "predicted_high_risk": 3, "confidence": 0.91},
-            {"date": "2025-08-14", "predicted_high_risk": 8, "confidence": 0.76},
-            {"date": "2025-08-15", "predicted_high_risk": 5, "confidence": 0.84}
-        ]
-        
-        # Agent workload predictions
-        agent_workload_forecast = [
-            {"agent": "security-scanner-01", "predicted_actions": 45, "capacity_utilization": 0.72},
-            {"agent": "compliance-agent", "predicted_actions": 38, "capacity_utilization": 0.61},
-            {"agent": "threat-analyzer", "predicted_actions": 52, "capacity_utilization": 0.83}
-        ]
-        
-        # System capacity predictions
-        capacity_forecast = {
-            "cpu_trend": "increasing",
-            "memory_trend": "stable", 
-            "predicted_peak_usage": {
-                "date": "2025-08-14",
-                "cpu_peak": 78.4,
-                "memory_peak": 81.2
-            },
-            "scaling_recommendation": "Consider additional resources by August 14th"
-        }
-        
-        # Risk assessment predictions
-        risk_predictions = {
-            "high_risk_probability": 0.23,
-            "critical_risk_probability": 0.05,
-            "recommended_actions": [
-                "Increase monitoring for agent security-scanner-01",
-                "Review compliance policies for upcoming peak",
-                "Prepare incident response for predicted high-risk period"
-            ]
-        }
-        
+        logger.info(f"🔮 Predictive analytics requested by: {current_user.get('email')}")
+
+        # Check how much historical data we have
+        thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
+
+        historical_count = db.execute(text("""
+            SELECT COUNT(DISTINCT DATE(timestamp)) as days_with_data
+            FROM agent_actions
+            WHERE timestamp >= :start_date
+        """), {"start_date": thirty_days_ago}).scalar() or 0
+
+        total_actions = db.query(func.count(AgentAction.id)).filter(
+            AgentAction.timestamp >= thirty_days_ago
+        ).scalar() or 0
+
+        # Calculate progress toward prediction readiness
+        minimum_days_required = 14
+        is_ready = historical_count >= minimum_days_required
+
         return {
-            "generated_at": datetime.now(UTC).isoformat(),
-            "prediction_horizon": "7_days",
-            "risk_forecast": risk_forecast,
-            "agent_workload_forecast": agent_workload_forecast,
-            "capacity_forecast": capacity_forecast,
-            "risk_predictions": risk_predictions,
-            "model_accuracy": 0.89,
-            "last_trained": "2025-08-10T12:00:00Z"
+            "status": "collecting_data" if not is_ready else "ready",
+            "message": "Predictive analytics powered by machine learning will be available in Phase 3 (Week 2)" if not is_ready else "Sufficient data collected - ML training will begin in Phase 3",
+            "data_collection": {
+                "days_collected": historical_count,
+                "minimum_required": minimum_days_required,
+                "total_actions": total_actions,
+                "collection_progress": round((historical_count / minimum_days_required) * 100, 1) if historical_count < minimum_days_required else 100,
+                "estimated_ready_date": (datetime.now(UTC) + timedelta(days=max(0, minimum_days_required - historical_count))).strftime("%Y-%m-%d") if not is_ready else "Ready"
+            },
+            "planned_features": [
+                {
+                    "feature": "Risk Trend Forecasting",
+                    "description": "Predict high-risk action patterns 7 days ahead",
+                    "accuracy_target": "85%+",
+                    "benefit": "Proactive threat mitigation"
+                },
+                {
+                    "feature": "Agent Workload Prediction",
+                    "description": "Forecast agent capacity and utilization",
+                    "accuracy_target": "80%+",
+                    "benefit": "Capacity planning and resource optimization"
+                },
+                {
+                    "feature": "System Capacity Forecasting",
+                    "description": "Predict infrastructure needs based on growth trends",
+                    "accuracy_target": "75%+",
+                    "benefit": "Prevent performance issues before they occur"
+                },
+                {
+                    "feature": "Anomaly Detection",
+                    "description": "Identify unusual patterns and potential security threats",
+                    "accuracy_target": "90%+",
+                    "benefit": "Early warning system for security incidents"
+                }
+            ],
+            "meta": {
+                "version": "1.0.0-phase1",
+                "mock_data": False,
+                "phase": "3_planned",
+                "estimated_availability": "Week 2"
+            },
+            "timestamp": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"❌ Predictive analytics error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to generate predictive trends")
+        raise HTTPException(status_code=500, detail="Failed to fetch predictive analytics status")
 
 @router.get("/executive/dashboard")
 def get_executive_dashboard(
