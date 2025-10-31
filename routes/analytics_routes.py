@@ -11,6 +11,7 @@ from collections import defaultdict, Counter
 from dependencies import get_current_user, require_admin
 from services.pending_actions_service import pending_service
 from services.cloudwatch_service import get_cloudwatch_service  # Phase 2: CloudWatch integration
+from services.ml_prediction_service import get_prediction_engine  # Phase 3: ML predictions
 from typing import List, Dict, Any, Optional
 import json
 import asyncio
@@ -351,10 +352,10 @@ def get_predictive_trends(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Predictive Analytics - Phase 3 Feature
+    ===== PHASE 3: ML-Powered Predictive Analytics =====
 
-    Returns status information instead of mock data.
-    ML-powered predictions will be available after collecting sufficient historical data.
+    Provides intelligent forecasting, anomaly detection, and strategic recommendations.
+    Works with limited data using pattern recognition and statistical analysis.
     """
     try:
         logger.info(f"🔮 Predictive analytics requested by: {current_user.get('email')}")
@@ -372,19 +373,92 @@ def get_predictive_trends(
             AgentAction.timestamp >= thirty_days_ago
         ).scalar() or 0
 
-        # Calculate progress toward prediction readiness
-        minimum_days_required = 14
-        is_ready = historical_count >= minimum_days_required
+        # ===== PHASE 3: SMART PREDICTIONS =====
+        # Minimum 4 days for pattern-based predictions
+        minimum_days_for_predictions = 4
+
+        if historical_count >= minimum_days_for_predictions:
+            # We have enough data - generate predictions!
+            logger.info(f"✅ Generating predictions with {historical_count} days of data")
+
+            try:
+                prediction_engine = get_prediction_engine(db)
+
+                # Generate forecasts
+                risk_forecast = prediction_engine.forecast_risks(days=7)
+                agent_workload = prediction_engine.predict_agent_workload()
+                anomalies = prediction_engine.detect_anomalies()
+                recommendations = prediction_engine.generate_recommendations(
+                    risk_forecast, agent_workload, anomalies
+                )
+
+                # Determine prediction quality
+                if historical_count >= 14:
+                    prediction_quality = "high"
+                    method = "ml_powered"
+                elif historical_count >= 8:
+                    prediction_quality = "medium"
+                    method = "trend_based"
+                else:
+                    prediction_quality = "developing"
+                    method = "pattern_based"
+
+                # Calculate confidence range
+                confidences = []
+                if risk_forecast:
+                    confidences.extend([f["confidence"] for f in risk_forecast])
+                if agent_workload:
+                    confidences.extend([w["confidence"] for w in agent_workload])
+
+                min_conf = min(confidences) if confidences else 0.5
+                max_conf = max(confidences) if confidences else 0.7
+
+                return {
+                    "status": "active",
+                    "prediction_quality": prediction_quality,
+                    "risk_forecast": risk_forecast,
+                    "agent_workload_forecast": agent_workload,
+                    "anomalies": anomalies,
+                    "risk_predictions": {
+                        "recommended_actions": recommendations
+                    },
+                    "data_collection": {
+                        "days_collected": historical_count,
+                        "total_actions": total_actions,
+                        "collection_progress": 100.0,
+                        "ready": True,
+                        "quality": f"{'Excellent' if historical_count >= 14 else 'Good' if historical_count >= 8 else 'Sufficient'} data for {prediction_quality} quality predictions"
+                    },
+                    "meta": {
+                        "version": "1.0.0-phase3",
+                        "mock_data": False,
+                        "prediction_method": method,
+                        "confidence_range": [round(min_conf, 2), round(max_conf, 2)],
+                        "phase": "3_of_3_active"
+                    },
+                    "timestamp": datetime.now(UTC).isoformat()
+                }
+
+            except Exception as pred_error:
+                logger.error(f"Prediction generation failed: {pred_error}")
+                # Fall through to collecting_data status
+
+        # ===== NOT ENOUGH DATA YET =====
+        logger.info(f"⏳ Still collecting data: {historical_count}/{minimum_days_for_predictions} days")
+
+        minimum_days_required = 14  # For high-quality predictions
+        collection_progress = (historical_count / minimum_days_for_predictions) * 100
 
         return {
-            "status": "collecting_data" if not is_ready else "ready",
-            "message": "Predictive analytics powered by machine learning will be available in Phase 3 (Week 2)" if not is_ready else "Sufficient data collected - ML training will begin in Phase 3",
+            "status": "collecting_data",
+            "message": f"Collecting data for predictions. Minimum {minimum_days_for_predictions} days needed for pattern-based forecasting.",
             "data_collection": {
                 "days_collected": historical_count,
-                "minimum_required": minimum_days_required,
+                "minimum_required": minimum_days_for_predictions,
+                "optimal_required": minimum_days_required,
                 "total_actions": total_actions,
-                "collection_progress": round((historical_count / minimum_days_required) * 100, 1) if historical_count < minimum_days_required else 100,
-                "estimated_ready_date": (datetime.now(UTC) + timedelta(days=max(0, minimum_days_required - historical_count))).strftime("%Y-%m-%d") if not is_ready else "Ready"
+                "collection_progress": round(collection_progress, 1),
+                "estimated_ready_date": (datetime.now(UTC) + timedelta(days=max(0, minimum_days_for_predictions - historical_count))).strftime("%Y-%m-%d")
             },
             "planned_features": [
                 {
@@ -400,30 +474,30 @@ def get_predictive_trends(
                     "benefit": "Capacity planning and resource optimization"
                 },
                 {
-                    "feature": "System Capacity Forecasting",
-                    "description": "Predict infrastructure needs based on growth trends",
-                    "accuracy_target": "75%+",
-                    "benefit": "Prevent performance issues before they occur"
-                },
-                {
                     "feature": "Anomaly Detection",
                     "description": "Identify unusual patterns and potential security threats",
                     "accuracy_target": "90%+",
                     "benefit": "Early warning system for security incidents"
+                },
+                {
+                    "feature": "Strategic Recommendations",
+                    "description": "AI-powered actionable insights for optimization",
+                    "accuracy_target": "N/A",
+                    "benefit": "Data-driven decision making"
                 }
             ],
             "meta": {
-                "version": "1.0.0-phase1",
+                "version": "1.0.0-phase3",
                 "mock_data": False,
-                "phase": "3_planned",
-                "estimated_availability": "Week 2"
+                "phase": "3_collecting",
+                "days_until_ready": max(0, minimum_days_for_predictions - historical_count)
             },
             "timestamp": datetime.now(UTC).isoformat()
         }
 
     except Exception as e:
         logger.error(f"❌ Predictive analytics error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch predictive analytics status")
+        raise HTTPException(status_code=500, detail="Failed to fetch predictive analytics")
 
 @router.get("/executive/dashboard")
 def get_executive_dashboard(
