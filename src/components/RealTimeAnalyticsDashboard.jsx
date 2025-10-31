@@ -259,22 +259,22 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
   };
 
   const MetricCard = ({ icon: Icon, title, value, subtitle, trend, status }) => (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-all duration-200">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
+          <div className="p-3 bg-blue-100 rounded-lg">
             <Icon className="h-6 w-6 text-blue-600" />
           </div>
           <h3 className="text-sm font-medium text-gray-900">{title}</h3>
         </div>
         {status && <StatusIndicator status={status} />}
       </div>
-      <div className="space-y-1">
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <div className="space-y-2">
+        <p className="text-3xl font-bold text-gray-900">{value}</p>
         {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
         {trend && (
           <div className={`flex items-center space-x-1 text-sm ${
-            trend.includes('+') || trend.includes('Excellent') ? 'text-green-600' : 
+            trend.includes('+') || trend.includes('Excellent') ? 'text-green-600' :
             trend.includes('-') || trend.includes('Alert') ? 'text-red-600' : 'text-gray-600'
           }`}>
             <TrendingUp className="h-4 w-4" />
@@ -313,16 +313,16 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
   // 🎯 MASTER PROMPT: Enhanced loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-lg border border-gray-200 p-8">
-            <div className="flex items-center justify-center space-x-3">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="text-lg text-gray-600">
+          <div className="bg-white rounded-lg border-2 border-gray-200 shadow-md p-12">
+            <div className="flex items-center justify-center space-x-4">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+              <span className="text-xl font-medium text-gray-700">
                 Loading enterprise analytics for {user?.email || 'user'}...
               </span>
             </div>
-            <div className="mt-4 text-center text-sm text-gray-500">
+            <div className="mt-6 text-center text-sm text-gray-500">
               Connecting to real-time monitoring systems...
             </div>
           </div>
@@ -334,42 +334,42 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
   // 🎯 MASTER PROMPT: Enhanced error state with actionable information
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-white rounded-lg border border-red-200 p-8">
-            <div className="flex items-center space-x-3 text-red-600">
-              <AlertTriangle className="h-8 w-8" />
+          <div className="bg-white rounded-lg border-2 border-red-200 shadow-md p-8">
+            <div className="flex items-center space-x-4 text-red-600 mb-6">
+              <AlertTriangle className="h-10 w-10" />
               <div>
-                <h3 className="text-lg font-medium">Analytics Connection Error</h3>
-                <p className="text-sm text-red-500">{error}</p>
+                <h3 className="text-xl font-bold">Analytics Connection Error</h3>
+                <p className="text-sm text-red-500 mt-1">{error}</p>
                 <p className="text-xs text-gray-500 mt-2">
                   User: {user?.email || 'Not authenticated'} | Role: {user?.role || 'Unknown'}
                 </p>
               </div>
             </div>
-            <div className="mt-4 space-x-3">
-              <button 
+            <div className="mt-6 space-x-4">
+              <button
                 onClick={fetchAnalyticsData}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium shadow-sm"
               >
                 Retry Connection
               </button>
-              <button 
+              <button
                 onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium shadow-sm"
               >
                 Refresh Page
               </button>
             </div>
-            
+
             {/* 🎯 MASTER PROMPT: Debug information for troubleshooting */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Debug Information:</h4>
-              <div className="text-xs text-gray-600 space-y-1">
-                <p>API URL: {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
-                <p>Auth Headers: {getAuthHeaders ? 'Available' : 'Not available'}</p>
-                <p>User Role: {user?.role || 'Unknown'}</p>
-                <p>Endpoints: /api/analytics/realtime/metrics, /api/analytics/predictive/trends, /api/analytics/performance/system</p>
+            <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
+              <h4 className="text-sm font-bold text-gray-700 mb-4">Debug Information:</h4>
+              <div className="text-xs text-gray-600 space-y-2">
+                <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
+                <p><strong>Auth Headers:</strong> {getAuthHeaders ? 'Available' : 'Not available'}</p>
+                <p><strong>User Role:</strong> {user?.role || 'Unknown'}</p>
+                <p><strong>Endpoints:</strong> /api/analytics/realtime/metrics, /api/analytics/predictive/trends, /api/analytics/performance/system</p>
               </div>
             </div>
           </div>
@@ -379,21 +379,21 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto space-y-8">
+
         {/* 🎯 MASTER PROMPT: Enterprise header with connection status */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-md p-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                <Activity className="h-6 w-6 mr-2 text-blue-600" />
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center mb-2">
+                <Activity className="h-8 w-8 mr-3 text-blue-600" />
                 Real-Time Analytics Dashboard
               </h1>
-              <p className="text-gray-600">Enterprise monitoring and predictive insights for {user?.email}</p>
+              <p className="text-gray-600 text-lg">Enterprise monitoring and predictive insights for {user?.email}</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
+              <div className={`flex items-center space-x-2 px-4 py-2 rounded-full ${
                 isConnected ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
               }`}>
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
@@ -406,13 +406,19 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
           </div>
         </div>
 
+        {/* Horizontal Divider */}
+        <div className="border-t border-gray-300"></div>
+
         {/* 🎯 PHASE 1: Real-Time Overview with Status Messaging */}
         {realTimeMetrics && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">Real-Time Overview</h2>
+          <div className="space-y-6 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-l-4 border-green-500 p-8 shadow-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+                <div className="w-1 h-8 bg-green-500 rounded-full mr-3"></div>
+                Real-Time Metrics
+              </h2>
               {realTimeMetrics.data_quality && (
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                <span className={`px-4 py-2 rounded-full text-sm font-medium ${
                   realTimeMetrics.data_quality.data_status === 'live'
                     ? 'bg-green-100 text-green-800'
                     : 'bg-yellow-100 text-yellow-800'
@@ -452,7 +458,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
 
             {/* Phase 1: Helpful message when no data */}
             {!realTimeMetrics.real_time_overview?.status?.has_data && (
-              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="mt-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-800">
                   <strong>No recent activity detected.</strong> Metrics will appear as agents perform actions.
                   Try creating a policy or running an authorization test to see live data.
@@ -462,39 +468,43 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
           </div>
         )}
 
+        {/* Horizontal Divider */}
+        <div className="border-t border-gray-300"></div>
+
         {/* 🎯 PHASE 1: System Health Monitoring - Phase 2 Status */}
         {realTimeMetrics?.system_health && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-              <Server className="h-5 w-5 mr-2 text-green-600" />
+          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-l-4 border-blue-500 p-8 shadow-md">
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
+              <div className="w-1 h-8 bg-blue-500 rounded-full mr-3"></div>
+              <Server className="h-7 w-7 mr-3 text-blue-600" />
               System Health
             </h3>
 
             {/* Phase 2 planned - show status message */}
             {realTimeMetrics.system_health.status === 'phase_2_planned' ? (
-              <div className="space-y-4">
-                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
-                  <div className="flex items-start space-x-3">
+              <div className="space-y-6">
+                <div className="p-6 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
+                  <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0">
-                      <Server className="h-6 w-6 text-blue-600" />
+                      <Server className="h-8 w-8 text-blue-600" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-md font-semibold text-blue-900 mb-2">
+                      <h4 className="text-lg font-semibold text-blue-900 mb-3">
                         AWS CloudWatch Integration - Coming Soon
                       </h4>
-                      <p className="text-sm text-blue-800 mb-3">
+                      <p className="text-sm text-blue-800 mb-4">
                         {realTimeMetrics.system_health.message}
                       </p>
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div className="mt-6 grid grid-cols-2 md:grid-cols-3 gap-4">
                         {realTimeMetrics.system_health.available_metrics?.map((metric, index) => (
-                          <div key={index} className="flex items-center space-x-2 text-sm text-blue-700">
-                            <CheckCircle className="h-4 w-4 text-blue-500" />
-                            <span>{metric}</span>
+                          <div key={index} className="flex items-center space-x-2 text-sm text-blue-700 bg-blue-50 p-3 rounded-lg">
+                            <CheckCircle className="h-5 w-5 text-blue-500" />
+                            <span className="font-medium">{metric}</span>
                           </div>
                         ))}
                       </div>
-                      <div className="mt-4 flex items-center space-x-2">
-                        <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                      <div className="mt-6 flex items-center space-x-2">
+                        <span className="px-4 py-2 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">
                           Estimated: {realTimeMetrics.system_health.estimated_availability}
                         </span>
                       </div>
@@ -504,7 +514,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
 
                 {/* Show Performance Metrics if available */}
                 {realTimeMetrics.performance_metrics?.status === 'phase_2_planned' && (
-                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="p-6 bg-white border-2 border-yellow-200 rounded-lg shadow-sm">
                     <p className="text-sm text-yellow-800">
                       <strong>Performance Tracking:</strong> {realTimeMetrics.performance_metrics.message}
                     </p>
@@ -513,8 +523,8 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
               </div>
             ) : (
               /* Phase 2+ - show actual metrics */
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="space-y-6 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                   <ProgressBar
                     label="CPU Usage"
                     value={realTimeMetrics.system_health.cpu_usage || 0}
@@ -526,7 +536,7 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
                     color={realTimeMetrics.system_health.memory_usage > 80 ? 'red' : realTimeMetrics.system_health.memory_usage > 60 ? 'yellow' : 'green'}
                   />
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-6 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                   <ProgressBar
                     label="Disk Usage"
                     value={realTimeMetrics.system_health.disk_usage || 0}
@@ -534,22 +544,22 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
                   />
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-700">Network Latency</span>
-                      <span className="text-gray-900 font-medium">{realTimeMetrics.system_health.network_latency || 0}ms</span>
+                      <span className="text-gray-700 font-medium">Network Latency</span>
+                      <span className="text-gray-900 font-bold">{realTimeMetrics.system_health.network_latency || 0}ms</span>
                     </div>
                   </div>
                 </div>
-                <div className="space-y-4">
+                <div className="space-y-6 bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-700">Requests/sec</span>
-                      <span className="text-gray-900 font-medium">{(realTimeMetrics.performance_metrics?.requests_per_second || 0).toFixed(1)}</span>
+                      <span className="text-gray-700 font-medium">Requests/sec</span>
+                      <span className="text-gray-900 font-bold">{(realTimeMetrics.performance_metrics?.requests_per_second || 0).toFixed(1)}</span>
                     </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-700">Error Rate</span>
-                      <span className={`font-medium ${(realTimeMetrics.performance_metrics?.error_rate || 0) > 0.05 ? 'text-red-600' : 'text-green-600'}`}>
+                      <span className="text-gray-700 font-medium">Error Rate</span>
+                      <span className={`font-bold ${(realTimeMetrics.performance_metrics?.error_rate || 0) > 0.05 ? 'text-red-600' : 'text-green-600'}`}>
                         {((realTimeMetrics.performance_metrics?.error_rate || 0) * 100).toFixed(2)}%
                       </span>
                     </div>
@@ -560,11 +570,15 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
           </div>
         )}
 
+        {/* Horizontal Divider */}
+        <div className="border-t border-gray-300"></div>
+
         {/* 🎯 PHASE 1: Predictive Analytics Section - Phase 3 Status with Progress */}
         {predictiveData && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-              <Target className="h-5 w-5 mr-2 text-purple-600" />
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-l-4 border-purple-500 p-8 shadow-md">
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
+              <div className="w-1 h-8 bg-purple-500 rounded-full mr-3"></div>
+              <Target className="h-7 w-7 mr-3 text-purple-600" />
               Predictive Analytics
             </h3>
 
@@ -572,16 +586,16 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
             {predictiveData.status === 'collecting_data' || predictiveData.status === 'phase_3_planned' ? (
               <div className="space-y-6">
                 {/* Status Message */}
-                <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
-                  <div className="flex items-start space-x-3">
+                <div className="p-6 bg-white border-2 border-purple-200 rounded-lg shadow-sm">
+                  <div className="flex items-start space-x-4">
                     <div className="flex-shrink-0">
-                      <Target className="h-6 w-6 text-purple-600" />
+                      <Target className="h-8 w-8 text-purple-600" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="text-md font-semibold text-purple-900 mb-2">
+                      <h4 className="text-lg font-semibold text-purple-900 mb-3">
                         Machine Learning Models - Building Predictions
                       </h4>
-                      <p className="text-sm text-purple-800 mb-4">
+                      <p className="text-sm text-purple-800 mb-6">
                         {predictiveData.message}
                       </p>
 
@@ -611,33 +625,33 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
 
                 {/* Planned Features */}
                 {predictiveData.planned_features && predictiveData.planned_features.length > 0 && (
-                  <div className="p-6 bg-white border border-purple-100 rounded-lg">
-                    <h4 className="text-md font-semibold text-gray-900 mb-4 flex items-center">
-                      <CheckCircle className="h-5 w-5 mr-2 text-purple-600" />
+                  <div className="p-6 bg-white border-2 border-purple-100 rounded-lg shadow-sm">
+                    <h4 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+                      <CheckCircle className="h-6 w-6 mr-2 text-purple-600" />
                       Coming Soon: AI-Powered Predictions
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {predictiveData.planned_features.map((feature, index) => (
-                        <div key={index} className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                        <div key={index} className="p-5 bg-purple-50 rounded-lg border-2 border-purple-100 shadow-sm">
                           <div className="flex items-start space-x-3">
                             <div className="flex-shrink-0 mt-1">
-                              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
                             </div>
                             <div className="flex-1">
-                              <h5 className="text-sm font-semibold text-purple-900 mb-1">
+                              <h5 className="text-sm font-bold text-purple-900 mb-2">
                                 {feature.feature}
                               </h5>
-                              <p className="text-xs text-purple-700 mb-2">
+                              <p className="text-xs text-purple-700 mb-3">
                                 {feature.description}
                               </p>
                               <div className="flex items-center space-x-3 text-xs">
                                 {feature.accuracy_target && (
-                                  <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded">
+                                  <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded font-medium">
                                     {feature.accuracy_target} accuracy
                                   </span>
                                 )}
                                 {feature.benefit && (
-                                  <span className="text-purple-600">
+                                  <span className="text-purple-600 font-medium">
                                     {feature.benefit}
                                   </span>
                                 )}
@@ -662,19 +676,19 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
               </div>
             ) : (
               /* Phase 3+ - Show actual predictions */
-              <div>
+              <div className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
                   {/* Risk Forecast */}
-                  <div>
-                    <h4 className="text-md font-medium text-gray-800 mb-4">Risk Forecast (Next 7 Days)</h4>
-                    <div className="space-y-3">
+                  <div className="bg-white p-6 rounded-lg border-2 border-purple-100 shadow-sm">
+                    <h4 className="text-lg font-bold text-gray-900 mb-6">Risk Forecast (Next 7 Days)</h4>
+                    <div className="space-y-4">
                       {predictiveData.risk_forecast?.slice(0, 5).map((forecast, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <span className="text-sm text-gray-600">{new Date(forecast.date).toLocaleDateString()}</span>
-                          <div className="flex items-center space-x-3">
-                            <span className="text-sm font-medium">{forecast.predicted_high_risk} risks</span>
-                            <div className={`px-2 py-1 rounded text-xs ${
+                        <div key={index} className="flex items-center justify-between p-4 bg-purple-50 rounded-lg border border-purple-100">
+                          <span className="text-sm font-medium text-gray-700">{new Date(forecast.date).toLocaleDateString()}</span>
+                          <div className="flex items-center space-x-4">
+                            <span className="text-sm font-bold text-gray-900">{forecast.predicted_high_risk} risks</span>
+                            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
                               forecast.confidence > 0.8 ? 'bg-green-100 text-green-700' :
                               forecast.confidence > 0.6 ? 'bg-yellow-100 text-yellow-700' :
                               'bg-red-100 text-red-700'
@@ -688,14 +702,14 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
                   </div>
 
                   {/* Agent Workload Forecast */}
-                  <div>
-                    <h4 className="text-md font-medium text-gray-800 mb-4">Agent Workload Forecast</h4>
-                    <div className="space-y-3">
+                  <div className="bg-white p-6 rounded-lg border-2 border-purple-100 shadow-sm">
+                    <h4 className="text-lg font-bold text-gray-900 mb-6">Agent Workload Forecast</h4>
+                    <div className="space-y-4">
                       {predictiveData.agent_workload_forecast?.map((agent, index) => (
-                        <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-gray-800">{agent.agent}</span>
-                            <span className="text-sm text-gray-600">{agent.predicted_actions} actions</span>
+                        <div key={index} className="p-4 bg-purple-50 rounded-lg border border-purple-100">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="text-sm font-bold text-gray-900">{agent.agent}</span>
+                            <span className="text-sm font-medium text-gray-700">{agent.predicted_actions} actions</span>
                           </div>
                           <ProgressBar
                             label="Capacity Utilization"
@@ -710,16 +724,16 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
 
                 {/* Strategic Recommendations */}
                 {predictiveData.risk_predictions?.recommended_actions && (
-                  <div className="mt-8 p-4 bg-blue-50 rounded-lg">
-                    <h4 className="text-md font-medium text-blue-800 mb-3 flex items-center">
-                      <Target className="h-4 w-4 mr-2" />
+                  <div className="p-6 bg-white border-2 border-blue-200 rounded-lg shadow-sm">
+                    <h4 className="text-lg font-bold text-blue-900 mb-4 flex items-center">
+                      <Target className="h-6 w-6 mr-2" />
                       Recommended Actions
                     </h4>
-                    <ul className="space-y-2">
+                    <ul className="space-y-3">
                       {predictiveData.risk_predictions.recommended_actions.map((action, index) => (
-                        <li key={index} className="flex items-start space-x-2 text-sm text-blue-700">
-                          <CheckCircle className="h-4 w-4 mt-0.5 text-blue-500" />
-                          <span>{action}</span>
+                        <li key={index} className="flex items-start space-x-3 text-sm text-blue-700 bg-blue-50 p-3 rounded-lg">
+                          <CheckCircle className="h-5 w-5 mt-0.5 text-blue-500" />
+                          <span className="font-medium">{action}</span>
                         </li>
                       ))}
                     </ul>
@@ -730,68 +744,72 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
           </div>
         )}
 
+        {/* Horizontal Divider */}
+        <div className="border-t border-gray-300"></div>
+
         {/* 🎯 MASTER PROMPT: System Performance Details */}
         {systemPerformance && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
-              <Database className="h-5 w-5 mr-2 text-indigo-600" />
+          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border-l-4 border-indigo-500 p-8 shadow-md">
+            <h3 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
+              <div className="w-1 h-8 bg-indigo-500 rounded-full mr-3"></div>
+              <Database className="h-7 w-7 mr-3 text-indigo-600" />
               Detailed Performance Metrics
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+
               {/* Application Metrics */}
-              <div>
-                <h4 className="text-md font-medium text-gray-800 mb-4">Application</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Avg Response</span>
-                    <span className="text-sm font-medium">{Math.round(systemPerformance.application_metrics?.response_times?.average || 0)}ms</span>
+              <div className="bg-white p-6 rounded-lg border-2 border-indigo-100 shadow-sm">
+                <h4 className="text-lg font-bold text-gray-900 mb-6 pb-3 border-b-2 border-indigo-100">Application</h4>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Avg Response</span>
+                    <span className="text-sm font-bold text-gray-900">{Math.round(systemPerformance.application_metrics?.response_times?.average || 0)}ms</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">P95 Response</span>
-                    <span className="text-sm font-medium">{Math.round(systemPerformance.application_metrics?.response_times?.p95 || 0)}ms</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">P95 Response</span>
+                    <span className="text-sm font-bold text-gray-900">{Math.round(systemPerformance.application_metrics?.response_times?.p95 || 0)}ms</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Throughput</span>
-                    <span className="text-sm font-medium">{(systemPerformance.application_metrics?.throughput?.requests_per_second || 0).toFixed(1)} RPS</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Throughput</span>
+                    <span className="text-sm font-bold text-gray-900">{(systemPerformance.application_metrics?.throughput?.requests_per_second || 0).toFixed(1)} RPS</span>
                   </div>
                 </div>
               </div>
 
               {/* Database Metrics */}
-              <div>
-                <h4 className="text-md font-medium text-gray-800 mb-4">Database</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Active Connections</span>
-                    <span className="text-sm font-medium">{systemPerformance.database_metrics?.connections?.active || 0}</span>
+              <div className="bg-white p-6 rounded-lg border-2 border-indigo-100 shadow-sm">
+                <h4 className="text-lg font-bold text-gray-900 mb-6 pb-3 border-b-2 border-indigo-100">Database</h4>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Active Connections</span>
+                    <span className="text-sm font-bold text-gray-900">{systemPerformance.database_metrics?.connections?.active || 0}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Idle Connections</span>
-                    <span className="text-sm font-medium">{systemPerformance.database_metrics?.connections?.idle || 0}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Idle Connections</span>
+                    <span className="text-sm font-bold text-gray-900">{systemPerformance.database_metrics?.connections?.idle || 0}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Avg Query Time</span>
-                    <span className="text-sm font-medium">{(systemPerformance.database_metrics?.query_performance?.average_duration || 0).toFixed(1)}ms</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Avg Query Time</span>
+                    <span className="text-sm font-bold text-gray-900">{(systemPerformance.database_metrics?.query_performance?.average_duration || 0).toFixed(1)}ms</span>
                   </div>
                 </div>
               </div>
 
               {/* System Resources */}
-              <div>
-                <h4 className="text-md font-medium text-gray-800 mb-4">System Resources</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">CPU Current</span>
-                    <span className="text-sm font-medium">{(systemPerformance.system_metrics?.cpu?.current || 0).toFixed(1)}%</span>
+              <div className="bg-white p-6 rounded-lg border-2 border-indigo-100 shadow-sm">
+                <h4 className="text-lg font-bold text-gray-900 mb-6 pb-3 border-b-2 border-indigo-100">System Resources</h4>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">CPU Current</span>
+                    <span className="text-sm font-bold text-gray-900">{(systemPerformance.system_metrics?.cpu?.current || 0).toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Memory Available</span>
-                    <span className="text-sm font-medium">{(systemPerformance.system_metrics?.memory?.available || 0).toFixed(1)}%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Memory Available</span>
+                    <span className="text-sm font-bold text-gray-900">{(systemPerformance.system_metrics?.memory?.available || 0).toFixed(1)}%</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Storage Used</span>
-                    <span className="text-sm font-medium">{(systemPerformance.system_metrics?.storage?.used || 0).toFixed(1)}%</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">Storage Used</span>
+                    <span className="text-sm font-bold text-gray-900">{(systemPerformance.system_metrics?.storage?.used || 0).toFixed(1)}%</span>
                   </div>
                 </div>
               </div>
