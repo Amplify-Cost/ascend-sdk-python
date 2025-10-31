@@ -205,9 +205,10 @@ def get_realtime_metrics(
         
         # ===== PHASE 1: REAL DATABASE QUERIES (NO FALLBACKS) =====
 
-        # Real-time active sessions from audit logs
-        active_sessions = db.query(func.count(AuditLog.id)).filter(
-            AuditLog.timestamp >= hour_ago
+        # Real-time active sessions from recent agent actions
+        # Note: Using agent actions as proxy for sessions since AuditLog doesn't have timestamp
+        active_sessions = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
+            AgentAction.timestamp >= hour_ago
         ).scalar() or 0
 
         # Recent high-risk actions
