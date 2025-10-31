@@ -886,7 +886,12 @@ async def get_policy_engine_metrics(
         }
         
         # Get individual policy performance
-        policies = db.query(MCPPolicy).filter(MCPPolicy.is_active == True).limit(10).all()
+        # Use EnterprisePolicy since MCPPolicy is not available
+        try:
+            from models import EnterprisePolicy
+            policies = db.query(EnterprisePolicy).filter(EnterprisePolicy.status == 'active').limit(10).all()
+        except:
+            policies = []
         policy_performance = []
         
         for policy in policies:
