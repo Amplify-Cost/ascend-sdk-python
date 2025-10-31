@@ -3126,6 +3126,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           policies={policies}
           onCreatePolicy={createEnterprisePolicy}
           onDeletePolicy={handleDeletePolicy}
+          onRefreshPolicies={fetchPolicies}
           API_BASE_URL={API_BASE_URL}
           getAuthHeaders={getAuthHeaders}
         />

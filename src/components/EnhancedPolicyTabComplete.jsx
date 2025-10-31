@@ -10,12 +10,13 @@ import { ComplianceMapping } from './ComplianceMapping';
 import { PolicyVersionControl } from './PolicyVersionControl';
 import { PolicyImpactAnalysis } from './PolicyImpactAnalysis';
 
-export const EnhancedPolicyTabComplete = ({ 
-  policies, 
-  onCreatePolicy, 
+export const EnhancedPolicyTabComplete = ({
+  policies,
+  onCreatePolicy,
   onDeletePolicy,
+  onRefreshPolicies,
   API_BASE_URL,
-  getAuthHeaders 
+  getAuthHeaders
 }) => {
   const [view, setView] = useState('list');
   const [templates, setTemplates] = useState([]);
@@ -54,8 +55,10 @@ export const EnhancedPolicyTabComplete = ({
       );
       if (response.ok) {
         alert('Policy created from template!');
-        // Refresh the policy list immediately
-        await fetchPolicies();
+        // Refresh the policy list immediately using parent's fetch function
+        if (onRefreshPolicies) {
+          await onRefreshPolicies();
+        }
         setView('list');
         // Also trigger parent callback if provided
         if (onCreatePolicy) onCreatePolicy();
