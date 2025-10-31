@@ -909,7 +909,7 @@ async def get_policy_engine_metrics(
                 "success_rate": round(95.0 + random.uniform(0.0, 5.0), 1),
                 "avg_response_time": round(0.1 + random.uniform(0.1, 0.5), 1),
                 "last_evaluation": datetime.now(UTC).isoformat(),
-                "status": "active" if policy.is_active else "inactive"
+                "status": policy.status if hasattr(policy, 'status') else "active"
             }
             policy_performance.append(perf)
         
