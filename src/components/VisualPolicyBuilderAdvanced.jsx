@@ -86,10 +86,20 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
         }
       );
       const data = await response.json();
+
+      // Handle user-friendly error messages from backend
+      if (data.success === false) {
+        const errorMessage = data.error || 'Compilation failed';
+        const suggestion = data.suggestion || '';
+        alert(`${errorMessage}\n\n${suggestion}`);
+        return;
+      }
+
       setCompiledPreview(data);
       setShowPreview(true);
     } catch (error) {
       console.error('Compilation failed:', error);
+      alert('Unable to compile policy. Please check your network connection and try again.');
     }
   };
 

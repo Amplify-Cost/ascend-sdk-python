@@ -54,11 +54,17 @@ export const EnhancedPolicyTabComplete = ({
       );
       if (response.ok) {
         alert('Policy created from template!');
+        // Refresh the policy list immediately
+        await fetchPolicies();
         setView('list');
-        // Trigger parent refresh without full page reload
+        // Also trigger parent callback if provided
         if (onCreatePolicy) onCreatePolicy();
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to create from template: ${errorData.detail || 'Unknown error'}`);
       }
     } catch (error) {
+      console.error('Template creation error:', error);
       alert('Failed to create from template');
     }
   };
