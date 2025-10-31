@@ -104,18 +104,26 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
   };
 
   const handleSave = async () => {
-    if (!policy.policy_name || !policy.natural_language) {
-      alert('Please fill in policy name and description');
+    // Validate policy name is provided
+    if (!policy.policy_name || !policy.policy_name.trim()) {
+      alert('Please provide a policy name');
       return;
     }
-    
-    // Generate natural language from structured inputs if not provided
+
+    // Generate description from natural language OR structured inputs
     let description = policy.natural_language;
-    if (!description && policy.actions.length > 0 && policy.resources.length > 0) {
-      const effectText = policy.effect === 'deny' ? 'Block' : 
-                        policy.effect === 'permit' ? 'Allow' : 
-                        'Require approval for';
-      description = `${effectText} ${policy.actions.join(', ')} operations on ${policy.resources.join(', ')}`;
+
+    // If no natural language provided, generate from structured fields
+    if (!description || !description.trim()) {
+      if (policy.actions.length > 0 && policy.resources.length > 0) {
+        const effectText = policy.effect === 'deny' ? 'Block' :
+                          policy.effect === 'permit' ? 'Allow' :
+                          'Require approval for';
+        description = `${effectText} ${policy.actions.join(', ')} operations on ${policy.resources.join(', ')}`;
+      } else {
+        alert('Please either:\n• Fill in the natural language description, OR\n• Select at least one action and one resource');
+        return;
+      }
     }
 
     await onSave({
