@@ -1278,22 +1278,58 @@ async def compile_policy(
 ):
     """
     Compile natural language policy to Cedar-style structured rules
+    Accepts both 'description' and 'natural_language' field names for compatibility
     """
     try:
-        natural_language = policy_data.get("description", "")
+        # Accept both 'description' and 'natural_language' for backwards compatibility
+        natural_language = policy_data.get("natural_language") or policy_data.get("description", "")
         risk_level = policy_data.get("risk_level", "medium")
-        
+
+        # Validate input before compilation
+        if not natural_language or not natural_language.strip():
+            return {
+                "success": False,
+                "error": "Policy description cannot be empty",
+                "suggestion": "Please enter a policy description. Example: 'Block all delete operations on production databases'"
+            }
+
         # Compile to structured rules
         compiled_policy = policy_compiler.compile(natural_language, risk_level)
-        
+
         return {
             "success": True,
             "compiled_policy": compiled_policy,
             "natural_language": natural_language
         }
     except Exception as e:
-        logger.error(f"Policy compilation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        error_message = str(e)
+        logger.error(f"Policy compilation error: {error_message}")
+
+        # Provide user-friendly error messages with suggestions
+        if "Policy text cannot be empty" in error_message:
+            return {
+                "success": False,
+                "error": "Policy description is required",
+                "suggestion": "Enter a clear policy statement. Examples:\n• 'Block all delete operations on production databases'\n• 'Require approval for modify operations on user data'\n• 'Allow read access to development databases'"
+            }
+        elif "Policy must specify an action" in error_message:
+            return {
+                "success": False,
+                "error": "Policy must include an action",
+                "suggestion": "Your policy needs an action keyword. Use words like:\n• block, deny, prevent (to deny access)\n• allow, permit (to allow access)\n• require approval (for human review)\n\nExample: 'Block delete operations on production data'"
+            }
+        elif "Policy too short" in error_message:
+            return {
+                "success": False,
+                "error": "Policy description too brief",
+                "suggestion": "Please provide more detail (minimum 10 characters). Example: 'Block all database write operations during business hours'"
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Policy compilation failed",
+                "suggestion": f"Error details: {error_message}\n\nTry using clear action words (block, allow, require approval) and specific resources (database, production, S3)."
+            }
 
 @router.post("/policies/enforce")
 async def enforce_policy(
