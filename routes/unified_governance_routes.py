@@ -862,13 +862,13 @@ async def get_policy_engine_metrics(
         
         # Import here to avoid circular imports
         
-        # Get actual policy count from unified governance_policies
+        # Get actual policy count from enterprise_policies table
         try:
-            from models.governance_models import GovernancePolicy
-            active_policies = db.query(GovernancePolicy).filter(
-                GovernancePolicy.is_active == True
+            from models import EnterprisePolicy
+            active_policies = db.query(EnterprisePolicy).filter(
+                EnterprisePolicy.status == 'active'
             ).count()
-            total_policies = db.query(GovernancePolicy).count()
+            total_policies = db.query(EnterprisePolicy).count()
         except Exception as e:
             logger.warning(f"Failed to query policies, using in-memory stats: {e}")
             # Fallback to policy engine in-memory stats
