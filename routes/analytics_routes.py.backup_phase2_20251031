@@ -10,22 +10,13 @@ from datetime import datetime, timedelta, UTC
 from collections import defaultdict, Counter
 from dependencies import get_current_user, require_admin
 from services.pending_actions_service import pending_service
-from services.cloudwatch_service import get_cloudwatch_service  # Phase 2: CloudWatch integration
 from typing import List, Dict, Any, Optional
 import json
 import asyncio
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-# Phase 2: CloudWatch configuration
-CLOUDWATCH_ENABLED = os.getenv("CLOUDWATCH_ENABLED", "true").lower() == "true"
-ECS_CLUSTER_NAME = os.getenv("ECS_CLUSTER_NAME", "owkai-pilot")
-ECS_SERVICE_NAME = os.getenv("ECS_SERVICE_NAME", "owkai-pilot-backend-service")
-CLOUDWATCH_LOG_GROUP = os.getenv("CLOUDWATCH_LOG_GROUP", "/ecs/owkai-pilot-backend")
-AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
 
 # ✅ PRESERVED: Original working endpoints
 @router.get("/trends")
@@ -242,74 +233,20 @@ def get_realtime_metrics(
             "data_status": "live" if has_data else "no_recent_activity"
         }
 
-        # ===== PHASE 2: AWS CLOUDWATCH INTEGRATION =====
-        # Try to get real metrics from CloudWatch, fallback to Phase 1 status if unavailable
-        try:
-            if CLOUDWATCH_ENABLED:
-                cloudwatch = get_cloudwatch_service(
-                    region=AWS_REGION,
-                    cache_ttl=30,
-                    enabled=CLOUDWATCH_ENABLED
-                )
-                cw_health = cloudwatch.get_system_health(
-                    cluster_name=ECS_CLUSTER_NAME,
-                    service_name=ECS_SERVICE_NAME,
-                    log_group_name=CLOUDWATCH_LOG_GROUP
-                )
+        # ===== PHASE 2 PLACEHOLDERS (Coming in Week 1) =====
+        system_health = {
+            "status": "phase_2_planned",
+            "message": "System health monitoring with AWS CloudWatch will be available in Phase 2 (Week 1)",
+            "available_metrics": ["CPU", "Memory", "Disk", "Network", "API Response Time"],
+            "estimated_availability": "Week 1"
+        }
 
-                # Check if we got live data or fallback status
-                if cw_health.get("status") == "live":
-                    logger.info("✅ CloudWatch metrics available - showing live data")
-                    system_health = {
-                        "status": "live",
-                        "source": cw_health.get("source"),
-                        "cpu_usage": cw_health.get("cpu_usage", 0.0),
-                        "memory_usage": cw_health.get("memory_usage", 0.0),
-                        "disk_usage": cw_health.get("disk_usage", 0.0),
-                        "network_latency": cw_health.get("network_latency", 0.0),
-                        "api_response_time": cw_health.get("api_response_time", 0.0),
-                        "timestamp": cw_health.get("timestamp"),
-                        "metrics_age_seconds": cw_health.get("metrics_age_seconds", 30)
-                    }
-
-                    # Extract performance metrics
-                    perf = cw_health.get("performance_metrics", {})
-                    performance_metrics = {
-                        "status": perf.get("status", "live"),
-                        "source": perf.get("source", "cloudwatch_logs"),
-                        "requests_per_second": perf.get("requests_per_second", 0.0),
-                        "avg_response_time": perf.get("avg_response_time", 0.0),
-                        "p95_response_time": perf.get("p95_response_time", 0.0),
-                        "error_rate": perf.get("error_rate", 0.0),
-                        "timestamp": perf.get("timestamp")
-                    }
-                else:
-                    # CloudWatch returned Phase 1 fallback
-                    logger.warning(f"CloudWatch unavailable: {cw_health.get('message')}")
-                    raise Exception(cw_health.get("message", "CloudWatch unavailable"))
-            else:
-                # CloudWatch disabled via config
-                logger.info("CloudWatch disabled - showing Phase 2 planned status")
-                raise Exception("CloudWatch disabled")
-
-        except Exception as cloudwatch_error:
-            # Graceful fallback to Phase 1 status
-            logger.warning(f"⚠️  CloudWatch fallback: {cloudwatch_error}")
-            system_health = {
-                "status": "phase_2_planned",
-                "message": "System health monitoring with AWS CloudWatch will be available in Phase 2 (Week 1)",
-                "available_metrics": ["CPU", "Memory", "Disk", "Network", "API Response Time"],
-                "estimated_availability": "Week 1",
-                "cloudwatch_enabled": CLOUDWATCH_ENABLED,
-                "fallback_reason": str(cloudwatch_error)
-            }
-
-            performance_metrics = {
-                "status": "phase_2_planned",
-                "message": "Performance tracking with CloudWatch Logs Insights will be available in Phase 2 (Week 1)",
-                "planned_metrics": ["Requests/sec", "Error rate", "Response time", "Cache hit rate"],
-                "estimated_availability": "Week 1"
-            }
+        performance_metrics = {
+            "status": "phase_2_planned",
+            "message": "Performance tracking with CloudWatch Logs Insights will be available in Phase 2 (Week 1)",
+            "planned_metrics": ["Requests/sec", "Error rate", "Response time", "Cache hit rate"],
+            "estimated_availability": "Week 1"
+        }
 
         return {
             "timestamp": now.isoformat(),
@@ -331,13 +268,11 @@ def get_realtime_metrics(
             "performance_metrics": performance_metrics,
             "data_quality": data_quality,
             "meta": {
-                "version": "1.0.0-phase2",
+                "version": "1.0.0-phase1",
                 "enterprise_grade": True,
                 "mock_data": False,
-                "real_data_sources": ["postgresql_rds", "aws_cloudwatch"] if system_health.get("status") == "live" else ["postgresql_rds"],
-                "phase": "2_of_3",
-                "cloudwatch_enabled": CLOUDWATCH_ENABLED,
-                "cloudwatch_status": system_health.get("status")
+                "real_data_sources": ["postgresql_rds"],
+                "phase": "1_of_3"
             }
         }
         
