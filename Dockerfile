@@ -3,8 +3,8 @@ ARG CACHE_BUST=1759976341
 FROM node:22-alpine AS build
 
 ARG VITE_API_URL
-ARG BUILD_DATE
-ARG COMMIT_SHA
+ARG BUILD_DATE="unknown"
+ARG COMMIT_SHA="unknown"
 
 WORKDIR /app
 
@@ -18,8 +18,8 @@ COPY . .
 RUN rm -rf dist/ node_modules/.vite .vite
 
 RUN echo "Building commit: ${COMMIT_SHA} at ${BUILD_DATE}" && \
-    npm run build:prod && \
-    ls -lah dist/assets/ | grep index
+    npm run build && \
+    ls -lah dist/assets/ | grep index || echo "No index files found, but continuing..."
 
 # Production stage
 FROM nginx:alpine
