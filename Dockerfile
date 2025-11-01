@@ -15,7 +15,6 @@ COPY package.json package-lock.json ./
 RUN npm ci --cache /tmp/empty-cache && rm -rf /tmp/empty-cache
 
 COPY . .
-RUN rm -rf dist/ node_modules/.vite .vite
 
 RUN echo "Building commit: ${COMMIT_SHA} at ${BUILD_DATE}" && \
     npm run build && \
