@@ -2,9 +2,14 @@ ARG CACHE_BUST=1759976341
 # Multi-stage build for production optimization
 FROM node:22-alpine AS build
 
+# Accept build arguments from GitHub Actions
 ARG VITE_API_URL
 ARG BUILD_DATE="unknown"
 ARG COMMIT_SHA="unknown"
+
+# Convert ARG to ENV so Vite can access during build
+# Vite requires VITE_* environment variables at build time
+ENV VITE_API_URL=${VITE_API_URL}
 
 WORKDIR /app
 
@@ -16,9 +21,22 @@ RUN npm ci --cache /tmp/empty-cache && rm -rf /tmp/empty-cache
 
 COPY . .
 
-RUN echo "Building commit: ${COMMIT_SHA} at ${BUILD_DATE}" && \
+# Enterprise-grade build process with explicit error checking
+# No silent failures - fail fast if build errors occur
+RUN echo "========================================" && \
+    echo "Building frontend application" && \
+    echo "API URL: ${VITE_API_URL}" && \
+    echo "Commit: ${COMMIT_SHA}" && \
+    echo "Date: ${BUILD_DATE}" && \
+    echo "========================================" && \
     npm run build && \
-    ls -lah dist/assets/ | grep index || echo "No index files found, but continuing..."
+    echo "========================================" && \
+    echo "Verifying build output..." && \
+    echo "========================================" && \
+    test -d dist/ || (echo "ERROR: dist/ directory not created" && exit 1) && \
+    test -f dist/index.html || (echo "ERROR: dist/index.html not found" && exit 1) && \
+    ls -lah dist/ && \
+    echo "✅ Build verification successful"
 
 # Production stage
 FROM nginx:alpine
