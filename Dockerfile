@@ -21,22 +21,8 @@ RUN npm ci --cache /tmp/empty-cache && rm -rf /tmp/empty-cache
 
 COPY . .
 
-# Enterprise-grade build process with explicit error checking
-# No silent failures - fail fast if build errors occur
-RUN echo "========================================" && \
-    echo "Building frontend application" && \
-    echo "API URL: ${VITE_API_URL}" && \
-    echo "Commit: ${COMMIT_SHA}" && \
-    echo "Date: ${BUILD_DATE}" && \
-    echo "========================================" && \
-    npm run build && \
-    echo "========================================" && \
-    echo "Verifying build output..." && \
-    echo "========================================" && \
-    test -d dist/ || (echo "ERROR: dist/ directory not created" && exit 1) && \
-    test -f dist/index.html || (echo "ERROR: dist/index.html not found" && exit 1) && \
-    ls -lah dist/ && \
-    echo "✅ Build verification successful"
+# Build with error output visible
+RUN echo "Building with VITE_API_URL=${VITE_API_URL}" && npm run build
 
 # Production stage
 FROM nginx:alpine
