@@ -1,4 +1,4 @@
-from auth_utils import hash_password
+from auth_utils import hash_password, generate_secure_temp_password, validate_password_strength
 # routes/enterprise_user_management_routes.py - Complete Enterprise Backend
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
@@ -145,30 +145,26 @@ async def create_user(
         if existing_user:
             raise HTTPException(status_code=400, detail="User already exists")
         
-        # Generate temporary password
-        temp_password = f"TempPass{datetime.now().strftime('%m%d')}"
+        # PHASE 1 FIX: Generate secure random temporary password (not predictable)
+        temp_password = generate_secure_temp_password(length=16)
         password_hash = hash_password(temp_password)
-        
-        # Insert new user
+
+        # PHASE 1 FIX: Use correct column name 'password' (not 'password_hash')
+        # PHASE 1.4 FIX: Match actual database schema (only email, password, role, is_active, created_at)
+        # Database schema: id, email, password, role, is_active, created_at, last_login,
+        #                 approval_level, is_emergency_approver, max_risk_approval
         insert_query = text("""
             INSERT INTO users (
-                email, password_hash, role, first_name, last_name, 
-                department, access_level, mfa_enabled, status, created_at
+                email, password, role, is_active, created_at
             ) VALUES (
-                :email, :password_hash, :role, :first_name, :last_name,
-                :department, :access_level, :mfa_enabled, 'Active', CURRENT_TIMESTAMP
+                :email, :password, :role, true, CURRENT_TIMESTAMP
             ) RETURNING id, email, created_at
         """)
-        
+
         result = db.execute(insert_query, {
             "email": user_data.email,
-            "password_hash": password_hash,
-            "role": user_data.role,
-            "first_name": user_data.first_name,
-            "last_name": user_data.last_name,
-            "department": user_data.department,
-            "access_level": user_data.access_level,
-            "mfa_enabled": user_data.mfa_enabled
+            "password": password_hash,  # FIXED: Changed from password_hash
+            "role": user_data.role
         })
         
         new_user = result.fetchone()
