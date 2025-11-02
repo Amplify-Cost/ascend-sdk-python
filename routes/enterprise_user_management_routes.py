@@ -20,12 +20,13 @@ router = APIRouter(prefix="/api/enterprise-users", tags=["enterprise-user-manage
 # Pydantic Models for Request/Response
 class UserCreateRequest(BaseModel):
     email: str
-    first_name: str
-    last_name: str
-    department: str
     role: str
-    access_level: str
-    mfa_enabled: bool = False
+    # Optional fields (not in actual database schema)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    department: Optional[str] = None
+    access_level: Optional[str] = None
+    mfa_enabled: Optional[bool] = False
 
 class UserUpdateRequest(BaseModel):
     first_name: Optional[str] = None
@@ -149,23 +150,45 @@ async def create_user(
         temp_password = generate_secure_temp_password(length=16)
         password_hash = hash_password(temp_password)
 
-        # PHASE 1 FIX: Use correct column name 'password' (not 'password_hash')
-        # PHASE 1.4 FIX: Match actual database schema (only email, password, role, is_active, created_at)
-        # Database schema: id, email, password, role, is_active, created_at, last_login,
-        #                 approval_level, is_emergency_approver, max_risk_approval
-        insert_query = text("""
-            INSERT INTO users (
-                email, password, role, is_active, created_at
-            ) VALUES (
-                :email, :password, :role, true, CURRENT_TIMESTAMP
-            ) RETURNING id, email, created_at
-        """)
+        # EMERGENCY HOTFIX: Support both 'password' (local) and 'password_hash' (production)
+        # Production DB uses 'password_hash' column, local DB uses 'password' column
+        # Try production schema first, fall back to local schema
+        try:
+            # Try production schema (password_hash column)
+            insert_query = text("""
+                INSERT INTO users (
+                    email, password_hash, role, is_active, created_at
+                ) VALUES (
+                    :email, :password_hash, :role, true, CURRENT_TIMESTAMP
+                ) RETURNING id, email, created_at
+            """)
 
-        result = db.execute(insert_query, {
-            "email": user_data.email,
-            "password": password_hash,  # FIXED: Changed from password_hash
-            "role": user_data.role
-        })
+            result = db.execute(insert_query, {
+                "email": user_data.email,
+                "password_hash": password_hash,
+                "role": user_data.role
+            })
+            logger.info("✅ Using production schema (password_hash column)")
+        except Exception as prod_error:
+            # Rollback failed transaction before trying again
+            db.rollback()
+            logger.warning(f"⚠️ Production schema failed, trying local schema: {prod_error}")
+
+            # Fall back to local schema (password column)
+            insert_query = text("""
+                INSERT INTO users (
+                    email, password, role, is_active, created_at
+                ) VALUES (
+                    :email, :password, :role, true, CURRENT_TIMESTAMP
+                ) RETURNING id, email, created_at
+            """)
+
+            result = db.execute(insert_query, {
+                "email": user_data.email,
+                "password": password_hash,
+                "role": user_data.role
+            })
+            logger.info("✅ Using local schema (password column)")
         
         new_user = result.fetchone()
         db.commit()
