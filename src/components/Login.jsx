@@ -10,9 +10,18 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // PHASE 2 RBAC: Password security states
+  const [passwordExpirationWarning, setPasswordExpirationWarning] = useState(null);
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
+  const [accountLockMessage, setAccountLockMessage] = useState("");
+  const [remainingAttempts, setRemainingAttempts] = useState(null);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
+    setPasswordExpirationWarning(null);
+    setAccountLockMessage("");
+    setRemainingAttempts(null);
     setIsLoading(true);
 
     try {
@@ -35,8 +44,70 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
       console.log("🏢 Enterprise login response:", data);
 
       if (!response.ok) {
-        setError(data.detail || "Enterprise login failed");
-        return;
+        // ============================================================================
+        // PHASE 2 RBAC: Handle password security error responses
+        // ============================================================================
+
+        // Handle 403 errors (Forbidden) - Account lockout, password expiration, force change
+        if (response.status === 403) {
+
+          // Check if error is a JSON object with specific error codes
+          if (typeof data.detail === 'object' && data.detail !== null) {
+
+            // Password Expired (90+ days old)
+            if (data.detail.error === 'password_expired') {
+              console.warn("⏰ Password expired:", data.detail.password_age_days, "days old");
+              setError(`Your password has expired (${data.detail.password_age_days} days old). Please contact an administrator to reset your password.`);
+              setRequiresPasswordChange(true);
+              return;
+            }
+
+            // Force Password Change (Admin reset)
+            else if (data.detail.error === 'password_change_required') {
+              console.warn("🔑 Force password change required");
+              setError("Administrator has reset your password. You must change it before logging in. Please contact support.");
+              setRequiresPasswordChange(true);
+              return;
+            }
+
+            // Unknown structured error
+            else {
+              setError(data.detail.message || "Access forbidden");
+              return;
+            }
+          }
+
+          // Account Lockout (String message)
+          else if (typeof data.detail === 'string') {
+            console.warn("🔒 Account lockout:", data.detail);
+            setAccountLockMessage(data.detail);
+            setError(data.detail);
+            return;
+          }
+        }
+
+        // Handle 401 errors (Unauthorized) - Invalid credentials with remaining attempts
+        else if (response.status === 401) {
+          const errorMessage = data.detail || "Invalid email or password";
+
+          // Extract remaining attempts count from error message
+          const attemptsMatch = errorMessage.match(/(\d+) attempts? remaining/);
+          if (attemptsMatch) {
+            const attempts = parseInt(attemptsMatch[1]);
+            console.warn(`⚠️ Failed login: ${attempts} attempts remaining`);
+            setRemainingAttempts(attempts);
+            setError(errorMessage);
+          } else {
+            setError(errorMessage);
+          }
+          return;
+        }
+
+        // Handle other errors
+        else {
+          setError(data.detail || "Enterprise login failed");
+          return;
+        }
       }
 
       // CRITICAL FIX: Handle the actual backend response format
@@ -232,8 +303,57 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
             </div>
           </div>
 
-          {/* Error Message */}
-          {error && (
+          {/* PHASE 2 RBAC: Enhanced Error Messages */}
+
+          {/* Remaining Attempts Warning */}
+          {remainingAttempts !== null && (
+            <div className="bg-orange-50 border border-orange-300 rounded-lg p-3">
+              <div className="flex">
+                <svg className="h-5 w-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="ml-2">
+                  <p className="text-sm font-bold text-orange-800">Security Alert</p>
+                  <p className="text-sm text-orange-700 mt-1">
+                    <span className="font-bold">{remainingAttempts} login attempts remaining</span> before your account is locked for 30 minutes.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Account Lockout Message */}
+          {accountLockMessage && (
+            <div className="bg-red-50 border border-red-300 rounded-lg p-3">
+              <div className="flex">
+                <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+                <div className="ml-2">
+                  <p className="text-sm font-bold text-red-800">Account Locked</p>
+                  <p className="text-sm text-red-700 mt-1">{accountLockMessage}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Password Change Required */}
+          {requiresPasswordChange && (
+            <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3">
+              <div className="flex">
+                <svg className="h-5 w-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="ml-2">
+                  <p className="text-sm font-bold text-yellow-800">Password Reset Required</p>
+                  <p className="text-sm text-yellow-700 mt-1">Please contact your administrator to complete the password reset process.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* General Error Message */}
+          {error && !remainingAttempts && !accountLockMessage && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <div className="flex">
                 <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
@@ -247,17 +367,19 @@ const Login = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => 
             </div>
           )}
 
-          {/* Enterprise Features Notice */}
+          {/* Enterprise Features Notice - PHASE 2 RBAC ENHANCED */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
             <div className="flex">
               <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div className="ml-2">
-                <p className="text-sm font-medium text-blue-800">Enterprise Security Active</p>
+                <p className="text-sm font-medium text-blue-800">Enterprise Security Active (Phase 2 RBAC)</p>
                 <ul className="text-xs text-blue-700 mt-1 space-y-1">
                   <li>• 🍪 httpOnly cookies prevent XSS attacks</li>
                   <li>• 🔒 CSRF protection with SameSite configuration</li>
+                  <li>• 🛡️ Account lockout after 5 failed attempts (30 min)</li>
+                  <li>• ⏰ Password expiration enforced (90 days)</li>
                   <li>• 📋 SOC 2 compliance audit trails</li>
                   <li>• ⚡ Automatic session management</li>
                 </ul>
