@@ -256,45 +256,228 @@ async def delete_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-      
+
 ):
     """Deactivate user (soft delete)"""
     try:
         logger.info(f"🔄 Deactivating user ID: {user_id} by {current_user.get('email', 'unknown')}")
-        
+
         # Get user info before deactivation
         user_info = db.execute(
             text("SELECT email, first_name, last_name FROM users WHERE id = :user_id"),
             {"user_id": user_id}
         ).fetchone()
-        
+
         if not user_info:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         # Soft delete - set status to Inactive
         db.execute(
             text("UPDATE users SET status = 'Inactive' WHERE id = :user_id"),
             {"user_id": user_id}
         )
         db.commit()
-        
+
         # Log audit trail
         await log_audit_action(
-            db, current_user["email"], "USER_DEACTIVATE", 
+            db, current_user["email"], "USER_DEACTIVATE",
             user_info.email, f"Deactivated user {user_info.first_name} {user_info.last_name}",
             str(request.client.host), "High"
         )
-        
+
         logger.info(f"✅ User deactivated: {user_info.email}")
         return {
             "message": "✅ User deactivated successfully",
             "email": user_info.email
         }
-        
+
     except Exception as e:
         db.rollback()
         logger.error(f"❌ Error deactivating user: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to deactivate user: {str(e)}")
+
+# ============================================================================
+# PHASE 2 RBAC: PASSWORD SECURITY ENDPOINTS
+# ============================================================================
+
+@router.post("/users/{user_id}/reset-password")
+async def admin_reset_user_password(
+    user_id: int,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """
+    🔐 PHASE 2 RBAC: Admin-only password reset endpoint
+
+    Security Features:
+    - Admin authentication required (403 if non-admin)
+    - Generates 16-char secure random password
+    - Forces password change on next login
+    - Updates password_last_changed timestamp
+    - Logs to audit trail
+
+    Compliance:
+    - NIST SP 800-63B: Administrative password reset
+    - PCI-DSS 3.2.1: Password management
+    - SOX: User access control
+    - HIPAA: Emergency access procedure
+
+    CVSS Score: 6.5 (HIGH) - Addresses lack of admin password reset
+    """
+    try:
+        logger.info(f"🔐 Admin {current_user.get('email')} resetting password for user_id={user_id}")
+
+        # Get user
+        user_query = text("SELECT id, email FROM users WHERE id = :user_id")
+        user = db.execute(user_query, {"user_id": user_id}).fetchone()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Generate new secure password
+        new_temp_password = generate_secure_temp_password(length=16)
+        new_password_hash = hash_password(new_temp_password)
+
+        # Update user with PHASE 2 columns
+        update_query = text("""
+            UPDATE users
+            SET password = :password,
+                force_password_change = TRUE,
+                password_last_changed = CURRENT_TIMESTAMP
+            WHERE id = :user_id
+        """)
+
+        db.execute(update_query, {
+            "password": new_password_hash,
+            "user_id": user_id
+        })
+        db.commit()
+
+        # Log audit action
+        try:
+            await log_audit_action(
+                db=db,
+                user_email=current_user.get("email"),
+                action="PASSWORD_RESET",
+                target=user.email,
+                details=f"Admin {current_user.get('email')} reset password for {user.email}",
+                ip_address=str(request.client.host) if request else "unknown",
+                risk_level="High"
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ Audit logging failed (non-critical): {e}")
+
+        logger.info(f"✅ Password reset for {user.email}")
+
+        return {
+            "message": "✅ Password reset successfully",
+            "user_id": user_id,
+            "user_email": user.email,
+            "temporary_password": new_temp_password,
+            "force_password_change": True,
+            "instructions": "User must change password on next login",
+            "security_note": "Password will expire in 90 days"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error resetting password: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset password: {str(e)}")
+
+@router.post("/users/{user_id}/unlock")
+async def admin_unlock_user_account(
+    user_id: int,
+    current_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """
+    🔓 PHASE 2 RBAC: Admin unlock user account endpoint
+
+    Security Features:
+    - Admin authentication required (403 if non-admin)
+    - Unlocks account locked by failed login attempts
+    - Resets failed login counter
+    - Clears lock timestamp
+    - Logs to audit trail
+
+    Compliance:
+    - NIST SP 800-63B: Administrative account management
+    - PCI-DSS 3.2.1: Access control override
+    - SOX: User access management
+    - HIPAA: Emergency access procedure
+
+    Use Case:
+    - User locked out after 5 failed attempts
+    - Admin can manually unlock before 30-minute timeout
+    - Emergency access for legitimate users
+    """
+    try:
+        logger.info(f"🔓 Admin {current_user.get('email')} unlocking account for user_id={user_id}")
+
+        # Get user
+        user_query = text("SELECT id, email, is_locked, failed_login_attempts FROM users WHERE id = :user_id")
+        user = db.execute(user_query, {"user_id": user_id}).fetchone()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Check if account is actually locked
+        if not user.is_locked:
+            logger.info(f"ℹ️ Account not locked: {user.email}")
+            return {
+                "message": "Account is not locked",
+                "user_id": user_id,
+                "user_email": user.email,
+                "was_locked": False
+            }
+
+        # Unlock account and reset counters
+        unlock_query = text("""
+            UPDATE users
+            SET is_locked = FALSE,
+                locked_until = NULL,
+                failed_login_attempts = 0
+            WHERE id = :user_id
+        """)
+
+        db.execute(unlock_query, {"user_id": user_id})
+        db.commit()
+
+        # Log audit action
+        try:
+            await log_audit_action(
+                db=db,
+                user_email=current_user.get("email"),
+                action="ACCOUNT_UNLOCK",
+                target=user.email,
+                details=f"Admin {current_user.get('email')} unlocked account for {user.email} (was locked after {user.failed_login_attempts} failed attempts)",
+                ip_address=str(request.client.host) if request else "unknown",
+                risk_level="High"
+            )
+        except Exception as e:
+            logger.warning(f"⚠️ Audit logging failed (non-critical): {e}")
+
+        logger.info(f"✅ Account unlocked: {user.email}")
+
+        return {
+            "message": "✅ Account unlocked successfully",
+            "user_id": user_id,
+            "user_email": user.email,
+            "was_locked": True,
+            "previous_failed_attempts": user.failed_login_attempts,
+            "security_note": "User can now log in immediately"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error unlocking account: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to unlock account: {str(e)}")
 
 # ============================================================================
 # ROLES & PERMISSIONS
