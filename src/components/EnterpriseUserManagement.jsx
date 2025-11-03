@@ -13,6 +13,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [editingRole, setEditingRole] = useState(null);
   const [newUser, setNewUser] = useState({
     email: "",
     first_name: "",
@@ -313,6 +314,43 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     } catch (error) {
       console.error("❌ Error creating role:", error);
       alert(`❌ Failed to create role: ${error.message}`);
+    }
+  };
+
+  const handleUpdateRole = async () => {
+    if (!editingRole) return;
+
+    try {
+      console.log("🔄 Updating role:", editingRole);
+      const response = await fetch(`${BASE_URL}/api/enterprise-users/roles/${editingRole.id}`, {
+        credentials: "include",
+        method: "PUT",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: editingRole.name,
+          description: editingRole.description,
+          permissions: editingRole.permissions,
+          level: editingRole.level,
+          risk_level: editingRole.risk_level
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("✅ Role updated:", result);
+        alert("✅ Role updated successfully!");
+        setEditingRole(null);
+        await loadRoles(); // Reload roles
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error("❌ Error updating role:", error);
+      alert(`❌ Failed to update role: ${error.message}`);
     }
   };
 
@@ -623,7 +661,10 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
                   <span className="text-sm text-gray-500">
                     Created: {role.created_at ? new Date(role.created_at).toLocaleDateString() : "Unknown"}
                   </span>
-                  <button className="text-blue-600 hover:text-blue-900 font-medium text-sm">
+                  <button
+                    onClick={() => setEditingRole(role)}
+                    className="text-blue-600 hover:text-blue-900 font-medium text-sm"
+                  >
                     Edit Role
                   </button>
                 </div>
@@ -1263,6 +1304,120 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     )
   );
 
+  const renderEditRoleModal = () => (
+    editingRole && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Edit Role</h3>
+            <button
+              onClick={() => setEditingRole(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
+              <input
+                type="text"
+                value={editingRole.name}
+                onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder="e.g., Senior Manager"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={editingRole.description}
+                onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                rows="3"
+                placeholder="Describe the role and its responsibilities..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Access Level</label>
+                <select
+                  value={editingRole.level}
+                  onChange={(e) => setEditingRole({ ...editingRole, level: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value={1}>Level 1</option>
+                  <option value={2}>Level 2</option>
+                  <option value={3}>Level 3</option>
+                  <option value={4}>Level 4</option>
+                  <option value={5}>Level 5</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Risk Level</label>
+                <select
+                  value={editingRole.risk_level}
+                  onChange={(e) => setEditingRole({ ...editingRole, risk_level: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Critical">Critical</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Permissions</label>
+              <div className="space-y-2">
+                {Object.entries(editingRole.permissions || {}).map(([key, value]) => (
+                  <div key={key} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={`edit_perm_${key}`}
+                      checked={value}
+                      onChange={(e) => setEditingRole({
+                        ...editingRole,
+                        permissions: {
+                          ...editingRole.permissions,
+                          [key]: e.target.checked
+                        }
+                      })}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor={`edit_perm_${key}`} className="ml-2 block text-sm text-gray-900 capitalize">
+                      {key.replace('_', ' ')}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 mt-6">
+            <button
+              onClick={() => setEditingRole(null)}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUpdateRole}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              disabled={!editingRole.name || !editingRole.description}
+            >
+              Update Role
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  );
+
   // ============================================================================
   // MAIN RENDER
   // ============================================================================
@@ -1331,6 +1486,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
         {renderUserModal()}
         {renderEditUserModal()}
         {renderRoleModal()}
+        {renderEditRoleModal()}
 
         {/* Error Display */}
         {error && (
