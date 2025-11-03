@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
-from routes.auth_routes import router as auth_router
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from routes.smart_rules_routes import router as smart_rules_router
