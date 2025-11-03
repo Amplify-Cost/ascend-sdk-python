@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - OW-AI Enterprise Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.7;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .nav {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            padding: 25px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .nav-logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .nav a:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        .content {
+            padding: 60px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 48px;
+            margin-bottom: 20px;
+            border-bottom: 4px solid #667eea;
+            padding-bottom: 20px;
+        }
+        h2 {
+            color: #34495e;
+            font-size: 36px;
+            margin: 50px 0 25px 0;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #7f8c8d;
+            font-size: 28px;
+            margin: 35px 0 20px 0;
+        }
+        h4 {
+            color: #95a5a6;
+            font-size: 22px;
+            margin: 25px 0 15px 0;
+        }
+        p {
+            margin: 15px 0;
+            font-size: 17px;
+            line-height: 1.8;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            color: #e74c3c;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 25px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        pre code {
+            background: none;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        ul, ol {
+            margin: 20px 0 20px 40px;
+        }
+        li {
+            margin: 10px 0;
+            font-size: 17px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <div class="nav-logo">🛡️ OW-AI</div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product_overview.html">Overview</a>
+                <a href="architecture.html">Architecture</a>
+                <a href="api.html">API</a>
+                <a href="user_guide.html">User Guide</a>
+                <a href="admin_guide.html">Admin</a>
+                <a href="security_compliance.html">Security</a>
+            </div>
+        </div>
+        <div class="content">
+            <h1>OW-AI API Documentation</h1>
+<h2>Base URL</h2>
+<ul>
+<li><strong>Production</strong>: <code>https://pilot.owkai.app</code></li>
+<li><strong>Development</strong>: <code>http://localhost:8000</code></li>
+</ul>
+<h2>Authentication</h2>
+<p>OW-AI uses <strong>cookie-based JWT authentication</strong> for secure, browser-friendly access.</p>
+<h3>How It Works</h3>
+<pre><code>1. User submits credentials to /auth/login
+2. Backend validates against database
+3. JWT token generated and signed with RS256
+4. Token sent in httpOnly cookie (not in response body)
+5. Browser automatically includes cookie in all requests
+6. Backend reads and validates JWT from cookie
+7. User context attached to request
+</code></pre>
+<h3>Login Flow</h3>
+<p><strong>Request:</strong></p>
+<pre><code class="language-http">POST /auth/login
+Content-Type: application/json
+
+{
+  &quot;email&quot;: &quot;user@company.com&quot;,
+  &quot;password&quot;: &quot;password123&quot;
+}
+</code></pre>
+<p><strong>Response:</strong></p>
+<pre><code class="language-http">HTTP/1.1 200 OK
+Set-Cookie: access_token=eyJ0eXAiOiJKV1QiLCJhbGc...; HttpOnly; Secure; SameSite=Strict; Path=/
+
+{
+  &quot;message&quot;: &quot;Login successful&quot;,
+  &quot;user&quot;: {
+    &quot;email&quot;: &quot;user@company.com&quot;,
+    &quot;role&quot;: &quot;approver&quot;
+  }
+}
+</code></pre>
+<h3>Cookie Details</h3>
+<p>The authentication cookie has these properties:</p>
+<ul>
+<li><strong>Name</strong>: <code>access_token</code></li>
+<li><strong>HttpOnly</strong>: ✅ (JavaScript cannot read it - XSS protection)</li>
+<li><strong>Secure</strong>: ✅ (Only sent over HTTPS)</li>
+<li><strong>SameSite</strong>: Strict (CSRF protection)</li>
+<li><strong>Max-Age</strong>: 3600 seconds (1 hour)</li>
+<li><strong>Path</strong>: / (sent with all requests)</li>
+</ul>
+<h3>Automatic Authentication</h3>
+<p>Once logged in, the browser automatically includes the cookie:</p>
+<pre><code class="language-http">GET /api/smart-rules
+Cookie: access_token=eyJ0eXAiOiJKV1QiLCJhbGc...
+
+Response: 200 OK (authenticated automatically)
+</code></pre>
+<p><strong>You don't need to manually add Authorization headers</strong> - the browser handles everything!</p>
+<h3>Token Structure</h3>
+<p>Even though delivered via cookie, the token is still a JWT:</p>
+<pre><code class="language-json">{
+  &quot;header&quot;: {
+    &quot;alg&quot;: &quot;RS256&quot;,
+    &quot;typ&quot;: &quot;JWT&quot;
+  },
+  &quot;payload&quot;: {
+    &quot;sub&quot;: &quot;user_abc123&quot;,
+    &quot;email&quot;: &quot;user@company.com&quot;,
+    &quot;role&quot;: &quot;approver&quot;,
+    &quot;iat&quot;: 1698765432,
+    &quot;exp&quot;: 1698769032
+  },
+  &quot;signature&quot;: &quot;...&quot;
+}
+</code></pre>
+<h3>API Client Usage</h3>
+<p>For programmatic API access (not browser), you can still use Bearer tokens:</p>
+<p><strong>Option 1: Use Cookie (Recommended for web apps)</strong></p>
+<pre><code class="language-javascript">// Browser automatically handles cookies
+fetch('https://pilot.owkai.app/api/smart-rules', {
+  credentials: 'include'  // Important: include cookies
+})
+</code></pre>
+<p><strong>Option 2: API Key (Coming soon)</strong></p>
+<pre><code class="language-http">GET /api/smart-rules
+X-API-Key: sk_live_your_api_key_here
+</code></pre>
+<h3>Logout</h3>
+<pre><code class="language-http">POST /auth/logout
+
+Response:
+Set-Cookie: access_token=; Max-Age=0; Path=/
+</code></pre>
+<p>The cookie is cleared and subsequent requests will be unauthenticated.</p>
+<h3>Security Advantages</h3>
+<p><strong>Why Cookie-Based?</strong></p>
+<ol>
+<li><strong>XSS Protection</strong>: HttpOnly cookies can't be stolen by malicious JavaScript</li>
+<li><strong>Automatic Handling</strong>: No need to manually manage tokens</li>
+<li><strong>Built-in Expiration</strong>: Browser respects Max-Age</li>
+<li><strong>Secure by Default</strong>: Secure flag ensures HTTPS-only transmission</li>
+</ol>
+<p><strong>Security Features:</strong><br />
+- ✅ JWT signed with RSA-2048 (can't be forged)<br />
+- ✅ HttpOnly (immune to XSS)<br />
+- ✅ Secure flag (HTTPS only)<br />
+- ✅ SameSite=Strict (CSRF protection)<br />
+- ✅ Short expiration (1 hour)<br />
+- ✅ Server-side validation on every request</p>
+<h3>CSRF Protection</h3>
+<p>Your system uses cookie-based auth with CSRF protection disabled for authenticated requests (cookies + JWT signature provide sufficient security).</p>
+<p><strong>Why this is safe:</strong><br />
+1. JWT signature proves the token wasn't tampered with<br />
+2. HttpOnly cookies can't be read by JavaScript<br />
+3. Same-origin policy prevents cross-site access<br />
+4. Short token expiration limits exposure</p>
+<h3>Troubleshooting</h3>
+<p><strong>"Authentication required" errors:</strong><br />
+- Check that <code>credentials: 'include'</code> is set in fetch requests<br />
+- Verify cookies are enabled in browser<br />
+- Check that you're on the same domain (or CORS configured)</p>
+<p><strong>Cookie not being set:</strong><br />
+- Verify you're using HTTPS in production<br />
+- Check that login response includes Set-Cookie header<br />
+- Ensure no browser extensions blocking cookies</p>
+<p><strong>Token expired:</strong><br />
+- Tokens expire after 1 hour<br />
+- User will need to log in again<br />
+- Refresh token support coming soon</p>
+<h2>Core Endpoints</h2>
+<h3>Agent Actions</h3>
+<h4>List Actions</h4>
+<pre><code class="language-http">GET /agent-control/actions?status=pending&amp;limit=50
+Authorization: Bearer &lt;token&gt;
+</code></pre>
+<p><strong>Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;actions&quot;: [
+    {
+      &quot;id&quot;: 1,
+      &quot;action_type&quot;: &quot;database_write&quot;,
+      &quot;description&quot;: &quot;Update user permissions&quot;,
+      &quot;risk_score&quot;: 85.5,
+      &quot;status&quot;: &quot;pending&quot;,
+      &quot;created_at&quot;: &quot;2025-10-23T10:30:00Z&quot;
+    }
+  ],
+  &quot;total&quot;: 42
+}
+</code></pre>
+<h4>Create Action</h4>
+<pre><code class="language-http">POST /agent-control/actions
+Authorization: Bearer &lt;token&gt;
+Content-Type: application/json
+
+{
+  &quot;action_type&quot;: &quot;system_modification&quot;,
+  &quot;description&quot;: &quot;Install security patch&quot;,
+  &quot;metadata&quot;: {
+    &quot;target_system&quot;: &quot;production-web-01&quot;
+  }
+}
+</code></pre>
+<h3>Smart Rules</h3>
+<h4>List Rules</h4>
+<pre><code class="language-http">GET /api/smart-rules
+Authorization: Bearer &lt;token&gt;
+</code></pre>
+<h4>Create Rule</h4>
+<pre><code class="language-http">POST /api/smart-rules
+Authorization: Bearer &lt;token&gt;
+
+{
+  &quot;name&quot;: &quot;High-Risk Detection&quot;,
+  &quot;condition&quot;: &quot;risk_score &gt; 80&quot;,
+  &quot;action&quot;: &quot;require_approval&quot;,
+  &quot;enabled&quot;: true
+}
+</code></pre>
+<h3>Alerts</h3>
+<h4>List Alerts</h4>
+<pre><code class="language-http">GET /alerts?status=active&amp;severity=high
+Authorization: Bearer &lt;token&gt;
+</code></pre>
+<h4>Acknowledge Alert</h4>
+<pre><code class="language-http">POST /alerts/{id}/acknowledge
+Authorization: Bearer &lt;token&gt;
+
+{
+  &quot;notes&quot;: &quot;Reviewed and resolved&quot;
+}
+</code></pre>
+<h3>Analytics</h3>
+<h4>Performance Metrics</h4>
+<pre><code class="language-http">GET /analytics/performance
+Authorization: Bearer &lt;token&gt;
+</code></pre>
+<p><strong>Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;total_actions&quot;: 1247,
+  &quot;approved&quot;: 892,
+  &quot;denied&quot;: 234,
+  &quot;approval_rate&quot;: 71.5,
+  &quot;average_response_time&quot;: 45.3
+}
+</code></pre>
+<h2>Error Responses</h2>
+<h3>400 Bad Request</h3>
+<pre><code class="language-json">{
+  &quot;detail&quot;: &quot;Invalid request format&quot;
+}
+</code></pre>
+<h3>401 Unauthorized</h3>
+<pre><code class="language-json">{
+  &quot;detail&quot;: &quot;Authentication required&quot;
+}
+</code></pre>
+<h3>403 Forbidden</h3>
+<pre><code class="language-json">{
+  &quot;detail&quot;: &quot;Admin access required&quot;
+}
+</code></pre>
+<h2>Rate Limiting</h2>
+<ul>
+<li><strong>Authenticated</strong>: 100 requests/minute</li>
+<li><strong>Unauthenticated</strong>: 10 requests/minute</li>
+<li><strong>Admin</strong>: 500 requests/minute</li>
+</ul>
+        </div>
+        <div class="footer">
+            <p>© 2025 OW-AI Enterprise Platform | Documentation Version 2.0</p>
+        </div>
+    </div>
+</body>
+</html>

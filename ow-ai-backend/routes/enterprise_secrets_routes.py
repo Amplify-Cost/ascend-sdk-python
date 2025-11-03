@@ -14,12 +14,12 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, require_admin
-from config import config
+from config import _config as config
 
 logger = logging.getLogger(__name__)
 
 # Initialize router
-router = APIRouter(prefix="/enterprise/secrets", tags=["Enterprise Secrets Management"])
+router = APIRouter(prefix="/api/secrets", tags=["Enterprise Secrets Management"])
 security = HTTPBearer()
 
 # Pydantic models for request/response

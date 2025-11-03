@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Compliance - OW-AI Enterprise Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.7;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .nav {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            padding: 25px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .nav-logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .nav a:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        .content {
+            padding: 60px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 48px;
+            margin-bottom: 20px;
+            border-bottom: 4px solid #667eea;
+            padding-bottom: 20px;
+        }
+        h2 {
+            color: #34495e;
+            font-size: 36px;
+            margin: 50px 0 25px 0;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #7f8c8d;
+            font-size: 28px;
+            margin: 35px 0 20px 0;
+        }
+        h4 {
+            color: #95a5a6;
+            font-size: 22px;
+            margin: 25px 0 15px 0;
+        }
+        p {
+            margin: 15px 0;
+            font-size: 17px;
+            line-height: 1.8;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            color: #e74c3c;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 25px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        pre code {
+            background: none;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        ul, ol {
+            margin: 20px 0 20px 40px;
+        }
+        li {
+            margin: 10px 0;
+            font-size: 17px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <div class="nav-logo">🛡️ OW-AI</div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product_overview.html">Overview</a>
+                <a href="architecture.html">Architecture</a>
+                <a href="api.html">API</a>
+                <a href="user_guide.html">User Guide</a>
+                <a href="admin_guide.html">Admin</a>
+                <a href="security_compliance.html">Security</a>
+            </div>
+        </div>
+        <div class="content">
+            <h1>Security &amp; Compliance Deep Dive</h1>
+<p><strong>Last Updated:</strong> October 23, 2025</p>
+<h2>Security Architecture</h2>
+<h3>Defense in Depth Strategy</h3>
+<p>OW-AI implements multiple layers of security:</p>
+<pre><code>SECURITY LAYERS
+
+Layer 7: Physical Security
+└─ AWS data centers (SOC 1/2/3 certified)
+
+Layer 6: Network Security
+├─ VPC isolation
+├─ Security groups
+├─ Network ACLs
+└─ TLS 1.3 encryption
+
+Layer 5: Infrastructure Security
+├─ ECS task isolation
+├─ IAM least privilege
+├─ Secrets Manager
+└─ CloudTrail logging
+
+Layer 4: Application Security
+├─ Input validation (Pydantic)
+├─ SQL injection prevention (SQLAlchemy ORM)
+├─ XSS protection
+└─ CSRF protection
+
+Layer 3: Authentication &amp; Authorization
+├─ JWT with RS256
+├─ MFA support
+├─ SSO integration
+└─ Role-Based Access Control
+
+Layer 2: Data Security
+├─ Encryption at rest (AES-256)
+├─ Encryption in transit (TLS 1.3)
+├─ Database encryption
+└─ PII tokenization
+
+Layer 1: Monitoring &amp; Response
+├─ Real-time threat detection
+├─ Anomaly detection
+├─ Automated incident response
+└─ Security audit logs
+</code></pre>
+<h3>Authentication Deep Dive</h3>
+<h4>JWT Implementation</h4>
+<p><strong>Token Structure:</strong></p>
+<pre><code class="language-json">{
+  &quot;header&quot;: {
+    &quot;alg&quot;: &quot;RS256&quot;,
+    &quot;typ&quot;: &quot;JWT&quot;,
+    &quot;kid&quot;: &quot;key-2025-01&quot;
+  },
+  &quot;payload&quot;: {
+    &quot;sub&quot;: &quot;user_abc123&quot;,
+    &quot;email&quot;: &quot;user@company.com&quot;,
+    &quot;role&quot;: &quot;approver&quot;,
+    &quot;permissions&quot;: [&quot;read&quot;, &quot;approve&quot;, &quot;deny&quot;],
+    &quot;iat&quot;: 1698765432,
+    &quot;exp&quot;: 1698769032,
+    &quot;iss&quot;: &quot;owai.app&quot;,
+    &quot;aud&quot;: &quot;owai-api&quot;
+  },
+  &quot;signature&quot;: &quot;...&quot;
+}
+</code></pre>
+<h2>Compliance Frameworks</h2>
+<h3>SOC 2 Type II</h3>
+<h4>Trust Service Criteria Coverage</h4>
+<p><strong>CC6.1 - Logical and Physical Access Controls</strong></p>
+<pre><code>Implementation:
+├─ Multi-factor authentication (MFA)
+├─ Role-based access control (RBAC)
+├─ Least privilege principle
+├─ Regular access reviews
+└─ Terminated user deprovisioning
+
+Evidence:
+├─ Access control policies
+├─ User provisioning logs
+├─ Access review reports
+├─ MFA enrollment records
+└─ Termination checklist
+
+Testing:
+├─ Sample 25 user accounts
+├─ Verify RBAC implementation
+├─ Check MFA enforcement
+├─ Review access logs
+└─ Test privilege escalation prevention
+</code></pre>
+<p><strong>CC6.6 - System Operations</strong></p>
+<pre><code>Implementation:
+├─ Change management procedures
+├─ Code review requirements
+├─ Deployment approval process
+├─ Rollback procedures
+└─ Production access logging
+
+Evidence:
+├─ Change management policy
+├─ Pull request records
+├─ Deployment logs
+├─ Approval workflows
+└─ Incident reports
+
+Testing:
+├─ Sample 40 production changes
+├─ Verify approval obtained
+├─ Check change tickets
+├─ Review deployment logs
+└─ Test rollback capability
+</code></pre>
+<p><strong>CC7.2 - Risk Assessment</strong></p>
+<pre><code>Implementation:
+├─ Automated risk scoring (CVSS)
+├─ Continuous monitoring
+├─ Threat intelligence integration
+├─ Vulnerability scanning
+└─ Risk mitigation tracking
+
+Evidence:
+├─ Risk assessment methodology
+├─ Risk scores for all actions
+├─ Mitigation action logs
+├─ Vulnerability scan reports
+└─ Threat intel feeds
+
+Testing:
+├─ Sample 100 high-risk actions
+├─ Verify risk scores calculated
+├─ Check mitigation applied
+├─ Review monitoring coverage
+└─ Test alert generation
+</code></pre>
+<p><strong>CC8.1 - Change Management</strong></p>
+<pre><code>Implementation:
+├─ Formal change approval process
+├─ Testing requirements
+├─ Staged rollouts
+├─ Emergency change procedures
+└─ Post-deployment validation
+
+Evidence:
+├─ Change management policy
+├─ Change tickets
+├─ Test results
+├─ Approval records
+└─ Post-deployment reports
+
+Testing:
+├─ Sample all changes (234 in Q4)
+├─ Verify tickets exist
+├─ Check approval obtained
+├─ Review test evidence
+└─ Confirm no unauthorized changes
+</code></pre>
+<h3>GDPR Compliance</h3>
+<h4>Data Protection by Design (Article 25)</h4>
+<p><strong>Key Principles:</strong></p>
+<ol>
+<li><strong>Lawfulness, Fairness, Transparency</strong></li>
+<li>All processing has legal basis</li>
+<li>Purposes clearly communicated</li>
+<li>
+<p>Privacy notices provided</p>
+</li>
+<li>
+<p><strong>Purpose Limitation</strong></p>
+</li>
+<li>Data collected for specific purposes</li>
+<li>Not used for incompatible purposes</li>
+<li>
+<p>Purpose documented in processing records</p>
+</li>
+<li>
+<p><strong>Data Minimization</strong></p>
+</li>
+<li>Only necessary data collected</li>
+<li>Automatic checks enforce minimization</li>
+<li>
+<p>Regular data audits</p>
+</li>
+<li>
+<p><strong>Accuracy</strong></p>
+</li>
+<li>Data accuracy verified</li>
+<li>Correction mechanisms available</li>
+<li>
+<p>Outdated data removed</p>
+</li>
+<li>
+<p><strong>Storage Limitation</strong></p>
+</li>
+<li>Retention periods defined</li>
+<li>Automatic deletion after retention</li>
+<li>
+<p>Legal holds respected</p>
+</li>
+<li>
+<p><strong>Integrity and Confidentiality</strong></p>
+</li>
+<li>Encryption at rest and in transit</li>
+<li>Access controls enforced</li>
+<li>
+<p>Security monitoring active</p>
+</li>
+<li>
+<p><strong>Accountability</strong></p>
+</li>
+<li>Complete audit trails</li>
+<li>Processing records maintained</li>
+<li>DPO oversight</li>
+</ol>
+<h4>Records of Processing Activities (Article 30)</h4>
+<pre><code class="language-json">{
+  &quot;processing_activity&quot;: &quot;Customer Support Ticket Processing&quot;,
+  &quot;controller&quot;: {
+    &quot;name&quot;: &quot;Your Company Inc.&quot;,
+    &quot;contact&quot;: &quot;dpo@company.com&quot;
+  },
+  &quot;purposes&quot;: [
+    &quot;Contract fulfillment&quot;,
+    &quot;Customer service&quot;
+  ],
+  &quot;legal_basis&quot;: &quot;Contract (GDPR Article 6(1)(b))&quot;,
+  &quot;categories_of_data_subjects&quot;: [
+    &quot;Customers&quot;,
+    &quot;Prospective customers&quot;
+  ],
+  &quot;categories_of_personal_data&quot;: [
+    &quot;Contact information (name, email, phone)&quot;,
+    &quot;Account information&quot;,
+    &quot;Support history&quot;
+  ],
+  &quot;categories_of_recipients&quot;: [
+    &quot;Support staff&quot;,
+    &quot;Management (for escalations)&quot;
+  ],
+  &quot;transfers_to_third_countries&quot;: &quot;None&quot;,
+  &quot;retention_period&quot;: &quot;7 years after account closure&quot;,
+  &quot;security_measures&quot;: [
+    &quot;Encryption at rest (AES-256)&quot;,
+    &quot;Encryption in transit (TLS 1.3)&quot;,
+    &quot;Access controls (RBAC)&quot;,
+    &quot;Audit logging&quot;,
+    &quot;Regular security assessments&quot;
+  ],
+  &quot;last_updated&quot;: &quot;2025-01-15&quot;
+}
+</code></pre>
+<h3>HIPAA Compliance</h3>
+<h4>Administrative Safeguards (Section 164.308)</h4>
+<pre><code>Security Management Process:
+├─ Risk Analysis ✅
+│  └─ Automated CVSS scoring for all PHI access
+├─ Risk Management ✅
+│  └─ Smart rules enforce mitigation
+├─ Sanction Policy ✅
+│  └─ Violations trigger automated sanctions
+└─ Information System Activity Review ✅
+   └─ Continuous audit log review
+
+Workforce Security:
+├─ Authorization/Supervision ✅
+│  └─ Approval workflows for PHI access
+├─ Workforce Clearance ✅
+│  └─ Background checks before access
+└─ Termination Procedures ✅
+   └─ Automated access revocation
+
+Access Management:
+├─ Access Authorization ✅
+│  └─ Role-based access control
+├─ Access Establishment ✅
+│  └─ Formal provisioning process
+└─ Access Modification ✅
+   └─ Change management workflow
+</code></pre>
+<h4>Technical Safeguards (Section 164.312)</h4>
+<pre><code>Access Control:
+├─ Unique User Identification ✅
+│  └─ Every user has unique ID
+├─ Emergency Access Procedure ✅
+│  └─ Break-glass access with logging
+├─ Automatic Logoff ✅
+│  └─ 15-minute inactivity timeout
+└─ Encryption and Decryption ✅
+   └─ AES-256 for all PHI
+
+Audit Controls:
+├─ Record all PHI access ✅
+├─ Immutable audit logs ✅
+├─ 6-year retention ✅
+└─ Regular review ✅
+
+Integrity:
+├─ Checksums verify data integrity ✅
+├─ Unauthorized change detection ✅
+└─ Security team alerts ✅
+
+Transmission Security:
+├─ TLS 1.3 for all transmissions ✅
+├─ HMAC signatures ✅
+└─ Transmission logging ✅
+</code></pre>
+<h3>PCI DSS (Payment Card Industry)</h3>
+<p>For organizations handling payment data:</p>
+<pre><code>Requirement 3: Protect Stored Cardholder Data
+├─ Never store sensitive authentication data
+├─ Encrypt cardholder data (AES-256)
+├─ Mask PAN when displayed
+└─ Cryptographic key management
+
+Requirement 7: Restrict Access by Business Need
+├─ Limit access to card data
+├─ Assign unique IDs
+├─ Implement least privilege
+└─ Document access requirements
+
+Requirement 8: Identify and Authenticate Access
+├─ Assign unique ID to each user
+├─ Require strong passwords
+├─ Implement MFA
+└─ Lock account after failed attempts
+
+Requirement 10: Track and Monitor Access
+├─ Link all access to individual users
+├─ Log all actions on cardholder data
+├─ Review logs daily
+└─ Retain audit trail for 1 year
+</code></pre>
+<h2>Security Best Practices</h2>
+<h3>Incident Response Procedures</h3>
+<pre><code>INCIDENT RESPONSE PLAYBOOK
+
+Phase 1: Detection (0-15 min)
+├─ Automated alert triggers
+├─ Security team notified
+├─ Initial assessment
+└─ Severity classification
+
+Phase 2: Containment (15-60 min)
+├─ Isolate affected systems
+├─ Preserve evidence
+├─ Prevent further damage
+└─ Implement temporary controls
+
+Phase 3: Eradication (1-4 hours)
+├─ Remove threat actor access
+├─ Patch vulnerabilities
+├─ Remove malware
+└─ Restore from clean backup
+
+Phase 4: Recovery (4-24 hours)
+├─ Restore systems to production
+├─ Monitor for re-infection
+├─ Validate functionality
+└─ Gradual traffic restoration
+
+Phase 5: Post-Incident (24+ hours)
+├─ Root cause analysis
+├─ Incident report
+├─ Lessons learned
+├─ Update procedures
+└─ Stakeholder communication
+</code></pre>
+<h2>Audit Preparation</h2>
+<h3>Evidence Collection</h3>
+<pre><code class="language-bash"># Automated evidence collection
+owai audit generate-evidence-package   --framework SOC2   --period Q4-2025   --output /tmp/soc2-evidence/
+
+# Package includes:
+# ├─ access_logs/
+# │  ├─ user_access_log.csv
+# │  ├─ privileged_access_log.csv
+# │  └─ failed_login_attempts.csv
+# ├─ change_management/
+# │  ├─ production_changes.csv
+# │  ├─ approval_records.pdf
+# │  └─ test_results/
+# ├─ risk_assessment/
+# │  ├─ risk_scores.csv
+# │  ├─ high_risk_actions.pdf
+# │  └─ mitigation_actions.csv
+# ├─ compliance_controls/
+# │  ├─ control_testing.pdf
+# │  ├─ exceptions.csv
+# │  └─ remediation_plans.pdf
+# └─ policies/
+#    ├─ information_security_policy.pdf
+#    ├─ access_control_policy.pdf
+#    └─ incident_response_plan.pdf
+</code></pre>
+<h3>Auditor Support</h3>
+<pre><code>Audit Support Process:
+
+1. Pre-Audit (2 weeks before)
+   ├─ Generate evidence package
+   ├─ Review for completeness
+   ├─ Prepare narratives
+   └─ Schedule kickoff meeting
+
+2. Fieldwork (During audit)
+   ├─ Provide requested evidence
+   ├─ Answer auditor questions
+   ├─ Demonstrate controls
+   └─ Facilitate system walkthroughs
+
+3. Follow-up
+   ├─ Respond to additional requests
+   ├─ Clarify findings
+   ├─ Provide supplemental evidence
+   └─ Discuss remediation plans
+
+4. Post-Audit
+   ├─ Review draft report
+   ├─ Provide management response
+   ├─ Implement recommendations
+   └─ Plan follow-up audit
+</code></pre>
+<hr />
+<h2>Security Contacts</h2>
+<p><strong>Security Team</strong>: security@owkai.com<br />
+<strong>Vulnerability Reports</strong>: security@owkai.com<br />
+<strong>Compliance Questions</strong>: compliance@owkai.com<br />
+<strong>Emergency (24/7)</strong>: security@owkai.com</p>
+<p><strong>Bug Bounty Program</strong>: https://bugcrowd.com/owkai<br />
+<strong>Security Updates</strong>: https://status.owkai.app</p>
+        </div>
+        <div class="footer">
+            <p>© 2025 OW-AI Enterprise Platform | Documentation Version 2.0</p>
+        </div>
+    </div>
+</body>
+</html>

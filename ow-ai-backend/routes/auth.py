@@ -1,16 +1,19 @@
 # routes/auth.py - Enterprise Response Diagnostics (Find Exact Format Issue)
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from security.cookies import SESSION_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+from sqlalchemy import text  # PHASE 2: For password change SQL queries
 from database import get_db
 from models import User
 from passlib.context import CryptContext
 from auth_utils import verify_password
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any
-from dependencies import get_current_user, require_csrf
+from dependencies import get_current_user, require_csrf  # PHASE 2: Added require_csrf for logout, require_csrf
 from pydantic import BaseModel
+from secrets import token_urlsafe
 import jwt
 import os
 import logging
@@ -25,7 +28,7 @@ class LoginRequest(BaseModel):
 
 # =================== ENTERPRISE DIAGNOSTIC CONFIGURATION ===================
 
-router = APIRouter(prefix="/auth", tags=["Enterprise Authentication"])
+router = APIRouter(prefix="/api/auth", tags=["Enterprise Authentication"])
 security = HTTPBearer(auto_error=False)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -157,30 +160,86 @@ def parse_request_safely(request_body: bytes) -> Dict[str, Any]:
 
 # 🔧 ENTERPRISE FIX: Enhanced debugging for cookie detection
 
+def detect_auth_preference(request: Request) -> str:
+    """
+    🏢 ENTERPRISE: Smart authentication mode detection
+
+    Priority order:
+    1. Explicit header (X-Auth-Mode: cookie/token) - Highest priority
+    2. User-Agent detection (browsers use cookies, APIs use tokens)
+    3. Default to token for unknown clients
+    """
+    # 1. Check for explicit preference header
+    mode = (request.headers.get("X-Auth-Mode") or "").lower()
+    if mode in {"cookie", "cookies"}:
+        logger.debug("🔐 Auth mode: cookie (explicit header)")
+        return "cookie"
+    if mode in {"token", "bearer"}:
+        logger.debug("🔐 Auth mode: token (explicit header)")
+        return "token"
+
+    # 2. Auto-detect from User-Agent (browsers vs API clients)
+    user_agent = (request.headers.get("User-Agent") or "").lower()
+
+    # Common browser User-Agent keywords
+    browser_keywords = [
+        "mozilla", "chrome", "safari", "firefox",
+        "edge", "opera", "msie", "trident"
+    ]
+
+    # If User-Agent contains browser keywords, use cookie mode
+    if any(keyword in user_agent for keyword in browser_keywords):
+        logger.debug(f"🔐 Auth mode: cookie (detected browser: {user_agent[:50]}...)")
+        return "cookie"
+
+    # 3. Default to token for API clients, mobile apps, unknown clients
+    logger.debug(f"🔐 Auth mode: token (API client or unknown: {user_agent[:50]}...)")
+    return "token"
+
+def _set_csrf_cookie(response: Response, request: Request) -> str:
+    """
+    🏢 ENTERPRISE: Issue a non-HttpOnly CSRF cookie for double-submit protection.
+    The frontend will echo this value in the X-CSRF-Token header
+    for any POST/PUT/PATCH/DELETE request.
+    """
+    csrf = token_urlsafe(32)
+    # CSRF cookie is NOT HttpOnly (frontend must read it)
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf,
+        httponly=False,  # CRITICAL: Frontend must read this
+        secure=False,  # Allow HTTP during development
+        samesite="lax",
+        path="/",
+        max_age=60 * 30,  # 30 minutes
+    )
+    logger.debug(f"🔐 CSRF cookie set: {csrf[:10]}...")
+    return csrf
+
 def get_authentication_source(request: Request, credentials: HTTPAuthorizationCredentials) -> tuple[str, str, str]:
     """Get auth source - MINIMAL ENTERPRISE FIX"""
-    
+
     # 🔧 ENTERPRISE FIX: Check Authorization header first (primary method)
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         logger.info(f"🎫 ENTERPRISE: Authorization header found, length = {len(token)}")
         return token, "bearer", "enterprise"
-    
+
     # Check cookies (secondary method)
     access_cookie = request.cookies.get("access_token")
     if not access_cookie:
         access_cookie = request.cookies.get("ow_access_token")
-    
+
     if access_cookie:
         logger.info(f"🍪 ENTERPRISE: Cookie found, length = {len(access_cookie)}")
         return access_cookie, "cookie", "enterprise"
-    
+
     # FastAPI HTTPBearer fallback
     if credentials and credentials.credentials:
         logger.info(f"🎫 ENTERPRISE: FastAPI credentials found, length = {len(credentials.credentials)}")
         return credentials.credentials, "bearer", "fastapi"
-    
+
     logger.warning("🚨 ENTERPRISE: No authentication found")
     return None, "none", "none"
 
@@ -189,7 +248,7 @@ def set_enterprise_cookies(response: Response, access_token: str, refresh_token:
     
     # 🔧 ENTERPRISE FIX: Simplified cookie configuration for maximum compatibility
     response.set_cookie(
-        key="access_token",
+        key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
         value=access_token,
         httponly=True,
         secure=False,  # CHANGED: Allow HTTP during development/testing
@@ -230,26 +289,171 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
 
 @router.post("/token")
 @limiter.limit(RATE_LIMITS["auth_login"])
-async def enterprise_login_diagnostic(request: Request, login_data: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    """🔍 Enterprise Login with Response Diagnostics"""
-    
+async def enterprise_login_diagnostic(request: Request, response: Response, db: Session = Depends(get_db)):
+    """
+    🔍 Enterprise Login with Dual Format Support (SEC-006)
+
+    Supports TWO authentication formats:
+    1. JSON: {"email": "user@example.com", "password": "password"}
+    2. OAuth2 Form-data: username=user@example.com&password=password
+
+    Returns JWT tokens with enterprise diagnostics
+    """
+
     try:
-        logger.info(f"🔍 DIAGNOSTIC LOGIN for email: {login_data.email}")
-        
-        email = login_data.email.strip().lower()
-        password = login_data.password
-        
+        content_type = request.headers.get("content-type", "").lower()
+
+        # Determine which format was used and extract credentials
+        if "application/x-www-form-urlencoded" in content_type:
+            # OAuth2 form-data format (uses 'username' field)
+            form = await request.form()
+            email = form.get("username")  # OAuth2 spec uses 'username' but we treat it as email
+            password = form.get("password")
+            auth_format = "form-data"
+
+            if not email or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Both username and password required for OAuth2 form-data format"
+                )
+
+            logger.info(f"🔐 Login attempt (OAuth2 form-data): {email}")
+        elif "application/json" in content_type:
+            # JSON format (uses 'email' field)
+            try:
+                body = await request.json()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid JSON format - please send valid JSON"
+                )
+
+            email = body.get("email")
+            password = body.get("password")
+            auth_format = "json"
+
+            if not email or not password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Both email and password required for JSON format"
+                )
+
+            logger.info(f"🔐 Login attempt (JSON): {email}")
+        else:
+            # Neither format provided
+            logger.warning("❌ Login attempt with unsupported content-type")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Login credentials required. Send either JSON {\"email\":\"...\",\"password\":\"...\"} or form-data username=...&password=..."
+            )
+
+        email = email.strip().lower()
+
         if not email or not password:
             raise HTTPException(status_code=400, detail="Email and password required")
-        
+
         # Validate user
         user = db.query(User).filter(User.email == email).first()
         if not user:
+            logger.warning(f"❌ Failed login attempt ({auth_format}): {email} - User not found")
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+
+        # ============================================================================
+        # PHASE 2 RBAC: ACCOUNT LOCKOUT PROTECTION (CVSS 7.2 - HIGH)
+        # ============================================================================
+        # Check if account is locked
+        if user.is_locked and user.locked_until:
+            # Check if lockout period has expired (auto-unlock after 30 minutes)
+            if datetime.now(UTC) < user.locked_until.replace(tzinfo=UTC):
+                remaining_minutes = int((user.locked_until.replace(tzinfo=UTC) - datetime.now(UTC)).total_seconds() / 60)
+                logger.warning(f"🔒 Account locked: {email} (unlock in {remaining_minutes} minutes)")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Account is locked due to multiple failed login attempts. Please try again in {remaining_minutes} minutes or contact an administrator."
+                )
+            else:
+                # Auto-unlock expired lockout
+                logger.info(f"🔓 Auto-unlocking account: {email} (lockout period expired)")
+                user.is_locked = False
+                user.locked_until = None
+                user.failed_login_attempts = 0
+                db.commit()
+
+        # Verify password
         if not verify_password(password, user.password):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+            # ============================================================================
+            # PHASE 2 RBAC: FAILED LOGIN ATTEMPT TRACKING
+            # ============================================================================
+            # INCREMENT FAILED LOGIN ATTEMPTS
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+
+            # Lock account after 5 failed attempts
+            if user.failed_login_attempts >= 5:
+                user.is_locked = True
+                user.locked_until = datetime.now(UTC) + timedelta(minutes=30)
+                db.commit()
+                logger.warning(f"🔒 Account locked after 5 failed attempts: {email}")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account has been locked due to multiple failed login attempts. Please contact an administrator or try again in 30 minutes."
+                )
+            else:
+                db.commit()
+                attempts_remaining = 5 - user.failed_login_attempts
+                logger.warning(f"❌ Failed login attempt ({auth_format}): {email} ({attempts_remaining} attempts remaining)")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Invalid email or password. {attempts_remaining} attempts remaining before account lockout."
+                )
+
+        # ============================================================================
+        # PHASE 2 RBAC: REDACTED-CREDENTIAL EXPIRATION (CVSS 5.8 - MEDIUM)
+        # ============================================================================
+        # Check password age (90-day expiration policy)
+        if user.password_last_changed:
+            password_age_days = (datetime.now(UTC) - user.password_last_changed.replace(tzinfo=UTC)).days
+
+            # Block login if password expired (>90 days)
+            if password_age_days >= 90:
+                logger.warning(f"⏰ Password expired for {email} ({password_age_days} days old)")
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "password_expired",
+                        "message": "Your password has expired. Please reset your password to continue.",
+                        "password_age_days": password_age_days,
+                        "requires_password_change": True
+                    }
+                )
+
+            # Warn if password expiring soon (80-89 days)
+            elif password_age_days >= 80:
+                days_until_expiration = 90 - password_age_days
+                logger.info(f"⚠️ Password expiring soon for {email} ({days_until_expiration} days remaining)")
+                # Continue with login but include warning in response
+
+        # ============================================================================
+        # PHASE 2 RBAC: FORCE REDACTED-CREDENTIAL CHANGE
+        # ============================================================================
+        # Check if admin forced password change
+        if user.force_password_change:
+            logger.info(f"🔑 Force password change required for {email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "password_change_required",
+                    "message": "Administrator has reset your password. You must change it before logging in.",
+                    "requires_password_change": True
+                }
+            )
+
+        # ============================================================================
+        # PHASE 2 RBAC: SUCCESSFUL LOGIN - RESET COUNTER
+        # ============================================================================
+        user.failed_login_attempts = 0
+        user.last_login = datetime.now(UTC)
+        db.commit()
+
         # Create tokens
         user_data = {
             "sub": str(user.id),
@@ -257,40 +461,35 @@ async def enterprise_login_diagnostic(request: Request, login_data: LoginRequest
             "role": user.role,
             "user_id": user.id
         }
-        
+
         access_token = create_enterprise_token(user_data, "access")
         refresh_token = create_enterprise_token(user_data, "refresh")
-        
-        # Set cookies with correct names
-        set_enterprise_cookies(response, access_token, refresh_token)
-        
-        # TRY MULTIPLE RESPONSE FORMATS - Let's test which one works
-        
-        # FORMAT 1: Minimal (like original working version)
-        format_1 = {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
+
+        # 🏢 ENTERPRISE: Detect auth mode (User-Agent smart detection)
+        auth_mode = detect_auth_preference(request)
+
+        if auth_mode == "cookie":
+            # Cookie-based authentication for browsers
+            set_enterprise_cookies(response, access_token, refresh_token)
+            _set_csrf_cookie(response, request)  # CRITICAL: Set CSRF cookie
+
+            logger.info(f"✅ Cookie-based login ({auth_format}): {user.email}")
+            return {
+                "access_token": "",  # Empty for cookie mode
+                "refresh_token": "",  # Empty for cookie mode
+                "token_type": "cookie",
+                "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+                "user": {
+                    "email": user.email,
+                    "role": user.role,
+                    "user_id": user.id
+                },
+                "auth_mode": "cookie"
             }
-        }
-        
-        # FORMAT 2: With refresh token
-        format_2 = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
-            }
-        }
-        
-        # FORMAT 3: With all original fields
-        format_3 = {
+
+        # Token-based authentication for API clients
+        logger.info(f"✅ Token-based login ({auth_format}): {user.email}")
+        return {
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
@@ -302,58 +501,6 @@ async def enterprise_login_diagnostic(request: Request, login_data: LoginRequest
             },
             "auth_mode": "token"
         }
-        
-        # FORMAT 4: Exactly what frontend might expect (guess)
-        format_4 = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
-            },
-            "auth_mode": "token",
-            "enterprise_metadata": {
-                "features_enabled": {"enhanced_logging": True},
-                "security_level": "enterprise",
-                "audit_logged": True,
-                "issued_at": datetime.now(UTC).isoformat()
-            }
-        }
-        
-        # Log all formats for comparison
-        logger.info("🔍 DIAGNOSTIC: Testing Format 1 (Minimal):")
-        log_response_diagnostics(format_1, "FORMAT_1")
-        
-        logger.info("🔍 DIAGNOSTIC: Testing Format 2 (With Refresh):")
-        log_response_diagnostics(format_2, "FORMAT_2")
-        
-        logger.info("🔍 DIAGNOSTIC: Testing Format 3 (Full Original):")
-        log_response_diagnostics(format_3, "FORMAT_3")
-        
-        logger.info("🔍 DIAGNOSTIC: Testing Format 4 (With Metadata):")
-        log_response_diagnostics(format_4, "FORMAT_4")
-        
-        # CRITICAL: Return EXACT format that frontend expects to prevent TypeError
-        response_data = {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user": {
-                "email": user.email,
-                "role": user.role,
-                "user_id": user.id
-            },
-            "auth_mode": "token"  # Frontend expects "token" not "cookie"
-        }
-        
-        logger.info("✅ DIAGNOSTIC: Login response prepared - EXACT frontend format")
-        log_response_diagnostics(response_data, "LOGIN_RESPONSE")
-        
-        return response_data
         
     except HTTPException:
         raise
@@ -542,7 +689,7 @@ async def enterprise_logout(
         
         # Clear cookies with matching configuration
         response.set_cookie(
-            key="access_token",
+            key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
             value="",
             httponly=True,
             secure=False,  # Match the setting used when creating cookies
@@ -625,3 +772,98 @@ def get_csrf_token(response: Response, request: Request):
         max_age=3600
     )
     return {"csrf_token": csrf_token}
+
+# ============================================================================
+# PHASE 2 RBAC: REDACTED-CREDENTIAL CHANGE ENDPOINT
+# ============================================================================
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/change-password")
+async def change_password(
+    password_data: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    """
+    🔑 PHASE 2 RBAC: User password change endpoint
+
+    Security Features:
+    - Verifies current password is correct
+    - Validates new password complexity (enterprise standards)
+    - Ensures new password != current password
+    - Updates password_last_changed timestamp
+    - Clears force_password_change flag
+    - Logs to audit trail
+
+    Compliance:
+    - NIST SP 800-63B: Password change requirements
+    - PCI-DSS 3.2.1: Password history (new != current)
+    - SOX: User password management
+    - HIPAA: Password security controls
+    """
+    try:
+        logger.info(f"🔑 Password change requested by user: {current_user.get('email')}")
+
+        # Get user with current password
+        user_query = text("""
+            SELECT id, email, password, role
+            FROM users
+            WHERE id = :user_id
+        """)
+        user = db.execute(user_query, {"user_id": current_user.get("user_id")}).fetchone()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Verify current password
+        from auth_utils import hash_password
+
+        if not verify_password(password_data.current_password, user.password):
+            logger.warning(f"❌ Failed password change attempt for {user.email} - incorrect current password")
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+        # Ensure new password != current password (PCI-DSS requirement)
+        if verify_password(password_data.new_password, user.password):
+            logger.warning(f"❌ New password same as current password for {user.email}")
+            raise HTTPException(
+                status_code=400,
+                detail="New password must be different from current password"
+            )
+
+        # Hash new password
+        new_password_hash = hash_password(password_data.new_password)
+
+        # Update password with PHASE 2 columns
+        update_query = text("""
+            UPDATE users
+            SET password = :password,
+                password_last_changed = CURRENT_TIMESTAMP,
+                force_password_change = FALSE
+            WHERE id = :user_id
+        """)
+
+        db.execute(update_query, {
+            "password": new_password_hash,
+            "user_id": user.id
+        })
+        db.commit()
+
+        logger.info(f"✅ Password changed successfully for {user.email}")
+
+        return {
+            "message": "✅ Password changed successfully",
+            "user_email": user.email,
+            "security_note": "Password will expire in 90 days",
+            "force_password_change": False
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error changing password: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to change password: {str(e)}")

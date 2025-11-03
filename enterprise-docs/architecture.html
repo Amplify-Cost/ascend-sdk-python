@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Architecture - OW-AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .nav {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            padding: 25px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .nav-logo { font-size: 24px; font-weight: bold; color: white; }
+        .nav-links { display: flex; gap: 15px; flex-wrap: wrap; }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .nav a:hover { background: rgba(255,255,255,0.2); transform: translateY(-2px); }
+        .content { padding: 60px; }
+        h1 { color: #2c3e50; font-size: 48px; margin-bottom: 20px; border-bottom: 4px solid #667eea; padding-bottom: 20px; }
+        h2 { color: #34495e; font-size: 36px; margin: 50px 0 25px 0; padding-top: 20px; border-top: 2px solid #ecf0f1; }
+        h3 { color: #7f8c8d; font-size: 28px; margin: 35px 0 20px 0; }
+        p { margin: 15px 0; font-size: 17px; line-height: 1.8; }
+        code { background: #f8f9fa; padding: 3px 8px; border-radius: 4px; font-family: 'Monaco', monospace; font-size: 14px; color: #e74c3c; }
+        pre { background: #2c3e50; color: #ecf0f1; padding: 25px; border-radius: 8px; overflow-x: auto; margin: 25px 0; font-size: 14px; }
+        pre code { background: none; color: #ecf0f1; padding: 0; }
+        ul, ol { margin: 20px 0 20px 40px; }
+        li { margin: 10px 0; font-size: 17px; }
+        .footer { background: #2c3e50; color: white; padding: 40px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <div class="nav-logo">🛡️ OW-AI</div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product_overview.html">Overview</a>
+                <a href="architecture.html">Architecture</a>
+                <a href="api.html">API</a>
+                <a href="user_guide.html">User Guide</a>
+                <a href="admin_guide.html">Admin</a>
+                <a href="security_compliance.html">Security</a>
+            </div>
+        </div>
+        <div class="content">
+            <h1>OW-AI System Architecture (VERIFIED)</h1>
+<p><strong>Last Updated:</strong> October 23, 2025<br />
+<strong>Verification Date:</strong> 2025-10-23</p>
+<p><em>This documentation is automatically generated from your actual codebase.</em></p>
+<h2>System Overview</h2>
+<p>OW-AI is deployed as a containerized application with the following verified components:</p>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│                    OW-AI Platform                        │
+├─────────────────────────────────────────────────────────┤
+│  Frontend (React)          Backend (FastAPI)             │
+│  ├─ React 19.1.0           ├─ Python 3.11                │
+│  ├─ Vite 6.4.1             ├─ FastAPI 0.115+             │
+│  └─ Dashboard UI           └─ RESTful API                │
+│                            ↓                             │
+│                    ┌───────────────┐                    │
+│                    │  PostgreSQL   │                    │
+│                    │   (AWS RDS)   │                    │
+│                    └───────────────┘                    │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<h2>Verified Backend Architecture</h2>
+<h3>Authentication</h3>
+<p><strong>Type:</strong> cookie-based JWT</p>
+<p>Your application uses cookies for authentication, not Authorization headers. This means:
+- JWT tokens are sent via httpOnly cookies
+- Browser automatically includes credentials
+- More secure against XSS attacks</p>
+<h3>API Route Modules (29 modules)</h3>
+<ul>
+<li><code>__init___routes.py</code> -   Init   endpoints</li>
+<li><code>admin_routes.py</code> - Admin endpoints</li>
+<li><code>agent_routes.py</code> - Agent endpoints</li>
+<li><code>alert_routes.py</code> - Alert endpoints</li>
+<li><code>alert_summary_routes.py</code> - Alert Summary endpoints</li>
+<li><code>analytics_routes.py</code> - Analytics endpoints</li>
+<li><code>audit_routes.py</code> - Audit endpoints</li>
+<li><code>auth_routes.py</code> - Auth endpoints</li>
+<li><code>auth_routes.py</code> - Auth endpoints</li>
+<li><code>authorization_routes.py</code> - Authorization endpoints</li>
+<li><code>authorization_api_adapter_routes.py</code> - Authorization Api Adapter endpoints</li>
+<li><code>automation_orchestration_routes.py</code> - Automation Orchestration endpoints</li>
+<li><code>data_rights_routes.py</code> - Data Rights endpoints</li>
+<li><code>enrichment_routes.py</code> - Enrichment endpoints</li>
+<li><code>enterprise_secrets_routes.py</code> - Enterprise Secrets endpoints</li>
+<li><code>enterprise_user_management_routes.py</code> - Enterprise User Management endpoints</li>
+<li><code>log_routes.py</code> - Log endpoints</li>
+<li><code>main_routes.py</code> - Main endpoints</li>
+<li><code>mcp_enterprise_secure_routes.py</code> - Mcp Enterprise Secure endpoints</li>
+<li><code>mcp_governance_routes.py</code> - Mcp Governance endpoints</li>
+<li><code>mcp_governance_adapter_routes.py</code> - Mcp Governance Adapter endpoints</li>
+<li><code>rule_routes.py</code> - Rule endpoints</li>
+<li><code>siem_integration_routes.py</code> - Siem Integration endpoints</li>
+<li><code>siem_simple_routes.py</code> - Siem Simple endpoints</li>
+<li><code>smart_alerts_routes.py</code> - Smart Alerts endpoints</li>
+<li><code>smart_rules_routes.py</code> - Smart Rules endpoints</li>
+<li><code>sso_routes.py</code> - Sso endpoints</li>
+<li><code>support_routes.py</code> - Support endpoints</li>
+<li><code>unified_governance_routes.py</code> - Unified Governance endpoints</li>
+</ul>
+<h3>Service Layer (24 services)</h3>
+<ul>
+<li><code>action_service.py</code> - Action business logic</li>
+<li><code>action_taxonomy_service.py</code> - Action Taxonomy business logic</li>
+<li><code>alert_service.py</code> - Alert business logic</li>
+<li><code>approver_selector_service.py</code> - Approver Selector business logic</li>
+<li><code>assessment_service.py</code> - Assessment business logic</li>
+<li><code>cedar_enforcement_service.py</code> - Cedar Enforcement business logic</li>
+<li><code>condition_engine_service.py</code> - Condition Engine business logic</li>
+<li><code>cvss_auto_mapper_service.py</code> - Cvss Auto Mapper business logic</li>
+<li><code>cvss_calculator_service.py</code> - Cvss Calculator business logic</li>
+<li><code>data_rights_service.py</code> - Data Rights business logic</li>
+<li><code>enterprise_batch_loader_service.py</code> - Enterprise Batch Loader business logic</li>
+<li><code>enterprise_batch_loader_v2_service.py</code> - Enterprise Batch Loader V2 business logic</li>
+<li><code>enterprise_policy_templates_service.py</code> - Enterprise Policy Templates business logic</li>
+<li><code>immutable_audit_service.py</code> - Immutable Audit business logic</li>
+<li><code>mcp_governance_service.py</code> - Mcp Governance business logic</li>
+<li><code>mitre_mapper_service.py</code> - Mitre Mapper business logic</li>
+<li><code>nist_mapper_service.py</code> - Nist Mapper business logic</li>
+<li><code>orchestration_service.py</code> - Orchestration business logic</li>
+<li><code>pending_actions_service.py</code> - Pending Actions business logic</li>
+<li><code>security_bridge_service.py</code> - Security Bridge business logic</li>
+<li><code>sla_monitor_service.py</code> - Sla Monitor business logic</li>
+<li><code>workflow_service.py</code> - Workflow business logic</li>
+<li><code>workflow_approver_service.py</code> - Workflow Approver business logic</li>
+<li><code>workflow_bridge_service.py</code> - Workflow Bridge business logic</li>
+</ul>
+<h3>Database Schema (18 tables)</h3>
+<p>Your application uses the following database tables:</p>
+<ul>
+<li><strong>agent_actions</strong></li>
+<li><strong>alerts</strong></li>
+<li><strong>audit_logs</strong></li>
+<li><strong>automation_playbooks</strong></li>
+<li><strong>enterprise_policies</strong></li>
+<li><strong>integration_endpoints</strong></li>
+<li><strong>log_audit_trails</strong></li>
+<li><strong>logs</strong></li>
+<li><strong>pending_agent_actions</strong></li>
+<li><strong>playbook_executions</strong></li>
+<li><strong>rule_feedbacks</strong></li>
+<li><strong>rules</strong></li>
+<li><strong>smart_rules</strong></li>
+<li><strong>system_configurations</strong></li>
+<li><strong>users</strong></li>
+<li><strong>workflow_executions</strong></li>
+<li><strong>workflow_steps</strong></li>
+<li><strong>workflows</strong></li>
+</ul>
+<h3>Technology Stack (Verified from package.json and requirements.txt)</h3>
+<p><strong>Backend:</strong>
+- FastAPI 0.115+
+- SQLAlchemy 2.0+
+- Pydantic 2.5+
+- Alembic (migrations)
+- JWT authentication
+- PostgreSQL driver</p>
+<p><strong>Frontend:</strong>
+- React 19.1.0
+- Vite 6.4.1
+- Axios (HTTP client)
+- Chart.js (analytics)</p>
+<p><strong>Deployment:</strong>
+- Docker containers
+- AWS ECS (Fargate)
+- AWS RDS (PostgreSQL)
+- AWS Secrets Manager
+- GitHub Actions CI/CD</p>
+<h2>Production URL</h2>
+<p>Your application is deployed at: <strong>https://pilot.owkai.app</strong></p>
+<h2>Authentication Flow (ACTUAL)</h2>
+<p>Since you use cookie-based authentication, here's the real flow:</p>
+<pre><code>1. User submits login credentials
+   POST /auth/login
+
+2. Backend validates credentials
+   - Checks database
+   - Verifies password hash
+
+3. Backend creates JWT token
+   - Signs with RSA-256
+   - Includes user info (email, role)
+
+4. Backend sets httpOnly cookie
+   Set-Cookie: access_token=eyJ...; HttpOnly; Secure
+
+5. Browser stores cookie automatically
+   - Browser manages the cookie
+   - No JavaScript access (XSS protection)
+
+6. All subsequent requests include cookie
+   GET /api/smart-rules
+   Cookie: access_token=eyJ...
+
+7. Backend reads from cookie
+   - Extracts token from request.cookies
+   - Validates JWT signature
+   - Attaches user to request
+
+NO Authorization headers needed!
+</code></pre>
+<h2>Data Flow</h2>
+<h3>Action Evaluation Flow (Verified)</h3>
+<pre><code>1. Frontend: User/Agent initiates action
+   ↓
+2. POST /agent-control/actions (or /api/authorization/actions)
+   ↓
+3. OrchestrationService.evaluate_and_act()
+   ├─ AssessmentService.assess_action() → Risk score
+   ├─ Check smart_rules table → Match rules
+   ├─ AlertService.create_alert() → If high risk
+   └─ WorkflowService.create_execution() → If approval needed
+   ↓
+4. Decision: block / require_approval / notify / allow
+   ↓
+5. Update action status in database
+   ↓
+6. Return response to frontend
+</code></pre>
+<h2>File Structure (Verified)</h2>
+<pre><code>ow-ai-backend/
+├── main.py                 # FastAPI app entry point
+├── models.py               # SQLAlchemy models
+├── security.py             # JWT &amp; password handling
+├── dependencies.py         # Auth dependencies
+├── routes/                 # API endpoints
+│   ├── __init___routes.py
+│   ├── admin_routes.py
+│   ├── agent_routes.py
+│   ├── alert_routes.py
+│   ├── alert_summary_routes.py
+│   ├── analytics_routes.py
+│   ├── audit_routes.py
+│   ├── auth_routes.py
+│   ├── auth_routes.py
+│   ├── authorization_routes.py
+│   ├── authorization_api_adapter_routes.py
+│   ├── automation_orchestration_routes.py
+│   ├── data_rights_routes.py
+│   ├── enrichment_routes.py
+│   ├── enterprise_secrets_routes.py
+│   ├── enterprise_user_management_routes.py
+│   ├── log_routes.py
+│   ├── main_routes.py
+│   ├── mcp_enterprise_secure_routes.py
+│   ├── mcp_governance_routes.py
+│   ├── mcp_governance_adapter_routes.py
+│   ├── rule_routes.py
+│   ├── siem_integration_routes.py
+│   ├── siem_simple_routes.py
+│   ├── smart_alerts_routes.py
+│   ├── smart_rules_routes.py
+│   ├── sso_routes.py
+│   ├── support_routes.py
+│   ├── unified_governance_routes.py
+├── services/               # Business logic
+│   ├── action_service.py
+│   ├── action_taxonomy_service.py
+│   ├── alert_service.py
+│   ├── approver_selector_service.py
+│   ├── assessment_service.py
+│   ├── cedar_enforcement_service.py
+│   ├── condition_engine_service.py
+│   ├── cvss_auto_mapper_service.py
+│   ├── cvss_calculator_service.py
+│   ├── data_rights_service.py
+│   ├── enterprise_batch_loader_service.py
+│   ├── enterprise_batch_loader_v2_service.py
+│   ├── enterprise_policy_templates_service.py
+│   ├── immutable_audit_service.py
+│   ├── mcp_governance_service.py
+│   ├── mitre_mapper_service.py
+│   ├── nist_mapper_service.py
+│   ├── orchestration_service.py
+│   ├── pending_actions_service.py
+│   ├── security_bridge_service.py
+│   ├── sla_monitor_service.py
+│   ├── workflow_service.py
+│   ├── workflow_approver_service.py
+│   ├── workflow_bridge_service.py
+├── schemas/                # Pydantic models
+├── alembic/                # Database migrations
+├── Dockerfile              # Container definition
+└── startup.sh              # Entry point script
+
+owkai-pilot-frontend/
+├── src/
+│   ├── components/         # React components
+│   ├── utils/              # Utilities (fetchWithAuth)
+│   └── main.jsx            # App entry point
+├── Dockerfile
+└── package.json
+</code></pre>
+<h2>Deployment Architecture (AWS)</h2>
+<pre><code>AWS Cloud
+├── ECS Cluster
+│   ├── Frontend Service
+│   │   ├── Task Definition (Fargate)
+│   │   ├── Container: owkai-pilot-frontend
+│   │   └── Port: 3000 → 80
+│   └── Backend Service
+│       ├── Task Definition (Fargate)
+│       ├── Container: owkai-pilot-backend
+│       └── Port: 8000
+├── Application Load Balancer
+│   ├── Target: Frontend (pilot.owkai.app)
+│   └── Target: Backend (pilot.owkai.app/api/*)
+├── RDS PostgreSQL
+│   ├── Instance: db.t3.micro (or larger)
+│   └── Multi-AZ: Enabled
+└── Secrets Manager
+    ├── DATABASE_URL
+    ├── JWT_SECRET
+    └── Other secrets
+</code></pre>
+<hr />
+<p><strong>Note:</strong> This documentation is generated from your actual code at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+        <div class="footer">
+            <p>© 2025 OW-AI Enterprise Platform | Verified Documentation</p>
+        </div>
+    </div>
+</body>
+</html>

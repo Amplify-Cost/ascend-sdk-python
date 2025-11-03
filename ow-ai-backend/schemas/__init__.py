@@ -1,137 +1,81 @@
 """
-Complete Schemas module - All Pydantic models for enterprise application
+Pydantic Schemas - Complete Enterprise Validation Layer
+Generated from codebase audit - all required schemas included
 """
 
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List, Dict, Any, Union
-from datetime import datetime
-from enum import Enum
+# Action schemas
+from schemas.action import (
+    ActionCreate, ActionResponse, ActionUpdate,
+    AgentActionOut, AgentActionCreate
+)
 
-# User Management Schemas
-class UserOut(BaseModel):
-    id: str
-    username: str
-    email: str
-    is_active: bool
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
+# Alert schemas
+from schemas.alert import (
+    AlertCreate, AlertResponse, AlertUpdate,
+    AlertOut
+)
 
-class UserCreate(BaseModel):
-    username: str
-    email: str
-    password: str
+# Workflow schemas
+from schemas.workflow import (
+    WorkflowExecutionResponse,
+    ApprovalDecision,
+    WorkflowCreateRequest,
+    WorkflowExecutionRequest,
+    AuthorizationRequest
+)
 
-class LoginInput(BaseModel):
-    username: str
-    password: str
+# Automation schemas
+from schemas.automation import (
+    AutomationPlaybookOut,
+    AutomationExecutionCreate
+)
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str
-    expires_in: int
+# Smart rule schemas
+from schemas.smart_rule import (
+    SmartRuleOut,
+    SmartRuleOutEnhanced
+)
 
-# Agent Action Schemas
-class AgentActionOut(BaseModel):
-    id: str
-    agent_name: str
-    action_type: str
-    target_resource: Optional[str] = None
-    parameters: Dict[str, Any]
-    status: str
-    created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        from_attributes = True
+# Auth schemas
+from schemas.auth import (
+    UserCreate,
+    LoginInput,
+    TokenResponse,
+    UserOut
+)
 
-class AgentActionCreate(BaseModel):
-    agent_name: str
-    action_type: str
-    target_resource: Optional[str] = None
-    parameters: Dict[str, Any]
-
-# Alert Schemas
-class AlertOut(BaseModel):
-    id: str
-    alert_type: str
-    severity: str
-    message: str
-    source: str
-    created_at: datetime
-    resolved: bool = False
-    
-    class Config:
-        from_attributes = True
-
-# Automation Schemas
-class AutomationPlaybookOut(BaseModel):
-    id: str
-    name: str
-    description: Optional[str] = None
-    triggers: List[Dict[str, Any]]
-    actions: List[Dict[str, Any]]
-    enabled: bool = True
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-class AutomationExecutionCreate(BaseModel):
-    playbook_id: str
-    trigger_data: Dict[str, Any]
-    context: Optional[Dict[str, Any]] = None
-
-# Authorization Schemas
-class AuthorizationRequest(BaseModel):
-    action_type: str
-    resource: str
-    context: Dict[str, Any]
-    justification: Optional[str] = None
-
-# Workflow Schemas  
-class WorkflowCreateRequest(BaseModel):
-    name: str
-    description: Optional[str] = None
-    steps: List[Dict[str, Any]]
-    approval_required: bool = True
-
-class WorkflowExecutionRequest(BaseModel):
-    workflow_id: str
-    input_data: Dict[str, Any]
-    context: Optional[Dict[str, Any]] = None
-
-# Smart Rules Schema
-class SmartRuleOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    
-    id: int
-    agent_id: str
-    action_type: str
-    description: str
-    condition: str
-    action: str
-    risk_level: str
-    recommendation: str
-    justification: Optional[str] = None
-    created_at: datetime
-
-# Export all schemas
 __all__ = [
-    "UserOut", "UserCreate", "LoginInput", "TokenResponse",
-    "AgentActionOut", "AgentActionCreate", 
+    # Actions
+    "ActionCreate",
+    "ActionResponse",
+    "ActionUpdate",
+    "AgentActionOut",
+    "AgentActionCreate",
+    
+    # Alerts
+    "AlertCreate",
+    "AlertResponse",
+    "AlertUpdate",
     "AlertOut",
-    "AutomationPlaybookOut", "AutomationExecutionCreate",
-    "AuthorizationRequest", 
-    "WorkflowCreateRequest", "WorkflowExecutionRequest",
-    "SmartRuleOut"
+    
+    # Workflows & Authorization
+    "WorkflowExecutionResponse",
+    "ApprovalDecision",
+    "WorkflowCreateRequest",
+    "WorkflowExecutionRequest",
+    "AuthorizationRequest",
+    
+    # Automation
+    "AutomationPlaybookOut",
+    "AutomationExecutionCreate",
+    
+    # Smart Rules
+    "SmartRuleOut",
+    "SmartRuleOutEnhanced",
+    
+    # Authentication
+    "UserCreate",
+    "LoginInput",
+    "TokenResponse",
+    "UserOut"
 ]
-
-class SmartRuleOutEnhanced(SmartRuleOut):
-    """Extended model with performance metrics"""
-    performance_score: Optional[int] = None
-    triggers_last_24h: Optional[int] = None
-    false_positives: Optional[int] = None
-    effectiveness_rating: Optional[str] = None
-    last_triggered: Optional[str] = None

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Overview - OW-AI Enterprise Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.7;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .nav {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            padding: 25px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .nav-logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .nav a:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        .content {
+            padding: 60px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 48px;
+            margin-bottom: 20px;
+            border-bottom: 4px solid #667eea;
+            padding-bottom: 20px;
+        }
+        h2 {
+            color: #34495e;
+            font-size: 36px;
+            margin: 50px 0 25px 0;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #7f8c8d;
+            font-size: 28px;
+            margin: 35px 0 20px 0;
+        }
+        h4 {
+            color: #95a5a6;
+            font-size: 22px;
+            margin: 25px 0 15px 0;
+        }
+        p {
+            margin: 15px 0;
+            font-size: 17px;
+            line-height: 1.8;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            color: #e74c3c;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 25px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        pre code {
+            background: none;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        ul, ol {
+            margin: 20px 0 20px 40px;
+        }
+        li {
+            margin: 10px 0;
+            font-size: 17px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <div class="nav-logo">🛡️ OW-AI</div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product_overview.html">Overview</a>
+                <a href="architecture.html">Architecture</a>
+                <a href="api.html">API</a>
+                <a href="user_guide.html">User Guide</a>
+                <a href="admin_guide.html">Admin</a>
+                <a href="security_compliance.html">Security</a>
+            </div>
+        </div>
+        <div class="content">
+            <h1>OW-AI: Complete Product Overview</h1>
+<p><strong>Last Updated:</strong> October 23, 2025</p>
+<h2>Executive Summary</h2>
+<p>OW-AI is an enterprise AI Governance and Risk Management platform that provides real-time monitoring, assessment, and automated control of AI agent actions across your entire infrastructure.</p>
+<p><strong>Think of it as "Splunk for AI Agents"</strong> - providing complete visibility, control, and compliance for autonomous AI systems.</p>
+<h2>The Problem We Solve</h2>
+<h3>Today's Challenges</h3>
+<ol>
+<li><strong>Visibility</strong>: "What are my AI agents actually doing?"</li>
+<li><strong>Control</strong>: "How do I prevent risky actions before they cause damage?"</li>
+<li><strong>Compliance</strong>: "How do I prove to auditors that AI actions meet regulations?"</li>
+<li><strong>Risk Management</strong>: "How do I quantify and reduce AI-related risks?"</li>
+</ol>
+<h3>With OW-AI</h3>
+<p>Organizations gain:<br />
+- ✅ <strong>Complete Visibility</strong>: Real-time dashboard of all AI agent activity<br />
+- ✅ <strong>Automated Governance</strong>: Smart rules enforce policies automatically<br />
+- ✅ <strong>Risk Prevention</strong>: High-risk actions caught before execution<br />
+- ✅ <strong>Compliance Proof</strong>: Audit trails for SOC 2, NIST, ISO 27001<br />
+- ✅ <strong>Operational Control</strong>: Approval workflows for sensitive operations</p>
+<h2>How It Works: Complete End-to-End Flow</h2>
+<pre><code>1. AGENT ACTION CAPTURE
+   AI Agent wants to execute action
+   → Example: &quot;Delete production database table&quot;
+
+2. REAL-TIME INTERCEPTION
+   Action logged to OW-AI before execution
+   → POST /agent-control/actions
+
+3. ORCHESTRATION &amp; ASSESSMENT
+   OrchestrationService receives action
+   ├─ AssessmentService calculates risk (CVSS)
+   ├─ Check Smart Rules Engine
+   └─ AlertService creates alerts if needed
+
+4. DECISION ENFORCEMENT
+   Based on rules:
+   ├─ BLOCKED: Stop execution
+   ├─ REQUIRE_APPROVAL: Start workflow
+   ├─ NOTIFY: Alert but allow
+   └─ ALLOW: Execute with monitoring
+
+5. WORKFLOW (if approval needed)
+   Multi-stage approval process
+   ├─ Stage 1: Manager Review
+   └─ Stage 2: Director Approval (high risk)
+
+6. EXECUTION &amp; MONITORING
+   Action executed with complete audit trail
+
+7. ANALYTICS &amp; LEARNING
+   System learns from outcomes
+</code></pre>
+<h2>Core Features</h2>
+<h3>1. Real-Time Agent Monitoring</h3>
+<p>Captures every action attempted by AI agents across your infrastructure.</p>
+<h3>2. Smart Rules Engine</h3>
+<p>Automatically evaluates actions against organizational policies using SQL-like rules.</p>
+<p><strong>Example Rule:</strong></p>
+<pre><code class="language-sql">IF action_type == 'database_write'
+   AND target_system ILIKE '%production%'
+   AND operation ILIKE '%DELETE%'
+THEN block
+</code></pre>
+<h3>3. Risk Assessment &amp; Scoring</h3>
+<p>Automatically calculates risk scores (0-100) using CVSS methodology.</p>
+<p><strong>Risk Levels:</strong><br />
+- 0-25: LOW<br />
+- 26-50: MEDIUM<br />
+- 51-75: HIGH<br />
+- 76-100: CRITICAL</p>
+<h3>4. Approval Workflows</h3>
+<p>Routes high-risk actions through multi-stage approval processes.</p>
+<h3>5. Alert Management</h3>
+<p>Intelligent alerts for security incidents, policy violations, and anomalies.</p>
+<h3>6. Compliance &amp; Audit</h3>
+<p>Complete audit trails mapped to SOC 2, GDPR, HIPAA, NIST, ISO 27001.</p>
+<h2>Real-World Use Cases</h2>
+<h3>Financial Services - Fraud Prevention</h3>
+<ul>
+<li><strong>Challenge</strong>: AI agents process loans automatically, risk of fraud</li>
+<li><strong>Solution</strong>: High-value loans require multi-stage approval</li>
+<li><strong>Result</strong>: 98% automation, $2.4M fraud prevented, 0 compliance issues</li>
+</ul>
+<h3>Healthcare - HIPAA Compliance</h3>
+<ul>
+<li><strong>Challenge</strong>: AI agents access patient records, HIPAA violations costly</li>
+<li><strong>Solution</strong>: Minimum necessary access enforced, anomaly detection</li>
+<li><strong>Result</strong>: 0 HIPAA breaches, $850k in avoided fines</li>
+</ul>
+<h3>E-Commerce - Data Protection</h3>
+<ul>
+<li><strong>Challenge</strong>: GDPR compliance, customer data protection</li>
+<li><strong>Solution</strong>: Automated consent checking, PII access control</li>
+<li><strong>Result</strong>: 100% GDPR compliance, 0 data breaches</li>
+</ul>
+<h2>Customer Onboarding</h2>
+<h3>Phase 1: Setup (Week 1)</h3>
+<ul>
+<li>Create account</li>
+<li>Configure organization</li>
+<li>Integrate first agent</li>
+<li>Import starter rules</li>
+</ul>
+<h3>Phase 2: Pilot (Week 2-3)</h3>
+<ul>
+<li>Shadow mode testing</li>
+<li>Pilot with small team</li>
+<li>Tune rules based on results</li>
+</ul>
+<h3>Phase 3: Production (Week 4+)</h3>
+<ul>
+<li>Full rollout</li>
+<li>Monitor and optimize</li>
+<li>Continuous improvement</li>
+</ul>
+<h2>Success Metrics</h2>
+<p><strong>After 6 months, typical results:</strong><br />
+- Time to detect issues: 99.3% faster<br />
+- Manual review time: 90% reduction<br />
+- Security incidents: 87% reduction<br />
+- Compliance findings: 92% reduction<br />
+- ROI: 12x average</p>
+<h2>Platform Comparison</h2>
+<h3>Before OW-AI</h3>
+<p>❌ Reactive security<br />
+❌ Manual approvals (2-8 hours)<br />
+❌ 200 hours audit prep<br />
+❌ No real-time visibility</p>
+<h3>After OW-AI</h3>
+<p>✅ Proactive prevention<br />
+✅ Automated workflows (5-15 min)<br />
+✅ 8 hours audit prep<br />
+✅ Complete visibility</p>
+<hr />
+<p><strong>Ready to get started?</strong><br />
+- Demo: hello@owkai.com<br />
+- Trial: https://pilot.owkai.app/trial<br />
+- Docs: https://docs.owkai.app</p>
+        </div>
+        <div class="footer">
+            <p>© 2025 OW-AI Enterprise Platform | Documentation Version 2.0</p>
+        </div>
+    </div>
+</body>
+</html>

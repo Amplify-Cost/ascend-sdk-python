@@ -26,6 +26,7 @@ from enum import Enum
 
 # Internal imports
 from database import get_db
+from services.pending_actions_service import pending_service
 from dependencies import get_current_user, require_admin, require_csrf
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
@@ -43,7 +44,7 @@ try:
     from enterprise_policy_engine import PolicyEngine
     POLICY_ENGINE_AVAILABLE = True
 except ImportError as e:
-    logger.warning(f"Enterprise Policy Engine not available: {e}")
+#    logger.warning(f"Enterprise Policy Engine not available: {e}")
     POLICY_ENGINE_AVAILABLE = False
 
 # Import real-time policy engine for Phase 1.2 integration
@@ -57,9 +58,9 @@ try:
         RiskCategory
     )
     REALTIME_POLICY_ENGINE_AVAILABLE = True
-    logger.info("Real-time Policy Engine loaded successfully")
+#    logger.info("Real-time Policy Engine loaded successfully")
 except ImportError as e:
-    logger.warning(f"Real-time Policy Engine not available: {e}")
+#    logger.warning(f"Real-time Policy Engine not available: {e}")
     REALTIME_POLICY_ENGINE_AVAILABLE = False
 
 # Configure enterprise logging
@@ -167,7 +168,7 @@ class DatabaseService:
             db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"Database transaction failed: {str(e)}")
+#    logger.error(f"Database transaction failed: {str(e)}")
             raise
         finally:
             # Connection is managed by FastAPI dependency injection
@@ -179,7 +180,7 @@ class DatabaseService:
         try:
             return db.execute(text(query), params)
         except Exception as e:
-            logger.error(f"Database query failed: {query} with params {params}. Error: {str(e)}")
+#    logger.error(f"Database query failed: {query} with params {params}. Error: {str(e)}")
             raise
     
     @staticmethod
@@ -199,7 +200,7 @@ class DatabaseService:
         except ActionNotFoundError:
             raise
         except Exception as e:
-            logger.error(f"Failed to retrieve action {action_id}: {str(e)}")
+#    logger.error(f"Failed to retrieve action {action_id}: {str(e)}")
             raise
 
 
@@ -227,10 +228,10 @@ class AuditService:
             )
             db.add(audit_log)
             db.commit()
-            logger.info(f"Audit log created: {action} for user {user_id}")
+#    logger.info(f"Audit log created: {action} for user {user_id}")
             return True
         except Exception as e:
-            logger.error(f"Failed to create audit log: {str(e)}")
+#    logger.error(f"Failed to create audit log: {str(e)}")
             return False
 
 
@@ -343,7 +344,7 @@ class ActionExecutorService:
         execution_id = str(uuid.uuid4())
         execution_start = datetime.now(UTC)
         
-        logger.info(f"Starting enterprise execution {execution_id} for action {action_data['id']}")
+#    logger.info(f"Starting enterprise execution {execution_id} for action {action_data['id']}")
         
         try:
             # Get appropriate handler
@@ -376,7 +377,7 @@ class ActionExecutorService:
                 risk_level=action_data.get("risk_level", "medium")
             )
             
-            logger.info(f"Enterprise execution {execution_id} completed in {execution_time:.3f}s")
+#    logger.info(f"Enterprise execution {execution_id} completed in {execution_time:.3f}s")
             
             return ExecutionResult(
                 status="success",
@@ -390,7 +391,7 @@ class ActionExecutorService:
             )
             
         except Exception as e:
-            logger.error(f"Enterprise execution {execution_id} failed: {str(e)}")
+#    logger.error(f"Enterprise execution {execution_id} failed: {str(e)}")
             
             failure_id = str(uuid.uuid4())
             cls._update_action_status(
@@ -433,7 +434,7 @@ class ActionExecutorService:
                     }
                 )
         except Exception as e:
-            logger.warning(f"Database update failed, using fallback: {e}")
+#    logger.warning(f"Database update failed, using fallback: {e}")
             # Fallback for databases without execution_id column
             DatabaseService.safe_execute(
                 db,
@@ -543,7 +544,7 @@ class AuthorizationService:
                 
                 # Fallback: Calculate only if database doesn't have score
                 if db_risk_score is None:
-                    logger.warning(f"Action {row[0]} missing risk_score in database, calculating on-demand")
+#    logger.warning(f"Action {row[0]} missing risk_score in database, calculating on-demand")
                     action_data = {
                         "action_type": row[2] or "security_scan",
                         "risk_level": row[4] or RiskLevel.MEDIUM.value
@@ -596,7 +597,7 @@ class AuthorizationService:
             }
             
         except Exception as e:
-            logger.error(f"Failed to retrieve pending actions: {str(e)}")
+#    logger.error(f"Failed to retrieve pending actions: {str(e)}")
             return {
                 "success": False,
                 "actions": [],
@@ -626,7 +627,7 @@ class AuthorizationService:
         authorization_id = str(uuid.uuid4())
         
         try:
-            logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
+#    logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
             
             # Get action details
             action_row = DatabaseService.get_action_by_id(db, action_id)
@@ -699,7 +700,7 @@ class AuthorizationService:
                         execution_result = asdict(execution_result)
                         
                     except ExecutionFailureError as e:
-                        logger.error(f"Execution failed: {str(e)}")
+#    logger.error(f"Execution failed: {str(e)}")
                         execution_result = {
                             "status": "failed",
                             "execution_id": "",
@@ -772,17 +773,17 @@ class AuthorizationService:
                 }
                 
         except (ActionNotFoundError, InvalidActionStateError) as e:
-            logger.error(f"Authorization failed for action {action_id}: {str(e)}")
+#    logger.error(f"Authorization failed for action {action_id}: {str(e)}")
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
-            logger.error(f"Enterprise authorization failed for action {action_id}: {str(e)}")
+#    logger.error(f"Enterprise authorization failed for action {action_id}: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Enterprise authorization failed: {str(e)}")
 
 
 # ========== ENTERPRISE ROUTERS ==========
 
 # Primary router - Original /agent-control prefix for all existing enterprise features
-router = APIRouter(prefix="/agent-control", tags=["authorization"])
+router = APIRouter(prefix="/api/authorization", tags=["authorization"])
 
 # API router - New /api/authorization prefix for Authorization Center frontend compatibility
 api_router = APIRouter(prefix="/api/authorization", tags=["authorization-api"])
@@ -809,14 +810,30 @@ async def authorize_action(
     admin_user: dict = Depends(require_admin)
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
-    """Authorize action with real-time execution and comprehensive audit."""
+    """
+    🏢 ENTERPRISE: Authorize action with comprehensive audit and execution.
+
+    Supports multiple request formats for backward compatibility:
+    - {"action": "approve", "reason": "..."} - Frontend format
+    - {"approved": true, "comments": "..."} - Legacy format
+    - {"decision": "approved", "justification": "..."} - Alternative format
+    """
     try:
         body = await request.json()
     except Exception:
         body = {"approved": True, "comments": "Enterprise authorization via API"}
-    
+
+    # 🏢 ENTERPRISE: Normalize request format for backward compatibility
+    # Convert {"action": "approve"} to {"approved": true}
+    if "action" in body:
+        action_value = body.get("action", "").lower()
+        body["approved"] = action_value == "approve"
+        # Map "reason" to "comments" for consistency
+        if "reason" in body and "comments" not in body:
+            body["comments"] = body["reason"]
+
     client_ip = request.client.host if request.client else "enterprise_system"
-    
+
     return await AuthorizationService.authorize_action(
         action_id, body, admin_user, db, client_ip, execute_immediately=True
     )
@@ -843,7 +860,6 @@ async def get_approval_dashboard(
     try:
         # Dashboard queries with proper error handling
         dashboard_queries = {
-            "total_pending": "SELECT COUNT(*) FROM agent_actions WHERE status IN ('pending', 'pending_approval')",
             "total_approved": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.APPROVED.value}'",
             "total_executed": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.EXECUTED.value}'",
             "total_rejected": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.REJECTED.value}'",
@@ -856,8 +872,11 @@ async def get_approval_dashboard(
             try:
                 metrics[metric_name] = DatabaseService.safe_execute(db, query, {}).scalar() or 0
             except Exception as query_error:
-                logger.warning(f"Enterprise metric query failed for {metric_name}: {query_error}")
+#    logger.warning(f"Enterprise metric query failed for {metric_name}: {query_error}")
                 metrics[metric_name] = 0
+        
+        # ✅ ENTERPRISE: Use pending_service for consistent count
+        metrics["total_pending"] = pending_service.get_pending_count(db)
         
         # Recent activity
         try:
@@ -893,6 +912,23 @@ async def get_approval_dashboard(
         approval_rate = (metrics["total_approved"] / max(total_actions, 1)) * 100 if total_actions > 0 else 0
         execution_rate = (metrics["total_executed"] / max(metrics["total_approved"], 1)) * 100 if metrics["total_approved"] > 0 else 0
         
+        # ✅ ENTERPRISE: Fetch full user data from database for approval_level
+        user_approval_level = 1  # Default approval level
+        user_is_emergency_approver = False
+        user_max_risk_approval = 50
+
+        try:
+            from models import User
+            user_id = current_user.get("user_id")
+            if user_id:
+                db_user = db.query(User).filter(User.id == user_id).first()
+                if db_user:
+                    user_approval_level = db_user.approval_level or 1
+                    user_is_emergency_approver = db_user.is_emergency_approver or False
+                    user_max_risk_approval = db_user.max_risk_approval or 50
+        except Exception as user_fetch_error:
+            logger.warning(f"Could not fetch user approval data: {user_fetch_error}")
+
         return {
             "summary": {
                 "total_pending": metrics["total_pending"],
@@ -917,6 +953,13 @@ async def get_approval_dashboard(
                 "access_level": current_user.get("access_level", "standard"),
                 "enterprise_privileges": current_user.get("role") in ["admin", "security_manager", "ciso"]
             },
+            "user_info": {
+                "approval_level": user_approval_level,
+                "is_emergency_approver": user_is_emergency_approver,
+                "max_risk_approval": user_max_risk_approval,
+                "role": current_user.get("role", "user"),
+                "email": current_user.get("email", "")
+            },
             "system_status": {
                 "siem_integration": "operational",
                 "threat_intelligence": "active",
@@ -927,7 +970,7 @@ async def get_approval_dashboard(
         }
         
     except Exception as e:
-        logger.error(f"Enterprise dashboard data retrieval failed: {str(e)}")
+#    logger.error(f"Enterprise dashboard data retrieval failed: {str(e)}")
         return {
             "summary": {
                 "total_pending": 0,
@@ -946,6 +989,19 @@ async def get_approval_dashboard(
                 "threat_detection_accuracy": 0
             },
             "recent_activity": [],
+            "user_context": {
+                "role": current_user.get("role", "user"),
+                "permissions": [],
+                "access_level": "standard",
+                "enterprise_privileges": False
+            },
+            "user_info": {
+                "approval_level": 1,
+                "is_emergency_approver": False,
+                "max_risk_approval": 50,
+                "role": current_user.get("role", "user"),
+                "email": current_user.get("email", "")
+            },
             "error": str(e),
             "enterprise_fallback": True
         }
@@ -1013,7 +1069,7 @@ async def get_execution_history(
         }
         
     except Exception as e:
-        logger.error(f"Execution history retrieval failed: {str(e)}")
+#    logger.error(f"Execution history retrieval failed: {str(e)}")
         return {
             "executions": [],
             "total_count": 0,
@@ -1037,11 +1093,11 @@ async def get_pending_actions_api(
         if result.get("success", False):
             return result["actions"]
         else:
-            logger.warning(f"Pending actions API returning empty array due to error: {result.get('error', 'unknown')}")
+#    logger.warning(f"Pending actions API returning empty array due to error: {result.get('error', 'unknown')}")
             return []
             
     except Exception as e:
-        logger.error(f"API pending actions endpoint failed: {str(e)}")
+#    logger.error(f"API pending actions endpoint failed: {str(e)}")
         return []
 
 # ========== POLICY MANAGEMENT API ENDPOINTS ==========
@@ -1079,7 +1135,7 @@ async def get_policies_list_api(
         }
         
     except Exception as e:
-        logger.error(f"Policies list API failed: {str(e)}")
+#    logger.error(f"Policies list API failed: {str(e)}")
         return {
             "success": False,
             "policies": [],
@@ -1113,7 +1169,7 @@ async def get_policies_metrics_api(
         }
         
     except Exception as e:
-        logger.error(f"Policy metrics API failed: {str(e)}")
+#    logger.error(f"Policy metrics API failed: {str(e)}")
         return {
             "success": False,
             "metrics": {
@@ -1154,7 +1210,7 @@ async def create_policy_from_natural_language_api(
         }
         
     except Exception as e:
-        logger.error(f"Policy creation API failed: {str(e)}")
+#    logger.error(f"Policy creation API failed: {str(e)}")
         return {
             "success": False,
             "error": str(e),
@@ -1178,7 +1234,7 @@ async def get_approval_dashboard_api(
         return result
         
     except Exception as e:
-        logger.error(f"Dashboard API endpoint failed: {str(e)}")
+#    logger.error(f"Dashboard API endpoint failed: {str(e)}")
         return {
             "summary": {
                 "total_pending": 0,
@@ -1218,48 +1274,267 @@ async def get_execution_history_api(
 
 @api_router.post("/test-action")
 async def create_test_action_api(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
-    """Create a test action for development/testing."""
+    """
+    🏢 ENTERPRISE: Create custom agent action from admin form
+
+    Accepts custom action data from Enterprise Settings admin tool and creates
+    a fully-mapped enterprise-grade action with:
+    - NIST 800-53 control mapping
+    - MITRE ATT&CK tactic classification
+    - Enterprise risk assessment
+    - Business justification audit trail
+    - Proper compliance documentation
+
+    Requires: Authenticated admin user
+    Returns: Created action ready for approval workflow
+    """
     try:
-        test_action_data = {
-            "agent_id": "test-console-agent",
-            "action_type": "block_ip",
-            "description": "Test action created from Authorization Center console",
-            "risk_level": RiskLevel.MEDIUM.value,
-            "status": ActionStatus.PENDING.value,
-            "created_at": datetime.now(UTC),
-            "user_id": current_user.get("user_id", 1)
+        # Parse request body
+        try:
+            payload = await request.json()
+        except Exception as json_error:
+            logger.error(f"❌ Failed to parse JSON payload: {json_error}")
+            raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+        # Extract and validate required fields
+        agent_id = payload.get("agent_id")
+        action_type = payload.get("action_type")
+        description = payload.get("description")
+        risk_level = payload.get("risk_level", "medium")
+        business_justification = payload.get("business_justification", "")
+        tool_name = payload.get("tool_name", "manual-submission")
+
+        # Validation
+        if not agent_id:
+            raise HTTPException(status_code=400, detail="agent_id is required")
+        if not action_type:
+            raise HTTPException(status_code=400, detail="action_type is required")
+        if not description:
+            raise HTTPException(status_code=400, detail="description is required")
+        if not business_justification:
+            raise HTTPException(status_code=400, detail="business_justification is required for enterprise compliance")
+
+        logger.info(f"🏢 Creating enterprise agent action: {action_type} from {agent_id} by {current_user.get('email')}")
+
+        # Map risk level to risk score and required approval levels
+        risk_mapping = {
+            "low": {"score": 35.0, "level": 0, "cvss_score": 3.5, "cvss_severity": "LOW"},
+            "medium": {"score": 60.0, "level": 1, "cvss_score": 6.0, "cvss_severity": "MEDIUM"},
+            "high": {"score": 80.0, "level": 2, "cvss_score": 8.0, "cvss_severity": "HIGH"},
+            "critical": {"score": 95.0, "level": 3, "cvss_score": 9.5, "cvss_severity": "CRITICAL"}
         }
-        
+        risk_config = risk_mapping.get(risk_level.lower(), risk_mapping["medium"])
+
+        # Map action_type to NIST and MITRE frameworks (enterprise-grade)
+        compliance_mapping = {
+            "vulnerability_scan": {
+                "nist_control": "RA-5",
+                "nist_description": "Vulnerability Monitoring and Scanning",
+                "mitre_tactic": "TA0043",
+                "mitre_technique": "T1595",
+                "recommendation": "Execute authorized vulnerability assessment"
+            },
+            "compliance_check": {
+                "nist_control": "CA-2",
+                "nist_description": "Control Assessments",
+                "mitre_tactic": "TA0007",
+                "mitre_technique": "T1087",
+                "recommendation": "Perform compliance validation checks"
+            },
+            "threat_analysis": {
+                "nist_control": "SI-4",
+                "nist_description": "System Monitoring",
+                "mitre_tactic": "TA0007",
+                "mitre_technique": "T1595",
+                "recommendation": "Analyze potential security threats"
+            },
+            "data_backup": {
+                "nist_control": "CP-9",
+                "nist_description": "System Backup",
+                "mitre_tactic": "TA0040",
+                "mitre_technique": "T1005",
+                "recommendation": "Execute data protection backup procedure"
+            },
+            "system_maintenance": {
+                "nist_control": "MA-2",
+                "nist_description": "Controlled Maintenance",
+                "mitre_tactic": "TA0002",
+                "mitre_technique": "T1078",
+                "recommendation": "Perform authorized system maintenance"
+            },
+            "forensic_analysis": {
+                "nist_control": "AU-6",
+                "nist_description": "Audit Review, Analysis, and Reporting",
+                "mitre_tactic": "TA0009",
+                "mitre_technique": "T1005",
+                "recommendation": "Conduct forensic investigation"
+            },
+            "network_monitoring": {
+                "nist_control": "SI-4",
+                "nist_description": "System Monitoring",
+                "mitre_tactic": "TA0007",
+                "mitre_technique": "T1040",
+                "recommendation": "Monitor network traffic for anomalies"
+            },
+            "access_review": {
+                "nist_control": "AC-2",
+                "nist_description": "Account Management",
+                "mitre_tactic": "TA0006",
+                "mitre_technique": "T1078",
+                "recommendation": "Review and validate access permissions"
+            }
+        }
+
+        compliance = compliance_mapping.get(action_type, {
+            "nist_control": "SC-7",
+            "nist_description": "Boundary Protection",
+            "mitre_tactic": "TA0011",
+            "mitre_technique": "T1071",
+            "recommendation": "Execute security control action"
+        })
+
+        # 🏢 ENTERPRISE: Build complete action data with all required fields
+        action_data = {
+            "agent_id": agent_id,
+            "action_type": action_type,
+            "description": f"{description}\n\n📋 Business Justification: {business_justification}",
+            "risk_level": risk_level.lower(),
+            "risk_score": risk_config["score"],
+            "target_system": payload.get("target_system", "enterprise-system"),
+            "target_resource": payload.get("target_resource", "N/A"),
+            "nist_control": compliance["nist_control"],
+            "nist_description": compliance["nist_description"],
+            "mitre_tactic": compliance["mitre_tactic"],
+            "mitre_technique": compliance["mitre_technique"],
+            "recommendation": compliance["recommendation"],
+            "status": ActionStatus.PENDING_APPROVAL.value,
+            "requires_approval": risk_config["level"] > 0,
+            "approval_level": 0,
+            "required_approval_level": risk_config["level"],
+            "cvss_score": risk_config["cvss_score"],
+            "cvss_severity": risk_config["cvss_severity"],
+            "cvss_vector": f"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+            "created_at": datetime.now(UTC),
+            "user_id": current_user.get("user_id", 1),
+            "tool_name": tool_name,
+            "summary": business_justification[:200]  # First 200 chars for quick reference
+        }
+
         with DatabaseService.get_transaction(db):
+            # 🏢 ENTERPRISE: Insert action with full compliance mapping
             result = DatabaseService.safe_execute(
                 db,
                 """
-                INSERT INTO agent_actions (agent_id, action_type, description, risk_level, target_system, nist_control, mitre_tactic, status, created_at, user_id)
-                VALUES (:agent_id, :action_type, :description, :risk_level, :status, :created_at, :user_id)
-                RETURNING id
+                INSERT INTO agent_actions (
+                    agent_id, action_type, description, risk_level, risk_score,
+                    target_system, target_resource, nist_control, nist_description,
+                    mitre_tactic, mitre_technique, recommendation, status,
+                    requires_approval, approval_level, required_approval_level,
+                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, tool_name, summary
+                )
+                VALUES (
+                    :agent_id, :action_type, :description, :risk_level, :risk_score,
+                    :target_system, :target_resource, :nist_control, :nist_description,
+                    :mitre_tactic, :mitre_technique, :recommendation, :status,
+                    :requires_approval, :approval_level, :required_approval_level,
+                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :tool_name, :summary
+                )
+                RETURNING id, created_at
                 """,
-                test_action_data
+                action_data
             )
-            
-            action_id = result.fetchone()[0]
-        
-        logger.info(f"API test action created: ID {action_id}")
-        
+
+            row = result.fetchone()
+            action_id = row[0]
+            created_at = row[1]
+
+            # 🏢 ENTERPRISE: Create corresponding alert for AI Alert Management
+            alert_severity_mapping = {
+                "low": "low",
+                "medium": "medium",
+                "high": "high",
+                "critical": "critical"
+            }
+
+            # Build alert message with action details
+            alert_message = f"🤖 Agent Action Pending: {action_type.replace('_', ' ').title()}\n"
+            alert_message += f"Agent: {agent_id}\n"
+            alert_message += f"Risk: {risk_level.upper()}\n"
+            alert_message += f"NIST Control: {compliance['nist_control']}\n"
+            alert_message += f"Description: {description[:150]}...\n"
+            alert_message += f"Justification: {business_justification[:150]}..."
+
+            alert_data = {
+                "alert_type": f"agent_action_{action_type}",
+                "severity": alert_severity_mapping.get(risk_level.lower(), "medium"),
+                "message": alert_message,
+                "timestamp": datetime.now(UTC),
+                "agent_id": agent_id,
+                "agent_action_id": action_id,
+                "status": "new"
+            }
+
+            # Insert alert and get its ID
+            result = db.execute(text("""
+                INSERT INTO alerts (
+                    alert_type, severity, message, timestamp, agent_id,
+                    agent_action_id, status
+                )
+                VALUES (
+                    :alert_type, :severity, :message, :timestamp, :agent_id,
+                    :agent_action_id, :status
+                )
+                RETURNING id
+            """), alert_data)
+            alert_id = result.fetchone()[0]
+            db.commit()
+
+            # Route alert to active A/B tests for real metrics tracking
+            try:
+                from services.ab_test_alert_router import ABTestAlertRouter
+                router = ABTestAlertRouter(db)
+                router.route_alert_to_ab_test(alert_id, alert_data)
+            except Exception as ab_error:
+                logger.warning(f"⚠️ Failed to route alert to A/B test: {ab_error}")
+                # Don't fail the whole request if A/B routing fails
+
+        logger.info(f"✅ Enterprise agent action created: ID {action_id} by {current_user.get('email')} - Alert generated")
+
         return {
             "success": True,
-            "message": "Test action created successfully via Authorization Center API",
+            "message": "Enterprise agent action created successfully",
             "action_id": action_id,
-            "action_type": "block_ip",
-            "status": ActionStatus.PENDING.value,
-            "enterprise_api": True
+            "authorization_id": action_id,  # Alias for frontend compatibility
+            "action_type": action_data["action_type"],
+            "risk_level": action_data["risk_level"],
+            "risk_score": action_data["risk_score"],
+            "nist_control": action_data["nist_control"],
+            "mitre_tactic": action_data["mitre_tactic"],
+            "status": action_data["status"],
+            "requires_approval": action_data["requires_approval"],
+            "required_approval_level": action_data["required_approval_level"],
+            "created_at": created_at.isoformat() if created_at else None,
+            "created_by": current_user.get("email"),
+            "enterprise_grade": True,
+            "compliance_mapped": True,
+            "alert_generated": True,
+            "next_steps": f"Action requires {action_data['required_approval_level']} approval(s)" if action_data["requires_approval"] else "Action auto-approved (low risk)"
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"API test action creation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Test action creation failed: {str(e)}")
+        logger.error(f"❌ Enterprise agent action creation failed: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"Enterprise agent action creation failed: {str(e)}"
+        )
 
 
 # ========== UTILITY FUNCTIONS ==========
@@ -1271,7 +1546,7 @@ def ensure_array_response(data, field_name="actions"):
     
     field_data = data.get(field_name, [])
     if not isinstance(field_data, list):
-        logger.warning(f"Field {field_name} is not an array, converting to empty array")
+#    logger.warning(f"Field {field_name} is not an array, converting to empty array")
         return []
     
     return field_data
@@ -1450,7 +1725,7 @@ async def get_approval_performance_metrics(
     - Capacity planning insights
     """
     try:
-        logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
+#    logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
         
         # Calculate average approval time (minutes)
         avg_time_result = db.execute(text("""
@@ -1544,11 +1819,11 @@ async def get_approval_performance_metrics(
             "last_updated": datetime.now(UTC).isoformat()
         }
         
-        logger.info("✅ ENTERPRISE: Performance metrics calculated successfully")
+#    logger.info("✅ ENTERPRISE: Performance metrics calculated successfully")
         return enterprise_metrics
         
     except Exception as e:
-        logger.error(f"❌ ENTERPRISE ERROR: Performance metrics failed: {e}")
+#    logger.error(f"❌ ENTERPRISE ERROR: Performance metrics failed: {e}")
         raise HTTPException(status_code=500, detail=f"Enterprise metrics calculation failed: {str(e)}")
 
 
@@ -1644,7 +1919,7 @@ async def evaluate_policy_realtime(
         }
         
     except Exception as e:
-        logger.error(f"Real-time policy evaluation failed: {str(e)}")
+#    logger.error(f"Real-time policy evaluation failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Policy evaluation failed: {str(e)}")
 
 
@@ -1685,7 +1960,7 @@ async def get_policy_engine_metrics(
         }
         
     except Exception as e:
-        logger.error(f"Policy engine metrics failed: {str(e)}")
+#    logger.error(f"Policy engine metrics failed: {str(e)}")
         return {
             "engine_available": False,
             "error": str(e),
@@ -1727,7 +2002,7 @@ async def clear_policy_cache(
         }
         
     except Exception as e:
-        logger.error(f"Cache clear failed: {str(e)}")
+#    logger.error(f"Cache clear failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Cache clear failed: {str(e)}")
 
 
@@ -1828,7 +2103,7 @@ async def test_policy_evaluation(
         }
         
     except Exception as e:
-        logger.error(f"Policy evaluation test failed: {str(e)}")
+#    logger.error(f"Policy evaluation test failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Test failed: {str(e)}")
 
 

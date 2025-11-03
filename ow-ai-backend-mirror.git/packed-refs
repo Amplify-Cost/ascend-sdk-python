@@ -1,0 +1,6 @@
+# pack-refs with: peeled fully-peeled sorted 
+05d4921fc2dab0064326138735d24265d784ee76 refs/heads/main
+05d4921fc2dab0064326138735d24265d784ee76 refs/heads/master
+05d4921fc2dab0064326138735d24265d784ee76 refs/heads/refactor/enterprise-architecture
+05d4921fc2dab0064326138735d24265d784ee76 refs/heads/security/SEC-001-secret-rotation
+08fdd8fc9151286b6f6159f9117dddcee0fabe49 refs/tags/deployment-backup-20250830

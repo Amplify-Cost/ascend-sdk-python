@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ✅ Enriched /alerts endpoint used by frontend
-@router.get("/alerts")
+@router.get("/")
 def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get all alerts with enriched agent action data"""
     try:
@@ -50,7 +50,7 @@ def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_
         # Return empty array instead of crashing
         return []
 
-@router.get("/alerts/count")
+@router.get("/count")
 def alert_count(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get total count of alerts"""
     try:
@@ -60,13 +60,13 @@ def alert_count(db: Session = Depends(get_db), user: dict = Depends(get_current_
         logger.error(f"Failed to count alerts: {str(e)}")
         return {"count": 0}
 
-@router.patch("/alerts/{alert_id}")
+@router.patch("/{alert_id:int}")
 async def update_alert_status(
     alert_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user), 
-    _=Depends(require_csrf)
+    user: dict = Depends(get_current_user),
+
 ):
     """Update alert status (admin only)"""
     if user["role"] != "admin":
@@ -101,10 +101,10 @@ async def update_alert_status(
         raise HTTPException(status_code=500, detail="Failed to update alert status")
 
 # ✅ NEW: Add endpoint to create test alerts
-@router.post("/alerts/create-test-data")
+@router.post("/create-test-data")
 async def create_test_alerts(
     db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user), 
+    user: dict = Depends(get_current_user),
     _=Depends(require_csrf)
 ):
     """Create test alert data (admin only)"""

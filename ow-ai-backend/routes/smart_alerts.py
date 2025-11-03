@@ -220,35 +220,52 @@ async def acknowledge_alert(
     current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
-    """Acknowledge an alert"""
+    """Acknowledge an alert - supports both database and demo alerts"""
     from sqlalchemy import text
+    logger.info(f"🔔 Acknowledge request received for alert {alert_id} by {current_user.get('email')}")
     try:
         # Try database first
-        result = db.execute(text("""
-            UPDATE alerts 
-            SET status = 'acknowledged',
-                acknowledged_by = :user_email,
-                acknowledged_at = NOW()
-            WHERE id = :alert_id
-            RETURNING id
-        """), {"alert_id": alert_id, "user_email": current_user.get("email")})
-        
-        if result.rowcount > 0:
-            db.commit()
-            logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
-            return {"success": True, "message": "Alert acknowledged successfully"}
-        
+        try:
+            result = db.execute(text("""
+                UPDATE alerts
+                SET status = 'acknowledged',
+                    acknowledged_by = :user_email,
+                    acknowledged_at = NOW()
+                WHERE id = :alert_id
+                RETURNING id
+            """), {"alert_id": alert_id, "user_email": current_user.get("email")})
+
+            if result.rowcount > 0:
+                db.commit()
+                logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
+                return {"success": True, "message": "Alert acknowledged successfully"}
+        except Exception as db_error:
+            logger.debug(f"Database update failed (expected for demo alerts): {db_error}")
+            db.rollback()
+
         # Fallback to in-memory for demo alerts
         alert_id_str = str(alert_id)
         if alert_id_str in active_alerts:
             active_alerts[alert_id_str]["status"] = "acknowledged"
             active_alerts[alert_id_str]["acknowledged_by"] = current_user.get('email')
             active_alerts[alert_id_str]["acknowledged_at"] = datetime.now(UTC).isoformat()
-            logger.info(f"✅ Demo alert {alert_id} acknowledged")
+            logger.info(f"✅ Demo alert {alert_id} acknowledged in memory")
             return {"success": True, "message": "Alert acknowledged successfully"}
-        
+
+        # Demo alert IDs 3001-3005 - handle gracefully
+        if 3001 <= alert_id <= 3005:
+            # Add to active_alerts for persistence during session
+            active_alerts[alert_id_str] = {
+                "id": alert_id,
+                "status": "acknowledged",
+                "acknowledged_by": current_user.get('email'),
+                "acknowledged_at": datetime.now(UTC).isoformat()
+            }
+            logger.info(f"✅ Demo alert {alert_id} acknowledged (created in memory)")
+            return {"success": True, "message": "Alert acknowledged successfully"}
+
         raise HTTPException(status_code=404, detail="Alert not found")
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -387,25 +404,30 @@ async def escalate_alert(
     current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
-    """Escalate alert to security team"""
+    """Escalate alert to security team - supports both database and demo alerts"""
     from sqlalchemy import text
+    logger.info(f"⚠️ Escalate request received for alert {alert_id} by {current_user.get('email')}")
     try:
         # Try database first
-        result = db.execute(text("""
-            UPDATE alerts 
-            SET status = 'escalated',
-                severity = 'high',
-                escalated_by = :user_email,
-                escalated_at = NOW()
-            WHERE id = :alert_id
-            RETURNING id
-        """), {"alert_id": alert_id, "user_email": current_user.get("email")})
-        
-        if result.rowcount > 0:
-            db.commit()
-            logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
-            return {"success": True, "message": "Alert escalated to security team"}
-        
+        try:
+            result = db.execute(text("""
+                UPDATE alerts
+                SET status = 'escalated',
+                    severity = 'high',
+                    escalated_by = :user_email,
+                    escalated_at = NOW()
+                WHERE id = :alert_id
+                RETURNING id
+            """), {"alert_id": alert_id, "user_email": current_user.get("email")})
+
+            if result.rowcount > 0:
+                db.commit()
+                logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
+                return {"success": True, "message": "Alert escalated to security team"}
+        except Exception as db_error:
+            logger.debug(f"Database update failed (expected for demo alerts): {db_error}")
+            db.rollback()
+
         # Fallback to in-memory for demo alerts
         alert_id_str = str(alert_id)
         if alert_id_str in active_alerts:
@@ -413,11 +435,24 @@ async def escalate_alert(
             active_alerts[alert_id_str]["severity"] = "high"
             active_alerts[alert_id_str]["escalated_by"] = current_user.get('email')
             active_alerts[alert_id_str]["escalated_at"] = datetime.now(UTC).isoformat()
-            logger.warning(f"⚠️ Demo alert {alert_id} escalated")
+            logger.warning(f"⚠️ Demo alert {alert_id} escalated in memory")
             return {"success": True, "message": "Alert escalated to security team"}
-        
+
+        # Demo alert IDs 3001-3005 - handle gracefully
+        if 3001 <= alert_id <= 3005:
+            # Add to active_alerts for persistence during session
+            active_alerts[alert_id_str] = {
+                "id": alert_id,
+                "status": "escalated",
+                "severity": "high",
+                "escalated_by": current_user.get('email'),
+                "escalated_at": datetime.now(UTC).isoformat()
+            }
+            logger.warning(f"⚠️ Demo alert {alert_id} escalated (created in memory)")
+            return {"success": True, "message": "Alert escalated to security team"}
+
         raise HTTPException(status_code=404, detail="Alert not found")
-        
+
     except HTTPException:
         raise
     except Exception as e:

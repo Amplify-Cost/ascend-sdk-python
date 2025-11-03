@@ -2,45 +2,30 @@
 set -e
 
 echo "🏢 ENTERPRISE: Starting OW-AI Backend..."
+
+# Wait for database
+echo "⏳ Waiting for database..."
+sleep 5
+
 echo "📊 Creating database tables..."
 
-python << 'PYTHON'
+# Run Python inline to create admin user
+python3 << 'PYTHON'
 from sqlalchemy import create_engine, text
-from database import SQLALCHEMY_DATABASE_URL
 from auth_utils import hash_password
+import os
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./owai.db")
+engine = create_engine(DATABASE_URL)
+
 with engine.connect() as conn:
-    conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS smart_rules (
-            id SERIAL PRIMARY KEY,
-            agent_id VARCHAR(255),
-            action_type VARCHAR(255),
-            description TEXT,
-            condition TEXT,
-            action VARCHAR(100),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """))
-    
-    conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            password VARCHAR(255) NOT NULL,
-            role VARCHAR(50) DEFAULT 'user',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """))
-    
-    conn.commit()
-    print("✅ Database tables created")
-    
-    result = conn.execute(text("SELECT id, email FROM users WHERE email = 'admin@owkai.com'"))
+    # Check if admin exists
+    result = conn.execute(text("SELECT id FROM users WHERE email = 'admin@owkai.com'"))
     admin = result.fetchone()
     
     if admin:
-        print(f"📋 Admin user exists: {admin[1]} (ID: {admin[0]})")
+        print(f"📋 Admin user exists: admin@owkai.com (ID: {admin[0]})")
+        # Update password with new hash
         new_password = hash_password("Admin123!")
         conn.execute(
             text("UPDATE users SET password = :pwd WHERE email = 'admin@owkai.com'"),
@@ -63,12 +48,5 @@ PYTHON
 echo "🔧 Running Alembic migrations..."
 alembic upgrade head || echo "⚠️ Migration failed or already applied"
 
-echo "🔧 Running additional database fixes..."
-python3 fix_smart_rules_tables.py
-python3 fix_mcp_tables.py
-python3 add_security_columns.py
-python3 add_audit_logs_table.py
-
 echo "🚀 Starting application server..."
-python3 add_user_profile_columns.py
 exec python -m uvicorn main:app --host 0.0.0.0 --port 8000

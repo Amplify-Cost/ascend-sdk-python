@@ -1,0 +1,6 @@
+=== BASELINE STATE ===
+Total Actions: 84
+Pending Actions: 42
+Total Alerts: 4
+Workflow Executions: 0
+Highest Action ID: 2006

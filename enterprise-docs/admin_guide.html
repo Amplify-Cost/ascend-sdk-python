@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Guide - OW-AI Enterprise Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.7;
+            color: #2c3e50;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .nav {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            padding: 25px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .nav-logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .nav a {
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        .nav a:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-2px);
+        }
+        .content {
+            padding: 60px;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 48px;
+            margin-bottom: 20px;
+            border-bottom: 4px solid #667eea;
+            padding-bottom: 20px;
+        }
+        h2 {
+            color: #34495e;
+            font-size: 36px;
+            margin: 50px 0 25px 0;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #7f8c8d;
+            font-size: 28px;
+            margin: 35px 0 20px 0;
+        }
+        h4 {
+            color: #95a5a6;
+            font-size: 22px;
+            margin: 25px 0 15px 0;
+        }
+        p {
+            margin: 15px 0;
+            font-size: 17px;
+            line-height: 1.8;
+        }
+        code {
+            background: #f8f9fa;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 14px;
+            color: #e74c3c;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 25px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 25px 0;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        pre code {
+            background: none;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        ul, ol {
+            margin: 20px 0 20px 40px;
+        }
+        li {
+            margin: 10px 0;
+            font-size: 17px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border: 1px solid #e0e0e0;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .footer {
+            background: #2c3e50;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <div class="nav-logo">🛡️ OW-AI</div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="product_overview.html">Overview</a>
+                <a href="architecture.html">Architecture</a>
+                <a href="api.html">API</a>
+                <a href="user_guide.html">User Guide</a>
+                <a href="admin_guide.html">Admin</a>
+                <a href="security_compliance.html">Security</a>
+            </div>
+        </div>
+        <div class="content">
+            <h1>OW-AI Administrator Guide</h1>
+<p><strong>Last Updated:</strong> October 23, 2025</p>
+<h2>Administrator Responsibilities</h2>
+<p>As an OW-AI Administrator, you are responsible for:</p>
+<p>✅ Platform configuration and maintenance<br />
+✅ User and role management<br />
+✅ Smart rules creation and optimization<br />
+✅ Workflow configuration<br />
+✅ Compliance monitoring<br />
+✅ Performance tuning<br />
+✅ Integration management<br />
+✅ Security administration<br />
+✅ Audit and reporting</p>
+<h2>Initial Platform Setup</h2>
+<h3>1. Organization Configuration</h3>
+<h4>Access Settings Page</h4>
+<pre><code>Dashboard → Settings → Organization
+</code></pre>
+<p><strong>Configure:</strong></p>
+<pre><code class="language-yaml">Organization Settings:
+  name: &quot;Your Company Name&quot;
+  industry: &quot;Financial Services&quot;  # or Healthcare, E-commerce, etc.
+  size: &quot;1000-5000 employees&quot;
+
+  compliance_requirements:
+    - SOC 2 Type II
+    - PCI DSS
+    - GDPR
+    - HIPAA
+
+  business_hours:
+    timezone: &quot;America/New_York&quot;
+    start_time: &quot;08:00&quot;
+    end_time: &quot;18:00&quot;
+    working_days: [&quot;Monday&quot;, &quot;Tuesday&quot;, &quot;Wednesday&quot;, &quot;Thursday&quot;, &quot;Friday&quot;]
+
+  alert_settings:
+    critical_alerts: &quot;immediate&quot;
+    high_alerts: &quot;within_15min&quot;
+    medium_alerts: &quot;within_1hr&quot;
+    low_alerts: &quot;daily_digest&quot;
+</code></pre>
+<h3>2. User Management</h3>
+<h4>Creating Users</h4>
+<pre><code>Dashboard → Admin → Users → Add User
+</code></pre>
+<p><strong>User Types:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Permissions</th>
+<th>Use Case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Admin</strong></td>
+<td>Full access, configuration, user management</td>
+<td>IT administrators, security leads</td>
+</tr>
+<tr>
+<td><strong>Approver</strong></td>
+<td>Review and approve actions, view analytics</td>
+<td>Managers, security team</td>
+</tr>
+<tr>
+<td><strong>Viewer</strong></td>
+<td>Read-only access to dashboard and reports</td>
+<td>Compliance team, executives</td>
+</tr>
+<tr>
+<td><strong>Agent</strong></td>
+<td>API access only, cannot login to dashboard</td>
+<td>Service accounts, integrations</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Bulk User Import:</strong></p>
+<pre><code class="language-bash"># CSV format: email,role,department,manager_email
+owai users import --file users.csv
+
+# Example users.csv:
+# email,role,department,manager_email
+# john.doe@company.com,approver,engineering,cto@company.com
+# jane.smith@company.com,viewer,compliance,cco@company.com
+# security-team@company.com,admin,security,ciso@company.com
+</code></pre>
+<h2>Security Best Practices</h2>
+<h3>Secure Development Lifecycle</h3>
+<pre><code>1. Requirements Phase
+   ├─ Security requirements gathered
+   ├─ Threat modeling completed
+   └─ Compliance needs identified
+
+2. Design Phase
+   ├─ Security architecture review
+   ├─ Data flow diagrams
+   └─ Authentication/authorization design
+
+3. Implementation Phase
+   ├─ Secure coding standards
+   ├─ Input validation
+   ├─ Code review (2+ reviewers)
+   └─ Static analysis (SAST)
+
+4. Testing Phase
+   ├─ Security testing (DAST)
+   ├─ Penetration testing
+   ├─ Vulnerability scanning
+   └─ Compliance validation
+
+5. Deployment Phase
+   ├─ Security configuration review
+   ├─ Deployment checklist
+   └─ Post-deployment validation
+
+6. Operations Phase
+   ├─ Continuous monitoring
+   ├─ Incident response
+   ├─ Patch management
+   └─ Security reviews
+</code></pre>
+<h3>Administrator Checklist</h3>
+<h4>Daily</h4>
+<ul>
+<li>[ ] Review critical alerts</li>
+<li>[ ] Check system health dashboard</li>
+<li>[ ] Monitor approval queue depth</li>
+<li>[ ] Review any workflow timeouts</li>
+</ul>
+<h4>Weekly</h4>
+<ul>
+<li>[ ] Review rule performance metrics</li>
+<li>[ ] Analyze false positive trends</li>
+<li>[ ] Check integration health</li>
+<li>[ ] Review user access logs</li>
+<li>[ ] Update documentation</li>
+</ul>
+<h4>Monthly</h4>
+<ul>
+<li>[ ] Generate compliance reports</li>
+<li>[ ] Review and optimize rules</li>
+<li>[ ] Audit user permissions</li>
+<li>[ ] Performance tuning review</li>
+<li>[ ] Backup restoration test</li>
+<li>[ ] Team training session</li>
+</ul>
+<h4>Quarterly</h4>
+<ul>
+<li>[ ] Disaster recovery drill</li>
+<li>[ ] Capacity planning review</li>
+<li>[ ] Security assessment</li>
+<li>[ ] Integration updates</li>
+<li>[ ] Policy review and updates</li>
+<li>[ ] Executive reporting</li>
+</ul>
+<hr />
+<h2>Getting Help</h2>
+<p><strong>Documentation</strong>: https://docs.owkai.app<br />
+<strong>Support Email</strong>: support@owkai.com<br />
+<strong>Emergency</strong>: support@owkai.com (24/7)<br />
+<strong>Community</strong>: https://community.owkai.app</p>
+        </div>
+        <div class="footer">
+            <p>© 2025 OW-AI Enterprise Platform | Documentation Version 2.0</p>
+        </div>
+    </div>
+</body>
+</html>
