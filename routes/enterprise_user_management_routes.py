@@ -577,6 +577,73 @@ async def create_role(
         logger.error(f"❌ Error creating role: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create role: {str(e)}")
 
+@router.put("/roles/{role_id}")
+async def update_role(
+    role_id: int,
+    role_data: dict,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """Update existing enterprise role"""
+    try:
+        logger.info(f"🔄 Updating role {role_id} by: {current_user.get('email', 'unknown')}")
+
+        # Check if role exists
+        check_query = text("SELECT id, name FROM user_roles WHERE id = :role_id")
+        result = db.execute(check_query, {"role_id": role_id})
+        existing_role = result.fetchone()
+
+        if not existing_role:
+            raise HTTPException(status_code=404, detail=f"Role with id {role_id} not found")
+
+        # Update role
+        update_query = text("""
+            UPDATE user_roles
+            SET name = :name,
+                description = :description,
+                permissions = :permissions,
+                level = :level,
+                risk_level = :risk_level,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :role_id
+            RETURNING id, name, description, permissions, level, risk_level, created_at, updated_at
+        """)
+
+        updated = db.execute(update_query, {
+            "role_id": role_id,
+            "name": role_data.get("name"),
+            "description": role_data.get("description"),
+            "permissions": json.dumps(role_data.get("permissions", {})),
+            "level": role_data.get("level", 1),
+            "risk_level": role_data.get("risk_level", "Medium")
+        })
+
+        updated_role = updated.fetchone()
+        db.commit()
+
+        logger.info(f"✅ Role '{updated_role.name}' updated successfully")
+
+        return {
+            "message": "Role updated successfully",
+            "role": {
+                "id": updated_role.id,
+                "name": updated_role.name,
+                "description": updated_role.description,
+                "permissions": json.loads(updated_role.permissions) if isinstance(updated_role.permissions, str) else updated_role.permissions,
+                "level": updated_role.level,
+                "risk_level": updated_role.risk_level,
+                "created_at": updated_role.created_at.isoformat() if updated_role.created_at else None,
+                "updated_at": updated_role.updated_at.isoformat() if updated_role.updated_at else None
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"❌ Error updating role: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update role: {str(e)}")
+
 # ============================================================================
 # AUDIT TRAIL
 # ============================================================================
