@@ -6,7 +6,7 @@ from database import Base
 
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     password = Column(String)  # Changed from hashed_password to match auth_routes.py
@@ -14,14 +14,21 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
     last_login = Column(DateTime, nullable=True)
-    
+
+    # PHASE 2 RBAC: Account lockout and password management
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    is_locked = Column(Boolean, default=False, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    password_last_changed = Column(DateTime, nullable=True)
+    force_password_change = Column(Boolean, default=False, nullable=False)
+
     # Enterprise authorization fields that main.py expects
     approval_level = Column(Integer, default=1)
     is_emergency_approver = Column(Boolean, default=False)
     max_risk_approval = Column(Integer, default=50)
-    
+
     # Relationships
-    
+
     logs = relationship("Log", back_populates="user")
 
 class Alert(Base):
