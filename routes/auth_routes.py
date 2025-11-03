@@ -8,6 +8,7 @@ from datetime import datetime, UTC
 from typing import Optional
 import logging
 from passlib.context import CryptContext
+from pydantic import BaseModel
 from auth_utils import verify_password
 from auth_utils import hash_password
 from secrets import token_urlsafe
