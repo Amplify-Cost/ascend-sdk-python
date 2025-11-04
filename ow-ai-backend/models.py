@@ -433,7 +433,7 @@ class WorkflowStep(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))    
 class EnterprisePolicy(Base):
     __tablename__ = "enterprise_policies"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     policy_name = Column(String, nullable=False)
     description = Column(Text)
@@ -446,6 +446,67 @@ class EnterprisePolicy(Base):
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+
+
+class PolicyEvaluation(Base):
+    """
+    Policy Evaluation Tracking Model
+
+    Tracks every policy evaluation for compliance audit trail and analytics.
+    Enables real-time metrics, forensic analysis, and policy effectiveness measurement.
+
+    Business Value:
+    - SOX/HIPAA/PCI-DSS/GDPR compliance through complete audit trail
+    - Real-time policy effectiveness monitoring
+    - Security incident forensics with full evaluation history
+    - Performance optimization through evaluation metrics
+
+    Example Use Cases:
+    - Compliance audits requiring proof of authorization decisions
+    - Security investigations tracking unauthorized access attempts
+    - Policy performance analysis identifying slow or inefficient policies
+    - Risk analytics measuring policy coverage and effectiveness
+    """
+    __tablename__ = "policy_evaluations"
+
+    # Primary identification
+    id = Column(Integer, primary_key=True, index=True)
+
+    # References
+    policy_id = Column(Integer, ForeignKey('enterprise_policies.id', ondelete='SET NULL'), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    # Evaluation Request
+    principal = Column(String(512), nullable=False)  # User/service making request
+    action = Column(String(255), nullable=False, index=True)  # Action attempted
+    resource = Column(String(512), nullable=False)  # Resource accessed
+
+    # Evaluation Result
+    decision = Column(String(50), nullable=False, index=True)  # ALLOW, DENY, REQUIRE_APPROVAL
+    allowed = Column(Boolean, nullable=False, default=False, index=True)  # Boolean for quick queries
+
+    # Performance Metrics
+    evaluation_time_ms = Column(Integer, nullable=True)  # Evaluation latency
+    cache_hit = Column(Boolean, default=False)  # Was result from cache
+
+    # Policy Matching (JSONB for flexible querying)
+    policies_triggered = Column(JSONB, nullable=True)  # [{policy_id, policy_name, effect}]
+    matched_conditions = Column(JSONB, nullable=True)  # {environment: "production", risk_level: "high"}
+
+    # Timestamps
+    evaluated_at = Column(DateTime(timezone=True), default=func.now(), nullable=False, index=True)
+
+    # Additional Context
+    context = Column(JSONB, nullable=True)  # Full request context for forensic analysis
+    error_message = Column(Text, nullable=True)  # If evaluation failed
+
+    # Relationships
+    policy = relationship("EnterprisePolicy", foreign_keys=[policy_id])
+    user = relationship("User", foreign_keys=[user_id])
+
+    def __repr__(self):
+        return f"<PolicyEvaluation(id={self.id}, decision={self.decision}, policy_id={self.policy_id})>"
+
 
 class AutomationPlaybook(Base):
     """

@@ -36,9 +36,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("enterprise.auth.diagnostic")
 
-# Enterprise Security Settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-enterprise-secret-key")
-ALGORITHM = "HS256"
+# Enterprise Security Settings - MUST match dependencies.py
+from config import SECRET_KEY, ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 

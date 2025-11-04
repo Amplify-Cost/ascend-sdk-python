@@ -35,3 +35,6 @@ psutil==5.9.8
 # Database migrations
 alembic==1.13.1
 pydantic-settings>=2.0.0
+
+# Document generation for audit exports
+reportlab==4.0.7

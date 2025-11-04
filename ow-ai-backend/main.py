@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from database import get_db, engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
-from routes.auth_routes import router as auth_router
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from routes.smart_rules_routes import router as smart_rules_router
@@ -1127,6 +1126,22 @@ try:
     print("✅ ENTERPRISE: Secrets routes included")
 except Exception as e:
     print(f"❌ ENTERPRISE ERROR: Secrets routes failed: {e}")
+
+# Enterprise Audit Routes (Phase 2.1)
+try:
+    from routes import audit_routes
+    app.include_router(audit_routes.router, prefix="/api", tags=["audit"])
+    print("✅ ENTERPRISE: Audit routes included")
+except ImportError as e:
+    print(f"⚠️  Audit routes not available: {e}")
+
+# Enterprise Retention Policy Routes (Phase 2.1)
+try:
+    from routes import retention_routes
+    app.include_router(retention_routes.router, prefix="/api", tags=["retention"])
+    print("✅ ENTERPRISE: Retention policy routes included")
+except ImportError as e:
+    print(f"⚠️  Retention policy routes not available: {e}")
 
 print("🚀 ENTERPRISE: Application startup complete")
 
@@ -2639,7 +2654,7 @@ async def health_check():
             "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
-    
+
 
 # ENTERPRISE FAILSAFE: Validate critical routers are included
 def validate_enterprise_routers():
@@ -3746,14 +3761,6 @@ async def setup_enterprise_user_tables(
             "details": "Check your database connection and permissions"
         }     
     
-
-# Enterprise Audit Routes (Phase 2.1)
-try:
-    from routes import audit_routes
-    app.include_router(audit_routes.router, prefix="/api", tags=["audit"])
-    print("✅ Enterprise audit routes loaded")
-except ImportError as e:
-    print(f"⚠️  Audit routes not available: {e}")
 
 # Debug logging to verify enterprise modules load
 print("=== DEBUG: Starting enterprise backend ===")
