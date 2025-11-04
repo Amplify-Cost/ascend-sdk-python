@@ -6,14 +6,17 @@ const AuditTrailModal = ({ token, actionId, onClose }) => {
 
   const fetchAuditLogs = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/audit-trail`, {
+      // Use immutable audit API endpoint
+      const res = await fetch(`${API_BASE_URL}/api/audit/logs?limit=100`, {
         credentials: "include",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
-      const filtered = data.filter((log) => log.action_id === actionId);
+      const responseData = await res.json();
+      // Handle paginated response from immutable audit API
+      const logs = responseData.logs || responseData;
+      const filtered = logs.filter((log) => log.resource_id === actionId || log.action_id === actionId);
       setAuditLogs(filtered);
     } catch (err) {
       console.error("Failed to fetch audit logs:", err);
