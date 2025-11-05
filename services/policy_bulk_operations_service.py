@@ -331,8 +331,13 @@ class PolicyBulkOperationsService:
     ):
         """Create audit log entry for bulk operation"""
         try:
+            # Get user ID from email
+            from models import User
+            user = self.db.query(User).filter(User.email == user_email).first()
+            user_id = user.id if user else 1  # Default to admin user if not found
+
             audit_entry = AuditLog(
-                user_id=0,  # Bulk operations use system user
+                user_id=user_id,
                 action=action,
                 resource_type="policy",
                 resource_id=str(policy_id),
