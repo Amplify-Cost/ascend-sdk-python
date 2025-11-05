@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, Plus, FileText, TestTube, BarChart3, History, 
-  Activity, Award, Zap
+import {
+  Shield, Plus, FileText, TestTube, BarChart3, History,
+  Activity, Award, Zap, AlertTriangle, Download
 } from 'lucide-react';
 import { PolicyAnalytics } from './PolicyAnalytics';
 import { PolicyTester } from './PolicyTester';
@@ -9,6 +9,9 @@ import { VisualPolicyBuilderAdvanced } from './VisualPolicyBuilderAdvanced';
 import { ComplianceMapping } from './ComplianceMapping';
 import { PolicyVersionControl } from './PolicyVersionControl';
 import { PolicyImpactAnalysis } from './PolicyImpactAnalysis';
+import { PolicyConflictDetector } from './PolicyConflictDetector';
+import { PolicyImportExport } from './PolicyImportExport';
+import { PolicyBulkActions } from './PolicyBulkActions';
 
 export const EnhancedPolicyTabComplete = ({
   policies,
@@ -21,6 +24,7 @@ export const EnhancedPolicyTabComplete = ({
   const [view, setView] = useState('list');
   const [templates, setTemplates] = useState([]);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [selectedPolicies, setSelectedPolicies] = useState([]);
   const [policyForm, setPolicyForm] = useState({
     policy_name: '',
     description: ''
@@ -78,6 +82,8 @@ export const EnhancedPolicyTabComplete = ({
     { id: 'analytics', label: 'Analytics', icon: BarChart3 },
     { id: 'test', label: 'Testing', icon: TestTube },
     { id: 'compliance', label: 'Compliance', icon: Award },
+    { id: 'conflicts', label: 'Conflicts', icon: AlertTriangle },
+    { id: 'import-export', label: 'Import/Export', icon: Download },
     { id: 'create', label: 'Create', icon: Plus }
   ];
 
@@ -86,13 +92,28 @@ export const EnhancedPolicyTabComplete = ({
     switch (view) {
       case 'analytics':
         return <PolicyAnalytics API_BASE_URL={API_BASE_URL} getAuthHeaders={getAuthHeaders} />;
-      
+
       case 'test':
         return <PolicyTester API_BASE_URL={API_BASE_URL} getAuthHeaders={getAuthHeaders} />;
-      
+
       case 'compliance':
         return <ComplianceMapping policies={policies} />;
-      
+
+      case 'conflicts':
+        return <PolicyConflictDetector API_BASE_URL={API_BASE_URL} getAuthHeaders={getAuthHeaders} />;
+
+      case 'import-export':
+        return (
+          <PolicyImportExport
+            API_BASE_URL={API_BASE_URL}
+            getAuthHeaders={getAuthHeaders}
+            onImportComplete={async () => {
+              await onRefreshPolicies();
+              setView('list');
+            }}
+          />
+        );
+
       case 'create':
         return (
           <VisualPolicyBuilderAdvanced
@@ -218,58 +239,90 @@ export const EnhancedPolicyTabComplete = ({
                 </div>
               ) : (
                 <div className="divide-y">
-                  {policies.map((policy) => (
-                    <div key={policy.id} className="p-6 hover:bg-gray-50">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="text-xl font-bold">{policy.policy_name}</h4>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              policy.risk_level === 'high' ? 'bg-red-500 text-white' :
-                              policy.risk_level === 'medium' ? 'bg-yellow-500 text-white' :
-                              'bg-green-500 text-white'
-                            }`}>
-                              {(policy.risk_level || 'medium').toUpperCase()}
-                            </span>
+                  {policies.map((policy) => {
+                    const isSelected = selectedPolicies.some(p => p.id === policy.id);
+                    return (
+                      <div key={policy.id} className={`p-6 transition-colors ${
+                        isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+                      }`}>
+                        <div className="flex items-start gap-4">
+                          {/* Selection Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedPolicies([...selectedPolicies, policy]);
+                              } else {
+                                setSelectedPolicies(selectedPolicies.filter(p => p.id !== policy.id));
+                              }
+                            }}
+                            className="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            aria-label={`Select ${policy.policy_name}`}
+                          />
+
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h4 className="text-xl font-bold">{policy.policy_name}</h4>
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                policy.risk_level === 'high' ? 'bg-red-500 text-white' :
+                                policy.risk_level === 'medium' ? 'bg-yellow-500 text-white' :
+                                'bg-green-500 text-white'
+                              }`}>
+                                {(policy.risk_level || 'medium').toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-gray-700 mb-3">{policy.description}</p>
+
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedPolicy(policy);
+                                  setView('version-history');
+                                }}
+                                className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                              >
+                                <History className="h-4 w-4 inline mr-1" />
+                                History
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedPolicy(policy);
+                                  setView('impact');
+                                }}
+                                className="text-sm px-3 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                              >
+                                <Activity className="h-4 w-4 inline mr-1" />
+                                Impact
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-gray-700 mb-3">{policy.description}</p>
-                          
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedPolicy(policy);
-                                setView('version-history');
-                              }}
-                              className="text-sm px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                            >
-                              <History className="h-4 w-4 inline mr-1" />
-                              History
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedPolicy(policy);
-                                setView('impact');
-                              }}
-                              className="text-sm px-3 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
-                            >
-                              <Activity className="h-4 w-4 inline mr-1" />
-                              Impact
-                            </button>
-                          </div>
+
+                          <button
+                            onClick={() => onDeletePolicy(policy.id)}
+                            className="ml-4 px-4 py-2 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            Delete
+                          </button>
                         </div>
-                        
-                        <button
-                          onClick={() => onDeletePolicy(policy.id)}
-                          className="ml-4 px-4 py-2 text-red-600 hover:bg-red-50 rounded"
-                        >
-                          Delete
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
+
+            {/* Bulk Actions Floating Toolbar */}
+            <PolicyBulkActions
+              selectedPolicies={selectedPolicies}
+              onBulkComplete={async () => {
+                setSelectedPolicies([]);
+                await onRefreshPolicies();
+              }}
+              onClearSelection={() => setSelectedPolicies([])}
+              API_BASE_URL={API_BASE_URL}
+              getAuthHeaders={getAuthHeaders}
+            />
           </div>
         );
     }
