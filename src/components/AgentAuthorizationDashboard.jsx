@@ -538,52 +538,19 @@ useEffect(() => {
       
       setAutomationData(safeData);
     } else {
-      const demoData = {
-        playbooks: {
-          "low_risk_auto_approve": {
-            name: "Low Risk Auto-Approval",
-            enabled: true,
-            success_rate: 98,
-            stats: {
-              triggers_last_24h: 15,
-              avg_response_time_seconds: 2,
-              total_cost_savings_24h: 450,
-              last_triggered: new Date().toISOString()
-            },
-            trigger_conditions: {
-              risk_score_max: 30,
-              business_hours: true,
-              auto_approve: true
-            }
-          },
-          "after_hours_escalation": {
-            name: "After Hours Escalation",
-            enabled: true,
-            success_rate: 95,
-            stats: {
-              triggers_last_24h: 3,
-              avg_response_time_seconds: 45,
-              total_cost_savings_24h: 180,
-              last_triggered: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-            },
-            trigger_conditions: {
-              after_hours: true,
-              escalate_immediately: true,
-              notify_executives: true
-            }
-          }
-        },
+      // ENTERPRISE: Show empty state when no data available
+      console.warn("⚠️  Automation API returned non-OK response - showing empty state");
+      setAutomationData({
+        playbooks: {},
         automation_summary: {
-          total_playbooks: 2,
-          enabled_playbooks: 2,
-          total_triggers_24h: 18,
-          total_cost_savings_24h: 630,
-          average_success_rate: 96.5
+          total_playbooks: 0,
+          enabled_playbooks: 0,
+          total_triggers_24h: 0,
+          total_cost_savings_24h: 0,
+          average_success_rate: 0
         },
         real_data_metrics: null
-      };
-      
-      setAutomationData(demoData);
+      });
     }
   } catch (err) {
     console.error("❌ Error fetching automation data:", err);
@@ -633,57 +600,17 @@ const fetchWorkflowOrchestrations = async () => {
       
       setWorkflowOrchestrations(safeData);
     } else {
-      const demoData = {
-        active_workflows: {
-          "security_review_workflow": {
-            name: "Security Review Workflow",
-            description: "Multi-step security validation process",
-            created_by: "security@enterprise.com",
-            steps: [
-              { name: "Initial Scan", type: "security_check", timeout: 30 },
-              { name: "Risk Assessment", type: "risk_analysis", timeout: 60 },
-              { name: "Approval Routing", type: "approval_logic", timeout: 120 }
-            ],
-            real_time_stats: {
-              currently_executing: 2,
-              queued_actions: 5,
-              last_24h_executions: 12,
-              success_rate_24h: 94
-            },
-            success_metrics: {
-              executions: 45,
-              success_rate: 94
-            }
-          },
-          "compliance_audit_workflow": {
-            name: "Compliance Audit Workflow",
-            description: "Automated compliance checking and documentation",
-            created_by: "compliance@enterprise.com",
-            steps: [
-              { name: "Compliance Check", type: "compliance_scan", timeout: 45 },
-              { name: "Documentation", type: "audit_log", timeout: 30 }
-            ],
-            real_time_stats: {
-              currently_executing: 1,
-              queued_actions: 2,
-              last_24h_executions: 8,
-              success_rate_24h: 98
-            },
-            success_metrics: {
-              executions: 28,
-              success_rate: 98
-            }
-          }
-        },
+      // ENTERPRISE: Show empty state when no data available
+      console.warn("⚠️  Workflow orchestration API returned non-OK response - showing empty state");
+      setWorkflowOrchestrations({
+        active_workflows: {},
         summary: {
-          total_active: 2,
-          total_executions_24h: 20,
-          average_success_rate: 96
+          total_active: 0,
+          total_executions_24h: 0,
+          average_success_rate: 0
         },
         real_data_metrics: null
-      };
-      
-      setWorkflowOrchestrations(demoData);
+      });
     }
   } catch (err) {
     console.error("❌ Error fetching workflow data:", err);
