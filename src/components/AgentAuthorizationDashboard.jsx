@@ -39,6 +39,7 @@ const [showMcpFilters, setShowMcpFilters] = useState(false);
 
   const [automationData, setAutomationData] = useState(null);
   const [workflowOrchestrations, setWorkflowOrchestrations] = useState({});
+  const [activityFeed, setActivityFeed] = useState([]); // ENTERPRISE: Real-time automation activity
   const [showAutomationModal, setShowAutomationModal] = useState(false);
   const [selectedPlaybook, setSelectedPlaybook] = useState(null);
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
@@ -74,6 +75,7 @@ const [showMcpFilters, setShowMcpFilters] = useState(false);
     if (activeTab === "automation") {
       fetchAutomationData();
       fetchWorkflowOrchestrations();
+      fetchActivityFeed(); // 🏢 ENTERPRISE: Load real-time activity
     }
 
     // 🚀 NEW: Fetch execution data when on execution tab
@@ -644,6 +646,31 @@ const fetchWorkflowOrchestrations = async () => {
     console.error("❌ Error fetching execution history:", err);
   }
 };
+
+  // 🏢 ENTERPRISE: Fetch real-time automation activity feed
+  const fetchActivityFeed = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/authorization/automation/activity-feed?limit=5`, {
+        credentials: "include",  // ✅ ENTERPRISE: Cookie auth
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+          "X-API-Version": "v1.0"
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setActivityFeed(data.activities || []);
+        console.log("✅ ENTERPRISE: Activity feed loaded:", data.activities?.length || 0, "activities");
+      } else {
+        console.warn("⚠️  Activity feed API returned non-OK response - showing empty state");
+        setActivityFeed([]);
+      }
+    } catch (err) {
+      console.error("❌ Error fetching activity feed:", err);
+      setActivityFeed([]);
+    }
+  };
 
   // 🚀 NEW: Get execution status for specific action
   const fetchExecutionStatus = async (actionId) => {
@@ -2878,38 +2905,52 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       )}
     </div>
 
-    {/* Real-time Automation Activity Feed */}
+    {/* Real-time Automation Activity Feed - ENTERPRISE: Real data from backend */}
     <div className="bg-white rounded-lg shadow-sm border p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">⚡ Real-time Automation Activity</h3>
-      <div className="space-y-3">
-        {/* Sample real-time activities */}
-        <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded">
-          <span className="text-green-600">🤖</span>
-          <div className="flex-1">
-            <span className="font-medium">Low Risk Auto-Approval</span>
-            <span className="text-gray-600 ml-2">executed for Agent-7432</span>
-          </div>
-          <span className="text-xs text-green-600">2 minutes ago</span>
+
+      {activityFeed.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <div className="text-4xl mb-3">📊</div>
+          <p className="font-medium text-gray-700">No recent automation activity</p>
+          <p className="text-sm mt-2">Activity will appear here as playbooks execute and workflows trigger</p>
         </div>
-        
-        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded">
-          <span className="text-blue-600">🔄</span>
-          <div className="flex-1">
-            <span className="font-medium">Workflow Orchestration</span>
-            <span className="text-gray-600 ml-2">completed security review process</span>
-          </div>
-          <span className="text-xs text-blue-600">5 minutes ago</span>
+      ) : (
+        <div className="space-y-3">
+          {activityFeed.map((activity, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center gap-3 p-3 border rounded ${
+                activity.severity_color === 'green' ? 'bg-green-50 border-green-200' :
+                activity.severity_color === 'blue' ? 'bg-blue-50 border-blue-200' :
+                activity.severity_color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                'bg-gray-50 border-gray-200'
+              }`}
+            >
+              <span className={`${
+                activity.severity_color === 'green' ? 'text-green-600' :
+                activity.severity_color === 'blue' ? 'text-blue-600' :
+                activity.severity_color === 'orange' ? 'text-orange-600' :
+                'text-gray-600'
+              }`}>
+                {activity.icon}
+              </span>
+              <div className="flex-1">
+                <span className="font-medium">{activity.title}</span>
+                <span className="text-gray-600 ml-2">{activity.description}</span>
+              </div>
+              <span className={`text-xs ${
+                activity.severity_color === 'green' ? 'text-green-600' :
+                activity.severity_color === 'blue' ? 'text-blue-600' :
+                activity.severity_color === 'orange' ? 'text-orange-600' :
+                'text-gray-600'
+              }`}>
+                {activity.time_ago}
+              </span>
+            </div>
+          ))}
         </div>
-        
-        <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded">
-          <span className="text-orange-600">⚠️</span>
-          <div className="flex-1">
-            <span className="font-medium">After Hours Escalation</span>
-            <span className="text-gray-600 ml-2">triggered for high-risk action</span>
-          </div>
-          <span className="text-xs text-orange-600">12 minutes ago</span>
-        </div>
-      </div>
+      )}
     </div>
   </div>
 )}
