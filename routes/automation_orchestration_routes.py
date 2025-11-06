@@ -59,9 +59,19 @@ async def get_automation_playbooks(
         # Execute query
         playbooks = query.order_by(AutomationPlaybook.created_at.desc()).all()
         
-        # Format response to match frontend expectations
+        # Format response to match frontend expectations with real-time metrics
+        from services.automation_service import get_automation_service
+        automation_service = get_automation_service(db)
+
         playbooks_data = []
+        total_triggers_24h = 0
+        total_cost_savings_24h = 0.0
+        enabled_count = 0
+
         for pb in playbooks:
+            # Get real-time metrics for this playbook
+            metrics = automation_service.get_playbook_metrics(pb.id)
+
             playbooks_data.append({
                 'id': pb.id,
                 'name': pb.name,
@@ -76,15 +86,34 @@ async def get_automation_playbooks(
                 'success_rate': pb.success_rate or 0.0,
                 'created_by': pb.created_by,
                 'created_at': pb.created_at.isoformat(),
-                'updated_at': pb.updated_at.isoformat() if pb.updated_at else None
+                'updated_at': pb.updated_at.isoformat() if pb.updated_at else None,
+                # ENTERPRISE: Add real-time metrics
+                'metrics': metrics
             })
-        
-        logger.info(f"✅ Retrieved {len(playbooks_data)} playbooks from database")
-        
+
+            # Calculate summary metrics
+            if pb.status == 'active':
+                enabled_count += 1
+            total_triggers_24h += metrics.get('triggers_last_24h', 0)
+            total_cost_savings_24h += metrics.get('cost_savings_24h', 0.0)
+
+        # Calculate average success rate
+        avg_success_rate = sum(pb.success_rate or 0 for pb in playbooks) / len(playbooks) if playbooks else 0.0
+
+        logger.info(f"✅ Retrieved {len(playbooks_data)} playbooks from database with real-time metrics")
+
         return {
             "status": "success",
             "data": playbooks_data,
-            "total": len(playbooks_data)
+            "total": len(playbooks_data),
+            "automation_summary": {
+                "total_playbooks": len(playbooks_data),
+                "enabled_playbooks": enabled_count,
+                "total_triggers_24h": total_triggers_24h,
+                "total_cost_savings_24h": round(total_cost_savings_24h, 2),
+                "average_success_rate": round(avg_success_rate, 2)
+            },
+            "real_data_metrics": True
         }
         
     except Exception as e:
@@ -323,29 +352,76 @@ async def get_active_workflows(
     try:
         logger.info(f"📊 Listing active workflows for user {current_user.get('email')}")
         
+        # Query all workflow templates
+        from datetime import timedelta
+        from sqlalchemy import func
+
+        workflows = db.query(Workflow).filter(
+            Workflow.status == 'active'
+        ).all()
+
         # Query active workflow executions
         active_executions = db.query(WorkflowExecution).filter(
             WorkflowExecution.execution_status.in_(['pending', 'running', 'waiting_approval'])
         ).order_by(WorkflowExecution.started_at.desc()).limit(50).all()
-        
-        # Format response
-        workflows_data = []
-        for execution in active_executions:
-            workflows_data.append({
-                'id': execution.id,
-                'workflow_id': execution.workflow_id,
-                'action_id': execution.action_id,
-                'execution_status': execution.execution_status,
-                'current_stage': execution.current_stage,
-                'started_at': execution.started_at.isoformat(),
-                'execution_details': execution.execution_details
-            })
-        
-        logger.info(f"✅ Retrieved {len(workflows_data)} active workflows")
-        
+
+        # Query executions in last 24 hours for metrics
+        yesterday = datetime.utcnow() - timedelta(hours=24)
+        executions_24h = db.query(WorkflowExecution).filter(
+            WorkflowExecution.started_at >= yesterday
+        ).all()
+
+        # Format active workflows with real-time stats
+        active_workflows_dict = {}
+        for workflow in workflows:
+            # Count active executions for this workflow
+            workflow_active = [e for e in active_executions if e.workflow_id == workflow.id]
+            workflow_24h = [e for e in executions_24h if e.workflow_id == workflow.id]
+
+            # Calculate success rate
+            successful_24h = sum(1 for e in workflow_24h if e.execution_status == 'completed')
+            success_rate_24h = (successful_24h / len(workflow_24h) * 100) if workflow_24h else 0
+
+            active_workflows_dict[workflow.id] = {
+                'id': workflow.id,
+                'name': workflow.name,
+                'description': workflow.description,
+                'created_by': workflow.created_by,
+                'owner': workflow.owner,
+                'status': workflow.status,
+                'sla_hours': workflow.sla_hours,
+                'compliance_frameworks': workflow.compliance_frameworks,
+                'tags': workflow.tags,
+                'steps': workflow.steps or [],
+                'real_time_stats': {
+                    'currently_executing': len(workflow_active),
+                    'queued_actions': sum(1 for e in workflow_active if e.execution_status == 'pending'),
+                    'last_24h_executions': len(workflow_24h),
+                    'success_rate_24h': round(success_rate_24h, 1)
+                },
+                'success_metrics': {
+                    'executions': workflow.execution_count or 0,
+                    'success_rate': workflow.success_rate or 0,
+                    'avg_completion_time_hours': workflow.avg_completion_time_hours
+                }
+            }
+
+        # Calculate summary metrics
+        total_executions_24h = len(executions_24h)
+        successful_executions_24h = sum(1 for e in executions_24h if e.execution_status == 'completed')
+        avg_success_rate = (successful_executions_24h / total_executions_24h * 100) if total_executions_24h else 0
+
+        logger.info(f"✅ Retrieved {len(active_workflows_dict)} active workflow templates with real-time metrics")
+
         return {
             "status": "success",
-            "data": workflows_data
+            "active_workflows": active_workflows_dict,
+            "summary": {
+                "total_active": len(workflows),
+                "total_executions_24h": total_executions_24h,
+                "average_success_rate": round(avg_success_rate, 1)
+            },
+            "real_data_metrics": True
         }
         
     except Exception as e:

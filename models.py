@@ -391,18 +391,55 @@ class IntegrationEndpoint(Base):
 # Add these workflow models to the end of your models.py file
 
 class Workflow(Base):
+    """
+    Enterprise Workflow Orchestration Model
+
+    Stores multi-step workflow orchestrations for complex agent action processing.
+    Enables dynamic workflow execution with full audit trails and compliance tracking.
+
+    Business Value:
+    - Enforces multi-level approval workflows
+    - Ensures compliance with regulatory requirements
+    - Complete audit trail for enterprise governance
+    - SLA tracking and escalation management
+
+    Example Use Cases:
+    - High-risk action approval workflows
+    - Critical incident response workflows
+    - Compliance-focused data access workflows
+    """
     __tablename__ = "workflows"
-    
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
+
+    # Primary identification
+    id = Column(String(255), primary_key=True, index=True)  # e.g., "wf-high-risk-approval"
+    name = Column(String(255), nullable=False, index=True)
     description = Column(Text)
-    created_by = Column(String)
-    created_at = Column(DateTime, default=datetime.now(UTC))
+
+    # Status and configuration
+    status = Column(String(50), default='active', index=True)  # active|inactive|disabled|maintenance
+    created_by = Column(String(255))  # User/system that created this workflow
+    owner = Column(String(255))  # Team responsible for this workflow
+
+    # Workflow definition (stored as JSON)
+    steps = Column(JSON)  # Ordered list of workflow steps with actions/approvals
+    trigger_conditions = Column(JSON)  # When to execute: {"risk_score": {"min": 50}, "action_types": [...]}
+    workflow_metadata = Column(JSON)  # Additional metadata for flexibility
+
+    # SLA and execution tracking
+    sla_hours = Column(Integer, default=24)  # Service Level Agreement in hours
+    auto_approve_on_timeout = Column(Boolean, default=False)  # Auto-approve if SLA exceeded
+    last_executed = Column(DateTime, nullable=True, index=True)
+    execution_count = Column(Integer, default=0)  # Total number of executions
+    success_rate = Column(Float, default=0.0)  # Calculated success rate (0-100)
+    avg_completion_time_hours = Column(Float, nullable=True)  # Average time to complete
+
+    # Compliance and governance
+    compliance_frameworks = Column(JSON)  # ["SOX", "PCI-DSS", "HIPAA", "GDPR"]
+    tags = Column(JSON)  # ["high-risk", "multi-approval", "24x7"]
+
+    # Audit timestamps
+    created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    status = Column(String, default='active')
-    steps = Column(JSON)
-    trigger_conditions = Column(JSON)
-    workflow_metadata = Column(JSON)
 
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"
@@ -433,7 +470,7 @@ class WorkflowStep(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))    
 class EnterprisePolicy(Base):
     __tablename__ = "enterprise_policies"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     policy_name = Column(String, nullable=False)
     description = Column(Text)
@@ -446,6 +483,67 @@ class EnterprisePolicy(Base):
     created_by = Column(String)
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+
+
+class PolicyEvaluation(Base):
+    """
+    Policy Evaluation Tracking Model
+
+    Tracks every policy evaluation for compliance audit trail and analytics.
+    Enables real-time metrics, forensic analysis, and policy effectiveness measurement.
+
+    Business Value:
+    - SOX/HIPAA/PCI-DSS/GDPR compliance through complete audit trail
+    - Real-time policy effectiveness monitoring
+    - Security incident forensics with full evaluation history
+    - Performance optimization through evaluation metrics
+
+    Example Use Cases:
+    - Compliance audits requiring proof of authorization decisions
+    - Security investigations tracking unauthorized access attempts
+    - Policy performance analysis identifying slow or inefficient policies
+    - Risk analytics measuring policy coverage and effectiveness
+    """
+    __tablename__ = "policy_evaluations"
+
+    # Primary identification
+    id = Column(Integer, primary_key=True, index=True)
+
+    # References
+    policy_id = Column(Integer, ForeignKey('enterprise_policies.id', ondelete='SET NULL'), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
+
+    # Evaluation Request
+    principal = Column(String(512), nullable=False)  # User/service making request
+    action = Column(String(255), nullable=False, index=True)  # Action attempted
+    resource = Column(String(512), nullable=False)  # Resource accessed
+
+    # Evaluation Result
+    decision = Column(String(50), nullable=False, index=True)  # ALLOW, DENY, REQUIRE_APPROVAL
+    allowed = Column(Boolean, nullable=False, default=False, index=True)  # Boolean for quick queries
+
+    # Performance Metrics
+    evaluation_time_ms = Column(Integer, nullable=True)  # Evaluation latency
+    cache_hit = Column(Boolean, default=False)  # Was result from cache
+
+    # Policy Matching (JSONB for flexible querying)
+    policies_triggered = Column(JSONB, nullable=True)  # [{policy_id, policy_name, effect}]
+    matched_conditions = Column(JSONB, nullable=True)  # {environment: "production", risk_level: "high"}
+
+    # Timestamps
+    evaluated_at = Column(DateTime(timezone=True), default=func.now(), nullable=False, index=True)
+
+    # Additional Context
+    context = Column(JSONB, nullable=True)  # Full request context for forensic analysis
+    error_message = Column(Text, nullable=True)  # If evaluation failed
+
+    # Relationships
+    policy = relationship("EnterprisePolicy", foreign_keys=[policy_id])
+    user = relationship("User", foreign_keys=[user_id])
+
+    def __repr__(self):
+        return f"<PolicyEvaluation(id={self.id}, decision={self.decision}, policy_id={self.policy_id})>"
+
 
 class AutomationPlaybook(Base):
     """
