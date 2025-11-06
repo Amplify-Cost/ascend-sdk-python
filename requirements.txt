@@ -39,3 +39,4 @@ pydantic-settings>=2.0.0
 # Document generation for audit exports
 reportlab==4.0.7
 PyYAML==6.0.3
+pytz==2024.1
