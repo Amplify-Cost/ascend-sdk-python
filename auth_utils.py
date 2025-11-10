@@ -1,12 +1,17 @@
-# auth_utils.py 
+# auth_utils.py
 from fastapi import HTTPException
 from fastapi.security import HTTPBearer
 from passlib.context import CryptContext
-from jose import jwt  
+from jose import jwt
 from datetime import datetime, timedelta, UTC
-from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS, BCRYPT_ROUNDS
 import logging
-import hashlib 
+import hashlib
+import bcrypt
+
+# ✅ SECURITY FIX: Import secure JWT decoder
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
+from security.jwt_security import secure_jwt_decode 
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +21,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     """Hash password with SHA-256 + bcrypt (fixes 72-byte limit)"""
+    # ✅ SECURITY FIX: Use explicit bcrypt cost factor for enterprise security
+    # Created by: OW-kai Engineer (Phase 2 Security Fixes - Password Hardening)
     sha_digest = hashlib.sha256(password.encode('utf-8')).hexdigest()
-    hashed = pwd_context.hash(sha_digest)
-    logger.info("Password hashed successfully (SHA-256+bcrypt)")
+    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)  # ✅ SECURE: Explicit 14 rounds (2^14 iterations)
+    hashed = bcrypt.hashpw(sha_digest.encode('utf-8'), salt).decode('utf-8')
+    logger.info(f"Password hashed successfully (SHA-256+bcrypt with {BCRYPT_ROUNDS} rounds)")
     return hashed
 
 
@@ -43,12 +51,20 @@ def create_refresh_token(data: dict):
 
 def decode_refresh_token(refresh_token: str):
     """Decode and validate refresh token"""
+    # ✅ SECURITY FIX: Use secure JWT decoder with enhanced validation
+    # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
     try:
-        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
-        
+        payload = secure_jwt_decode(
+            token=refresh_token,
+            secret_key=SECRET_KEY,
+            algorithms=[ALGORITHM],
+            required_claims=["sub", "exp", "type"],
+            operation_name="decode_refresh_token"
+        )
+
         if payload.get("type") != "refresh":
             raise HTTPException(status_code=401, detail="Invalid refresh token type")
-            
+
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired")
@@ -82,8 +98,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def decode_access_token(token: str):
     """Decode access token - used internally only"""
+    # ✅ SECURITY FIX: Use secure JWT decoder with enhanced validation
+    # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
+        payload = secure_jwt_decode(
+            token=token,
+            secret_key=SECRET_KEY,
+            algorithms=[ALGORITHM],
+            required_claims=["sub", "exp"],
+            operation_name="decode_access_token"
+        )
 
         if payload.get("type") and payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")

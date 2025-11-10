@@ -293,7 +293,22 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 
-# CORS Configuration (unchanged)
+# ✅ SECURITY FIX: Explicit CORS header whitelist
+# Replaces wildcard allow_headers=["*"] which violates CORS spec with credentials
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - CORS Hardening)
+ALLOWED_CORS_HEADERS = [
+    "Content-Type",
+    "Authorization",
+    "X-CSRF-Token",
+    "X-Request-ID",
+    "Accept",
+    "Origin",
+    "User-Agent",
+    "Cache-Control",
+    "Pragma"
+]
+
+# CORS Configuration - Enterprise Security
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -307,7 +322,9 @@ app.add_middleware(
     ],  # NO WILDCARDS when using credentials
     allow_credentials=True,  # Required for cookies
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=ALLOWED_CORS_HEADERS,  # ✅ SECURE: Explicit whitelist
+    expose_headers=["Content-Length", "X-Request-ID"],
+    max_age=600,
 )
 
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems

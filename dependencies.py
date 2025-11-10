@@ -5,6 +5,10 @@ from jose import jwt, JWTError
 from typing import Optional
 import logging
 
+# ✅ SECURITY FIX: Import secure JWT decoder
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
+from security.jwt_security import secure_jwt_decode
+
 # ===== PRESERVE: All existing imports =====
 from config import SECRET_KEY, ALGORITHM
 from security.cookies import (
@@ -66,8 +70,17 @@ except ImportError:
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)  # do not auto-error: we support cookie fallback
 
+# ✅ SECURITY FIX: Use secure JWT decoder instead of raw jwt.decode
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
 def _decode_jwt(token: str):
-    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM], options={"verify_aud": False})
+    """Secure JWT decoder wrapper for backward compatibility"""
+    return secure_jwt_decode(
+        token=token,
+        secret_key=SECRET_KEY,
+        algorithms=[ALGORITHM],
+        required_claims=["sub", "exp"],
+        operation_name="dependencies_decode"
+    )
 
 # ===== NEW: Enterprise Database Dependency =====
 def get_db() -> Session:
@@ -170,13 +183,16 @@ def require_csrf(request: Request):
         if auth_header.startswith("Bearer "):
             return True  # Bearer tokens don't need CSRF protection
         
+        # ✅ SECURITY FIX: CSRF validation enabled
+        # Created by: OW-kai Engineer (Phase 2 Security Fixes - CSRF Protection)
         # Enforce CSRF for cookie-based authentication
         csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
         csrf_header = request.headers.get(CSRF_HEADER_NAME)
-        # Temporarily disabled CSRF for authenticated requests
-        # TODO: Implement proper CSRF for cookie-based auth
-        # if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
-        #     raise HTTPException(status_code=403, detail="CSRF validation failed")
+        if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+            raise HTTPException(
+                status_code=403,
+                detail="CSRF validation failed - token mismatch"
+            )
     return True
 
 def require_admin(current_user: dict = Depends(get_current_user)):

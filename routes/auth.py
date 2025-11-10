@@ -19,6 +19,10 @@ import os
 import logging
 import json
 
+# ✅ SECURITY FIX: Import secure JWT decoder
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
+from security.jwt_security import secure_jwt_decode
+
 # Enterprise rate limiting
 from security.rate_limiter import limiter, RATE_LIMITS
 
@@ -36,9 +40,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("enterprise.auth.diagnostic")
 
-# Enterprise Security Settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-enterprise-secret-key")
-ALGORITHM = "HS256"
+# Enterprise Security Settings - MUST match dependencies.py
+from config import SECRET_KEY, ALGORITHM, COOKIE_SECURE, COOKIE_SAMESITE
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
@@ -101,15 +104,17 @@ def validate_enterprise_token(token: str, expected_type: str = "access") -> Dict
         logger.info(f"🔍 DIAGNOSTIC: Token length: {len(token)}")
         logger.info(f"🔍 DIAGNOSTIC: Token start: {token[:50]}...")
         
-        # CRITICAL FIX: Decode without audience validation
+        # ✅ SECURITY FIX: Use secure JWT decoder with enhanced validation
+        # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
         try:
-            payload = jwt.decode(
-                token, 
-                SECRET_KEY, 
+            payload = secure_jwt_decode(
+                token=token,
+                secret_key=SECRET_KEY,
                 algorithms=[ALGORITHM],
-                options={"verify_aud": False}  # DISABLE audience validation
+                required_claims=["sub", "exp"],
+                operation_name="validate_enterprise_token"
             )
-            logger.info(f"✅ DIAGNOSTIC: Token decoded successfully (audience validation disabled)")
+            logger.info(f"✅ DIAGNOSTIC: Token decoded successfully (secure decoder)")
             logger.info(f"🔍 DIAGNOSTIC: Payload keys: {list(payload.keys())}")
             logger.info(f"🔍 DIAGNOSTIC: Token type in payload: {payload.get('type')}")
             logger.info(f"🔍 DIAGNOSTIC: Audience in payload: {payload.get('aud')}")
@@ -204,12 +209,14 @@ def _set_csrf_cookie(response: Response, request: Request) -> str:
     """
     csrf = token_urlsafe(32)
     # CSRF cookie is NOT HttpOnly (frontend must read it)
+    # ✅ SECURITY FIX: Environment-based cookie security
+    # Created by: OW-kai Engineer (Phase 2 Security Fixes - Cookie Hardening)
     response.set_cookie(
         key=CSRF_COOKIE_NAME,
         value=csrf,
         httponly=False,  # CRITICAL: Frontend must read this
-        secure=False,  # Allow HTTP during development
-        samesite="lax",
+        secure=COOKIE_SECURE,  # ✅ SECURE: True in production, False in dev
+        samesite=COOKIE_SAMESITE,  # ✅ SECURE: "strict" in production
         path="/",
         max_age=60 * 30,  # 30 minutes
     )
@@ -245,28 +252,29 @@ def get_authentication_source(request: Request, credentials: HTTPAuthorizationCr
 
 def set_enterprise_cookies(response: Response, access_token: str, refresh_token: str):
     """Set enterprise cookies - ENTERPRISE FIX: Optimized cookie configuration"""
-    
-    # 🔧 ENTERPRISE FIX: Simplified cookie configuration for maximum compatibility
+
+    # ✅ SECURITY FIX: Environment-based cookie security
+    # Created by: OW-kai Engineer (Phase 2 Security Fixes - Cookie Hardening)
     response.set_cookie(
         key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
         value=access_token,
         httponly=True,
-        secure=False,  # CHANGED: Allow HTTP during development/testing
-        samesite="lax",
+        secure=COOKIE_SECURE,  # ✅ SECURE: True in production, False in dev
+        samesite=COOKIE_SAMESITE,  # ✅ SECURE: "strict" in production
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/"  # Ensure cookie is available for all paths
     )
-    
+
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,  # CHANGED: Allow HTTP during development/testing
-        samesite="lax",
+        secure=COOKIE_SECURE,  # ✅ SECURE: True in production, False in dev
+        samesite=COOKIE_SAMESITE,  # ✅ SECURE: "strict" in production
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/"  # CHANGED: Make available for all paths, not just /auth
     )
-    
+
     logger.info("🍪 Enterprise cookies set with correct names")
 
 def log_response_diagnostics(response_data: dict, endpoint: str):
@@ -540,11 +548,14 @@ async def get_current_user_diagnostic(
             # Try validating without strict type checking
             try:
                 logger.info("🔍 DIAGNOSTIC: Trying flexible token validation...")
-                payload = jwt.decode(
-                    token, 
-                    SECRET_KEY, 
+                # ✅ SECURITY FIX: Use secure JWT decoder even for flexible validation
+                # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
+                payload = secure_jwt_decode(
+                    token=token,
+                    secret_key=SECRET_KEY,
                     algorithms=[ALGORITHM],
-                    options={"verify_aud": False, "verify_iss": False}  # Disable all extra validations
+                    required_claims=["sub"],
+                    operation_name="auth_me_flexible"
                 )
                 logger.info("✅ DIAGNOSTIC: Flexible validation successful")
             except Exception as flex_error:
@@ -687,23 +698,24 @@ async def enterprise_logout(
         client_ip = request.client.host if request.client else "unknown"
         logger.info(f"🚪 ENTERPRISE LOGOUT from {client_ip}")
         
-        # Clear cookies with matching configuration
+        # ✅ SECURITY FIX: Clear cookies with environment-based security settings
+        # Created by: OW-kai Engineer (Phase 2 Security Fixes - Cookie Hardening)
         response.set_cookie(
             key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
             value="",
             httponly=True,
-            secure=False,  # Match the setting used when creating cookies
-            samesite="lax",
+            secure=COOKIE_SECURE,  # ✅ SECURE: Match environment settings
+            samesite=COOKIE_SAMESITE,  # ✅ SECURE: Match environment settings
             max_age=0,
             path="/"
         )
-        
+
         response.set_cookie(
             key="refresh_token",
             value="",
             httponly=True,
-            secure=False,  # Match the setting used when creating cookies
-            samesite="lax",
+            secure=COOKIE_SECURE,  # ✅ SECURE: Match environment settings
+            samesite=COOKIE_SAMESITE,  # ✅ SECURE: Match environment settings
             max_age=0,
             path="/"
         )
@@ -763,12 +775,14 @@ def get_csrf_token(response: Response, request: Request):
     """Issue/refresh CSRF cookie and return its value for AJAX requests"""
     import secrets
     csrf_token = secrets.token_urlsafe(32)
+    # ✅ SECURITY FIX: Environment-based cookie security
+    # Created by: OW-kai Engineer (Phase 2 Security Fixes - Cookie Hardening)
     response.set_cookie(
         key="owai_csrf",
         value=csrf_token,
         httponly=False,  # Must be readable by JavaScript
-        secure=True,
-        samesite="lax",
+        secure=COOKIE_SECURE,  # ✅ SECURE: True in production, False in dev
+        samesite=COOKIE_SAMESITE,  # ✅ SECURE: "strict" in production
         max_age=3600
     )
     return {"csrf_token": csrf_token}

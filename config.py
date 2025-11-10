@@ -275,6 +275,16 @@ ACCESS_TOKEN_EXPIRE_MINUTES = _config.get('ACCESS_TOKEN_EXPIRE_MINUTES', 30)
 REFRESH_TOKEN_EXPIRE_DAYS = _config.get('REFRESH_TOKEN_EXPIRE_DAYS', 7)
 ALLOWED_ORIGINS = _config.get_cors_origins()
 
+# ✅ SECURITY FIX: Environment-based cookie security
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - Cookie Hardening)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+COOKIE_SECURE = ENVIRONMENT == "production"
+COOKIE_SAMESITE = "strict" if COOKIE_SECURE else "lax"
+
+# ✅ SECURITY FIX: Explicit bcrypt cost factor
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - Password Hardening)
+BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "14"))  # 2^14 iterations (~300ms)
+
 # Log configuration status
 logger.info(f"Configuration initialized successfully")
 logger.info(f"Environment: {_config.environment}")
