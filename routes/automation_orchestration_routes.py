@@ -800,7 +800,7 @@ async def get_automation_activity_feed(
         # Query recent playbook executions
         recent_playbook_executions = (
             db.query(PlaybookExecution)
-            .order_by(PlaybookExecution.created_at.desc())
+            .order_by(PlaybookExecution.started_at.desc())  # ✅ Fixed: Model uses 'started_at' not 'created_at'
             .limit(limit)
             .all()
         )
