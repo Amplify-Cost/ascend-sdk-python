@@ -792,7 +792,7 @@ async def get_ai_insights(
             },
             "predictive_analysis": {
                 "risk_score": min(95, 40 + (critical_count * 20) + (high_count * 5)),
-                "trend_direction": "increasing" if weekly_comparison and weekly_comparison[0] > weekly_comparison[1] * 1.2 else "stable",
+                "trend_direction": "increasing" if weekly_comparison and weekly_comparison[0] and weekly_comparison[1] and weekly_comparison[0] > (weekly_comparison[1] or 0) * 1.2 else "stable",  # ✅ FIX: Handle None values in weekly_comparison
                 "predicted_incidents": critical_count + (high_count // 2),
                 "confidence_level": 80 + min(15, active_alerts * 2)
             },
