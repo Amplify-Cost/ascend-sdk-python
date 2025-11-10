@@ -27,15 +27,16 @@ from enum import Enum
 # Internal imports
 from database import get_db
 from services.pending_actions_service import pending_service
+from services.database_query_service import DatabaseQueryService
 from dependencies import get_current_user, require_admin, require_csrf
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
 from models_mcp_governance import MCPServer
 from schemas import (    AgentActionOut,    AgentActionCreate,
-    AutomationPlaybookOut, 
-    AutomationExecutionCreate, 
+    AutomationPlaybookOut,
+    AutomationExecutionCreate,
     AuthorizationRequest,
-    WorkflowCreateRequest, 
+    WorkflowCreateRequest,
     WorkflowExecutionRequest
 )
 
@@ -858,22 +859,11 @@ async def get_approval_dashboard(
 ):
     """Get comprehensive approval dashboard with KPIs."""
     try:
-        # Dashboard queries with proper error handling
-        dashboard_queries = {
-            "total_approved": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.APPROVED.value}'",
-            "total_executed": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.EXECUTED.value}'",
-            "total_rejected": f"SELECT COUNT(*) FROM agent_actions WHERE status = '{ActionStatus.REJECTED.value}'",
-            "high_risk_pending": f"SELECT COUNT(*) FROM agent_actions WHERE status IN ('{ActionStatus.PENDING.value}', '{ActionStatus.SUBMITTED.value}') AND risk_level IN ('{RiskLevel.HIGH.value}', '{RiskLevel.CRITICAL.value}')",
-            "today_actions": "SELECT COUNT(*) FROM agent_actions WHERE DATE(created_at) = CURRENT_DATE"
-        }
-        
-        metrics = {}
-        for metric_name, query in dashboard_queries.items():
-            try:
-                metrics[metric_name] = DatabaseService.safe_execute(db, query, {}).scalar() or 0
-            except Exception as query_error:
-#    logger.warning(f"Enterprise metric query failed for {metric_name}: {query_error}")
-                metrics[metric_name] = 0
+        # ✅ SECURITY FIX: Use DatabaseQueryService with parameterized queries
+        # Replaces vulnerable f-string SQL (lines 863-866)
+        # See: audit-results/PRE_IMPLEMENTATION_AUDIT.md
+        # Created by: OW-kai Engineer (SQL Injection Remediation - Phase 1)
+        metrics = DatabaseQueryService.execute_dashboard_metrics(db)
         
         # ✅ ENTERPRISE: Use pending_service for consistent count
         metrics["total_pending"] = pending_service.get_pending_count(db)
