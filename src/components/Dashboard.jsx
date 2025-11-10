@@ -252,7 +252,8 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
           high_risk_actions_by_day: data.high_risk_actions_by_day || [],
           top_agents: data.top_agents || [],
           top_tools: data.top_tools || [],
-          enriched_actions: data.enriched_actions || []
+          enriched_actions: data.enriched_actions || [],
+          pending_actions_count: data.pending_actions_count || 0  // ✅ FIX: Extract pending count from API response
         });
         
       } catch (err) {

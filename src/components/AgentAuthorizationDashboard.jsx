@@ -127,7 +127,7 @@ useEffect(() => {
           is_emergency_approver: user?.role === 'admin',
           enterprise_privileges: user?.role === 'admin'
         },
-        pending_summary: dashboardData.pending_summary || {
+        summary: dashboardData.summary || {  // ✅ FIX: Changed from pending_summary to summary
           total_pending: pendingActions.length,
           critical_pending: pendingActions.filter(a => a.ai_risk_score >= 80).length,
           emergency_pending: pendingActions.filter(a => a.is_emergency).length
@@ -321,7 +321,7 @@ useEffect(() => {
         
         const enhancedData = {
           ...data,
-          pending_summary: {
+          summary: {  // ✅ FIX: Changed from pending_summary to summary to match display code (line 1672)
             total_pending: totalPending,
             critical_pending: criticalPending,
             emergency_pending: emergencyPending
