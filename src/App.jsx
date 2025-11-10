@@ -252,8 +252,10 @@ const AppContent = () => {
     }
   };
 
-  // 🏢 ENTERPRISE: Dual authentication support (Cookie + Bearer Token)
+  // 🏢 ENTERPRISE: Dual authentication support (Cookie + Bearer Token + CSRF)
   // Supports both cookie-based session auth AND Bearer token auth for maximum compatibility
+  // ✅ PHASE 2 FIX: Added CSRF token support for cookie-authenticated requests
+  // Created by: OW-kai Engineer (Phase 2 Frontend Integration)
   const getAuthHeaders = () => {
     logger.debug("🔍 Getting auth headers for API call");
 
@@ -273,7 +275,34 @@ const AppContent = () => {
       logger.debug("🍪 Enterprise: Using cookie-based authentication only");
     }
 
+    // ✅ PHASE 2 FIX: Add CSRF token for cookie-authenticated requests
+    // CSRF protection is required for all state-changing methods (POST/PUT/DELETE/PATCH)
+    // when using cookie authentication (not needed for Bearer token auth)
+    const csrfToken = getCsrfToken();
+    if (csrfToken && !token) {  // Only add CSRF if using cookie auth (no bearer token)
+      headers['X-CSRF-Token'] = csrfToken;
+      logger.debug("🔐 CSRF token added to headers");
+    } else if (!csrfToken && !token) {
+      logger.warn("⚠️ No CSRF token available for cookie-authenticated request");
+    }
+
     return headers;
+  };
+
+  // ✅ PHASE 2 FIX: CSRF token extraction helper
+  // Created by: OW-kai Engineer (Phase 2 Frontend Integration)
+  const getCsrfToken = () => {
+    try {
+      const cookies = document.cookie.split(';').map(c => c.trim());
+      const csrfCookie = cookies.find(c => c.startsWith('owai_csrf='));
+      if (csrfCookie) {
+        return csrfCookie.split('=')[1];
+      }
+      return null;
+    } catch (error) {
+      logger.error("❌ Error extracting CSRF token:", error);
+      return null;
+    }
   };
   // PRESERVED: All your existing render logic (unchanged)
   const renderAppContent = () => {

@@ -93,6 +93,22 @@ const fetchWithAuth = async (url, options = {}) => {
       throw new Error("Authentication required");
     }
 
+    // ✅ PHASE 2 FIX: Handle CSRF validation failures
+    // Created by: OW-kai Engineer (Phase 2 Frontend Integration)
+    if (response.status === 403) {
+      try {
+        const errorData = await response.json();
+        if (errorData.detail && errorData.detail.toLowerCase().includes('csrf')) {
+          logger.error("🚨 CSRF validation failed - token missing or expired");
+          logger.debug("💡 Tip: Ensure CSRF cookie is set after login");
+          throw new Error("CSRF validation failed. Please refresh and try again.");
+        }
+      } catch (jsonError) {
+        // If JSON parsing fails, fall through to generic error handler
+        logger.debug("Failed to parse 403 error response as JSON");
+      }
+    }
+
     // Handle other error responses
     if (!response.ok) {
       const errorText = await response.text();
