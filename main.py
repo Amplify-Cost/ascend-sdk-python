@@ -14,7 +14,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
-from database import get_db, engine
+# ✅ ENTERPRISE FIX: Use Phase 2 enterprise get_db() with error handling
+# Created by: OW-kai Engineer (Phase 2 Enterprise Integration)
+from dependencies import get_db
+from database import engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
@@ -475,11 +478,14 @@ async def get_threat_intelligence(current_user: dict = Depends(get_current_user)
         raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
 
 @app.get("/api/alerts/ai-insights")
-async def get_ai_insights(current_user: dict = Depends(get_current_user)):
+async def get_ai_insights(
+    current_user: dict = Depends(get_current_user),  # ✅ Auth first
+    db: Session = Depends(get_db)                     # ✅ DB second (Phase 2 enterprise)
+):
     """🤖 ENTERPRISE: AI-powered alert insights with real data analysis"""
     try:
-        db: Session = next(get_db())
-
+        # === PHASE 2: ENTERPRISE ERROR HANDLING ===
+        # FastAPI dependency injection manages db session lifecycle
         try:
             # === PHASE 1A: REAL DATA QUERIES ===
 
@@ -576,8 +582,7 @@ async def get_ai_insights(current_user: dict = Depends(get_current_user)):
             automation_candidates = []
             weekly_comparison = (0, 0)
             alert_patterns = []
-        finally:
-            db.close()
+        # ✅ PHASE 2: No manual db.close() - FastAPI handles session lifecycle
 
         # === EXTRACT METRICS ===
         total_alerts = alert_stats[0] or 0

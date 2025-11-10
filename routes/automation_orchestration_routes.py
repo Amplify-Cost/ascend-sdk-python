@@ -10,7 +10,9 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
 import logging
 
-from database import get_db
+# ✅ ENTERPRISE FIX: Use Phase 2 enterprise get_db() with error handling
+# Created by: OW-kai Engineer (Phase 2 Enterprise Integration)
+from dependencies import get_db
 from models import AutomationPlaybook, PlaybookExecution, WorkflowExecution, Workflow, User
 from dependencies import get_current_user, require_admin
 from config_workflows import workflow_config
@@ -775,8 +777,8 @@ async def execute_workflow(
 @router.get("/automation/activity-feed")
 async def get_automation_activity_feed(
     limit: int = 10,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),  # ✅ Auth first
+    db: Session = Depends(get_db)                     # ✅ DB second
 ):
     """
     🏢 ENTERPRISE: Get real-time automation activity feed
