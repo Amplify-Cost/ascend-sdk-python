@@ -2150,22 +2150,40 @@ async def create_agent_action_api(
         # ===================================================================
         from enrichment import evaluate_action_enrichment
 
-        # Build action context for risk assessment
-        action_context = {
-            "agent_id": data["agent_id"],
-            "action_type": data["action_type"],
-            "tool_name": data["tool_name"],
-            "description": data["description"],
-            "target_system": data.get("target_system"),
-            "nist_control": data.get("nist_control"),
-            "mitre_tactic": data.get("mitre_tactic")
-        }
-
         # Platform's risk assessment engine
         try:
-            enrichment = evaluate_action_enrichment(action_context)
-            risk_score = enrichment.get("risk_score", 50)
+            # Call enrichment function with action_type and description
+            enrichment = evaluate_action_enrichment(
+                action_type=data["action_type"],
+                description=data["description"],
+                db=db,
+                context={
+                    "agent_id": data["agent_id"],
+                    "tool_name": data["tool_name"],
+                    "target_system": data.get("target_system"),
+                    "nist_control": data.get("nist_control"),
+                    "mitre_tactic": data.get("mitre_tactic")
+                }
+            )
+
+            # Get risk level from enrichment (high/medium/low)
             risk_level = enrichment.get("risk_level", "medium")
+
+            # Convert qualitative risk to quantitative score
+            # Use CVSS score if available, otherwise map risk_level to score
+            risk_score = enrichment.get("cvss_score")
+            if risk_score is None:
+                risk_score_map = {
+                    "low": 35,
+                    "medium": 60,
+                    "high": 85,
+                    "critical": 95
+                }
+                risk_score = risk_score_map.get(risk_level, 50)
+            else:
+                # CVSS score is 0-10, convert to 0-100
+                risk_score = float(risk_score) * 10
+
         except Exception as e:
             logger.warning(f"Risk assessment failed, using defaults: {e}")
             # Fallback risk assessment
