@@ -1,6 +1,13 @@
 #!/bin/bash
 set -e
 
+# ARCH-003 Fix: Clear Python bytecode cache
+echo "🧹 Clearing Python bytecode cache..."
+find /app -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+find /app -type f -name "*.pyc" -delete 2>/dev/null || true
+find /app -type f -name "*.pyo" -delete 2>/dev/null || true
+echo "✅ Python cache cleared"
+
 echo "🏢 ENTERPRISE: Starting OW-AI Backend..."
 
 # Wait for database
