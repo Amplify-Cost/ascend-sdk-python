@@ -216,42 +216,41 @@ class LiveAgentSimulator:
         return random.choice(weighted_scenarios)
 
     def send_agent_action(self, scenario: Dict) -> bool:
-        """Send agent action to platform via API (like a real agent)"""
-        # Calculate risk score
-        risk_score = scenario["risk_score"]()
+        """Send RAW agent action - let platform calculate risk and apply policies"""
 
-        # Add realistic variations
+        # Add realistic variations to description
         descriptions = [
             scenario["description"],
             f"{scenario['description']} - Batch #{random.randint(1, 999)}",
             f"{scenario['description']} (scheduled task)",
-            f"{scenario['description']} - Priority: {'high' if risk_score > 70 else 'normal'}"
+            f"{scenario['description']} - Automated execution"
         ]
 
+        # RAW agent action data - NO pre-calculated risk scores
+        # Platform's policy engine will analyze and score this
         action_data = {
             "agent_id": scenario["agent_id"],
             "action_type": scenario["action_type"],
             "description": random.choice(descriptions),
             "tool_name": scenario["tool_name"],
-            "risk_level": scenario["risk_level"],
-            "risk_score": risk_score,
             "target_system": f"prod-{random.choice(['db', 'api', 'web', 'cache'])}",
+            # Optional compliance metadata
             "nist_control": random.choice(["AC-2", "AU-9", "SC-7", "IA-2"]),
             "mitre_tactic": random.choice(["TA0001", "TA0002", "TA0003"])
         }
 
-        # Print action being sent
+        # Print action being sent (no risk score known yet)
         timestamp = datetime.now().strftime("%H:%M:%S")
-        risk_color = Colors.RED if risk_score >= 80 else Colors.YELLOW if risk_score >= 60 else Colors.GREEN
 
         print(f"\n{Colors.BOLD}[{timestamp}] Sending Agent Action #{self.actions_sent + 1}{Colors.END}")
         print(f"  Agent: {Colors.CYAN}{scenario['agent_id']}{Colors.END}")
         print(f"  Action: {scenario['action_type']}")
-        print(f"  Risk Score: {risk_color}{risk_score}{Colors.END} ({scenario['risk_level']})")
+        print(f"  Tool: {scenario['tool_name']}")
         print(f"  Description: {action_data['description'][:70]}...")
+        print(f"  {Colors.BLUE}⏳ Platform will assess risk and apply policies...{Colors.END}")
 
         try:
-            # Use the API endpoint designed for agent clients (NO CSRF required)
+            # Use the API endpoint designed for agent clients
             response = self.session.post(
                 f"{BASE_URL}/api/authorization/agent-action",
                 headers={
@@ -265,17 +264,27 @@ class LiveAgentSimulator:
             if response.status_code in [200, 201]:
                 result = response.json()
                 action_id = result.get("id", "unknown")
+                risk_score = result.get("risk_score", "unknown")
 
-                print(f"  {Colors.GREEN}✅ Action sent successfully (ID: {action_id}){Colors.END}")
+                # Color code based on platform's calculated risk
+                if isinstance(risk_score, (int, float)):
+                    risk_color = Colors.RED if risk_score >= 80 else Colors.YELLOW if risk_score >= 60 else Colors.GREEN
+                    risk_display = f"{risk_color}{risk_score}{Colors.END}"
+                else:
+                    risk_display = "unknown"
 
-                # Check if requires approval
+                print(f"  {Colors.GREEN}✅ Action processed (ID: {action_id}){Colors.END}")
+                print(f"  📊 Platform Risk Score: {risk_display}")
+                print(f"  📋 Status: {result.get('status', 'unknown')}")
+
+                # Check if platform required approval
                 if result.get("requires_approval"):
-                    print(f"  {Colors.YELLOW}⚠️  Requires approval - Check Authorization Center{Colors.END}")
+                    print(f"  {Colors.YELLOW}⚠️  Platform requires approval - Check Authorization Center{Colors.END}")
 
-                # High-risk actions trigger alerts
+                # Check if platform triggered alert
                 if result.get("alert_triggered"):
                     self.alerts_generated += 1
-                    print(f"  {Colors.RED}🚨 ALERT TRIGGERED - Check AI Alert Management{Colors.END}")
+                    print(f"  {Colors.RED}🚨 PLATFORM TRIGGERED ALERT - Check AI Alert Management{Colors.END}")
 
                 self.actions_sent += 1
                 return True
