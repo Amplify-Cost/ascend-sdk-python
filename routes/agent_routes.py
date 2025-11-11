@@ -120,6 +120,7 @@ async def create_agent_action(
                     action_id=action.id,
                     action_type=data["action_type"],
                     context={
+                        "description": data["description"],  # ARCH-003: Pass description for normalization
                         "risk_level": enrichment["risk_level"],
                         "contains_pii": "pii" in (data.get("description") or "").lower(),
                         "production_system": "production" in (data.get("description") or "").lower(),
