@@ -46,61 +46,17 @@ class Colors:
     END = '\033[0m'
     BOLD = '\033[1m'
 
-# Realistic agent scenarios
+# HIGH-RISK FOCUSED SCENARIOS - For testing alerts and authorization
 AGENT_SCENARIOS = [
-    {
-        "agent_id": "data-sync-agent",
-        "action_type": "database_write",
-        "description": "Synchronizing customer data from Salesforce to PostgreSQL",
-        "tool_name": "postgresql_connector",
-        "risk_level": "medium",
-        "risk_score": lambda: random.randint(50, 75),
-        "frequency": "common"  # Happens frequently
-    },
-    {
-        "agent_id": "backup-automation",
-        "action_type": "file_write",
-        "description": "Creating automated database backup",
-        "tool_name": "aws_s3",
-        "risk_level": "low",
-        "risk_score": lambda: random.randint(15, 35),
-        "frequency": "common"
-    },
+    # CRITICAL RISK - Very common for testing (50% of actions)
     {
         "agent_id": "payment-processor",
         "action_type": "api_call",
         "description": "Processing customer payment via Stripe API",
         "tool_name": "stripe_api",
-        "risk_level": "high",
-        "risk_score": lambda: random.randint(75, 90),
-        "frequency": "rare"  # High-risk, less frequent
-    },
-    {
-        "agent_id": "data-export-agent",
-        "action_type": "data_export",
-        "description": "Exporting customer analytics to external system",
-        "tool_name": "data_pipeline",
-        "risk_level": "high",
+        "risk_level": "critical",
         "risk_score": lambda: random.randint(80, 95),
-        "frequency": "rare"
-    },
-    {
-        "agent_id": "email-marketing",
-        "action_type": "email_send",
-        "description": "Sending automated marketing email campaign",
-        "tool_name": "sendgrid_api",
-        "risk_level": "low",
-        "risk_score": lambda: random.randint(20, 40),
-        "frequency": "common"
-    },
-    {
-        "agent_id": "analytics-reporter",
-        "action_type": "data_read",
-        "description": "Generating weekly analytics report",
-        "tool_name": "analytics_engine",
-        "risk_level": "low",
-        "risk_score": lambda: random.randint(10, 30),
-        "frequency": "common"
+        "frequency": "common"  # CHANGED: Now very common for testing
     },
     {
         "agent_id": "user-provisioning",
@@ -108,8 +64,8 @@ AGENT_SCENARIOS = [
         "description": "Creating new user account with admin privileges",
         "tool_name": "identity_manager",
         "risk_level": "critical",
-        "risk_score": lambda: random.randint(90, 99),
-        "frequency": "very_rare"  # Critical, very rare
+        "risk_score": lambda: random.randint(85, 99),
+        "frequency": "common"  # CHANGED: Now common for testing
     },
     {
         "agent_id": "firewall-manager",
@@ -117,26 +73,75 @@ AGENT_SCENARIOS = [
         "description": "Updating production firewall rules",
         "tool_name": "cloud_security",
         "risk_level": "critical",
-        "risk_score": lambda: random.randint(85, 99),
-        "frequency": "very_rare"
+        "risk_score": lambda: random.randint(82, 98),
+        "frequency": "common"  # CHANGED: Now common for testing
     },
     {
-        "agent_id": "document-processor",
-        "action_type": "file_read",
-        "description": "Processing uploaded invoice documents",
-        "tool_name": "ocr_engine",
-        "risk_level": "low",
-        "risk_score": lambda: random.randint(25, 45),
-        "frequency": "common"
+        "agent_id": "data-export-agent",
+        "action_type": "data_export",
+        "description": "Exporting customer PII data to external system",
+        "tool_name": "data_pipeline",
+        "risk_level": "critical",
+        "risk_score": lambda: random.randint(81, 95),
+        "frequency": "common"  # CHANGED: Now common for testing
     },
+    {
+        "agent_id": "database-admin",
+        "action_type": "database_write",
+        "description": "Executing production database schema changes",
+        "tool_name": "postgresql_admin",
+        "risk_level": "critical",
+        "risk_score": lambda: random.randint(83, 97),
+        "frequency": "common"  # CHANGED: Now common for testing
+    },
+
+    # HIGH RISK - Common (30% of actions)
     {
         "agent_id": "ml-model-updater",
         "action_type": "system_modification",
         "description": "Deploying updated ML model to production",
         "tool_name": "ml_pipeline",
         "risk_level": "high",
-        "risk_score": lambda: random.randint(70, 85),
+        "risk_score": lambda: random.randint(75, 89),
         "frequency": "rare"
+    },
+    {
+        "agent_id": "api-key-manager",
+        "action_type": "credentials_access",
+        "description": "Rotating production API keys",
+        "tool_name": "secrets_manager",
+        "risk_level": "high",
+        "risk_score": lambda: random.randint(76, 88),
+        "frequency": "rare"
+    },
+
+    # MEDIUM/LOW RISK - Rare (20% of actions)
+    {
+        "agent_id": "data-sync-agent",
+        "action_type": "database_write",
+        "description": "Synchronizing customer data from Salesforce",
+        "tool_name": "postgresql_connector",
+        "risk_level": "medium",
+        "risk_score": lambda: random.randint(50, 69),
+        "frequency": "very_rare"
+    },
+    {
+        "agent_id": "backup-automation",
+        "action_type": "file_write",
+        "description": "Creating automated database backup",
+        "tool_name": "aws_s3",
+        "risk_level": "low",
+        "risk_score": lambda: random.randint(25, 45),
+        "frequency": "very_rare"
+    },
+    {
+        "agent_id": "analytics-reporter",
+        "action_type": "data_read",
+        "description": "Generating weekly analytics report",
+        "tool_name": "analytics_engine",
+        "risk_level": "low",
+        "risk_score": lambda: random.randint(15, 35),
+        "frequency": "very_rare"
     }
 ]
 
