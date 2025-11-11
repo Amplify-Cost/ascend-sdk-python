@@ -2225,10 +2225,53 @@ async def create_agent_action_api(
         db.refresh(action)
 
         # ===================================================================
+        # ARCH-003: Second-pass CVSS assessment with normalization
+        # ===================================================================
+        try:
+            from services.cvss_auto_mapper import cvss_auto_mapper
+
+            cvss_result = cvss_auto_mapper.auto_assess_action(
+                db=db,
+                action_id=action.id,
+                action_type=data["action_type"],
+                context={
+                    "description": data["description"],  # ARCH-003: Enable normalization
+                    "risk_level": risk_level,
+                    "contains_pii": "pii" in data.get("description", "").lower(),
+                    "production_system": "production" in data.get("description", "").lower(),
+                    "requires_admin": risk_level == "high"
+                }
+            )
+
+            # Update agent_actions with normalized CVSS scores
+            action.cvss_score = cvss_result["base_score"]
+            action.cvss_severity = cvss_result["severity"]
+            action.cvss_vector = cvss_result["vector_string"]
+            action.risk_score = cvss_result["base_score"] * 10  # 0-100 scale
+
+            # CRITICAL: Explicit session management for SQLAlchemy
+            db.add(action)      # Re-add to session to ensure tracking
+            db.flush()          # Flush changes to database immediately
+            db.commit()         # Commit the transaction
+            db.refresh(action)  # Reload from DB to verify persistence
+
+            logger.info(
+                f"✅ CVSS integrated (API endpoint): Action {action.id} -> "
+                f"{cvss_result['base_score']} ({cvss_result['severity']})"
+            )
+
+        except Exception as cvss_error:
+            logger.warning(
+                f"⚠️ CVSS integration failed for action {action.id}: {cvss_error}"
+            )
+            # Graceful degradation: first-pass enrichment score still valid
+            # Don't fail the request - action already created successfully
+
+        # ===================================================================
         # STEP 5: ALERT GENERATION (if risk threshold exceeded)
         # ===================================================================
         alert_triggered = False
-        if risk_score >= 80:
+        if action.risk_score >= 80:  # Use action.risk_score (updated by ARCH-003)
             alert = Alert(
                 alert_type="High Risk Agent Action",
                 severity="critical" if risk_score >= 90 else "high",
