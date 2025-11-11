@@ -15,9 +15,10 @@ router = APIRouter()
 def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
     """Get all alerts with enriched agent action data"""
     try:
+        # ENTERPRISE FIX: Use LEFT OUTER JOIN to handle NULL agent_actions
         query = (
             db.query(Alert, AgentAction)
-            .join(AgentAction, Alert.agent_action_id == AgentAction.id)
+            .outerjoin(AgentAction, Alert.agent_action_id == AgentAction.id)
             .order_by(Alert.timestamp.desc())
             .limit(50)
             .all()
@@ -25,22 +26,23 @@ def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_
 
         enriched_alerts = []
         for alert, action in query:
+            # ENTERPRISE FIX: NULL-safe field access with defensive defaults
             enriched_alerts.append({
                 "id": alert.id,
                 "timestamp": alert.timestamp,
                 "alert_type": alert.alert_type,
                 "severity": alert.severity,
                 "message": alert.message,
-                "agent_id": action.agent_id,
-                "tool_name": action.tool_name,
-                "risk_level": action.risk_level,
-                "ai_risk_score": action.risk_score,  # ENTERPRISE FIX: Include actual risk score from agent_action
-                "mitre_tactic": action.mitre_tactic,
-                "mitre_technique": action.mitre_technique,
-                "nist_control": action.nist_control,
-                "nist_description": action.nist_description,
-                "recommendation": action.recommendation,
-                "status": getattr(alert, 'status', 'new')  # Add status field
+                "agent_id": action.agent_id if action else None,
+                "tool_name": action.tool_name if action else None,
+                "risk_level": action.risk_level if action else "unknown",
+                "ai_risk_score": action.risk_score if action else 50,
+                "mitre_tactic": action.mitre_tactic if action else None,
+                "mitre_technique": action.mitre_technique if action else None,
+                "nist_control": action.nist_control if action else None,
+                "nist_description": action.nist_description if action else None,
+                "recommendation": action.recommendation if action else None,
+                "status": getattr(alert, 'status', 'new')
             })
         
         logger.info(f"Retrieved {len(enriched_alerts)} alerts for user {user.get('email')}")
