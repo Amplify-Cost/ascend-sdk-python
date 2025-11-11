@@ -2274,7 +2274,7 @@ async def create_agent_action_api(
         if action.risk_score >= 80:  # Use action.risk_score (updated by ARCH-003)
             alert = Alert(
                 alert_type="High Risk Agent Action",
-                severity="critical" if risk_score >= 90 else "high",
+                severity="critical" if action.risk_score >= 90 else "high",  # ENTERPRISE FIX: Use updated score
                 message=f"{data['agent_id']}: {data['description']}",
                 agent_id=data['agent_id'],
                 agent_action_id=action.id,
@@ -2296,7 +2296,7 @@ async def create_agent_action_api(
             "risk_level": action.risk_level,
             "requires_approval": requires_approval,
             "alert_triggered": alert_triggered,
-            "message": f"Action processed through platform workflow - Risk: {risk_score}"
+            "message": f"Action processed through platform workflow - Risk: {action.risk_score}"  # ENTERPRISE FIX: Return updated score
         }
 
     except HTTPException:
