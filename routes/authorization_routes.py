@@ -491,9 +491,9 @@ class AuthorizationService:
         try:
             # Build base query with JOINs to assessment tables
             base_query = """
-                SELECT
+                SELECT 
                     aa.id, aa.agent_id, aa.action_type, aa.description, aa.risk_level,
-                    COALESCE(aa.risk_score, ca.base_score * 10, 50) as risk_score,
+                    COALESCE(ca.base_score * 10, aa.risk_score, 50) as risk_score,
                     aa.target_system, aa.status, aa.created_at, aa.user_id,
                     ARRAY_AGG(DISTINCT ncm.control_id) FILTER (WHERE ncm.control_id IS NOT NULL) as nist_controls,
                     ARRAY_AGG(DISTINCT mtm.technique_id) FILTER (WHERE mtm.technique_id IS NOT NULL) as mitre_techniques
