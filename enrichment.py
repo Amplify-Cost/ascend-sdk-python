@@ -390,12 +390,14 @@ def evaluate_action_enrichment(
         try:
             from services.cvss_auto_mapper import cvss_auto_mapper
 
-            # Build context from enrichment + provided context
+            # Build context from enrichment + provided context (ARCH-003 enhanced)
             cvss_context = context or {}
             cvss_context.update({
+                "description": description,  # ARCH-003: Pass description for better normalization
                 "risk_level": result["risk_level"],
                 "contains_pii": any(x in desc_lower for x in ["pii", "personal", "credit card", "ssn", "patient"]),
                 "production_system": any(x in desc_lower for x in ["production", "prod", "live"]),
+                "financial_transaction": any(x in desc_lower for x in ["payment", "transaction", "billing", "stripe", "paypal"]),  # ARCH-003: NEW
                 "requires_admin": result["risk_level"] == "high"
             })
 
@@ -408,9 +410,9 @@ def evaluate_action_enrichment(
                     context=cvss_context
                 )
             else:
-                # If no action_id yet, just calculate metrics without storing
+                # If no action_id yet, just calculate metrics without storing (ARCH-003 enhanced)
                 from services.cvss_calculator import cvss_calculator
-                normalized_type = cvss_auto_mapper._normalize_action_type(action_type)
+                normalized_type = cvss_auto_mapper._normalize_action_type(action_type, description)  # ARCH-003: Pass description
                 base_metrics = cvss_auto_mapper.ACTION_MAPPINGS.get(
                     normalized_type,
                     cvss_auto_mapper._get_default_metrics()
