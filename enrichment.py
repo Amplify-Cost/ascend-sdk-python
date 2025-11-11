@@ -2,16 +2,25 @@
 """
 ARCH-001: Enhanced with CVSS v3.1 quantitative risk scoring
 ARCH-002: Enterprise-grade risk assessment with action-type classification
-ARCH-003: Database-driven MITRE/NIST mappings (Phase 2)
+ARCH-003: Database-driven MITRE/NIST mappings (Phase 2) - DEPRECATED
+ARCH-004: Enterprise-grade NIST/MITRE compliance mapping system (CURRENT)
 
 This module provides security enrichment for agent actions including:
-- Action-type-based risk classification (NEW - ARCH-002)
-- Expanded keyword-based pattern matching (ENHANCED - ARCH-002)
-- Context-aware risk elevation (NEW - ARCH-002)
-- MITRE ATT&CK tactic/technique mapping (DATABASE-DRIVEN - ARCH-003 Phase 2)
-- NIST control mapping (DATABASE-DRIVEN - ARCH-003 Phase 2)
+- Action-type-based risk classification (ARCH-002)
+- Expanded keyword-based pattern matching (ARCH-002)
+- Context-aware risk elevation (ARCH-002)
+- Enterprise NIST SP 800-53 control mapping (NEW - ARCH-004)
+- Enterprise MITRE ATT&CK tactic/technique mapping (NEW - ARCH-004)
+- Context-aware compliance override logic (NEW - ARCH-004)
 - CVSS v3.1 quantitative risk scoring (ARCH-001)
 - Comprehensive audit logging (ARCH-002)
+
+ARCH-004 Enhancements:
+- Action-specific NIST/MITRE mappings (not generic)
+- Context-aware overrides based on description keywords
+- Official NIST SP 800-53 controls and MITRE ATT&CK IDs
+- Priority mapping: Context > Action Type > Default
+- Comprehensive compliance logging for audit trails
 
 Enterprise Standards:
 - Backward compatible with existing integrations
@@ -66,103 +75,384 @@ _risk_assessment_stats = {
 
 
 # ============================================================================
-# ARCH-003 Phase 2: DATABASE-DRIVEN MITRE/NIST MAPPINGS
+# ARCH-004: ENTERPRISE-GRADE NIST/MITRE COMPLIANCE MAPPING
+# ============================================================================
+
+# Enterprise NIST SP 800-53 and MITRE ATT&CK Compliance Mappings
+# This provides action-specific, context-aware compliance controls
+ENTERPRISE_COMPLIANCE_MAPPINGS = {
+    "database_write": {
+        "nist_control": "AC-3",
+        "nist_family": "Access Control",
+        "nist_description": "Access Enforcement",
+        "mitre_tactic": "TA0006",
+        "mitre_tactic_name": "Credential Access",
+        "mitre_technique": "T1003",
+        "mitre_technique_name": "OS Credential Dumping"
+    },
+    "database_read": {
+        "nist_control": "AU-2",
+        "nist_family": "Audit and Accountability",
+        "nist_description": "Audit Events",
+        "mitre_tactic": "TA0009",
+        "mitre_tactic_name": "Collection",
+        "mitre_technique": "T1005",
+        "mitre_technique_name": "Data from Local System"
+    },
+    "database_delete": {
+        "nist_control": "AC-3",
+        "nist_family": "Access Control",
+        "nist_description": "Access Enforcement",
+        "mitre_tactic": "TA0040",
+        "mitre_tactic_name": "Impact",
+        "mitre_technique": "T1485",
+        "mitre_technique_name": "Data Destruction"
+    },
+    "api_call": {
+        "nist_control": "SI-3",
+        "nist_family": "System and Information Integrity",
+        "nist_description": "Malicious Code Protection",
+        "mitre_tactic": "TA0002",
+        "mitre_tactic_name": "Execution",
+        "mitre_technique": "T1059",
+        "mitre_technique_name": "Command and Scripting Interpreter"
+    },
+    "financial_transaction": {
+        "nist_control": "AU-9",
+        "nist_family": "Audit and Accountability",
+        "nist_description": "Protection of Audit Information",
+        "mitre_tactic": "TA0040",
+        "mitre_tactic_name": "Impact",
+        "mitre_technique": "T1565",
+        "mitre_technique_name": "Data Manipulation"
+    },
+    "credentials_access": {
+        "nist_control": "IA-5",
+        "nist_family": "Identification and Authentication",
+        "nist_description": "Authenticator Management",
+        "mitre_tactic": "TA0006",
+        "mitre_tactic_name": "Credential Access",
+        "mitre_technique": "T1552",
+        "mitre_technique_name": "Unsecured Credentials"
+    },
+    "system_modification": {
+        "nist_control": "CM-3",
+        "nist_family": "Configuration Management",
+        "nist_description": "Configuration Change Control",
+        "mitre_tactic": "TA0005",
+        "mitre_tactic_name": "Defense Evasion",
+        "mitre_technique": "T1562",
+        "mitre_technique_name": "Impair Defenses"
+    },
+    "file_access": {
+        "nist_control": "AC-4",
+        "nist_family": "Access Control",
+        "nist_description": "Information Flow Enforcement",
+        "mitre_tactic": "TA0009",
+        "mitre_tactic_name": "Collection",
+        "mitre_technique": "T1005",
+        "mitre_technique_name": "Data from Local System"
+    },
+    "file_write": {
+        "nist_control": "AC-3",
+        "nist_family": "Access Control",
+        "nist_description": "Access Enforcement",
+        "mitre_tactic": "TA0002",
+        "mitre_tactic_name": "Execution",
+        "mitre_technique": "T1059",
+        "mitre_technique_name": "Command and Scripting Interpreter"
+    },
+    "privilege_escalation": {
+        "nist_control": "AC-6",
+        "nist_family": "Access Control",
+        "nist_description": "Least Privilege",
+        "mitre_tactic": "TA0004",
+        "mitre_tactic_name": "Privilege Escalation",
+        "mitre_technique": "T1078",
+        "mitre_technique_name": "Valid Accounts"
+    },
+    "data_export": {
+        "nist_control": "AC-4",
+        "nist_family": "Access Control",
+        "nist_description": "Information Flow Enforcement",
+        "mitre_tactic": "TA0010",
+        "mitre_tactic_name": "Exfiltration",
+        "mitre_technique": "T1041",
+        "mitre_technique_name": "Exfiltration Over C2 Channel"
+    },
+    "data_exfiltration": {
+        "nist_control": "AC-4",
+        "nist_family": "Access Control",
+        "nist_description": "Information Flow Enforcement",
+        "mitre_tactic": "TA0010",
+        "mitre_tactic_name": "Exfiltration",
+        "mitre_technique": "T1041",
+        "mitre_technique_name": "Exfiltration Over C2 Channel"
+    },
+    "schema_change": {
+        "nist_control": "CM-3",
+        "nist_family": "Configuration Management",
+        "nist_description": "Configuration Change Control",
+        "mitre_tactic": "TA0040",
+        "mitre_tactic_name": "Impact",
+        "mitre_technique": "T1485",
+        "mitre_technique_name": "Data Destruction"
+    },
+    "user_create": {
+        "nist_control": "AC-2",
+        "nist_family": "Access Control",
+        "nist_description": "Account Management",
+        "mitre_tactic": "TA0003",
+        "mitre_tactic_name": "Persistence",
+        "mitre_technique": "T1136",
+        "mitre_technique_name": "Create Account"
+    },
+    "user_provision": {
+        "nist_control": "AC-2",
+        "nist_family": "Access Control",
+        "nist_description": "Account Management",
+        "mitre_tactic": "TA0003",
+        "mitre_tactic_name": "Persistence",
+        "mitre_technique": "T1136",
+        "mitre_technique_name": "Create Account"
+    },
+    "permission_grant": {
+        "nist_control": "AC-6",
+        "nist_family": "Access Control",
+        "nist_description": "Least Privilege",
+        "mitre_tactic": "TA0004",
+        "mitre_tactic_name": "Privilege Escalation",
+        "mitre_technique": "T1098",
+        "mitre_technique_name": "Account Manipulation"
+    },
+    "access_grant": {
+        "nist_control": "AC-3",
+        "nist_family": "Access Control",
+        "nist_description": "Access Enforcement",
+        "mitre_tactic": "TA0004",
+        "mitre_tactic_name": "Privilege Escalation",
+        "mitre_technique": "T1098",
+        "mitre_technique_name": "Account Manipulation"
+    },
+    "secret_access": {
+        "nist_control": "IA-5",
+        "nist_family": "Identification and Authentication",
+        "nist_description": "Authenticator Management",
+        "mitre_tactic": "TA0006",
+        "mitre_tactic_name": "Credential Access",
+        "mitre_technique": "T1552",
+        "mitre_technique_name": "Unsecured Credentials"
+    },
+    "credential_access": {
+        "nist_control": "IA-5",
+        "nist_family": "Identification and Authentication",
+        "nist_description": "Authenticator Management",
+        "mitre_tactic": "TA0006",
+        "mitre_tactic_name": "Credential Access",
+        "mitre_technique": "T1552",
+        "mitre_technique_name": "Unsecured Credentials"
+    },
+    "network_access": {
+        "nist_control": "SC-7",
+        "nist_family": "System and Communications Protection",
+        "nist_description": "Boundary Protection",
+        "mitre_tactic": "TA0011",
+        "mitre_tactic_name": "Command and Control",
+        "mitre_technique": "T1071",
+        "mitre_technique_name": "Application Layer Protocol"
+    },
+    "config_change": {
+        "nist_control": "CM-3",
+        "nist_family": "Configuration Management",
+        "nist_description": "Configuration Change Control",
+        "mitre_tactic": "TA0005",
+        "mitre_tactic_name": "Defense Evasion",
+        "mitre_technique": "T1562",
+        "mitre_technique_name": "Impair Defenses"
+    },
+    "service_restart": {
+        "nist_control": "SI-12",
+        "nist_family": "System and Information Integrity",
+        "nist_description": "Information Handling and Retention",
+        "mitre_tactic": "TA0040",
+        "mitre_tactic_name": "Impact",
+        "mitre_technique": "T1489",
+        "mitre_technique_name": "Service Stop"
+    }
+}
+
+
+def get_enterprise_compliance_mapping(action_type: str, description: str = "") -> dict:
+    """
+    Enterprise-grade NIST/MITRE mapping with context awareness.
+
+    ARCH-004: Provides action-specific and context-aware compliance mappings
+    using official NIST SP 800-53 controls and MITRE ATT&CK framework.
+
+    Args:
+        action_type: Type of agent action (e.g., "database_write", "api_call")
+        description: Action description for context-based overrides
+
+    Returns:
+        Dictionary with NIST and MITRE compliance mappings
+    """
+    description_lower = description.lower() if description else ""
+
+    # Context-based overrides for more specific mappings (priority order)
+    # Financial transactions get AU-9 (Audit Protection) + TA0040 (Impact)
+    if any(keyword in description_lower for keyword in ["payment", "financial", "transaction", "billing", "stripe", "paypal", "invoice", "charge", "refund"]):
+        mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get("financial_transaction")
+        logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Context override 'financial_transaction' detected - action_type={action_type}, NIST={mapping['nist_control']}, MITRE={mapping['mitre_tactic']}")
+        return mapping
+
+    # Credential/secret access gets IA-5 (Authenticator Management) + TA0006 (Credential Access)
+    if any(keyword in description_lower for keyword in ["credential", "password", "secret", "token", "api key", "private key", "auth"]):
+        mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get("credentials_access")
+        logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Context override 'credentials_access' detected - action_type={action_type}, NIST={mapping['nist_control']}, MITRE={mapping['mitre_tactic']}")
+        return mapping
+
+    # Privilege escalation gets AC-6 (Least Privilege) + TA0004 (Privilege Escalation)
+    if any(keyword in description_lower for keyword in ["privilege", "admin", "administrator", "sudo", "root", "superuser", "elevated", "escalate"]):
+        mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get("privilege_escalation")
+        logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Context override 'privilege_escalation' detected - action_type={action_type}, NIST={mapping['nist_control']}, MITRE={mapping['mitre_tactic']}")
+        return mapping
+
+    # Data exfiltration gets AC-4 (Information Flow) + TA0010 (Exfiltration)
+    if any(keyword in description_lower for keyword in ["exfiltrate", "exfil", "leak", "steal", "copy sensitive", "export"]):
+        mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get("data_exfiltration")
+        logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Context override 'data_exfiltration' detected - action_type={action_type}, NIST={mapping['nist_control']}, MITRE={mapping['mitre_tactic']}")
+        return mapping
+
+    # Schema changes get CM-3 (Configuration Change) + TA0040 (Impact)
+    if any(keyword in description_lower for keyword in ["schema", "alter table", "drop table", "create table", "truncate"]):
+        mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get("schema_change")
+        logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Context override 'schema_change' detected - action_type={action_type}, NIST={mapping['nist_control']}, MITRE={mapping['mitre_tactic']}")
+        return mapping
+
+    # Use action type mapping (normalized to lowercase)
+    action_lower = action_type.lower()
+    mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get(action_lower)
+
+    if mapping:
+        logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Action type mapping - action_type={action_type}, NIST={mapping['nist_control']} ({mapping['nist_family']}), MITRE={mapping['mitre_tactic']} ({mapping['mitre_tactic_name']})")
+        return mapping
+
+    # Default fallback for unknown action types
+    default_mapping = ENTERPRISE_COMPLIANCE_MAPPINGS.get("api_call")
+    logger.info(f"ARCH-004 ENTERPRISE COMPLIANCE: Using default mapping for unknown action_type={action_type}, NIST={default_mapping['nist_control']}, MITRE={default_mapping['mitre_tactic']}")
+    return default_mapping
+
+
+# ============================================================================
+# ARCH-003 Phase 2: DATABASE-DRIVEN MITRE/NIST MAPPINGS (LEGACY)
 # ============================================================================
 
 def _get_mitre_nist_from_database(
     db: Session,
     action_id: int,
     action_type: str,
-    normalized_action_type: str
+    normalized_action_type: str,
+    description: str = ""
 ) -> Tuple[str, str, str, str]:
     """
-    Query database for MITRE/NIST mappings based on action type.
+    Get MITRE/NIST mappings with enterprise-grade accuracy.
 
-    ARCH-003 Phase 2: Replaces hardcoded mappings with database-driven queries.
-    Uses existing mitre_mapper and nist_mapper services.
+    ARCH-004: Uses enterprise compliance mappings as primary source,
+    with database queries as secondary enrichment (backward compatible).
+
+    Priority:
+    1. Enterprise compliance mappings (ARCH-004) - Accurate, context-aware
+    2. Database queries (ARCH-003 Phase 2) - Legacy, fallback only
 
     Args:
         db: Database session
         action_id: Agent action ID (required for mapping storage)
         action_type: Original action type
         normalized_action_type: Normalized action type from risk assessment
+        description: Action description for context-aware mapping
 
     Returns:
         Tuple of (mitre_tactic, mitre_technique, nist_control, nist_description)
-        Falls back to default values if database query fails.
     """
     try:
-        from services.mitre_mapper import mitre_mapper
-        from services.nist_mapper import nist_mapper
+        # ====================================================================
+        # ARCH-004: PRIMARY SOURCE - Enterprise Compliance Mappings
+        # ====================================================================
 
-        # Default fallback values (backward compatible)
-        mitre_tactic = "Execution"
-        mitre_technique = "T1059 - Command and Scripting Interpreter"
-        nist_control = "SI-3"
-        nist_description = "Malicious Code Protection"
+        # Get enterprise-grade mapping (context-aware, action-specific)
+        enterprise_mapping = get_enterprise_compliance_mapping(
+            action_type=normalized_action_type or action_type,
+            description=description
+        )
 
-        # Query MITRE mappings from database
+        # Format MITRE technique for backward compatibility
+        mitre_tactic = enterprise_mapping["mitre_tactic_name"]
+        mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+        nist_control = enterprise_mapping["nist_control"]
+        nist_description = enterprise_mapping["nist_description"]
+
+        logger.info(
+            f"ARCH-004: Enterprise compliance mapping applied - "
+            f"action_id={action_id}, action_type='{normalized_action_type}', "
+            f"NIST={nist_control} ({enterprise_mapping['nist_family']}), "
+            f"MITRE={enterprise_mapping['mitre_tactic']} ({mitre_tactic})"
+        )
+
+        # ====================================================================
+        # ARCH-003 Phase 2: SECONDARY SOURCE - Database enrichment (optional)
+        # ====================================================================
+
+        # Optionally query database for additional context (non-critical)
+        # This maintains backward compatibility but doesn't override enterprise mappings
         try:
-            mitre_results = mitre_mapper.map_action_to_techniques(
-                db=db,
-                action_id=action_id,
-                action_type=normalized_action_type,
-                context={}
-            )
+            from services.mitre_mapper import mitre_mapper
+            from services.nist_mapper import nist_mapper
 
-            if mitre_results and len(mitre_results) > 0:
-                # Use highest confidence mapping (first result)
-                top_mitre = mitre_results[0]
-                mitre_tactic = top_mitre.get("tactic", mitre_tactic)
-                technique_id = top_mitre.get("technique_id", "T1059")
-                technique_name = top_mitre.get("name", "Command and Scripting Interpreter")
-                mitre_technique = f"{technique_id} - {technique_name}"
-
-                logger.info(
-                    f"ARCH-003 Phase 2: MITRE mapping from database - "
-                    f"action_id={action_id}, tactic='{mitre_tactic}', technique='{mitre_technique}'"
+            # Query database for supplementary information (log only, don't override)
+            try:
+                mitre_results = mitre_mapper.map_action_to_techniques(
+                    db=db,
+                    action_id=action_id,
+                    action_type=normalized_action_type,
+                    context={}
                 )
-            else:
-                logger.debug(f"ARCH-003 Phase 2: No MITRE mappings found for {normalized_action_type}, using defaults")
+                if mitre_results and len(mitre_results) > 0:
+                    logger.debug(
+                        f"ARCH-003 Phase 2: Database MITRE suggestion available "
+                        f"(not used, enterprise mapping takes priority)"
+                    )
+            except Exception as e:
+                logger.debug(f"ARCH-003 Phase 2: Database MITRE query skipped: {e}")
+
+            try:
+                nist_results = nist_mapper.map_action_to_controls(
+                    db=db,
+                    action_id=action_id,
+                    action_type=normalized_action_type,
+                    auto_assess=True
+                )
+                if nist_results and len(nist_results) > 0:
+                    logger.debug(
+                        f"ARCH-003 Phase 2: Database NIST suggestion available "
+                        f"(not used, enterprise mapping takes priority)"
+                    )
+            except Exception as e:
+                logger.debug(f"ARCH-003 Phase 2: Database NIST query skipped: {e}")
 
         except Exception as e:
-            logger.warning(f"ARCH-003 Phase 2: MITRE query failed: {e}, using defaults")
-
-        # Query NIST mappings from database
-        try:
-            nist_results = nist_mapper.map_action_to_controls(
-                db=db,
-                action_id=action_id,
-                action_type=normalized_action_type,
-                auto_assess=True
-            )
-
-            if nist_results and len(nist_results) > 0:
-                # Use PRIMARY relevance mapping (first result)
-                top_nist = nist_results[0]
-                nist_control = top_nist.get("control_id", nist_control)
-                nist_description = top_nist.get("title", nist_description)
-
-                logger.info(
-                    f"ARCH-003 Phase 2: NIST mapping from database - "
-                    f"action_id={action_id}, control='{nist_control}', title='{nist_description}'"
-                )
-            else:
-                logger.debug(f"ARCH-003 Phase 2: No NIST mappings found for {normalized_action_type}, using defaults")
-
-        except Exception as e:
-            logger.warning(f"ARCH-003 Phase 2: NIST query failed: {e}, using defaults")
+            logger.debug(f"ARCH-003 Phase 2: Database enrichment skipped: {e}")
 
         return (mitre_tactic, mitre_technique, nist_control, nist_description)
 
     except Exception as e:
-        # Critical error - return safe defaults
-        logger.error(f"ARCH-003 Phase 2: Critical error in MITRE/NIST query: {e}, using safe defaults")
+        # Critical error - return safe defaults from enterprise mappings
+        logger.error(f"ARCH-004: Critical error in compliance mapping: {e}, using safe defaults")
+        default = ENTERPRISE_COMPLIANCE_MAPPINGS.get("api_call")
         return (
-            "Execution",
-            "T1059 - Command and Scripting Interpreter",
-            "SI-3",
-            "Malicious Code Protection"
+            default["mitre_tactic_name"],
+            f"{default['mitre_technique']} - {default['mitre_technique_name']}",
+            default["nist_control"],
+            default["nist_description"]
         )
 
 
@@ -229,20 +519,25 @@ def evaluate_action_enrichment(
         _risk_assessment_stats["action_type_matches"] += 1
         _risk_assessment_stats["high_risk_detections"] += 1
 
-        # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+        # ARCH-004: Get MITRE/NIST from enterprise mappings (with database enrichment)
         if db is not None and action_id is not None:
             mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
                 db=db,
                 action_id=action_id,
                 action_type=action_type,
-                normalized_action_type=action_lower
+                normalized_action_type=action_lower,
+                description=description
             )
         else:
-            # Fallback to defaults if no database session
-            mitre_tactic = "Impact"
-            mitre_technique = "T1485 - Data Manipulation"
-            nist_control = "SI-4"
-            nist_description = "Information System Monitoring"
+            # ARCH-004: Fallback to enterprise mappings (no database session)
+            enterprise_mapping = get_enterprise_compliance_mapping(
+                action_type=action_lower,
+                description=description
+            )
+            mitre_tactic = enterprise_mapping["mitre_tactic_name"]
+            mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+            nist_control = enterprise_mapping["nist_control"]
+            nist_description = enterprise_mapping["nist_description"]
 
         # Determine specific recommendation based on action type
         if action_lower in ["database_write", "database_delete", "schema_change"]:
@@ -276,20 +571,25 @@ def evaluate_action_enrichment(
         assessment_method = "action_type_medium_risk"
         _risk_assessment_stats["action_type_matches"] += 1
 
-        # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+        # ARCH-004: Get MITRE/NIST from enterprise mappings (with database enrichment)
         if db is not None and action_id is not None:
             mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
                 db=db,
                 action_id=action_id,
                 action_type=action_type,
-                normalized_action_type=action_lower
+                normalized_action_type=action_lower,
+                description=description
             )
         else:
-            # Fallback to defaults
-            mitre_tactic = "Execution"
-            mitre_technique = "T1059 - Command and Scripting Interpreter"
-            nist_control = "SI-3"
-            nist_description = "Malicious Code Protection"
+            # ARCH-004: Fallback to enterprise mappings (no database session)
+            enterprise_mapping = get_enterprise_compliance_mapping(
+                action_type=action_lower,
+                description=description
+            )
+            mitre_tactic = enterprise_mapping["mitre_tactic_name"]
+            mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+            nist_control = enterprise_mapping["nist_control"]
+            nist_description = enterprise_mapping["nist_description"]
 
         result = {
             "risk_level": "medium",
@@ -376,20 +676,25 @@ def evaluate_action_enrichment(
                 normalized_type = "impact"
                 recommendation = "Investigate high-risk activity and implement additional security controls."
 
-            # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+            # ARCH-004: Get MITRE/NIST from enterprise mappings (with database enrichment)
             if db is not None and action_id is not None:
                 mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
                     db=db,
                     action_id=action_id,
                     action_type=action_type,
-                    normalized_action_type=normalized_type
+                    normalized_action_type=normalized_type,
+                    description=description
                 )
             else:
-                # Fallback defaults
-                mitre_tactic = "Impact"
-                mitre_technique = "T1485 - Data Destruction"
-                nist_control = "SI-4"
-                nist_description = "Information System Monitoring"
+                # ARCH-004: Fallback to enterprise mappings (no database session)
+                enterprise_mapping = get_enterprise_compliance_mapping(
+                    action_type=normalized_type,
+                    description=description
+                )
+                mitre_tactic = enterprise_mapping["mitre_tactic_name"]
+                mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+                nist_control = enterprise_mapping["nist_control"]
+                nist_description = enterprise_mapping["nist_description"]
 
             result = {
                 "risk_level": "high",
@@ -413,20 +718,25 @@ def evaluate_action_enrichment(
                 normalized_type = "execution"
                 recommendation = "Monitor execution activities and validate legitimacy of commands."
 
-            # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+            # ARCH-004: Get MITRE/NIST from enterprise mappings (with database enrichment)
             if db is not None and action_id is not None:
                 mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
                     db=db,
                     action_id=action_id,
                     action_type=action_type,
-                    normalized_action_type=normalized_type
+                    normalized_action_type=normalized_type,
+                    description=description
                 )
             else:
-                # Fallback defaults
-                mitre_tactic = "Execution"
-                mitre_technique = "T1059 - Command and Scripting Interpreter"
-                nist_control = "SI-3"
-                nist_description = "Malicious Code Protection"
+                # ARCH-004: Fallback to enterprise mappings (no database session)
+                enterprise_mapping = get_enterprise_compliance_mapping(
+                    action_type=normalized_type,
+                    description=description
+                )
+                mitre_tactic = enterprise_mapping["mitre_tactic_name"]
+                mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+                nist_control = enterprise_mapping["nist_control"]
+                nist_description = enterprise_mapping["nist_description"]
 
             result = {
                 "risk_level": "medium",
@@ -439,20 +749,25 @@ def evaluate_action_enrichment(
 
         # Default to low risk if no patterns matched
         else:
-            # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+            # ARCH-004: Get MITRE/NIST from enterprise mappings (with database enrichment)
             if db is not None and action_id is not None:
                 mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
                     db=db,
                     action_id=action_id,
                     action_type=action_type,
-                    normalized_action_type="execution"
+                    normalized_action_type="execution",
+                    description=description
                 )
             else:
-                # Fallback defaults
-                mitre_tactic = "Execution"
-                mitre_technique = "T1204 - User Execution"
-                nist_control = "AU-6"
-                nist_description = "Audit Review, Analysis, and Reporting"
+                # ARCH-004: Fallback to enterprise mappings (no database session)
+                enterprise_mapping = get_enterprise_compliance_mapping(
+                    action_type=action_type,
+                    description=description
+                )
+                mitre_tactic = enterprise_mapping["mitre_tactic_name"]
+                mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+                nist_control = enterprise_mapping["nist_control"]
+                nist_description = enterprise_mapping["nist_description"]
 
             result = {
                 "risk_level": "low",
