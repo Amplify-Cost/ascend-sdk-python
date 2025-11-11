@@ -345,10 +345,10 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       });
       if (response.ok) {
         const data = await response.json();
+        // ENTERPRISE FIX: Use API data directly - NO random generation
+        // Risk scores come from Single Source of Truth (database via API)
         const enrichedAlerts = data.map(alert => ({
           ...alert,
-          // ENTERPRISE FIX: Use real risk score from API (not random)
-          ai_risk_score: alert.ai_risk_score || Math.floor(Math.random() * 40) + 60,
           correlation_id: null,
           threat_category: getRandomThreatCategory(),
           recommended_action: getRecommendedAction(alert.severity),
@@ -360,7 +360,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     } catch (err) {
       console.error("Error fetching alerts:", err);
       setError("Failed to load alerts");
-      setAlerts(generateDemoAlerts());
+      // ENTERPRISE FIX: Show empty state on error, not random demo data
+      setAlerts([]);
     }
   };
 
