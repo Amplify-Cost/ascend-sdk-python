@@ -2112,3 +2112,81 @@ async def debug_list_policies(
     except Exception as e:
         return {"error": str(e)}
 
+# ==================== API ROUTER ENDPOINTS (NO CSRF) ====================
+# These endpoints are for API clients (agents, simulators) that use Bearer tokens
+
+@api_router.post("/agent-action")
+async def create_agent_action_api(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Create agent action via API (for external agents/simulators)
+
+    NO CSRF required - uses Bearer token authentication only
+    Endpoint: POST /api/authorization/agent-action
+    """
+    try:
+        data = await request.json()
+
+        # Required fields
+        required = ["agent_id", "action_type", "description", "tool_name"]
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Missing required fields: {', '.join(missing)}"
+            )
+
+        # Create agent action
+        risk_score = data.get("risk_score", 50)
+        requires_approval = risk_score >= 70
+
+        action = AgentAction(
+            agent_id=data["agent_id"],
+            action_type=data["action_type"],
+            description=data["description"],
+            tool_name=data["tool_name"],
+            risk_level=data.get("risk_level", "medium"),
+            risk_score=risk_score,
+            status="pending_approval" if requires_approval else "approved",
+            user_id=current_user.get("user_id"),
+            timestamp=datetime.now(UTC),
+            target_system=data.get("target_system"),
+            nist_control=data.get("nist_control"),
+            mitre_tactic=data.get("mitre_tactic")
+        )
+
+        db.add(action)
+        db.commit()
+        db.refresh(action)
+
+        # Create alert if high-risk
+        if risk_score >= 80:
+            alert = Alert(
+                alert_type="High Risk Agent Action",
+                severity="critical" if risk_score >= 90 else "high",
+                description=f"{data['agent_id']}: {data['description']}",
+                agent_action_id=action.id,
+                status="new",
+                timestamp=datetime.now(UTC)
+            )
+            db.add(alert)
+            db.commit()
+
+        return {
+            "id": action.id,
+            "agent_id": action.agent_id,
+            "status": action.status,
+            "risk_score": action.risk_score,
+            "requires_approval": requires_approval,
+            "alert_triggered": risk_score >= 80
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating agent action: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
