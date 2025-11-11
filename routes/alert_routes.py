@@ -34,6 +34,7 @@ def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_
                 "agent_id": action.agent_id,
                 "tool_name": action.tool_name,
                 "risk_level": action.risk_level,
+                "ai_risk_score": action.risk_score,  # ENTERPRISE FIX: Include actual risk score from agent_action
                 "mitre_tactic": action.mitre_tactic,
                 "mitre_technique": action.mitre_technique,
                 "nist_control": action.nist_control,
