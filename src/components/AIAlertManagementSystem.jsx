@@ -347,7 +347,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         const data = await response.json();
         const enrichedAlerts = data.map(alert => ({
           ...alert,
-          ai_risk_score: Math.floor(Math.random() * 40) + 60,
+          // ENTERPRISE FIX: Use real risk score from API (not random)
+          ai_risk_score: alert.ai_risk_score || Math.floor(Math.random() * 40) + 60,
           correlation_id: null,
           threat_category: getRandomThreatCategory(),
           recommended_action: getRecommendedAction(alert.severity),
