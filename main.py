@@ -1614,9 +1614,11 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
         
         try:
             # Try to get real alerts from database with agent action join
+            # ARCH-005: Added aa.risk_score for enterprise consistency
             alerts_query = db.execute(text("""
                 SELECT a.id, a.alert_type, a.severity, a.message, a.timestamp,
                        aa.agent_id, aa.action_type, aa.tool_name, aa.risk_level,
+                       aa.risk_score,
                        aa.mitre_tactic, aa.mitre_technique, aa.nist_control,
                        aa.nist_description, aa.recommendation,
                        a.status, a.acknowledged_by, a.acknowledged_at, a.escalated_by, a.escalated_at
@@ -1629,6 +1631,7 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
             if alerts_query and len(alerts_query) > 0:
                 live_alerts = []
                 for row in alerts_query:
+                    # ARCH-005: Added ai_risk_score from database, shifted all subsequent indices
                     live_alerts.append({
                         "id": row[0],
                         "alert_type": row[1] or "security_alert",
@@ -1639,16 +1642,17 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                         "action_type": row[6] or "security_scan",
                         "tool_name": row[7] or "security-tool",
                         "risk_level": row[8] or "medium",
-                        "mitre_tactic": row[9] or "TA0007",
-                        "mitre_technique": row[10] or "T1190", 
-                        "nist_control": row[11] or "SI-4",
-                        "nist_description": row[12] or "Enterprise Security Monitoring",
-                        "recommendation": row[13] or "Review and investigate security event",
-                        "status": row[14] or "new",  # Actual status from database
-                        "acknowledged_by": row[15],
-                        "acknowledged_at": row[16].isoformat() if row[16] else None,
-                        "escalated_by": row[17],
-                        "escalated_at": row[18].isoformat() if row[18] else None
+                        "ai_risk_score": row[9] or 50,  # ENTERPRISE: Database-calculated CVSS risk score
+                        "mitre_tactic": row[10] or "TA0007",
+                        "mitre_technique": row[11] or "T1190",
+                        "nist_control": row[12] or "SI-4",
+                        "nist_description": row[13] or "Enterprise Security Monitoring",
+                        "recommendation": row[14] or "Review and investigate security event",
+                        "status": row[15] or "new",  # Actual status from database
+                        "acknowledged_by": row[16],
+                        "acknowledged_at": row[17].isoformat() if row[17] else None,
+                        "escalated_by": row[18],
+                        "escalated_at": row[19].isoformat() if row[19] else None
                     })
                 
                 logger.info(f"✅ Returning {len(live_alerts)} live alerts from database")
