@@ -2478,24 +2478,56 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
         db: Session = next(get_db())
-        
+
+        # ARCH-004 ENTERPRISE: Get NIST/MITRE mappings from enrichment service
         try:
-            # Use raw SQL to insert only into existing columns
+            from enrichment import evaluate_action_enrichment
+
+            enrichment = evaluate_action_enrichment(
+                action_type=data["action_type"],
+                description=data["description"],
+                db=None,  # No db session for initial enrichment
+                action_id=None  # No action_id yet
+            )
+
+            logger.info(f"ARCH-004: Enterprise enrichment applied - action_type={data['action_type']}, NIST={enrichment['nist_control']}, MITRE={enrichment['mitre_tactic']}")
+
+        except Exception as e:
+            logger.warning(f"ARCH-004: Enrichment failed, using safe defaults: {e}")
+            # Enterprise-grade safe defaults
+            enrichment = {
+                "risk_level": "medium",
+                "mitre_tactic": "TA0002",  # Execution
+                "mitre_technique": "T1059",  # Command and Scripting Interpreter
+                "nist_control": "AC-3",  # Access Enforcement
+                "nist_description": "Access Enforcement - Security review required",
+                "recommendation": "Enterprise security review required for agent action"
+            }
+
+        try:
+            # ARCH-004: Insert with NIST/MITRE enterprise compliance fields
             result = db.execute(text("""
                 INSERT INTO agent_actions (
-                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name,
+                    mitre_tactic, mitre_technique, nist_control, nist_description, recommendation
                 ) VALUES (
-                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name,
+                    :mitre_tactic, :mitre_technique, :nist_control, :nist_description, :recommendation
                 ) RETURNING id
             """), {
                 'agent_id': data["agent_id"],
                 'action_type': data["action_type"],
                 'description': data["description"],
-                'risk_level': data.get("risk_level", "medium"),
+                'risk_level': enrichment.get("risk_level", "medium"),  # Use enrichment value
                 'status': 'pending_approval',
                 'approved': False,
                 'user_id': current_user.get("user_id", 1),
-                'tool_name': data.get("tool_name", "")
+                'tool_name': data.get("tool_name", ""),
+                'mitre_tactic': enrichment["mitre_tactic"],  # ARCH-004: Action-specific
+                'mitre_technique': enrichment["mitre_technique"],  # ARCH-004: Action-specific
+                'nist_control': enrichment["nist_control"],  # ARCH-004: Action-specific
+                'nist_description': enrichment["nist_description"],  # ARCH-004: Action-specific
+                'recommendation': enrichment["recommendation"]  # ARCH-004: Action-specific
             })
             
             # Get the inserted action ID

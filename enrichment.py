@@ -385,9 +385,10 @@ def _get_mitre_nist_from_database(
             description=description
         )
 
-        # Format MITRE technique for backward compatibility
-        mitre_tactic = enterprise_mapping["mitre_tactic_name"]
-        mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+        # ARCH-004 ENTERPRISE: Return IDs for database storage, names for display
+        # Frontend and database expect IDs (TA0006, T1003) not names
+        mitre_tactic = enterprise_mapping["mitre_tactic"]  # "TA0006" not "Credential Access"
+        mitre_technique = enterprise_mapping["mitre_technique"]  # "T1003" not "T1003 - OS Credential Dumping"
         nist_control = enterprise_mapping["nist_control"]
         nist_description = enterprise_mapping["nist_description"]
 
@@ -445,12 +446,12 @@ def _get_mitre_nist_from_database(
         return (mitre_tactic, mitre_technique, nist_control, nist_description)
 
     except Exception as e:
-        # Critical error - return safe defaults from enterprise mappings
+        # ARCH-004 ENTERPRISE: Critical error - return safe defaults (IDs not names)
         logger.error(f"ARCH-004: Critical error in compliance mapping: {e}, using safe defaults")
         default = ENTERPRISE_COMPLIANCE_MAPPINGS.get("api_call")
         return (
-            default["mitre_tactic_name"],
-            f"{default['mitre_technique']} - {default['mitre_technique_name']}",
+            default["mitre_tactic"],  # Return ID: "TA0002"
+            default["mitre_technique"],  # Return ID: "T1059"
             default["nist_control"],
             default["nist_description"]
         )
@@ -534,8 +535,9 @@ def evaluate_action_enrichment(
                 action_type=action_lower,
                 description=description
             )
-            mitre_tactic = enterprise_mapping["mitre_tactic_name"]
-            mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+            # ARCH-004 ENTERPRISE: Return IDs for database/frontend compatibility
+            mitre_tactic = enterprise_mapping["mitre_tactic"]
+            mitre_technique = enterprise_mapping["mitre_technique"]
             nist_control = enterprise_mapping["nist_control"]
             nist_description = enterprise_mapping["nist_description"]
 
@@ -586,8 +588,9 @@ def evaluate_action_enrichment(
                 action_type=action_lower,
                 description=description
             )
-            mitre_tactic = enterprise_mapping["mitre_tactic_name"]
-            mitre_technique = f"{enterprise_mapping['mitre_technique']} - {enterprise_mapping['mitre_technique_name']}"
+            # ARCH-004 ENTERPRISE: Return IDs for database/frontend compatibility
+            mitre_tactic = enterprise_mapping["mitre_tactic"]
+            mitre_technique = enterprise_mapping["mitre_technique"]
             nist_control = enterprise_mapping["nist_control"]
             nist_description = enterprise_mapping["nist_description"]
 
