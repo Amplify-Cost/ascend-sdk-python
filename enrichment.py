@@ -2,13 +2,14 @@
 """
 ARCH-001: Enhanced with CVSS v3.1 quantitative risk scoring
 ARCH-002: Enterprise-grade risk assessment with action-type classification
+ARCH-003: Database-driven MITRE/NIST mappings (Phase 2)
 
 This module provides security enrichment for agent actions including:
 - Action-type-based risk classification (NEW - ARCH-002)
 - Expanded keyword-based pattern matching (ENHANCED - ARCH-002)
 - Context-aware risk elevation (NEW - ARCH-002)
-- MITRE ATT&CK tactic/technique mapping
-- NIST control mapping
+- MITRE ATT&CK tactic/technique mapping (DATABASE-DRIVEN - ARCH-003 Phase 2)
+- NIST control mapping (DATABASE-DRIVEN - ARCH-003 Phase 2)
 - CVSS v3.1 quantitative risk scoring (ARCH-001)
 - Comprehensive audit logging (ARCH-002)
 
@@ -20,7 +21,7 @@ Enterprise Standards:
 """
 
 import logging
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple, List
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,107 @@ _risk_assessment_stats = {
     "keyword_matches": 0,
     "context_elevations": 0
 }
+
+
+# ============================================================================
+# ARCH-003 Phase 2: DATABASE-DRIVEN MITRE/NIST MAPPINGS
+# ============================================================================
+
+def _get_mitre_nist_from_database(
+    db: Session,
+    action_id: int,
+    action_type: str,
+    normalized_action_type: str
+) -> Tuple[str, str, str, str]:
+    """
+    Query database for MITRE/NIST mappings based on action type.
+
+    ARCH-003 Phase 2: Replaces hardcoded mappings with database-driven queries.
+    Uses existing mitre_mapper and nist_mapper services.
+
+    Args:
+        db: Database session
+        action_id: Agent action ID (required for mapping storage)
+        action_type: Original action type
+        normalized_action_type: Normalized action type from risk assessment
+
+    Returns:
+        Tuple of (mitre_tactic, mitre_technique, nist_control, nist_description)
+        Falls back to default values if database query fails.
+    """
+    try:
+        from services.mitre_mapper import mitre_mapper
+        from services.nist_mapper import nist_mapper
+
+        # Default fallback values (backward compatible)
+        mitre_tactic = "Execution"
+        mitre_technique = "T1059 - Command and Scripting Interpreter"
+        nist_control = "SI-3"
+        nist_description = "Malicious Code Protection"
+
+        # Query MITRE mappings from database
+        try:
+            mitre_results = mitre_mapper.map_action_to_techniques(
+                db=db,
+                action_id=action_id,
+                action_type=normalized_action_type,
+                context={}
+            )
+
+            if mitre_results and len(mitre_results) > 0:
+                # Use highest confidence mapping (first result)
+                top_mitre = mitre_results[0]
+                mitre_tactic = top_mitre.get("tactic", mitre_tactic)
+                technique_id = top_mitre.get("technique_id", "T1059")
+                technique_name = top_mitre.get("name", "Command and Scripting Interpreter")
+                mitre_technique = f"{technique_id} - {technique_name}"
+
+                logger.info(
+                    f"ARCH-003 Phase 2: MITRE mapping from database - "
+                    f"action_id={action_id}, tactic='{mitre_tactic}', technique='{mitre_technique}'"
+                )
+            else:
+                logger.debug(f"ARCH-003 Phase 2: No MITRE mappings found for {normalized_action_type}, using defaults")
+
+        except Exception as e:
+            logger.warning(f"ARCH-003 Phase 2: MITRE query failed: {e}, using defaults")
+
+        # Query NIST mappings from database
+        try:
+            nist_results = nist_mapper.map_action_to_controls(
+                db=db,
+                action_id=action_id,
+                action_type=normalized_action_type,
+                auto_assess=True
+            )
+
+            if nist_results and len(nist_results) > 0:
+                # Use PRIMARY relevance mapping (first result)
+                top_nist = nist_results[0]
+                nist_control = top_nist.get("control_id", nist_control)
+                nist_description = top_nist.get("title", nist_description)
+
+                logger.info(
+                    f"ARCH-003 Phase 2: NIST mapping from database - "
+                    f"action_id={action_id}, control='{nist_control}', title='{nist_description}'"
+                )
+            else:
+                logger.debug(f"ARCH-003 Phase 2: No NIST mappings found for {normalized_action_type}, using defaults")
+
+        except Exception as e:
+            logger.warning(f"ARCH-003 Phase 2: NIST query failed: {e}, using defaults")
+
+        return (mitre_tactic, mitre_technique, nist_control, nist_description)
+
+    except Exception as e:
+        # Critical error - return safe defaults
+        logger.error(f"ARCH-003 Phase 2: Critical error in MITRE/NIST query: {e}, using safe defaults")
+        return (
+            "Execution",
+            "T1059 - Command and Scripting Interpreter",
+            "SI-3",
+            "Malicious Code Protection"
+        )
 
 
 def evaluate_action_enrichment(
@@ -127,58 +229,46 @@ def evaluate_action_enrichment(
         _risk_assessment_stats["action_type_matches"] += 1
         _risk_assessment_stats["high_risk_detections"] += 1
 
-        # Determine specific categorization based on action type
-        if action_lower in ["database_write", "database_delete", "schema_change"]:
-            result = {
-                "risk_level": "high",
-                "mitre_tactic": "Impact",
-                "mitre_technique": "T1485 - Data Manipulation",
-                "nist_control": "SI-7",
-                "nist_description": "Software, Firmware, and Information Integrity",
-                "recommendation": "Database operations require approval. Review change management procedures and ensure backup exists."
-            }
-        elif action_lower in ["data_export", "data_exfiltration"]:
-            result = {
-                "risk_level": "high",
-                "mitre_tactic": "Exfiltration",
-                "mitre_technique": "T1041 - Exfiltration Over C2 Channel",
-                "nist_control": "SI-4",
-                "nist_description": "Information System Monitoring",
-                "recommendation": "Data export detected. Verify authorization and ensure compliance with data protection policies."
-            }
-        elif action_lower in ["user_create", "user_provision", "permission_grant", "access_grant"]:
-            result = {
-                "risk_level": "high",
-                "mitre_tactic": "Privilege Escalation",
-                "mitre_technique": "T1078 - Valid Accounts",
-                "nist_control": "AC-2",
-                "nist_description": "Account Management",
-                "recommendation": "User/permission modification requires approval. Verify principle of least privilege."
-            }
-        elif action_lower in ["secret_access", "credential_access"]:
-            result = {
-                "risk_level": "high",
-                "mitre_tactic": "Credential Access",
-                "mitre_technique": "T1552 - Unsecured Credentials",
-                "nist_control": "IA-5",
-                "nist_description": "Authenticator Management",
-                "recommendation": "Credential access detected. Ensure proper secrets management and rotation policies."
-            }
+        # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+        if db is not None and action_id is not None:
+            mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
+                db=db,
+                action_id=action_id,
+                action_type=action_type,
+                normalized_action_type=action_lower
+            )
         else:
-            # Generic high-risk categorization
-            result = {
-                "risk_level": "high",
-                "mitre_tactic": "Impact",
-                "mitre_technique": "T1485 - Data Destruction",
-                "nist_control": "SI-4",
-                "nist_description": "Information System Monitoring",
-                "recommendation": "High-risk action requires approval and security review."
-            }
+            # Fallback to defaults if no database session
+            mitre_tactic = "Impact"
+            mitre_technique = "T1485 - Data Manipulation"
+            nist_control = "SI-4"
+            nist_description = "Information System Monitoring"
+
+        # Determine specific recommendation based on action type
+        if action_lower in ["database_write", "database_delete", "schema_change"]:
+            recommendation = "Database operations require approval. Review change management procedures and ensure backup exists."
+        elif action_lower in ["data_export", "data_exfiltration"]:
+            recommendation = "Data export detected. Verify authorization and ensure compliance with data protection policies."
+        elif action_lower in ["user_create", "user_provision", "permission_grant", "access_grant"]:
+            recommendation = "User/permission modification requires approval. Verify principle of least privilege."
+        elif action_lower in ["secret_access", "credential_access"]:
+            recommendation = "Credential access detected. Ensure proper secrets management and rotation policies."
+        else:
+            recommendation = "High-risk action requires approval and security review."
+
+        result = {
+            "risk_level": "high",
+            "mitre_tactic": mitre_tactic,
+            "mitre_technique": mitre_technique,
+            "nist_control": nist_control,
+            "nist_description": nist_description,
+            "recommendation": recommendation
+        }
 
         logger.info(
-            f"✅ ARCH-002: High-risk action type detected - "
+            f"✅ ARCH-002/ARCH-003: High-risk action type detected - "
             f"action_type='{action_type}', risk_level='high', "
-            f"method='action_type_classification'"
+            f"method='action_type_classification', db_mappings={'yes' if (db and action_id) else 'no'}"
         )
 
     # Check medium-risk action types
@@ -186,18 +276,33 @@ def evaluate_action_enrichment(
         assessment_method = "action_type_medium_risk"
         _risk_assessment_stats["action_type_matches"] += 1
 
+        # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+        if db is not None and action_id is not None:
+            mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
+                db=db,
+                action_id=action_id,
+                action_type=action_type,
+                normalized_action_type=action_lower
+            )
+        else:
+            # Fallback to defaults
+            mitre_tactic = "Execution"
+            mitre_technique = "T1059 - Command and Scripting Interpreter"
+            nist_control = "SI-3"
+            nist_description = "Malicious Code Protection"
+
         result = {
             "risk_level": "medium",
-            "mitre_tactic": "Execution",
-            "mitre_technique": "T1059 - Command and Scripting Interpreter",
-            "nist_control": "SI-3",
-            "nist_description": "Malicious Code Protection",
+            "mitre_tactic": mitre_tactic,
+            "mitre_technique": mitre_technique,
+            "nist_control": nist_control,
+            "nist_description": nist_description,
             "recommendation": "System modification requires monitoring. Validate legitimacy and maintain audit logs."
         }
 
         logger.info(
-            f"⚠️  ARCH-002: Medium-risk action type detected - "
-            f"action_type='{action_type}', risk_level='medium'"
+            f"⚠️  ARCH-002/ARCH-003: Medium-risk action type detected - "
+            f"action_type='{action_type}', risk_level='medium', db_mappings={'yes' if (db and action_id) else 'no'}"
         )
 
     # ========================================================================
@@ -253,72 +358,108 @@ def evaluate_action_enrichment(
         # Check for high-risk indicators
         if any(pattern in action_lower or pattern in desc_lower for pattern in high_risk_patterns):
             _risk_assessment_stats["high_risk_detections"] += 1
+
+            # Determine normalized action type based on keywords
             if "exfiltrat" in action_lower or "leak" in desc_lower:
-                result = {
-                    "risk_level": "high",
-                    "mitre_tactic": "Exfiltration",
-                    "mitre_technique": "T1041 - Exfiltration Over C2 Channel",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring",
-                    "recommendation": "Immediately investigate potential data exfiltration and block unauthorized data transfers."
-                }
+                normalized_type = "data_exfiltration"
+                recommendation = "Immediately investigate potential data exfiltration and block unauthorized data transfers."
             elif "privilege" in action_lower or "escalat" in desc_lower:
-                result = {
-                    "risk_level": "high",
-                    "mitre_tactic": "Privilege Escalation",
-                    "mitre_technique": "T1068 - Exploitation for Privilege Escalation",
-                    "nist_control": "AC-6",
-                    "nist_description": "Least Privilege",
-                    "recommendation": "Review user permissions and investigate unauthorized privilege escalation attempts."
-                }
+                normalized_type = "privilege_escalation"
+                recommendation = "Review user permissions and investigate unauthorized privilege escalation attempts."
+            elif any(x in action_lower or x in desc_lower for x in ["payment", "transaction", "financial"]):
+                normalized_type = "financial_transaction"
+                recommendation = "Financial transaction detected. Verify authorization and ensure PCI-DSS compliance."
+            elif any(x in action_lower or x in desc_lower for x in ["database", "schema", "drop", "truncate"]):
+                normalized_type = "database_write"
+                recommendation = "Database operation detected. Review change management and ensure backup exists."
             else:
-                result = {
-                    "risk_level": "high",
-                    "mitre_tactic": "Impact",
-                    "mitre_technique": "T1485 - Data Destruction",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring",
-                    "recommendation": "Investigate high-risk activity and implement additional security controls."
-                }
+                normalized_type = "impact"
+                recommendation = "Investigate high-risk activity and implement additional security controls."
+
+            # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+            if db is not None and action_id is not None:
+                mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
+                    db=db,
+                    action_id=action_id,
+                    action_type=action_type,
+                    normalized_action_type=normalized_type
+                )
+            else:
+                # Fallback defaults
+                mitre_tactic = "Impact"
+                mitre_technique = "T1485 - Data Destruction"
+                nist_control = "SI-4"
+                nist_description = "Information System Monitoring"
+
+            result = {
+                "risk_level": "high",
+                "mitre_tactic": mitre_tactic,
+                "mitre_technique": mitre_technique,
+                "nist_control": nist_control,
+                "nist_description": nist_description,
+                "recommendation": recommendation
+            }
 
         # Check for medium-risk indicators
         elif any(pattern in action_lower or pattern in desc_lower for pattern in medium_risk_patterns):
+            # Determine normalized action type based on keywords
             if "network" in action_lower or "scan" in desc_lower:
-                result = {
-                    "risk_level": "medium",
-                    "mitre_tactic": "Discovery",
-                    "mitre_technique": "T1046 - Network Service Scanning",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring",
-                    "recommendation": "Monitor network scanning activities and ensure they are authorized."
-                }
+                normalized_type = "network_monitoring"
+                recommendation = "Monitor network scanning activities and ensure they are authorized."
             elif "credential" in action_lower or "password" in desc_lower:
-                result = {
-                    "risk_level": "medium",
-                    "mitre_tactic": "Credential Access",
-                    "mitre_technique": "T1110 - Brute Force",
-                    "nist_control": "IA-5",
-                    "nist_description": "Authenticator Management",
-                    "recommendation": "Review credential access patterns and strengthen authentication mechanisms."
-                }
+                normalized_type = "credential_access"
+                recommendation = "Review credential access patterns and strengthen authentication mechanisms."
             else:
-                result = {
-                    "risk_level": "medium",
-                    "mitre_tactic": "Execution",
-                    "mitre_technique": "T1059 - Command and Scripting Interpreter",
-                    "nist_control": "SI-3",
-                    "nist_description": "Malicious Code Protection",
-                    "recommendation": "Monitor execution activities and validate legitimacy of commands."
-                }
+                normalized_type = "execution"
+                recommendation = "Monitor execution activities and validate legitimacy of commands."
+
+            # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+            if db is not None and action_id is not None:
+                mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
+                    db=db,
+                    action_id=action_id,
+                    action_type=action_type,
+                    normalized_action_type=normalized_type
+                )
+            else:
+                # Fallback defaults
+                mitre_tactic = "Execution"
+                mitre_technique = "T1059 - Command and Scripting Interpreter"
+                nist_control = "SI-3"
+                nist_description = "Malicious Code Protection"
+
+            result = {
+                "risk_level": "medium",
+                "mitre_tactic": mitre_tactic,
+                "mitre_technique": mitre_technique,
+                "nist_control": nist_control,
+                "nist_description": nist_description,
+                "recommendation": recommendation
+            }
 
         # Default to low risk if no patterns matched
         else:
+            # ARCH-003 Phase 2: Get MITRE/NIST from database if available
+            if db is not None and action_id is not None:
+                mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
+                    db=db,
+                    action_id=action_id,
+                    action_type=action_type,
+                    normalized_action_type="execution"
+                )
+            else:
+                # Fallback defaults
+                mitre_tactic = "Execution"
+                mitre_technique = "T1204 - User Execution"
+                nist_control = "AU-6"
+                nist_description = "Audit Review, Analysis, and Reporting"
+
             result = {
                 "risk_level": "low",
-                "mitre_tactic": "Execution",
-                "mitre_technique": "T1204 - User Execution",
-                "nist_control": "AU-6",
-                "nist_description": "Audit Review, Analysis, and Reporting",
+                "mitre_tactic": mitre_tactic,
+                "mitre_technique": mitre_technique,
+                "nist_control": nist_control,
+                "nist_description": nist_description,
                 "recommendation": "Continue monitoring agent activities and maintain audit logs."
             }
 
