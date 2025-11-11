@@ -2167,7 +2167,8 @@ async def create_agent_action_api(
             alert = Alert(
                 alert_type="High Risk Agent Action",
                 severity="critical" if risk_score >= 90 else "high",
-                description=f"{data['agent_id']}: {data['description']}",
+                message=f"{data['agent_id']}: {data['description']}",
+                agent_id=data['agent_id'],
                 agent_action_id=action.id,
                 status="new",
                 timestamp=datetime.now(UTC)
