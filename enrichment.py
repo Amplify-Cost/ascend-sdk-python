@@ -614,8 +614,46 @@ def evaluate_action_enrichment(
         "method": assessment_method,
         "elevation_reason": risk_elevation_reason,
         "original_risk": original_risk,
-        "version": "ARCH-002"
+        "version": "ARCH-003"  # Updated to ARCH-003 for Phase 3
     }
+
+    # ========================================================================
+    # ARCH-003 Phase 3: AI-GENERATED RECOMMENDATIONS
+    # ========================================================================
+
+    # Generate AI-powered recommendation (with fallback to static)
+    try:
+        from services.ai_recommendation_generator import ai_recommendation_generator
+
+        # Save original static recommendation as fallback
+        static_recommendation = result.get("recommendation", "")
+
+        # Generate AI recommendation
+        ai_recommendation = ai_recommendation_generator.generate_recommendation(
+            action_type=action_type,
+            description=description,
+            risk_level=result["risk_level"],
+            cvss_score=result.get("cvss_score"),
+            mitre_tactic=result.get("mitre_tactic"),
+            mitre_technique=result.get("mitre_technique"),
+            nist_control=result.get("nist_control"),
+            context=cvss_context if db is not None else context
+        )
+
+        # Use AI recommendation if generated successfully
+        if ai_recommendation and len(ai_recommendation) > 10:
+            result["recommendation"] = ai_recommendation
+            result["_assessment_metadata"]["ai_generated"] = True
+            logger.info(f"ARCH-003 Phase 3: AI recommendation generated for {action_type}")
+        else:
+            # Keep static recommendation
+            result["_assessment_metadata"]["ai_generated"] = False
+            logger.debug(f"ARCH-003 Phase 3: Using static recommendation for {action_type}")
+
+    except Exception as e:
+        # Graceful fallback: keep static recommendation on any error
+        logger.warning(f"ARCH-003 Phase 3: AI recommendation generation failed: {e}, using static")
+        result["_assessment_metadata"]["ai_generated"] = False
 
     return result
 
