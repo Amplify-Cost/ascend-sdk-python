@@ -2239,7 +2239,7 @@ async def create_agent_action_api(
                     "risk_level": risk_level,
                     "contains_pii": "pii" in data.get("description", "").lower(),
                     "production_system": "production" in data.get("description", "").lower(),
-                    "requires_admin": risk_level == "high"
+                    "requires_admin": False  # ARCH-003 FIX: Don't override PR for financial transactions
                 }
             )
 
