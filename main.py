@@ -1201,44 +1201,8 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
 
-# ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-@app.get("/api/agent-activity")
-async def get_agent_activity():
-    """Get agent activity data"""
-    try:
-        current_time = datetime.now()
-        return [
-            {
-                "id": 1,
-                "agent_id": "security-scanner-01",
-                "action": "Vulnerability scan completed",
-                "timestamp": current_time.isoformat(),
-                "status": "completed",
-                "details": "Scanned 245 endpoints, found 3 vulnerabilities"
-            },
-            {
-                "id": 2,
-                "agent_id": "compliance-checker",
-                "action": "SOX compliance audit",
-                "timestamp": (current_time - timedelta(minutes=15)).isoformat(),
-                "status": "in_progress",
-                "details": "Auditing financial system access controls"
-            },
-            {
-                "id": 3,
-                "agent_id": "threat-detector",
-                "action": "Network anomaly detection",
-                "timestamp": (current_time - timedelta(minutes=30)).isoformat(),
-                "status": "completed",
-                "details": "Analyzed 1.2M network packets, no threats detected"
-            }
-        ]
-    except Exception as e:
-        logger.error(f"Agent activity error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch agent activity")
-
-
 # ================== ENTERPRISE RULES ROUTER INTEGRATION ==================
+# NOTE: /api/agent-activity endpoint moved to routes/agent_routes.py for enterprise enrichment
 
 @app.get("/api/rules")
 async def get_rules_enhanced(current_user: dict = Depends(get_current_user)):
