@@ -149,6 +149,7 @@ class AgentActionOut(AgentActionBase):
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None  # Fix for validation error
 
     # Additional data
     extra_data: Optional[dict] = None
