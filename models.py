@@ -94,6 +94,7 @@ class AgentAction(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_by = Column(String(255), nullable=True)
     approved_by = Column(String(255), nullable=True)
+    created_by = Column(String(255), nullable=True)  # Enterprise audit trail
     
     # JSON fields
     extra_data = Column(JSONB, nullable=True)
