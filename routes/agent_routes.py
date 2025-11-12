@@ -406,21 +406,30 @@ def get_agent_activity(
     try:
         # Bulletproof activity query with enterprise filtering
         try:
+            logger.info("🔍 DEPLOYMENT DEBUG: Starting agent-activity query")
             query = db.query(AgentAction).order_by(AgentAction.timestamp.desc())
-            
+
             if risk and risk != "all":
                 query = query.filter(AgentAction.risk_level == risk)
-                
+
             actions = query.limit(50).all()
-            
+
+            logger.info(f"🔍 DEPLOYMENT DEBUG: Query returned {len(actions)} actions")
+
             # Test data accessibility
             if actions and len(actions) > 0:
-                _ = actions[0].id  # Test schema compatibility
+                first_action = actions[0]
+                logger.info(f"🔍 DEPLOYMENT DEBUG: First action - ID: {first_action.id}, agent_id: {first_action.agent_id}, cvss_score: {first_action.cvss_score}")
+                logger.info(f"🔍 DEPLOYMENT DEBUG: Enrichment - MITRE: {first_action.mitre_tactic}, NIST: {first_action.nist_control}")
+                _ = first_action.id  # Test schema compatibility
+                logger.info(f"🔍 DEPLOYMENT DEBUG: Returning {len(actions)} real actions from database")
                 return actions
             else:
+                logger.warning("🔍 DEPLOYMENT DEBUG: No actions found in database - falling back to demo data")
                 raise Exception("No activity data")
-                
+
         except Exception as db_error:
+            logger.error(f"🔍 DEPLOYMENT DEBUG: Activity query failed with error: {db_error}", exc_info=True)
             logger.warning(f"Activity query failed: {db_error}")
             
             # Enterprise-grade activity demonstration data
