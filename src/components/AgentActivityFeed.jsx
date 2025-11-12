@@ -67,7 +67,7 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
 
   const toggleFalsePositive = async (id) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/agent-action/false-positive/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/agent-action/false-positive/${id}`, {
         credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
@@ -81,7 +81,7 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
   const handleSupportSubmit = async () => {
     setSupportStatus("");
     try {
-      const res = await fetch(`${API_BASE_URL}/support/submit`, {
+      const res = await fetch(`${API_BASE_URL}/api/support/submit`, {
         credentials: "include",
         method: "POST",
         headers: {
@@ -110,7 +110,7 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/agent-actions/upload-json`, {
+      const res = await fetch(`${API_BASE_URL}/api/agent-actions/upload-json`, {
         credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),
