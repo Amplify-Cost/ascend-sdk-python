@@ -271,10 +271,27 @@ async def lifespan(app: FastAPI):
     except Exception as scheduler_error:
         print(f"⚠️  A/B Test scheduler failed to start: {scheduler_error}")
 
+    # Start Data Retention Cleanup Scheduler
+    try:
+        from jobs.retention_cleanup_job import start_retention_scheduler
+        start_retention_scheduler()
+        print("🗄️  ENTERPRISE: Data Retention Cleanup scheduler started (daily at 2:00 AM UTC)")
+    except Exception as retention_error:
+        print(f"⚠️  Retention cleanup scheduler failed to start: {retention_error}")
+
     yield
 
     # Shutdown
     print("🔧 Enterprise shutdown initiated...")
+
+    # Stop retention scheduler
+    try:
+        from jobs.retention_cleanup_job import stop_retention_scheduler
+        stop_retention_scheduler()
+        print("🗄️  Data Retention Cleanup scheduler stopped")
+    except Exception as retention_stop_error:
+        print(f"⚠️  Error stopping retention scheduler: {retention_stop_error}")
+
     try:
         from services.ab_test_scheduler import stop_scheduler
         stop_scheduler()
