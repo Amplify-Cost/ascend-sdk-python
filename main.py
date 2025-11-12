@@ -2020,14 +2020,25 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
         db: Session = next(get_db())
-        
+
         try:
-            # Use raw SQL to insert only into existing columns (like your other working endpoints)
+            # ARCH-004: Get enterprise compliance mappings before database insert
+            from enrichment import evaluate_action_enrichment
+            enrichment = evaluate_action_enrichment(
+                action_type=data["action_type"],
+                description=data["description"],
+                db=None,
+                action_id=None
+            )
+
+            # Use raw SQL to insert with NIST/MITRE fields (ARCH-004 enterprise compliance)
             result = db.execute(text("""
                 INSERT INTO agent_actions (
-                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name,
+                    mitre_tactic, mitre_technique, nist_control, nist_description, recommendation
                 ) VALUES (
-                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name,
+                    :mitre_tactic, :mitre_technique, :nist_control, :nist_description, :recommendation
                 ) RETURNING id
             """), {
                 'agent_id': data["agent_id"],
@@ -2037,7 +2048,12 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 'status': 'pending_approval',
                 'approved': False,
                 'user_id': current_user.get("user_id", 1),
-                'tool_name': data.get("tool_name", "")
+                'tool_name': data.get("tool_name", ""),
+                'mitre_tactic': enrichment["mitre_tactic"],
+                'mitre_technique': enrichment["mitre_technique"],
+                'nist_control': enrichment["nist_control"],
+                'nist_description': enrichment["nist_description"],
+                'recommendation': enrichment["recommendation"]
             })
             
             # Get the inserted action ID

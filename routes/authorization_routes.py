@@ -2205,6 +2205,7 @@ async def create_agent_action_api(
         # ===================================================================
         # STEP 4: CREATE AGENT ACTION
         # ===================================================================
+        # ARCH-004 PHASE 1: Use enrichment values instead of client data
         action = AgentAction(
             agent_id=data["agent_id"],
             action_type=data["action_type"],
@@ -2216,8 +2217,12 @@ async def create_agent_action_api(
             user_id=current_user.get("user_id"),
             timestamp=datetime.now(UTC),
             target_system=data.get("target_system"),
-            nist_control=data.get("nist_control"),
-            mitre_tactic=data.get("mitre_tactic")
+            # ARCH-004: Use server-calculated enrichment values (security fix)
+            nist_control=enrichment.get("nist_control"),
+            mitre_tactic=enrichment.get("mitre_tactic"),
+            mitre_technique=enrichment.get("mitre_technique"),
+            nist_description=enrichment.get("nist_description"),
+            recommendation=enrichment.get("recommendation")
         )
 
         db.add(action)
