@@ -14,7 +14,10 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
-from database import get_db, engine
+# ✅ ENTERPRISE FIX: Use Phase 2 enterprise get_db() with error handling
+# Created by: OW-kai Engineer (Phase 2 Enterprise Integration)
+from dependencies import get_db
+from database import engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
@@ -268,10 +271,27 @@ async def lifespan(app: FastAPI):
     except Exception as scheduler_error:
         print(f"⚠️  A/B Test scheduler failed to start: {scheduler_error}")
 
+    # Start Data Retention Cleanup Scheduler
+    try:
+        from jobs.retention_cleanup_job import start_retention_scheduler
+        start_retention_scheduler()
+        print("🗄️  ENTERPRISE: Data Retention Cleanup scheduler started (daily at 2:00 AM UTC)")
+    except Exception as retention_error:
+        print(f"⚠️  Retention cleanup scheduler failed to start: {retention_error}")
+
     yield
 
     # Shutdown
     print("🔧 Enterprise shutdown initiated...")
+
+    # Stop retention scheduler
+    try:
+        from jobs.retention_cleanup_job import stop_retention_scheduler
+        stop_retention_scheduler()
+        print("🗄️  Data Retention Cleanup scheduler stopped")
+    except Exception as retention_stop_error:
+        print(f"⚠️  Error stopping retention scheduler: {retention_stop_error}")
+
     try:
         from services.ab_test_scheduler import stop_scheduler
         stop_scheduler()
@@ -293,7 +313,22 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 
 
-# CORS Configuration (unchanged)
+# ✅ SECURITY FIX: Explicit CORS header whitelist
+# Replaces wildcard allow_headers=["*"] which violates CORS spec with credentials
+# Created by: OW-kai Engineer (Phase 2 Security Fixes - CORS Hardening)
+ALLOWED_CORS_HEADERS = [
+    "Content-Type",
+    "Authorization",
+    "X-CSRF-Token",
+    "X-Request-ID",
+    "Accept",
+    "Origin",
+    "User-Agent",
+    "Cache-Control",
+    "Pragma"
+]
+
+# CORS Configuration - Enterprise Security
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -307,7 +342,9 @@ app.add_middleware(
     ],  # NO WILDCARDS when using credentials
     allow_credentials=True,  # Required for cookies
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=ALLOWED_CORS_HEADERS,  # ✅ SECURE: Explicit whitelist
+    expose_headers=["Content-Length", "X-Request-ID"],
+    max_age=600,
 )
 
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems
@@ -458,11 +495,14 @@ async def get_threat_intelligence(current_user: dict = Depends(get_current_user)
         raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
 
 @app.get("/api/alerts/ai-insights")
-async def get_ai_insights(current_user: dict = Depends(get_current_user)):
+async def get_ai_insights(
+    current_user: dict = Depends(get_current_user),  # ✅ Auth first
+    db: Session = Depends(get_db)                     # ✅ DB second (Phase 2 enterprise)
+):
     """🤖 ENTERPRISE: AI-powered alert insights with real data analysis"""
     try:
-        db: Session = next(get_db())
-
+        # === PHASE 2: ENTERPRISE ERROR HANDLING ===
+        # FastAPI dependency injection manages db session lifecycle
         try:
             # === PHASE 1A: REAL DATA QUERIES ===
 
@@ -559,8 +599,7 @@ async def get_ai_insights(current_user: dict = Depends(get_current_user)):
             automation_candidates = []
             weekly_comparison = (0, 0)
             alert_patterns = []
-        finally:
-            db.close()
+        # ✅ PHASE 2: No manual db.close() - FastAPI handles session lifecycle
 
         # === EXTRACT METRICS ===
         total_alerts = alert_stats[0] or 0
@@ -770,7 +809,7 @@ async def get_ai_insights(current_user: dict = Depends(get_current_user)):
             },
             "predictive_analysis": {
                 "risk_score": min(95, 40 + (critical_count * 20) + (high_count * 5)),
-                "trend_direction": "increasing" if weekly_comparison and weekly_comparison[0] > weekly_comparison[1] * 1.2 else "stable",
+                "trend_direction": "increasing" if weekly_comparison and weekly_comparison[0] and weekly_comparison[1] and weekly_comparison[0] > (weekly_comparison[1] or 0) * 1.2 else "stable",  # ✅ FIX: Handle None values in weekly_comparison
                 "predicted_incidents": critical_count + (high_count // 2),
                 "confidence_level": 80 + min(15, active_alerts * 2)
             },
@@ -1592,9 +1631,11 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
         
         try:
             # Try to get real alerts from database with agent action join
+            # ARCH-005: Added aa.risk_score for enterprise consistency
             alerts_query = db.execute(text("""
                 SELECT a.id, a.alert_type, a.severity, a.message, a.timestamp,
                        aa.agent_id, aa.action_type, aa.tool_name, aa.risk_level,
+                       aa.risk_score,
                        aa.mitre_tactic, aa.mitre_technique, aa.nist_control,
                        aa.nist_description, aa.recommendation,
                        a.status, a.acknowledged_by, a.acknowledged_at, a.escalated_by, a.escalated_at
@@ -1607,6 +1648,7 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
             if alerts_query and len(alerts_query) > 0:
                 live_alerts = []
                 for row in alerts_query:
+                    # ARCH-005: Added ai_risk_score from database, shifted all subsequent indices
                     live_alerts.append({
                         "id": row[0],
                         "alert_type": row[1] or "security_alert",
@@ -1617,16 +1659,17 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                         "action_type": row[6] or "security_scan",
                         "tool_name": row[7] or "security-tool",
                         "risk_level": row[8] or "medium",
-                        "mitre_tactic": row[9] or "TA0007",
-                        "mitre_technique": row[10] or "T1190", 
-                        "nist_control": row[11] or "SI-4",
-                        "nist_description": row[12] or "Enterprise Security Monitoring",
-                        "recommendation": row[13] or "Review and investigate security event",
-                        "status": row[14] or "new",  # Actual status from database
-                        "acknowledged_by": row[15],
-                        "acknowledged_at": row[16].isoformat() if row[16] else None,
-                        "escalated_by": row[17],
-                        "escalated_at": row[18].isoformat() if row[18] else None
+                        "ai_risk_score": row[9] or 50,  # ENTERPRISE: Database-calculated CVSS risk score
+                        "mitre_tactic": row[10] or "TA0007",
+                        "mitre_technique": row[11] or "T1190",
+                        "nist_control": row[12] or "SI-4",
+                        "nist_description": row[13] or "Enterprise Security Monitoring",
+                        "recommendation": row[14] or "Review and investigate security event",
+                        "status": row[15] or "new",  # Actual status from database
+                        "acknowledged_by": row[16],
+                        "acknowledged_at": row[17].isoformat() if row[17] else None,
+                        "escalated_by": row[18],
+                        "escalated_at": row[19].isoformat() if row[19] else None
                     })
                 
                 logger.info(f"✅ Returning {len(live_alerts)} live alerts from database")
@@ -1994,14 +2037,25 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
         db: Session = next(get_db())
-        
+
         try:
-            # Use raw SQL to insert only into existing columns (like your other working endpoints)
+            # ARCH-004: Get enterprise compliance mappings before database insert
+            from enrichment import evaluate_action_enrichment
+            enrichment = evaluate_action_enrichment(
+                action_type=data["action_type"],
+                description=data["description"],
+                db=None,
+                action_id=None
+            )
+
+            # Use raw SQL to insert with NIST/MITRE fields (ARCH-004 enterprise compliance)
             result = db.execute(text("""
                 INSERT INTO agent_actions (
-                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name,
+                    mitre_tactic, mitre_technique, nist_control, nist_description, recommendation
                 ) VALUES (
-                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name,
+                    :mitre_tactic, :mitre_technique, :nist_control, :nist_description, :recommendation
                 ) RETURNING id
             """), {
                 'agent_id': data["agent_id"],
@@ -2011,7 +2065,12 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 'status': 'pending_approval',
                 'approved': False,
                 'user_id': current_user.get("user_id", 1),
-                'tool_name': data.get("tool_name", "")
+                'tool_name': data.get("tool_name", ""),
+                'mitre_tactic': enrichment["mitre_tactic"],
+                'mitre_technique': enrichment["mitre_technique"],
+                'nist_control': enrichment["nist_control"],
+                'nist_description': enrichment["nist_description"],
+                'recommendation': enrichment["recommendation"]
             })
             
             # Get the inserted action ID
@@ -2452,24 +2511,56 @@ async def submit_agent_action_singular(request: Request, current_user: dict = De
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
         
         db: Session = next(get_db())
-        
+
+        # ARCH-004 ENTERPRISE: Get NIST/MITRE mappings from enrichment service
         try:
-            # Use raw SQL to insert only into existing columns
+            from enrichment import evaluate_action_enrichment
+
+            enrichment = evaluate_action_enrichment(
+                action_type=data["action_type"],
+                description=data["description"],
+                db=None,  # No db session for initial enrichment
+                action_id=None  # No action_id yet
+            )
+
+            logger.info(f"ARCH-004: Enterprise enrichment applied - action_type={data['action_type']}, NIST={enrichment['nist_control']}, MITRE={enrichment['mitre_tactic']}")
+
+        except Exception as e:
+            logger.warning(f"ARCH-004: Enrichment failed, using safe defaults: {e}")
+            # Enterprise-grade safe defaults
+            enrichment = {
+                "risk_level": "medium",
+                "mitre_tactic": "TA0002",  # Execution
+                "mitre_technique": "T1059",  # Command and Scripting Interpreter
+                "nist_control": "AC-3",  # Access Enforcement
+                "nist_description": "Access Enforcement - Security review required",
+                "recommendation": "Enterprise security review required for agent action"
+            }
+
+        try:
+            # ARCH-004: Insert with NIST/MITRE enterprise compliance fields
             result = db.execute(text("""
                 INSERT INTO agent_actions (
-                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name
+                    agent_id, action_type, description, risk_level, status, approved, user_id, tool_name,
+                    mitre_tactic, mitre_technique, nist_control, nist_description, recommendation
                 ) VALUES (
-                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name
+                    :agent_id, :action_type, :description, :risk_level, :status, :approved, :user_id, :tool_name,
+                    :mitre_tactic, :mitre_technique, :nist_control, :nist_description, :recommendation
                 ) RETURNING id
             """), {
                 'agent_id': data["agent_id"],
                 'action_type': data["action_type"],
                 'description': data["description"],
-                'risk_level': data.get("risk_level", "medium"),
+                'risk_level': enrichment.get("risk_level", "medium"),  # Use enrichment value
                 'status': 'pending_approval',
                 'approved': False,
                 'user_id': current_user.get("user_id", 1),
-                'tool_name': data.get("tool_name", "")
+                'tool_name': data.get("tool_name", ""),
+                'mitre_tactic': enrichment["mitre_tactic"],  # ARCH-004: Action-specific
+                'mitre_technique': enrichment["mitre_technique"],  # ARCH-004: Action-specific
+                'nist_control': enrichment["nist_control"],  # ARCH-004: Action-specific
+                'nist_description': enrichment["nist_description"],  # ARCH-004: Action-specific
+                'recommendation': enrichment["recommendation"]  # ARCH-004: Action-specific
             })
             
             # Get the inserted action ID

@@ -761,6 +761,413 @@ async def delete_governance_policy(
         logger.error(f"Failed to delete policy {policy_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete policy: {str(e)}")
 
+# ============================================================================
+# ENTERPRISE FEATURE 1: POLICY CONFLICT DETECTION
+# ============================================================================
+
+@router.post("/policies/{policy_id}/check-conflicts")
+async def check_policy_conflicts(
+    policy_id: int,
+    policy_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 ENTERPRISE: Check for conflicts when creating or updating a policy
+
+    Detects 4 types of conflicts:
+    - CRITICAL: Effect contradictions (deny vs allow on same resource)
+    - HIGH: Priority conflicts (same priority on overlapping resources)
+    - MEDIUM: Resource hierarchy conflicts (parent/child contradictions)
+    - MEDIUM: Condition mismatches (incompatible conditions)
+
+    Returns conflict analysis with resolution suggestions.
+    """
+    try:
+        logger.info(f"Conflict detection for policy {policy_id} by {current_user.get('email')}")
+
+        # Import conflict detector
+        from services.policy_conflict_detector import create_conflict_detector
+
+        # Create detector instance
+        detector = create_conflict_detector(db)
+
+        # Run conflict detection
+        conflicts = detector.detect_conflicts(policy_data, policy_id=policy_id)
+
+        # Categorize by severity
+        critical = [c for c in conflicts if c.severity == "critical"]
+        high = [c for c in conflicts if c.severity == "high"]
+        medium = [c for c in conflicts if c.severity == "medium"]
+        low = [c for c in conflicts if c.severity == "low"]
+
+        logger.info(f"✅ Found {len(conflicts)} conflicts: {len(critical)} critical, {len(high)} high")
+
+        return {
+            "success": True,
+            "has_conflicts": len(conflicts) > 0,
+            "conflict_summary": {
+                "total": len(conflicts),
+                "critical": len(critical),
+                "high": len(high),
+                "medium": len(medium),
+                "low": len(low)
+            },
+            "conflicts": [c.to_dict() for c in conflicts],
+            "recommendation": "BLOCK" if len(critical) > 0 else "WARN" if len(high) > 0 else "PROCEED"
+        }
+
+    except Exception as e:
+        logger.error(f"Conflict detection failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Conflict detection failed: {str(e)}")
+
+
+@router.get("/policies/conflicts/analyze")
+async def analyze_all_policy_conflicts(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 ENTERPRISE: System-wide policy conflict analysis
+
+    Scans all active policies for conflicts and generates comprehensive report.
+    Useful for periodic audits and policy health checks.
+    """
+    try:
+        logger.info(f"System-wide conflict analysis by {current_user.get('email')}")
+
+        from services.policy_conflict_detector import create_conflict_detector
+
+        detector = create_conflict_detector(db)
+        analysis = detector.analyze_all_policies()
+
+        logger.info(f"✅ System scan complete: {analysis['total_conflicts']} conflicts in {analysis['policies_analyzed']} policies")
+
+        return {
+            "success": True,
+            **analysis
+        }
+
+    except Exception as e:
+        logger.error(f"System conflict analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+# ============================================================================
+# ENTERPRISE FEATURE 2: POLICY IMPORT/EXPORT
+# ============================================================================
+
+from fastapi.responses import Response, StreamingResponse
+from io import BytesIO
+
+@router.get("/policies/export")
+async def export_policies(
+    format: str = "json",
+    filter_status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 ENTERPRISE: Export policies to JSON/YAML/Cedar format
+
+    Query Parameters:
+        format: "json", "yaml", or "cedar"
+        filter_status: "active", "inactive", "draft" (optional)
+
+    Returns:
+        File download with exported policies
+    """
+    try:
+        logger.info(f"Policy export requested by {current_user.get('email')} (format={format})")
+
+        from services.policy_import_export_service import create_import_export_service
+
+        service = create_import_export_service(db)
+
+        # Export based on format
+        if format == "cedar":
+            content = service.export_to_cedar()
+            media_type = "text/plain"
+            filename = f"policies_cedar_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.cedar"
+        elif format == "yaml":
+            content = service.export_policies(format="yaml", filter_status=filter_status)
+            media_type = "application/x-yaml"
+            filename = f"policies_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.yaml"
+        else:  # JSON (default)
+            content = service.export_policies(format="json", filter_status=filter_status)
+            media_type = "application/json"
+            filename = f"policies_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}.json"
+
+        logger.info(f"✅ Exported policies in {format} format")
+
+        # Return as downloadable file
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"Export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.post("/policies/import")
+async def import_policies(
+    import_request: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager_or_admin)
+):
+    """
+    🏢 ENTERPRISE: Import policies from JSON/YAML format
+
+    Request Body:
+        {
+            "data": "<JSON or YAML string>",
+            "format": "json" | "yaml",
+            "dry_run": true | false,
+            "conflict_resolution": "skip" | "overwrite" | "merge"
+        }
+
+    Returns:
+        Import results with counts and errors
+    """
+    try:
+        logger.info(f"Policy import by {current_user.get('email')}")
+
+        from services.policy_import_export_service import create_import_export_service
+
+        service = create_import_export_service(db)
+
+        import_data = import_request.get("data", "")
+        format_type = import_request.get("format", "json")
+        dry_run = import_request.get("dry_run", False)
+        conflict_resolution = import_request.get("conflict_resolution", "skip")
+
+        # Validate inputs
+        if not import_data:
+            raise HTTPException(status_code=400, detail="Import data is required")
+
+        if format_type not in ["json", "yaml"]:
+            raise HTTPException(status_code=400, detail="Format must be 'json' or 'yaml'")
+
+        if conflict_resolution not in ["skip", "overwrite", "merge"]:
+            raise HTTPException(status_code=400, detail="Invalid conflict_resolution strategy")
+
+        # Perform import
+        result = service.import_policies(
+            import_data=import_data,
+            format=format_type,
+            dry_run=dry_run,
+            conflict_resolution=conflict_resolution,
+            created_by=current_user.get("email", "import")
+        )
+
+        if dry_run:
+            logger.info(f"✅ Dry-run import complete: {result['imported']} would be imported")
+        else:
+            logger.info(f"✅ Import complete: {result['imported']} policies imported")
+
+        return {
+            "success": result["success"],
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Import failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
+
+@router.get("/policies/import/template")
+async def get_import_template(
+    format: str = "json",
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 ENTERPRISE: Get import template with example policies
+
+    Query Parameters:
+        format: "json" or "yaml"
+
+    Returns:
+        Template file for importing policies
+    """
+    try:
+        from services.policy_import_export_service import create_import_export_service
+        from database import get_db
+
+        db = next(get_db())
+        service = create_import_export_service(db)
+
+        template = service.get_import_template(format=format)
+
+        media_type = "application/x-yaml" if format == "yaml" else "application/json"
+        filename = f"policy_import_template.{format}"
+
+        return Response(
+            content=template,
+            media_type=media_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except Exception as e:
+        logger.error(f"Template generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/policies/backup")
+async def create_policy_backup(
+    backup_request: Dict[str, Any] = {},
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager_or_admin)
+):
+    """
+    🏢 ENTERPRISE: Create full backup of all policies
+
+    Request Body:
+        {
+            "backup_name": "optional_custom_name"
+        }
+
+    Returns:
+        Backup metadata and download link
+    """
+    try:
+        logger.info(f"Backup creation by {current_user.get('email')}")
+
+        from services.policy_import_export_service import create_import_export_service
+
+        service = create_import_export_service(db)
+
+        backup_name = backup_request.get("backup_name")
+        backup = service.create_backup(backup_name=backup_name)
+
+        logger.info(f"✅ Backup created: {backup['backup_name']}")
+
+        return {
+            "success": True,
+            "backup_name": backup["backup_name"],
+            "created_at": backup["created_at"],
+            "total_policies": backup["total_policies"],
+            "backup_data": backup["backup_data"]
+        }
+
+    except Exception as e:
+        logger.error(f"Backup creation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Backup failed: {str(e)}")
+
+# ============================================================================
+# ENTERPRISE FEATURE 3: BULK POLICY OPERATIONS
+# ============================================================================
+
+@router.post("/policies/bulk-update-status")
+async def bulk_update_policy_status(
+    request: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager_or_admin)
+):
+    """
+    🏢 ENTERPRISE: Bulk enable/disable policies
+
+    Request Body:
+        {
+            "policy_ids": [1, 2, 3, 4, 5],
+            "status": "active" | "inactive",
+            "reason": "Maintenance window"
+        }
+    """
+    try:
+        from services.policy_bulk_operations_service import create_bulk_operations_service
+
+        service = create_bulk_operations_service(db)
+
+        result = service.bulk_update_status(
+            policy_ids=request.get("policy_ids", []),
+            new_status=request.get("status"),
+            reason=request.get("reason", ""),
+            user_email=current_user.get("email", "unknown")
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Bulk status update failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/policies/bulk-delete")
+async def bulk_delete_policies(
+    request: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin)
+):
+    """
+    🏢 ENTERPRISE: Bulk delete policies (admin only)
+
+    Request Body:
+        {
+            "policy_ids": [1, 2, 3],
+            "confirmation": "DELETE",
+            "create_backup": true
+        }
+    """
+    try:
+        from services.policy_bulk_operations_service import create_bulk_operations_service
+
+        service = create_bulk_operations_service(db)
+
+        result = service.bulk_delete(
+            policy_ids=request.get("policy_ids", []),
+            confirmation=request.get("confirmation", ""),
+            create_backup=request.get("create_backup", True),
+            user_email=current_user.get("email", "unknown")
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Bulk delete failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/policies/bulk-update-priority")
+async def bulk_update_policy_priority(
+    request: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_manager_or_admin)
+):
+    """
+    🏢 ENTERPRISE: Bulk update policy priorities
+
+    Request Body:
+        {
+            "updates": [
+                {"policy_id": 1, "priority": 100},
+                {"policy_id": 2, "priority": 90}
+            ]
+        }
+    """
+    try:
+        from services.policy_bulk_operations_service import create_bulk_operations_service
+
+        service = create_bulk_operations_service(db)
+
+        result = service.bulk_update_priority(
+            updates=request.get("updates", []),
+            user_email=current_user.get("email", "unknown")
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Bulk priority update failed: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
 # 🚀 PHASE 1.3: Real-Time Policy Testing Endpoints
 @router.post("/policies/evaluate-realtime")
 async def evaluate_policy_realtime(

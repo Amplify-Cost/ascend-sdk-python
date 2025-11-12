@@ -120,6 +120,7 @@ async def create_agent_action(
                     action_id=action.id,
                     action_type=data["action_type"],
                     context={
+                        "description": data["description"],  # ARCH-003: Pass description for normalization
                         "risk_level": enrichment["risk_level"],
                         "contains_pii": "pii" in (data.get("description") or "").lower(),
                         "production_system": "production" in (data.get("description") or "").lower(),
@@ -142,6 +143,65 @@ async def create_agent_action(
                 logger.info(f"✅ CVSS integrated: Action {action.id} -> {cvss_result['base_score']} ({cvss_result['severity']})")
             except Exception as cvss_error:
                 logger.warning(f"⚠️  CVSS integration failed for action {action.id}: {cvss_error}")
+
+            # ENTERPRISE AUTOMATION: Check for playbook-based auto-approval
+            try:
+                from services.automation_service import get_automation_service
+                automation_service = get_automation_service(db)
+
+                action_data = {
+                    'risk_score': action.risk_score or 0,
+                    'action_type': action.action_type,
+                    'agent_id': action.agent_id,
+                    'timestamp': action.timestamp
+                }
+
+                # Try to match playbook
+                matched_playbook = automation_service.match_playbooks(action_data)
+
+                if matched_playbook:
+                    logger.info(f"🤖 Playbook matched: {matched_playbook.id} for action {action.id}")
+
+                    # Execute playbook (auto-approve)
+                    execution_result = automation_service.execute_playbook(
+                        playbook_id=matched_playbook.id,
+                        action_id=action.id
+                    )
+
+                    if execution_result['success']:
+                        logger.info(f"✅ Auto-approved via playbook: {execution_result['playbook_name']}")
+                        # Action is now auto-approved, no further processing needed
+                    else:
+                        logger.warning(f"⚠️  Playbook execution failed: {execution_result['message']}")
+                else:
+                    logger.info(f"❌ No playbook match for action {action.id} - manual review required")
+
+            except Exception as automation_error:
+                logger.warning(f"⚠️  Automation service failed for action {action.id}: {automation_error}")
+                # Continue without automation - action still requires manual review
+
+            # ENTERPRISE ORCHESTRATION: Trigger workflows for high-risk actions
+            try:
+                from services.orchestration_service import get_orchestration_service
+                orchestration_service = get_orchestration_service(db)
+
+                # Trigger workflows/alerts based on risk
+                orchestration_result = orchestration_service.orchestrate_action(
+                    action_id=action.id,
+                    risk_level=action.risk_level,
+                    risk_score=action.risk_score or 0,
+                    action_type=action.action_type
+                )
+
+                if orchestration_result.get('workflow_triggered'):
+                    logger.info(f"🔄 Workflow triggered: {orchestration_result['workflow_id']} for action {action.id}")
+
+                if orchestration_result.get('alert_created'):
+                    logger.info(f"🚨 Alert created for high-risk action {action.id}")
+
+            except Exception as orchestration_error:
+                logger.warning(f"⚠️  Orchestration service failed for action {action.id}: {orchestration_error}")
+                # Continue - alerts/workflows are supplementary
 
             # Create enterprise alert if high risk
             if enrichment["risk_level"] == "high":

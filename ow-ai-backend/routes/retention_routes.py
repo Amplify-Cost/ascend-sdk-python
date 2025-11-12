@@ -291,3 +291,72 @@ def release_legal_hold(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Hold release failed: {str(e)}")
+
+@router.get("/retention/job-status")
+def get_retention_job_status(
+    current_user: dict = Depends(verify_token)
+):
+    """
+    Get status of the automated retention cleanup job
+
+    Returns:
+        Scheduler status including:
+        - scheduler_running: Boolean indicating if scheduler is active
+        - job_configured: Boolean indicating if cleanup job is configured
+        - next_run_time: ISO timestamp of next scheduled run
+        - last_run: ISO timestamp of last execution
+        - last_run_status: success/failed
+        - last_run_deleted: Number of records deleted in last run
+        - total_runs: Total number of executions
+        - total_deleted: Total number of records deleted (all time)
+
+    Security: Requires authentication
+    """
+    try:
+        from jobs.retention_cleanup_job import get_scheduler_status
+
+        status = get_scheduler_status()
+
+        return {
+            "status": "success",
+            "scheduler": status,
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get scheduler status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
+
+@router.post("/retention/trigger-manual-cleanup")
+def trigger_manual_retention_cleanup(
+    current_user: dict = Depends(require_admin)
+):
+    """
+    Manually trigger retention cleanup job (admin only)
+
+    Executes the retention cleanup process immediately,
+    outside of the normal schedule. Useful for:
+    - Testing the cleanup process
+    - Running cleanup on-demand
+    - Recovering from schedule failures
+
+    Returns:
+        Result of cleanup execution
+
+    Security: Admin only
+    """
+    try:
+        from jobs.retention_cleanup_job import trigger_manual_cleanup
+
+        logger.info(f"Manual retention cleanup triggered by {current_user.get('email', 'unknown')}")
+
+        result = trigger_manual_cleanup()
+
+        return {
+            "status": "success",
+            "result": result,
+            "triggered_by": current_user.get('email', 'unknown'),
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Manual cleanup failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Manual cleanup failed: {str(e)}")

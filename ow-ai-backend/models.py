@@ -391,18 +391,55 @@ class IntegrationEndpoint(Base):
 # Add these workflow models to the end of your models.py file
 
 class Workflow(Base):
+    """
+    Enterprise Workflow Orchestration Model
+
+    Stores multi-step workflow orchestrations for complex agent action processing.
+    Enables dynamic workflow execution with full audit trails and compliance tracking.
+
+    Business Value:
+    - Enforces multi-level approval workflows
+    - Ensures compliance with regulatory requirements
+    - Complete audit trail for enterprise governance
+    - SLA tracking and escalation management
+
+    Example Use Cases:
+    - High-risk action approval workflows
+    - Critical incident response workflows
+    - Compliance-focused data access workflows
+    """
     __tablename__ = "workflows"
-    
-    id = Column(String, primary_key=True)
-    name = Column(String, nullable=False)
+
+    # Primary identification
+    id = Column(String(255), primary_key=True, index=True)  # e.g., "wf-high-risk-approval"
+    name = Column(String(255), nullable=False, index=True)
     description = Column(Text)
-    created_by = Column(String)
-    created_at = Column(DateTime, default=datetime.now(UTC))
+
+    # Status and configuration
+    status = Column(String(50), default='active', index=True)  # active|inactive|disabled|maintenance
+    created_by = Column(String(255))  # User/system that created this workflow
+    owner = Column(String(255))  # Team responsible for this workflow
+
+    # Workflow definition (stored as JSON)
+    steps = Column(JSON)  # Ordered list of workflow steps with actions/approvals
+    trigger_conditions = Column(JSON)  # When to execute: {"risk_score": {"min": 50}, "action_types": [...]}
+    workflow_metadata = Column(JSON)  # Additional metadata for flexibility
+
+    # SLA and execution tracking
+    sla_hours = Column(Integer, default=24)  # Service Level Agreement in hours
+    auto_approve_on_timeout = Column(Boolean, default=False)  # Auto-approve if SLA exceeded
+    last_executed = Column(DateTime, nullable=True, index=True)
+    execution_count = Column(Integer, default=0)  # Total number of executions
+    success_rate = Column(Float, default=0.0)  # Calculated success rate (0-100)
+    avg_completion_time_hours = Column(Float, nullable=True)  # Average time to complete
+
+    # Compliance and governance
+    compliance_frameworks = Column(JSON)  # ["SOX", "PCI-DSS", "HIPAA", "GDPR"]
+    tags = Column(JSON)  # ["high-risk", "multi-approval", "24x7"]
+
+    # Audit timestamps
+    created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    status = Column(String, default='active')
-    steps = Column(JSON)
-    trigger_conditions = Column(JSON)
-    workflow_metadata = Column(JSON)
 
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"

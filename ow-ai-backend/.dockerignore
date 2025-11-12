@@ -6,4 +6,9 @@ dist
 *.tmp
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*/.pyc
+*/__pycache__/
 .pytest_cache/

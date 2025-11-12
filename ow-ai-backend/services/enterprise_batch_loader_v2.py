@@ -90,8 +90,9 @@ class EnterpriseBatchLoaderV2:
 
         for action in pending_actions:
             cvss = cvss_map.get(action.id, {})
-            nist_controls = nist_map.get(action.id, ["AC-3", "AU-2"])
-            mitre_techniques = mitre_map.get(action.id, ["T1078"])
+            # ARCH-004: Use agent_actions table columns (populated by enrichment.py)
+            nist_controls = [action.nist_control] if action.nist_control else nist_map.get(action.id, ["AC-3"])
+            mitre_techniques = [action.mitre_technique] if action.mitre_technique else mitre_map.get(action.id, ["T1078"])
 
             # 🏢 ENTERPRISE FIX: Use agent_actions.risk_score first (from CVSS calculation during creation)
             if action.risk_score:
@@ -128,11 +129,14 @@ class EnterpriseBatchLoaderV2:
                 "requires_executive_approval": risk_score >= 80,
                 "requires_board_notification": False,
                 "compliance_frameworks": ["SOX", "PCI_DSS", "NIST"],
-                "nist_control": nist_controls[0] if nist_controls else "AC-3",
+                # ARCH-004: Use database columns from agent_actions table
+                "nist_control": action.nist_control or nist_controls[0] if nist_controls else "AC-3",
                 "nist_controls": nist_controls,
-                "mitre_tactic": "Collection",
-                "mitre_technique": mitre_techniques[0] if mitre_techniques else "T1078",
+                "nist_description": action.nist_description or "",
+                "mitre_tactic": action.mitre_tactic or "TA0009",
+                "mitre_technique": action.mitre_technique or mitre_techniques[0] if mitre_techniques else "T1078",
                 "mitre_techniques": mitre_techniques,
+                "recommendation": action.recommendation or "",
                 "workflow_stage": "pending_stage_1",
                 "current_approval_level": 0,
                 "required_approval_level": 2 if risk_score >= 70 else 1

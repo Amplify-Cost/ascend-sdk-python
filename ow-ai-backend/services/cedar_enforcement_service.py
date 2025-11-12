@@ -187,6 +187,16 @@ class EnforcementEngine:
                         "policy_name": policy.natural_language,
                         "effect": policy.effect
                     })
+
+                    # Deny takes precedence - evaluate immediately after match
+                    if policy.effect == "deny":
+                        final_decision = "DENY"
+                        self.stats["denials"] += 1
+                        break
+                    elif policy.effect == "require_approval" and final_decision == "ALLOW":
+                        final_decision = "REQUIRE_APPROVAL"
+                        self.stats["approvals_required"] += 1
+
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(
@@ -194,15 +204,6 @@ class EnforcementEngine:
                 )
                 # Skip failed policy, continue with others
                 continue
-                
-                # Deny takes precedence
-                if policy.effect == "deny":
-                    final_decision = "DENY"
-                    self.stats["denials"] += 1
-                    break
-                elif policy.effect == "require_approval" and final_decision == "ALLOW":
-                    final_decision = "REQUIRE_APPROVAL"
-                    self.stats["approvals_required"] += 1
                     
         result = {
             "decision": final_decision,
