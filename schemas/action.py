@@ -49,8 +49,8 @@ class ActionResponse(BaseModel):
     risk_score: Optional[float]
     risk_level: Optional[str]
     created_at: datetime
-    created_by: Optional[int]
-    
+    created_by: Optional[str]  # Enterprise audit trail - email address
+
     class Config:
         from_attributes = True
 
