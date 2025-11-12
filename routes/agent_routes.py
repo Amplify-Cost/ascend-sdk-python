@@ -406,6 +406,7 @@ def get_agent_activity(
     try:
         # Bulletproof activity query with enterprise filtering
         try:
+            print("🔍 DEBUG: Starting agent-activity query", flush=True)
             logger.info("🔍 DEPLOYMENT DEBUG: Starting agent-activity query")
             query = db.query(AgentAction).order_by(AgentAction.timestamp.desc())
 
@@ -414,21 +415,26 @@ def get_agent_activity(
 
             actions = query.limit(50).all()
 
+            print(f"🔍 DEBUG: Query returned {len(actions)} actions", flush=True)
             logger.info(f"🔍 DEPLOYMENT DEBUG: Query returned {len(actions)} actions")
 
             # Test data accessibility
             if actions and len(actions) > 0:
                 first_action = actions[0]
+                print(f"🔍 DEBUG: First action - ID: {first_action.id}, agent_id: {first_action.agent_id}, cvss: {first_action.cvss_score}", flush=True)
                 logger.info(f"🔍 DEPLOYMENT DEBUG: First action - ID: {first_action.id}, agent_id: {first_action.agent_id}, cvss_score: {first_action.cvss_score}")
                 logger.info(f"🔍 DEPLOYMENT DEBUG: Enrichment - MITRE: {first_action.mitre_tactic}, NIST: {first_action.nist_control}")
                 _ = first_action.id  # Test schema compatibility
+                print(f"🔍 DEBUG: Returning {len(actions)} real actions from database", flush=True)
                 logger.info(f"🔍 DEPLOYMENT DEBUG: Returning {len(actions)} real actions from database")
                 return actions
             else:
+                print("🔍 DEBUG: No actions found - returning demo data", flush=True)
                 logger.warning("🔍 DEPLOYMENT DEBUG: No actions found in database - falling back to demo data")
                 raise Exception("No activity data")
 
         except Exception as db_error:
+            print(f"🔍 DEBUG: Exception caught: {type(db_error).__name__}: {db_error}", flush=True)
             logger.error(f"🔍 DEPLOYMENT DEBUG: Activity query failed with error: {db_error}", exc_info=True)
             logger.warning(f"Activity query failed: {db_error}")
             
