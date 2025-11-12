@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, status
+from fastapi import APIRouter, Depends, Request, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
@@ -9,6 +9,7 @@ from llm_utils import generate_summary, generate_smart_rule
 from enrichment import evaluate_action_enrichment
 from typing import List
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Agent Actions"])
@@ -680,3 +681,179 @@ def get_audit_trail(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve audit trail"
         )
+
+# ============================================================================
+# ENTERPRISE ACTIVITY TAB ENDPOINTS - Phase 1 Core Functionality
+# ============================================================================
+
+@router.post("/agent-action/false-positive/{action_id}")
+def toggle_false_positive(
+    action_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Toggle false positive flag on an agent action - Enterprise audit trail"""
+    try:
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+
+        if not action:
+            raise HTTPException(status_code=404, detail=f"Agent action {action_id} not found")
+
+        # Toggle false positive status
+        action.is_false_positive = not (action.is_false_positive or False)
+        action.reviewed_by = current_user.get("email", "unknown")
+        action.reviewed_at = datetime.now(UTC)
+        action.updated_at = datetime.now(UTC)
+
+        db.commit()
+        db.refresh(action)
+
+        logger.info(f"Action {action_id} marked as {'FALSE POSITIVE' if action.is_false_positive else 'VALID'} by {current_user.get('email')}")
+
+        return {
+            "message": f"Action {action_id} marked as {'FALSE POSITIVE' if action.is_false_positive else 'VALID'}",
+            "action_id": action_id,
+            "is_false_positive": action.is_false_positive,
+            "reviewed_by": action.reviewed_by,
+            "reviewed_at": action.reviewed_at.isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to toggle false positive for action {action_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to toggle false positive: {str(e)}")
+
+
+@router.post("/support/submit")
+async def submit_support_request(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Submit support request - Enterprise ticketing integration ready"""
+    try:
+        data = await request.json()
+        message = data.get("message", "").strip()
+
+        if not message or len(message) < 10:
+            raise HTTPException(status_code=400, detail="Support message must be at least 10 characters")
+
+        if len(message) > 5000:
+            raise HTTPException(status_code=400, detail="Support message too long (max 5000 characters)")
+
+        # Log to audit_logs table for enterprise tracking
+        support_ticket = {
+            "user_id": current_user.get("user_id"),
+            "user_email": current_user.get("email"),
+            "message": message,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "status": "open",
+            "priority": "medium"
+        }
+
+        audit_log = LogAuditTrail(
+            user_id=current_user.get("user_id"),
+            action_type="support_ticket_created",
+            details=json.dumps(support_ticket),
+            timestamp=datetime.now(UTC),
+            ip_address="system"
+        )
+        db.add(audit_log)
+        db.commit()
+
+        logger.info(f"Support ticket created by {current_user.get('email')}: {message[:100]}")
+
+        return {
+            "message": "Support request submitted successfully",
+            "ticket_id": audit_log.id,
+            "status": "open",
+            "email": current_user.get("email")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to submit support request: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit support request: {str(e)}")
+
+
+@router.post("/agent-actions/upload-json")
+async def upload_agent_actions_json(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload agent actions from JSON file - Enterprise bulk import"""
+    try:
+        # Validate file type
+        if not file.filename.endswith('.json'):
+            raise HTTPException(status_code=400, detail="Only JSON files are supported")
+
+        # Read and parse JSON
+        contents = await file.read()
+        try:
+            actions_data = json.loads(contents)
+        except json.JSONDecodeError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
+
+        # Ensure it's a list
+        if not isinstance(actions_data, list):
+            actions_data = [actions_data]
+
+        if len(actions_data) > 1000:
+            raise HTTPException(status_code=400, detail="Maximum 1000 actions per upload")
+
+        imported_count = 0
+        skipped_count = 0
+        errors = []
+
+        for idx, action_data in enumerate(actions_data):
+            try:
+                # Create agent action
+                action = AgentAction(
+                    agent_id=action_data.get("agent_id", "imported"),
+                    action_type=action_data.get("action_type", "imported_action"),
+                    description=action_data.get("description"),
+                    tool_name=action_data.get("tool_name"),
+                    risk_level=action_data.get("risk_level"),
+                    status=action_data.get("status", "imported"),
+                    user_id=current_user.get("user_id"),
+                    timestamp=datetime.now(UTC),
+                    created_at=datetime.now(UTC),
+                    summary=action_data.get("summary"),
+                    nist_control=action_data.get("nist_control"),
+                    mitre_tactic=action_data.get("mitre_tactic"),
+                    mitre_technique=action_data.get("mitre_technique"),
+                    cvss_score=action_data.get("cvss_score"),
+                    cvss_severity=action_data.get("cvss_severity")
+                )
+                db.add(action)
+                imported_count += 1
+
+            except Exception as e:
+                skipped_count += 1
+                errors.append(f"Row {idx+1}: {str(e)}")
+                if len(errors) >= 20:  # Limit error collection
+                    break
+
+        db.commit()
+
+        logger.info(f"Bulk import by {current_user.get('email')}: {imported_count} imported, {skipped_count} skipped")
+
+        return {
+            "message": f"Import completed: {imported_count} imported, {skipped_count} skipped",
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "errors": errors[:10],  # Return first 10 errors only
+            "total_in_file": len(actions_data)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
