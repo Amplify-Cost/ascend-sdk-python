@@ -227,8 +227,9 @@ except ImportError:
                 return json.loads(base64.b64decode(token).decode())
         jwt = DummyJWT()
 
+# Agent routes for enterprise enrichment (REQUIRED for /api/agent-activity)
+from routes.agent_routes import router as agent_router
 # Unchanged commented-out routers
-# from agent_routes import agent_router
 # from rule_routes import rule_router
 # from authorization_routes import authorization_router
 
@@ -1191,8 +1192,9 @@ print("🚀 ENTERPRISE: Application startup complete")
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# Include agent router for enterprise enrichment (REQUIRED for /api/agent-activity)
+app.include_router(agent_router, prefix="/api", tags=["agent-activity"])
 # Unchanged commented-out includes
-# app.include_router(agent_router)
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
 
