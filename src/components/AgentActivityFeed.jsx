@@ -4,7 +4,7 @@ import EnterpriseCard, { CompactCard } from "./enterprise/EnterpriseCard";
 import SkeletonCard, { CompactSkeleton } from "./enterprise/SkeletonCard";
 import ErrorCard from "./enterprise/ErrorCard";
 import EmptyCard from "./enterprise/EmptyCard";
-import ENTERPRISE_THEME from "./enterprise/EnterpriseTheme";
+import ENTERPRISE_THEME, { getRiskColor } from "./enterprise/EnterpriseTheme";
 
 const AgentActivityFeed = ({ getAuthHeaders }) => {
   const [activities, setActivities] = useState([]);
@@ -131,7 +131,7 @@ const AgentActivityFeed = ({ getAuthHeaders }) => {
   // Helper function to get risk badge color
   const getRiskBadge = (riskLevel) => {
     const level = riskLevel?.toLowerCase() || 'unknown';
-    const color = ENTERPRISE_THEME.getRiskColor(
+    const color = getRiskColor(
       level === 'high' ? 7 : level === 'medium' ? 5 : level === 'low' ? 2 : 0
     );
     return (
