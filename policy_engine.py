@@ -712,22 +712,20 @@ class EnterpriseRealTimePolicyEngine:
         matched_policies = []
         
         # Query active policies from database
-        # Note: mcp_policies table schema doesn't match policy engine expectations
-        # Return empty set for now - policies will be handled via different mechanism
+        # Uses the mcp_policies table with enterprise schema (policy_name, natural_language_description, etc.)
         try:
             policies_query = """
-                SELECT id, name as policy_name, description as natural_language_description,
-                       NULL as resource_patterns, NULL as namespace_patterns, NULL as verb_patterns,
-                       actions as action, conditions
+                SELECT id, policy_name, natural_language_description,
+                       resource_patterns, namespace_patterns, verb_patterns,
+                       actions as action, conditions, priority
                 FROM mcp_policies
-                WHERE is_active = true
-                ORDER BY id DESC, created_at ASC
-                LIMIT 0
+                WHERE is_active = true AND policy_status = 'deployed'
+                ORDER BY priority DESC, created_at ASC
             """
 
             policy_results = self.db.execute(text(policies_query)).fetchall()
         except Exception as e:
-            logger.warning(f"Policy query failed (schema mismatch expected): {e}")
+            logger.warning(f"Policy query failed: {e}")
             policy_results = []
         
         for policy_row in policy_results:
