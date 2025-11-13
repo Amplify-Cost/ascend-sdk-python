@@ -1994,14 +1994,14 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
     try:
         data = await request.json()
         logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
-        
+
         # Enterprise validation - ensure all required fields
         required_fields = ["agent_id", "action_type", "description"]
         for field in required_fields:
             if field not in data:
                 logger.error(f"Enterprise validation failed: Missing {field}")
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-        
+
         db: Session = next(get_db())
 
         try:
@@ -2038,17 +2038,18 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 'nist_description': enrichment["nist_description"],
                 'recommendation': enrichment["recommendation"]
             })
-            
+
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-            
+
             db.commit()
-            
+
             # === ENTERPRISE RISK ASSESSMENT ===
             try:
                 from services.cvss_auto_mapper import cvss_auto_mapper
                 from services.mitre_mapper import mitre_mapper
                 from services.nist_mapper import nist_mapper
+                from policy_engine import create_policy_engine, create_evaluation_context, PolicyDecision
                 
                 # 1. CVSS Assessment
                 cvss_result = cvss_auto_mapper.auto_assess_action(
@@ -2071,28 +2072,150 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                     action_id=action_id,
                     action_type=data["action_type"]
                 )
-                
-                # 4. Update risk_score based on CVSS
-                if cvss_result and 'base_score' in cvss_result:
-                    risk_score = min(int(cvss_result['base_score'] * 10), 100)
 
-                    # Calculate risk_level from CVSS risk_score (authoritative)
-                    if risk_score >= 90:
+                # === LAYER 1: POLICY ENGINE EVALUATION (Option 4: Hybrid Architecture) ===
+                policy_evaluated = False
+                policy_risk = None
+                policy_decision = None
+
+                try:
+                    logger.info(f"🔍 LAYER 1: Evaluating policy engine for action {action_id}")
+                    policy_engine = create_policy_engine(db)
+
+                    policy_context = create_evaluation_context(
+                        user_id=str(current_user.get("user_id", 1)),
+                        user_email=current_user.get("email", "unknown"),
+                        user_role=current_user.get("role", "user"),
+                        action_type=data["action_type"],
+                        resource=data.get("description", ""),
+                        namespace="agent_actions",
+                        environment=data.get("environment", "production"),
+                        client_ip=request.client.host if hasattr(request, "client") else ""
+                    )
+
+                    policy_result = await policy_engine.evaluate_policy(
+                        policy_context,
+                        action_metadata={
+                            "cvss_score": cvss_result.get("base_score") if cvss_result else None,
+                            "risk_level": enrichment.get("risk_level"),
+                            "mitre_tactic": enrichment.get("mitre_tactic"),
+                            "nist_control": enrichment.get("nist_control")
+                        }
+                    )
+
+                    policy_risk = policy_result.risk_score.total_score  # 0-100
+                    policy_evaluated = True
+                    policy_decision = policy_result.decision
+
+                    logger.info(f"✅ Policy evaluation: score={policy_risk}, decision={policy_decision}")
+
+                except Exception as policy_error:
+                    logger.warning(f"⚠️ Policy evaluation failed for action {action_id}: {policy_error}")
+                    # Fallback: Use CVSS-only scoring
+                    policy_risk = None
+                    policy_evaluated = False
+                    policy_decision = "REQUIRE_APPROVAL"
+
+                # === LAYER 2 & 3: RISK SCORE FUSION (80% Policy / 20% CVSS) ===
+                if cvss_result and 'base_score' in cvss_result:
+                    cvss_risk = min(int(cvss_result['base_score'] * 10), 100)
+                    logger.info(f"📊 CVSS risk: {cvss_risk}/100 (base_score: {cvss_result['base_score']})")
+
+                    if policy_evaluated and policy_risk is not None:
+                        # Weighted fusion: 80% policy, 20% CVSS
+                        fused_score = (policy_risk * 0.8) + (cvss_risk * 0.2)
+                        logger.info(f"🔀 Fusion formula: ({policy_risk} × 0.8) + ({cvss_risk} × 0.2) = {fused_score:.1f}")
+
+                        # === INTELLIGENT SAFETY RULES ===
+
+                        # Safety Rule 1: CRITICAL CVSS overrides policy
+                        if cvss_result.get('severity') == 'CRITICAL':
+                            fused_score = max(fused_score, 85)  # Minimum 85 for critical CVEs
+                            logger.info(f"🚨 Safety Rule 1: CRITICAL CVSS detected, floor set to 85")
+
+                        # Safety Rule 2: DENY policy sets maximum
+                        if policy_decision == PolicyDecision.DENY:
+                            fused_score = 100  # Absolute block
+                            logger.info(f"🚫 Safety Rule 2: DENY policy detected, score set to 100")
+
+                        # Safety Rule 3: ALLOW policy with safe CVSS caps score
+                        if policy_decision == PolicyDecision.ALLOW and cvss_result['base_score'] < 7.0:
+                            fused_score = min(fused_score, 40)  # Max 40 for safe allowed actions
+                            logger.info(f"✅ Safety Rule 3: ALLOW + safe CVSS, capped at 40")
+
+                        final_risk_score = round(fused_score)
+                        fusion_formula = f"({policy_risk} × 0.8) + ({cvss_risk} × 0.2) = {fused_score:.1f}"
+
+                    else:
+                        # Fallback to CVSS-only if policy engine unavailable
+                        final_risk_score = cvss_risk
+                        fusion_formula = f"CVSS-only (policy unavailable): {cvss_risk}"
+                        logger.warning(f"⚠️ Using CVSS-only fallback: {cvss_risk}/100")
+
+                    # Calculate risk_level from final score
+                    if final_risk_score >= 90:
                         calculated_risk_level = "critical"
-                    elif risk_score >= 70:
+                    elif final_risk_score >= 70:
                         calculated_risk_level = "high"
-                    elif risk_score >= 50:
+                    elif final_risk_score >= 50:
                         calculated_risk_level = "medium"
                     else:
                         calculated_risk_level = "low"
 
-                    db.execute(text("UPDATE agent_actions SET risk_score = :score, risk_level = :level WHERE id = :id"),
-                              {"score": risk_score, "level": calculated_risk_level, "id": action_id})
+                    # === LAYER 4: WORKFLOW ROUTING ===
+                    if final_risk_score <= 40:
+                        workflow_status = "approved"
+                        approval_level = "L0_AUTO"
+                        logger.info(f"✅ Auto-approved (score: {final_risk_score})")
+                    elif final_risk_score <= 60:
+                        workflow_status = "pending_stage_1"
+                        approval_level = "L1_PEER"
+                        logger.info(f"👥 L1_PEER approval required (score: {final_risk_score})")
+                    elif final_risk_score <= 80:
+                        workflow_status = "pending_stage_2"
+                        approval_level = "L2_MANAGER"
+                        logger.info(f"👔 L2_MANAGER approval required (score: {final_risk_score})")
+                    elif final_risk_score <= 95:
+                        workflow_status = "pending_stage_3"
+                        approval_level = "L3_DIRECTOR"
+                        logger.info(f"🎯 L3_DIRECTOR approval required (score: {final_risk_score})")
+                    else:
+                        workflow_status = "denied" if policy_decision == PolicyDecision.DENY else "pending_stage_4"
+                        approval_level = "L4_EXECUTIVE"
+                        logger.info(f"🚨 L4_EXECUTIVE approval required (score: {final_risk_score})")
+
+                    # Update database with fusion scoring
+                    db.execute(text("""
+                        UPDATE agent_actions
+                        SET risk_score = :score,
+                            risk_level = :level,
+                            status = :status,
+                            policy_evaluated = :policy_eval,
+                            policy_decision = :policy_dec,
+                            policy_risk_score = :policy_score,
+                            risk_fusion_formula = :formula,
+                            approval_level = :approval
+                        WHERE id = :id
+                    """), {
+                        "score": final_risk_score,
+                        "level": calculated_risk_level,
+                        "status": workflow_status,
+                        "policy_eval": policy_evaluated,
+                        "policy_dec": str(policy_decision) if policy_decision else None,
+                        "policy_score": policy_risk,
+                        "formula": fusion_formula,
+                        "approval": approval_level,
+                        "id": action_id
+                    })
                     db.commit()
+
+                    risk_score = final_risk_score  # For orchestration service
+
                 else:
                     # Fallback if CVSS fails - use submitted risk_level
                     risk_score = 50  # Default medium risk
                     calculated_risk_level = data.get("risk_level", "medium")
+                    logger.warning(f"⚠️ CVSS unavailable, using fallback: {risk_score}/100")
 
 
                 # === ENTERPRISE ORCHESTRATION (Service Layer) ===

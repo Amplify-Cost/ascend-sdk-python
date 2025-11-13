@@ -119,7 +119,13 @@ class AgentAction(Base):
     cvss_score = Column(Float, nullable=True)           # 0.0-10.0 (official NIST base score)
     cvss_severity = Column(String(20), nullable=True)   # NONE|LOW|MEDIUM|HIGH|CRITICAL
     cvss_vector = Column(String(100), nullable=True)    # CVSS:3.1/AV:N/AC:L/PR:L/...
-    
+
+    # Option 4: Policy Fusion fields (Hybrid Layered Architecture)
+    policy_evaluated = Column(Boolean, default=False, nullable=True)    # True if policy engine evaluated
+    policy_decision = Column(String(50), nullable=True)                 # ALLOW|DENY|REQUIRE_APPROVAL|ESCALATE
+    policy_risk_score = Column(Integer, nullable=True)                  # 0-100 policy engine risk score
+    risk_fusion_formula = Column(Text, nullable=True)                   # Formula used for risk fusion (80/20 hybrid)
+
     # Approval levels
     approval_level = Column(Integer, default=1)
     current_approval_level = Column(Integer, default=0)
