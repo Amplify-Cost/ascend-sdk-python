@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { PolicyDecisionBadge } from './shared/PolicyFusionDisplay';
 
 const AgentHistoryModal = ({ agentId, onClose, getAuthHeaders }) => {
   const [actions, setActions] = useState([]);
@@ -31,6 +32,7 @@ const AgentHistoryModal = ({ agentId, onClose, getAuthHeaders }) => {
                 <th className="text-left p-2 border">Action</th>
                 <th className="text-left p-2 border">Tool</th>
                 <th className="text-left p-2 border">Risk</th>
+                <th className="text-left p-2 border">Policy</th>
                 <th className="text-left p-2 border">LLM Summary</th>
               </tr>
             </thead>
@@ -41,6 +43,13 @@ const AgentHistoryModal = ({ agentId, onClose, getAuthHeaders }) => {
                   <td className="p-2 border">{a.description}</td>
                   <td className="p-2 border">{a.tool_name}</td>
                   <td className="p-2 border font-semibold">{a.risk_level}</td>
+                  <td className="p-2 border text-sm">
+                    {a.policy_evaluated ? (
+                      <PolicyDecisionBadge decision={a.policy_decision} />
+                    ) : (
+                      <span className="text-gray-400 text-xs">N/A</span>
+                    )}
+                  </td>
                   <td className="p-2 border text-xs text-gray-700">
                     {a.summary || <span className="italic text-gray-400">No summary</span>}
                   </td>

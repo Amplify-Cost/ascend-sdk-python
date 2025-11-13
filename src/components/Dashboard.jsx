@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
 } from "recharts";
 import { useTheme } from "../contexts/ThemeContext";
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { PolicyDecisionBadge } from './shared/PolicyFusionDisplay';
 
 // Modern metric card component
 const MetricCard = ({ title, value, change, changeType, icon, color, trend }) => {
@@ -192,7 +193,11 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
   // 📊 Calculate real metrics from trends data
   const activeAgents = trends?.top_agents?.length || 0;
   const pendingActionsCount = trends?.pending_actions_count || 0;
-  const highRiskEvents = trends?.enriched_actions?.filter(a => a.risk_level === 'high' || a.risk_level === 'critical')?.length || 0;
+  const highRiskEvents = trends?.enriched_actions?.filter(a =>
+    a.risk_level === 'high' ||
+    a.risk_level === 'critical' ||
+    a.policy_decision === 'DENY'
+  )?.length || 0;
   
   // Calculate average response time (TODO: add real response_time field to backend)
   const avgResponseTime = trends?.enriched_actions?.length > 0 
@@ -599,9 +604,9 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
               } ${isDarkMode ? 'bg-slate-600' : 'bg-gray-100 border border-gray-200'}`}>
                 <div className="flex items-center justify-between mb-2">
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    action.risk_level === 'high' 
+                    action.risk_level === 'high'
                       ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-                      : action.risk_level === 'medium' 
+                      : action.risk_level === 'medium'
                       ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
                       : 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
                   }`}>
@@ -613,6 +618,11 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
                     {action.mitre_tactic || 'N/A'}
                   </span>
                 </div>
+                {action.policy_evaluated && (
+                  <div className="text-xs mt-1">
+                    <PolicyDecisionBadge decision={action.policy_decision} />
+                  </div>
+                )}
                 <p className={`text-sm font-medium mb-1 ${
                   isDarkMode ? 'text-white' : 'text-gray-900'
                 }`}>

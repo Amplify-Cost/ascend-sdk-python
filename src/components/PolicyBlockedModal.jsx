@@ -1,16 +1,17 @@
 import React from 'react';
 import { X, Shield, AlertTriangle } from 'lucide-react';
+import { PolicyDecisionBadge } from './shared/PolicyFusionDisplay';
 
 /**
  * Enterprise Policy Blocked Modal
- * 
+ *
  * Displays when a policy denies an action before execution.
  * Shows which policy blocked it and why.
  */
 export const PolicyBlockedModal = ({ isOpen, onClose, policyDecision }) => {
   if (!isOpen) return null;
 
-  const { policies_triggered = [], decision, security_bridge = {} } = policyDecision || {};
+  const { policies_triggered = [], decision, security_bridge = {}, action = {} } = policyDecision || {};
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -90,6 +91,17 @@ export const PolicyBlockedModal = ({ isOpen, onClose, policyDecision }) => {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Risk Fusion Formula Display */}
+          {action.risk_fusion_formula && (
+            <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded">
+              <p className="text-xs font-medium text-purple-800 mb-1">Risk Analysis:</p>
+              <p className="text-xs font-mono text-purple-900">{action.risk_fusion_formula}</p>
+              <p className="text-xs text-purple-700 mt-2">
+                This score was calculated using Option 4 Hybrid Layered Architecture (80% policy + 20% CVSS)
+              </p>
             </div>
           )}
 

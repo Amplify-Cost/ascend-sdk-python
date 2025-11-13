@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { PolicyDecisionBadge, PolicyFusionDisplay } from './shared/PolicyFusionDisplay';
 
 const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   const [agentActions, setAgentActions] = useState([]);
@@ -293,6 +294,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Agent</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Action Type</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Risk Level</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-700">Policy Decision</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Description</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Reviewed By</th>
@@ -318,6 +320,13 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
                   </td>
                   <td className="px-4 py-3">
                     {getRiskBadge(action.risk_level)}
+                  </td>
+                  <td className="px-4 py-3">
+                    {action.policy_evaluated ? (
+                      <PolicyDecisionBadge decision={action.policy_decision} />
+                    ) : (
+                      <span className="text-gray-400 text-xs">N/A</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {getStatusBadge(action)}
@@ -437,7 +446,22 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
                   <p><strong>Risk Score:</strong> {selectedAction.risk_score}/100</p>
                 </div>
               </div>
-              
+
+              {/* Option 4: Policy Fusion Analysis */}
+              {selectedAction.policy_evaluated && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Policy Fusion Analysis</label>
+                  <PolicyFusionDisplay
+                    policyEvaluated={selectedAction.policy_evaluated}
+                    policyDecision={selectedAction.policy_decision}
+                    policyRiskScore={selectedAction.policy_risk_score}
+                    baseRiskScore={selectedAction.risk_score}
+                    riskFusionFormula={selectedAction.risk_fusion_formula}
+                    variant="detailed"
+                  />
+                </div>
+              )}
+
               {selectedAction.reviewed_by && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Review Information</label>
