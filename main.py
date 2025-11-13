@@ -2165,23 +2165,23 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                     # === LAYER 4: WORKFLOW ROUTING ===
                     if final_risk_score <= 40:
                         workflow_status = "approved"
-                        approval_level = "L0_AUTO"
+                        approval_level = 0  # L0_AUTO
                         logger.info(f"✅ Auto-approved (score: {final_risk_score})")
                     elif final_risk_score <= 60:
                         workflow_status = "pending_stage_1"
-                        approval_level = "L1_PEER"
+                        approval_level = 1  # L1_PEER
                         logger.info(f"👥 L1_PEER approval required (score: {final_risk_score})")
                     elif final_risk_score <= 80:
                         workflow_status = "pending_stage_2"
-                        approval_level = "L2_MANAGER"
+                        approval_level = 2  # L2_MANAGER
                         logger.info(f"👔 L2_MANAGER approval required (score: {final_risk_score})")
                     elif final_risk_score <= 95:
                         workflow_status = "pending_stage_3"
-                        approval_level = "L3_DIRECTOR"
+                        approval_level = 3  # L3_DIRECTOR
                         logger.info(f"🎯 L3_DIRECTOR approval required (score: {final_risk_score})")
                     else:
                         workflow_status = "denied" if policy_decision == PolicyDecision.DENY else "pending_stage_4"
-                        approval_level = "L4_EXECUTIVE"
+                        approval_level = 4  # L4_EXECUTIVE
                         logger.info(f"🚨 L4_EXECUTIVE approval required (score: {final_risk_score})")
 
                     # Update database with fusion scoring
