@@ -2049,6 +2049,7 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 from services.cvss_auto_mapper import cvss_auto_mapper
                 from services.mitre_mapper import mitre_mapper
                 from services.nist_mapper import nist_mapper
+                from services.enterprise_risk_calculator_v2 import enterprise_risk_calculator
                 from policy_engine import create_policy_engine, create_evaluation_context, PolicyDecision
                 
                 # 1. CVSS Assessment
@@ -2116,15 +2117,37 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                     policy_evaluated = False
                     policy_decision = "REQUIRE_APPROVAL"
 
-                # === LAYER 2 & 3: RISK SCORE FUSION (80% Policy / 20% CVSS) ===
+                # === LAYER 2 & 3: RISK SCORE FUSION (80% Policy / 20% Hybrid) ===
                 if cvss_result and 'base_score' in cvss_result:
-                    cvss_risk = min(int(cvss_result['base_score'] * 10), 100)
-                    logger.info(f"📊 CVSS risk: {cvss_risk}/100 (base_score: {cvss_result['base_score']})")
+                    # 🏢 ENTERPRISE HYBRID RISK SCORING (v2.0.0)
+                    # Calculate context-aware hybrid risk score
+                    hybrid_result = enterprise_risk_calculator.calculate_hybrid_risk_score(
+                        cvss_score=cvss_result.get('base_score'),
+                        environment=data.get('environment', 'production'),  # Default to production for safety
+                        action_type=data.get('action_type', 'unknown'),
+                        contains_pii=data.get('contains_pii', False),
+                        resource_name=data.get('resource_name', data.get('description', '')),
+                        resource_type=data.get('resource_type', 'unknown'),
+                        description=data.get('description', ''),
+                        action_metadata={
+                            'user_id': current_user.get('user_id'),
+                            'action_id': action_id,
+                            'timestamp': datetime.now(UTC).isoformat()
+                        }
+                    )
+
+                    hybrid_risk = hybrid_result['risk_score']  # 0-100 score
+                    cvss_risk = hybrid_risk  # Use hybrid risk for fusion (preserves existing variable name)
+
+                    logger.info(f"📊 Hybrid risk: {hybrid_risk}/100 (algorithm v{hybrid_result.get('algorithm_version', 'N/A')})")
+                    logger.info(f"   Formula: {hybrid_result.get('formula', 'N/A')}")
+                    logger.info(f"   Breakdown: {hybrid_result.get('breakdown', {})}")
+                    logger.info(f"   Reasoning: {hybrid_result.get('reasoning', 'N/A')}")
 
                     if policy_evaluated and policy_risk is not None:
-                        # Weighted fusion: 80% policy, 20% CVSS
+                        # Weighted fusion: 80% policy, 20% hybrid risk
                         fused_score = (policy_risk * 0.8) + (cvss_risk * 0.2)
-                        logger.info(f"🔀 Fusion formula: ({policy_risk} × 0.8) + ({cvss_risk} × 0.2) = {fused_score:.1f}")
+                        logger.info(f"🔀 Fusion formula: ({policy_risk} × 0.8) + ({cvss_risk} × 0.2 [hybrid]) = {fused_score:.1f}")
 
                         # === INTELLIGENT SAFETY RULES ===
 
