@@ -24,14 +24,22 @@ async def create_agent_action(
     try:
         data = await request.json()
 
-        # Validate required fields
-        required_fields = ["agent_id", "action_type", "description", "tool_name"]
+        # 🏢 ENTERPRISE: Validate required fields (backward compatible)
+        # Only agent_id, action_type, and description are strictly required
+        # tool_name is optional for backward compatibility with external systems
+        required_fields = ["agent_id", "action_type", "description"]
         missing_fields = [field for field in required_fields if not data.get(field)]
         if missing_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Missing required fields: {', '.join(missing_fields)}"
             )
+
+        # 🏢 ENTERPRISE: Provide intelligent defaults for optional fields
+        if not data.get("tool_name"):
+            # Infer tool name from action type for enterprise audit compliance
+            data["tool_name"] = f"inferred_{data['action_type']}"
+            logger.info(f"Enterprise fallback: Set tool_name='{data['tool_name']}' for action_type='{data['action_type']}'")
 
         # Parse timestamp with enterprise-grade handling
         timestamp = data.get("timestamp")

@@ -151,6 +151,12 @@ class AgentActionOut(AgentActionBase):
     updated_at: Optional[datetime] = None
     created_by: Optional[str] = None  # Fix for validation error
 
+    # 🏢 ENTERPRISE: Unified Policy Engine Fields (Option 1 Architecture)
+    policy_evaluated: Optional[bool] = False  # Whether unified policy engine evaluated this action
+    policy_decision: Optional[str] = None     # ALLOW, DENY, REQUIRE_APPROVAL, ESCALATE, CONDITIONAL
+    policy_risk_score: Optional[int] = None   # 0-100 policy risk score from 4-category scoring
+    risk_fusion_formula: Optional[str] = None # Formula used for risk calculation (hybrid or policy-only)
+
     # Additional data
     extra_data: Optional[dict] = None
 
