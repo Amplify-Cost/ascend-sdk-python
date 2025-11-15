@@ -280,7 +280,7 @@ async def create_unified_action(
                 "summary": action.summary
             }
 
-        # ====== MCP ACTION - COMPLETE ENTERPRISE FLOW ======
+        # ====== MCP ACTION - COMPLETE ENTERPRISE FLOW (SAME AS AGENT) ======
         elif action_source == "mcp":
             # Validate required fields
             required = ["mcp_server", "action_type", "namespace", "verb", "resource"]
@@ -288,37 +288,126 @@ async def create_unified_action(
             if missing:
                 raise HTTPException(422, f"Missing required MCP fields: {', '.join(missing)}")
 
-            # Create MCP action
+            # STEP 1: AI Summary Generation
+            try:
+                from llm_utils import generate_summary
+                summary = generate_summary(
+                    agent_id=action_data["mcp_server"],
+                    action_type=f"MCP {action_data['namespace']}.{action_data['verb']}",
+                    description=f"MCP action on resource: {action_data['resource']}"
+                )
+            except Exception as e:
+                logger.warning(f"AI summary failed: {e}")
+                summary = f"MCP '{action_data['mcp_server']}' {action_data['verb']} on {action_data['resource']}"
+
+            # STEP 2: Security Enrichment (NIST/MITRE)
+            try:
+                from services.action_enrichment import evaluate_action_enrichment
+                enrichment = evaluate_action_enrichment(
+                    action_type=action_data["action_type"],
+                    description=f"MCP {action_data['namespace']}.{action_data['verb']} on {action_data['resource']}",
+                    db=db,
+                    action_id=None,
+                    context={"mcp_server": action_data["mcp_server"], "namespace": action_data["namespace"]}
+                )
+            except Exception as e:
+                logger.warning(f"Security enrichment failed: {e}")
+                enrichment = {"risk_level": "medium", "mitre_tactic": "TA0005", "mitre_technique": "T1055",
+                             "nist_control": "AC-6", "nist_description": "MCP security review",
+                             "recommendation": "Manual review", "cvss_score": None}
+
+            # STEP 3: Create MCP action
             mcp_action = MCPServerAction(
                 agent_id=action_data["mcp_server"],
                 action_type=action_data["action_type"],
                 namespace=action_data["namespace"],
                 verb=action_data["verb"],
                 resource=action_data["resource"],
-                context=action_data.get("context"),
+                context=action_data.get("context", {}),
                 user_email=current_user.get("email"),
                 user_role=current_user.get("role"),
                 created_by=current_user.get("email"),
-                status="pending"
+                status="pending",
+                risk_level=enrichment["risk_level"]
             )
-
             db.add(mcp_action)
-            db.flush()
+            db.commit()
+            db.refresh(mcp_action)
 
-            # Unified Policy Evaluation
+            # STEP 4: CVSS Assessment
+            try:
+                from services.cvss_auto_mapper import cvss_auto_mapper
+                cvss_result = cvss_auto_mapper.auto_assess_action(
+                    db=db, action_id=mcp_action.id, action_type=action_data["action_type"],
+                    context={"mcp": True, "namespace": action_data["namespace"], "resource": action_data["resource"]}
+                )
+                mcp_action.risk_score = cvss_result["base_score"] * 10
+                db.commit()
+                logger.info(f"✅ MCP CVSS: {cvss_result['base_score']}")
+            except Exception as e:
+                logger.warning(f"MCP CVSS failed: {e}")
+
+            # STEP 5: Policy Evaluation
             unified_service = create_unified_policy_service(db)
-            user_context = {
+            policy_result = await unified_service.evaluate_mcp_action(mcp_action, {
                 "email": current_user.get("email"),
                 "role": current_user.get("role"),
                 "user_id": current_user.get("user_id")
-            }
+            })
+            logger.info(f"✅ MCP Policy: {policy_result.decision.value}")
 
-            policy_result = await unified_service.evaluate_mcp_action(mcp_action, user_context)
+            # STEP 6: Automation (Playbook)
+            try:
+                from services.automation_service import get_automation_service
+                automation_service = get_automation_service(db)
+                matched = automation_service.match_playbooks({
+                    'risk_score': mcp_action.risk_score or 0,
+                    'action_type': mcp_action.action_type,
+                    'mcp_server': action_data["mcp_server"]
+                })
+                if matched:
+                    result = automation_service.execute_playbook(matched.id, mcp_action.id)
+                    if result['success']:
+                        logger.info(f"✅ MCP auto-approved: {result['playbook_name']}")
+            except Exception as e:
+                logger.warning(f"MCP automation failed: {e}")
 
-            # Audit Log
-            audit_entry = AuditLog(
+            # STEP 7: Orchestration (Workflows)
+            try:
+                from services.orchestration_service import get_orchestration_service
+                orch = get_orchestration_service(db)
+                orch_result = orch.orchestrate_action(
+                    action_id=mcp_action.id,
+                    risk_level=enrichment["risk_level"],
+                    risk_score=mcp_action.risk_score or 0,
+                    action_type=mcp_action.action_type
+                )
+                if orch_result.get('workflow_triggered'):
+                    logger.info(f"🔄 MCP workflow: {orch_result['workflow_id']}")
+            except Exception as e:
+                logger.warning(f"MCP orchestration failed: {e}")
+
+            # STEP 8: Alerts
+            if enrichment["risk_level"] == "high":
+                try:
+                    alert = Alert(
+                        agent_action_id=None,
+                        alert_type="High Risk MCP Action",
+                        severity="high",
+                        message=f"High-risk: {action_data['mcp_server']} {action_data['verb']} on {action_data['resource']}",
+                        created_at=datetime.now(UTC),
+                        timestamp=datetime.now(UTC)
+                    )
+                    db.add(alert)
+                    db.commit()
+                    logger.info(f"🚨 MCP alert created")
+                except Exception as e:
+                    logger.warning(f"MCP alert failed: {e}")
+
+            # STEP 9: Audit
+            db.add(AuditLog(
                 user_id=current_user.get("user_id"),
-                action="mcp_action_created_unified",
+                action="mcp_action_unified",
                 resource_type="mcp_action",
                 resource_id=str(mcp_action.id),
                 details={
@@ -326,19 +415,16 @@ async def create_unified_action(
                     "namespace": mcp_action.namespace,
                     "verb": mcp_action.verb,
                     "resource": mcp_action.resource,
-                    "policy_evaluated": True,
+                    "risk_level": enrichment["risk_level"],
                     "policy_decision": policy_result.decision.value,
-                    "policy_risk_score": policy_result.risk_score.total_score,
-                    "category_scores": {k.value: v for k, v in policy_result.risk_score.category_scores.items()}
+                    "policy_risk_score": policy_result.risk_score.total_score
                 },
                 ip_address="127.0.0.1",
                 user_agent="OW-AI-Dashboard"
-            )
-
-            db.add(audit_entry)
+            ))
             db.commit()
 
-            logger.info(f"✅ UNIFIED: MCP action {mcp_action.id} created with policy evaluation")
+            logger.info(f"✅ UNIFIED: MCP action {mcp_action.id} COMPLETE enterprise flow")
 
             return {
                 "success": True,
@@ -348,11 +434,13 @@ async def create_unified_action(
                 "namespace": mcp_action.namespace,
                 "verb": mcp_action.verb,
                 "resource": mcp_action.resource,
+                "risk_level": mcp_action.risk_level,
+                "risk_score": mcp_action.risk_score,
                 "policy_evaluated": mcp_action.policy_evaluated,
                 "policy_decision": mcp_action.policy_decision,
                 "policy_risk_score": mcp_action.policy_risk_score,
-                "risk_fusion_formula": mcp_action.risk_fusion_formula,
-                "status": mcp_action.status
+                "status": mcp_action.status,
+                "summary": summary
             }
 
         else:
