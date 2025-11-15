@@ -350,27 +350,34 @@ async def evaluate_mcp_action(
             pass  # Not a numeric ID, will create new action below
 
         if not mcp_action:
-            # 🏢 ENTERPRISE: Auto-create MCP action for testing/demonstration
-            logger.info(f"MCP action {action_id} not found - creating new action for unified policy evaluation")
+            # 🏢 ENTERPRISE: Require complete MCP action data (no hardcoded defaults)
+            required_fields = ["mcp_server", "action_type", "namespace", "verb", "resource"]
+            missing_fields = [f for f in required_fields if not action_data.get(f)]
 
+            if missing_fields:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"MCP action not found and cannot be created. Missing required fields: {', '.join(missing_fields)}. Provide complete action data or create MCP action first."
+                )
+
+            # Create MCP action only with real data provided by caller
             mcp_action = MCPServerAction(
-                agent_id=action_data.get("mcp_server", "test-mcp-server"),
-                action_type=action_data.get("action_type", "unknown"),
-                namespace=action_data.get("namespace", "test"),
-                verb=action_data.get("verb", "execute"),
-                resource=action_data.get("resource", f"test-resource-{action_id}"),
-                context=action_data.get("context", {}),
+                agent_id=action_data["mcp_server"],
+                action_type=action_data["action_type"],
+                namespace=action_data["namespace"],
+                verb=action_data["verb"],
+                resource=action_data["resource"],
+                context=action_data.get("context"),
                 user_email=current_user.get("email"),
-                user_role=current_user.get("role", "user"),
+                user_role=current_user.get("role"),
                 created_by=current_user.get("email"),
-                status="pending",
-                risk_level="MEDIUM"
+                status="pending"
             )
 
             db.add(mcp_action)
-            db.flush()  # Get the auto-generated ID
+            db.flush()
 
-            logger.info(f"✅ Created MCP action ID {mcp_action.id} for evaluation")
+            logger.info(f"✅ Created MCP action ID {mcp_action.id} with real data from request")
 
         # ✅ ENTERPRISE: Use unified policy evaluation service (same engine as agent actions)
         unified_service = create_unified_policy_service(db)
