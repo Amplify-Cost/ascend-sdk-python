@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
+import { PolicyDecisionBadge, PolicyDetailsCard } from "./PolicyDecisionBadge";  // 🏢 NEW: Unified Policy Engine UI
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 
@@ -1796,6 +1797,8 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                             RISK {action.ai_risk_score}/100
                           </span>
                           <PolicyEnforcementBadge action={action} />
+                          {/* 🏢 NEW: Unified Policy Engine Decision */}
+                          <PolicyDecisionBadge action={action} showDetails={false} />
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
                             {getWorkflowStageLabel(action.workflow_stage)}
                           </span>
