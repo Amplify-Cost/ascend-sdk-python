@@ -32,6 +32,9 @@ const [newPolicy, setNewPolicy] = useState({
 const [mcpActions, setMcpActions] = useState([]);
 const [showMcpFilters, setShowMcpFilters] = useState(false);
 
+// 🎯 ENTERPRISE: Unified Queue Filtering
+const [actionSourceFilter, setActionSourceFilter] = useState("all"); // all, agent, mcp, high_risk
+
   
   const [workflows, setWorkflows] = useState({});
   const [editingWorkflow, setEditingWorkflow] = useState(null);
@@ -149,12 +152,12 @@ useEffect(() => {
     try {
       setLoading(true);
       setError("");
-      
-      // 🔄 ENTERPRISE: Use unified governance endpoint
+
+      // 🔄 ENTERPRISE: Use unified governance endpoint (queries both agent + MCP tables)
       const response = await fetch(`${API_BASE_URL}/api/governance/pending-actions`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
-        headers: { 
-          ...getAuthHeaders(), 
+        headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json"
         }
       });
@@ -1792,7 +1795,89 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             </div>
           ) : (
             <div className="space-y-4">
-              {pendingActions.map((action) => (
+              {/* 🎯 ENTERPRISE: Unified Queue Filter Controls */}
+              <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  {/* Filter Dropdown */}
+                  <div className="flex items-center space-x-3">
+                    <label className="text-sm font-medium text-gray-700">Filter by Source:</label>
+                    <select
+                      value={actionSourceFilter}
+                      onChange={(e) => setActionSourceFilter(e.target.value)}
+                      className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="all">All Actions ({pendingActions.length})</option>
+                      <option value="agent">
+                        Agent Actions ({pendingActions.filter(a => a.action_source === "agent").length})
+                      </option>
+                      <option value="mcp">
+                        MCP Actions ({pendingActions.filter(a => a.action_source === "mcp_server").length})
+                      </option>
+                      <option value="high_risk">
+                        High Risk ≥70 ({pendingActions.filter(a => (a.ai_risk_score || a.risk_score || 0) >= 70).length})
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* Quick Filter Buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setActionSourceFilter("all")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        actionSourceFilter === "all"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      📋 All
+                    </button>
+                    <button
+                      onClick={() => setActionSourceFilter("agent")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        actionSourceFilter === "agent"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      🤖 Agent
+                    </button>
+                    <button
+                      onClick={() => setActionSourceFilter("mcp")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        actionSourceFilter === "mcp"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      🔌 MCP
+                    </button>
+                    <button
+                      onClick={() => setActionSourceFilter("high_risk")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        actionSourceFilter === "high_risk"
+                          ? "bg-red-600 text-white shadow-sm"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      🔴 High Risk
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filtered Action List */}
+              {pendingActions
+                .filter(action => {
+                  if (actionSourceFilter === "all") return true;
+                  if (actionSourceFilter === "agent") return action.action_source === "agent";
+                  if (actionSourceFilter === "mcp") return action.action_source === "mcp_server";
+                  if (actionSourceFilter === "high_risk") {
+                    const riskScore = action.ai_risk_score || action.risk_score || 0;
+                    return riskScore >= 70;
+                  }
+                  return true;
+                })
+                .map((action) => (
                 <div key={action.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow">
                   <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
