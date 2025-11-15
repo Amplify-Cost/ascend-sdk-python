@@ -243,6 +243,40 @@ class LogAuditTrail(Base):
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
 
+class RiskScoringConfig(Base):
+    """
+    Enterprise Risk Scoring Configuration
+    Enables runtime adjustment of risk scoring weights without code deployment
+    """
+    __tablename__ = "risk_scoring_configs"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Version tracking
+    config_version = Column(String(20), nullable=False, index=True)
+    algorithm_version = Column(String(20), nullable=False)
+
+    # Configuration weights (JSONB for flexibility)
+    environment_weights = Column(JSONB, nullable=False)
+    action_weights = Column(JSONB, nullable=False)
+    resource_multipliers = Column(JSONB, nullable=False)
+    pii_weights = Column(JSONB, nullable=False)
+    component_percentages = Column(JSONB, nullable=False)
+
+    # Metadata
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=False, nullable=False)
+    is_default = Column(Boolean, default=False, nullable=False)
+
+    # Audit trail
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    created_by = Column(String(255), nullable=False)
+    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
+    updated_by = Column(String(255), nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    activated_by = Column(String(255), nullable=True)
+
 class PendingAgentAction(Base):
     __tablename__ = "pending_agent_actions"
     

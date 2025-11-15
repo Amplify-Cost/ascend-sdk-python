@@ -1183,6 +1183,14 @@ try:
 except ImportError as e:
     print(f"⚠️  Retention policy routes not available: {e}")
 
+# Enterprise Risk Scoring Configuration Routes
+try:
+    from routes import risk_scoring_config_routes
+    app.include_router(risk_scoring_config_routes.router, tags=["Risk Scoring Config"])
+    print("✅ ENTERPRISE: Risk scoring configuration routes included")
+except ImportError as e:
+    print(f"⚠️  Risk scoring config routes not available: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete")
 
 
@@ -2133,7 +2141,8 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                             'user_id': current_user.get('user_id'),
                             'action_id': action_id,
                             'timestamp': datetime.now(UTC).isoformat()
-                        }
+                        },
+                        db=db  # Pass database session for config loading
                     )
 
                     hybrid_risk = hybrid_result['risk_score']  # 0-100 score

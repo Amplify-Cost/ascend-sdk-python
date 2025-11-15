@@ -458,7 +458,8 @@ class EnterpriseRiskCalculator:
         description: str,
         resource_type: Optional[str] = None,
         action_metadata: Optional[Dict] = None,
-        config: Optional[Dict] = None
+        config: Optional[Dict] = None,
+        db = None
     ) -> Dict:
         """
         Calculate hybrid enterprise risk score with comprehensive error handling
@@ -472,7 +473,8 @@ class EnterpriseRiskCalculator:
             description: Action description
             resource_type: Type of resource (rds, s3, lambda, etc.) - optional
             action_metadata: Optional additional context
-            config: Optional configuration overrides
+            config: Optional configuration overrides (if None, loads from database)
+            db: Database session for loading active config
 
         Returns:
             Dict with:
@@ -482,8 +484,30 @@ class EnterpriseRiskCalculator:
                 - reasoning: Explanation of score
                 - algorithm_version: Version used for calculation
                 - fallback_mode: Boolean indicating if fallback was used
+                - config_source: Source of configuration (database, hardcoded, override)
         """
         try:
+            # Step 0: Load configuration from database if not provided
+            config_source = "override"
+            if config is None and db is not None:
+                try:
+                    from services.risk_config_loader import get_active_risk_config
+                    db_config = get_active_risk_config(db)
+                    if db_config:
+                        config = db_config
+                        config_source = "database"
+                        logger.info(f"Loaded active risk config v{config.get('config_version')} from database")
+                    else:
+                        config_source = "hardcoded"
+                        logger.info("No active config in database, using hardcoded defaults")
+                except Exception as e:
+                    config_source = "hardcoded_fallback"
+                    logger.warning(f"Failed to load config from database: {e}, using hardcoded defaults")
+            elif config is not None:
+                config_source = "override"
+            else:
+                config_source = "hardcoded"
+
             # Step 1: Validate inputs
             self._validate_inputs(
                 cvss_score, environment, action_type,
@@ -492,11 +516,20 @@ class EnterpriseRiskCalculator:
 
             logger.info("=" * 80)
             logger.info(f"🏢 ENTERPRISE HYBRID RISK SCORING ENGINE v{self.ALGORITHM_VERSION}")
+            logger.info(f"⚙️  Config Source: {config_source}")
             logger.info("=" * 80)
+
+            # Use config weights if available, else hardcoded defaults
+            environment_weights = config.get('environment_weights') if config else None
+            action_weights = config.get('action_weights') if config else None
+            resource_multipliers = config.get('resource_multipliers') if config else None
 
             # Step 2: Component 1 - Environment Risk (0-35 points)
             env_lower = environment.lower() if environment else 'unknown'
-            environment_score = self.ENVIRONMENT_SCORES.get(env_lower, 35)
+            if environment_weights:
+                environment_score = environment_weights.get(env_lower, environment_weights.get('production', 35))
+            else:
+                environment_score = self.ENVIRONMENT_SCORES.get(env_lower, 35)
             logger.info(f"🌍 Environment: '{environment}' → {environment_score}/35 points")
 
             # Step 3: Component 2 - Data Sensitivity Risk (0-30 points)
@@ -512,7 +545,10 @@ class EnterpriseRiskCalculator:
             else:
                 # Fallback to action type lookup
                 action_lower = action_type.lower() if action_type else 'unknown'
-                action_score = self.ACTION_TYPE_BASE_SCORES.get(action_lower, 19)
+                if action_weights:
+                    action_score = action_weights.get(action_lower, action_weights.get('delete', 25))
+                else:
+                    action_score = self.ACTION_TYPE_BASE_SCORES.get(action_lower, 19)
                 logger.info(f"⚙️  Action Type: '{action_type}' (no CVSS) → {action_score}/25 points")
 
             # Step 5: Component 4 - Operational Context (0-10 points)
@@ -546,7 +582,10 @@ class EnterpriseRiskCalculator:
             resource_multiplier = 1.0
             if resource_type:
                 resource_lower = resource_type.lower()
-                resource_multiplier = self.RESOURCE_TYPE_MULTIPLIERS.get(resource_lower, 1.0)
+                if resource_multipliers:
+                    resource_multiplier = resource_multipliers.get(resource_lower, 1.0)
+                else:
+                    resource_multiplier = self.RESOURCE_TYPE_MULTIPLIERS.get(resource_lower, 1.0)
                 if resource_multiplier != 1.0:
                     logger.info(f"🔧 Resource Type: '{resource_type}' → {resource_multiplier}x multiplier")
 
