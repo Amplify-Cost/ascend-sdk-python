@@ -60,6 +60,147 @@ def calculate_risk_score(action):
 
 router = APIRouter()
 
+# 🏢 ENTERPRISE: Single Unified Action Creation Endpoint
+@router.post("/unified/action", response_model=Dict[str, Any])
+async def create_unified_action(
+    action_data: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 ENTERPRISE: Single endpoint for creating BOTH agent and MCP actions
+
+    Routes to appropriate handler based on action_source field:
+    - action_source: "agent" → Creates agent action
+    - action_source: "mcp" → Creates MCP action
+    - No action_source → Auto-detects based on fields present
+
+    ENGINEER: OW-kai Engineering Team
+    """
+    try:
+        from services.unified_policy_evaluation_service import create_unified_policy_service
+        from models_mcp_governance import MCPServerAction
+
+        # Determine action type
+        action_source = action_data.get("action_source")
+
+        # Auto-detect if not specified
+        if not action_source:
+            has_mcp_fields = any(k in action_data for k in ["mcp_server", "namespace", "verb"])
+            action_source = "mcp" if has_mcp_fields else "agent"
+
+        logger.info(f"🏢 Creating {action_source} action via unified endpoint")
+
+        # ====== AGENT ACTION CREATION ======
+        if action_source == "agent":
+            # Validate required fields
+            required = ["agent_id", "action_type", "description"]
+            missing = [f for f in required if not action_data.get(f)]
+            if missing:
+                raise HTTPException(422, f"Missing required agent fields: {', '.join(missing)}")
+
+            # Create agent action
+            action = AgentAction(
+                agent_id=action_data["agent_id"],
+                action_type=action_data["action_type"],
+                description=action_data["description"],
+                tool_name=action_data.get("tool_name") or f"inferred_{action_data['action_type']}",
+                user_id=current_user.get("user_id", 1),
+                timestamp=datetime.now(UTC),
+                status="pending"
+            )
+
+            db.add(action)
+            db.flush()
+
+            # Evaluate with unified policy engine
+            unified_service = create_unified_policy_service(db)
+            user_context = {
+                "email": current_user.get("email"),
+                "role": current_user.get("role"),
+                "user_id": current_user.get("user_id")
+            }
+
+            policy_result = await unified_service.evaluate_agent_action(action, user_context)
+            db.commit()
+
+            logger.info(f"✅ Agent action {action.id} created - decision={policy_result.decision.value}")
+
+            return {
+                "success": True,
+                "action_source": "agent",
+                "action_id": action.id,
+                "action_type": action.action_type,
+                "tool_name": action.tool_name,
+                "policy_evaluated": action.policy_evaluated,
+                "policy_decision": action.policy_decision,
+                "policy_risk_score": action.policy_risk_score,
+                "risk_fusion_formula": action.risk_fusion_formula,
+                "status": action.status
+            }
+
+        # ====== MCP ACTION CREATION ======
+        elif action_source == "mcp":
+            # Validate required fields
+            required = ["mcp_server", "action_type", "namespace", "verb", "resource"]
+            missing = [f for f in required if not action_data.get(f)]
+            if missing:
+                raise HTTPException(422, f"Missing required MCP fields: {', '.join(missing)}")
+
+            # Create MCP action
+            mcp_action = MCPServerAction(
+                agent_id=action_data["mcp_server"],
+                action_type=action_data["action_type"],
+                namespace=action_data["namespace"],
+                verb=action_data["verb"],
+                resource=action_data["resource"],
+                context=action_data.get("context"),
+                user_email=current_user.get("email"),
+                user_role=current_user.get("role"),
+                created_by=current_user.get("email"),
+                status="pending"
+            )
+
+            db.add(mcp_action)
+            db.flush()
+
+            # Evaluate with unified policy engine
+            unified_service = create_unified_policy_service(db)
+            user_context = {
+                "email": current_user.get("email"),
+                "role": current_user.get("role"),
+                "user_id": current_user.get("user_id")
+            }
+
+            policy_result = await unified_service.evaluate_mcp_action(mcp_action, user_context)
+            db.commit()
+
+            logger.info(f"✅ MCP action {mcp_action.id} created - decision={policy_result.decision.value}")
+
+            return {
+                "success": True,
+                "action_source": "mcp",
+                "action_id": mcp_action.id,
+                "mcp_server": mcp_action.agent_id,
+                "namespace": mcp_action.namespace,
+                "verb": mcp_action.verb,
+                "resource": mcp_action.resource,
+                "policy_evaluated": mcp_action.policy_evaluated,
+                "policy_decision": mcp_action.policy_decision,
+                "policy_risk_score": mcp_action.policy_risk_score,
+                "risk_fusion_formula": mcp_action.risk_fusion_formula,
+                "status": mcp_action.status
+            }
+
+        else:
+            raise HTTPException(422, f"Invalid action_source: {action_source}. Must be 'agent' or 'mcp'")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unified action creation failed: {str(e)}")
+        raise HTTPException(500, f"Action creation failed: {str(e)}")
+
 # 🏢 ENTERPRISE: Unified governance statistics
 @router.get("/unified-stats")
 async def get_unified_governance_stats(
