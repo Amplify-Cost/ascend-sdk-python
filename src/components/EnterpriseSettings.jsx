@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import AgentActionSubmitPanel from "./AgentActionSubmitPanel";
+import RiskConfigurationTab from "./risk-config/RiskConfigurationTab";
 
 const EnterpriseSettings = ({ getAuthHeaders, user }) => {
   const [activeSettingsTab, setActiveSettingsTab] = useState("general");
@@ -9,6 +10,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user }) => {
     { id: "general", label: "General Settings" },
     { id: "security", label: "Security Settings" },
     { id: "integrations", label: "Integrations" },
+    { id: "risk-config", label: "🎯 Risk Configuration" }, // Enterprise Risk Scoring
     { id: "admin-tools", label: "🔧 Admin Tools" } // Admin-only tab
   ];
 
@@ -316,6 +318,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user }) => {
         {activeSettingsTab === "general" && renderGeneralSettings()}
         {activeSettingsTab === "security" && renderSecuritySettings()}
         {activeSettingsTab === "integrations" && renderIntegrations()}
+        {activeSettingsTab === "risk-config" && <RiskConfigurationTab getAuthHeaders={getAuthHeaders} />}
         {activeSettingsTab === "admin-tools" && renderAdminTools()}
       </div>
     </div>
