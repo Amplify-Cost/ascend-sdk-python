@@ -204,6 +204,31 @@ async def create_agent_action(
                 logger.warning(f"⚠️  Orchestration service failed for action {action.id}: {orchestration_error}")
                 # Continue - alerts/workflows are supplementary
 
+            # 🏢 ENTERPRISE: Unified Policy Engine Evaluation (Option 4 Hybrid)
+            try:
+                from services.unified_policy_evaluation_service import create_unified_policy_service
+
+                unified_service = create_unified_policy_service(db)
+                user_context = {
+                    "email": current_user.get("email", "unknown"),
+                    "role": current_user.get("role", "user"),
+                    "user_id": current_user.get("user_id", 1)
+                }
+
+                # Evaluate agent action using unified policy engine
+                policy_result = await unified_service.evaluate_agent_action(action, user_context)
+
+                logger.info(
+                    f"✅ Policy evaluated: Action {action.id} -> "
+                    f"decision={policy_result.decision.value}, "
+                    f"policy_risk={policy_result.risk_score.total_score}, "
+                    f"time={policy_result.evaluation_time_ms:.2f}ms"
+                )
+
+            except Exception as policy_error:
+                logger.warning(f"⚠️  Policy evaluation failed for action {action.id}: {policy_error}")
+                # Continue without policy evaluation - action still created
+
             # Create enterprise alert if high risk
             if enrichment["risk_level"] == "high":
                 try:

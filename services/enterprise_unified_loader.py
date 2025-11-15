@@ -186,76 +186,92 @@ class EnterpriseUnifiedLoader:
 
     def _transform_mcp_action(self, mcp: MCPServerAction) -> Dict:
         """
-        Transform MCPServerAction to common schema
+        🏢 ENTERPRISE: Transform MCPServerAction to common schema with Policy Fusion support
+
+        NOW SUPPORTS: Option 4 policy fusion fields (policy_evaluated, policy_decision, policy_risk_score)
         """
-        # MCP risk_score is Integer 0-100, convert to Float
+        # MCP risk_score is Float 0-100 (now standardized to match agent_actions)
         risk_score = float(mcp.risk_score) if mcp.risk_score else 0.0
 
+        # Extract MCP server name and namespace from fields (after migration they exist)
+        mcp_server_name = mcp.agent_id or "unknown"  # Server ID stored in agent_id column
+        namespace = mcp.namespace or "mcp"
+        verb = mcp.verb or mcp.action_type or "unknown"
+        resource = mcp.resource or "unknown"
+
         return {
-            # Identification (prefixed with UUID string)
-            "id": f"mcp-{str(mcp.id)}",
-            "uuid_id": str(mcp.id),  # Original UUID for API calls
-            "action_id": f"MCP_ACTION_{str(mcp.id)[:8]}",
+            # Identification (prefixed with integer ID)
+            "id": f"mcp-{mcp.id}",
+            "numeric_id": mcp.id,  # Original integer ID for API calls
+            "action_id": f"MCP_ACTION_{mcp.id}",
             "action_source": "mcp_server",
             "_original_type": "MCPServerAction",
-            "_original_id": str(mcp.id),
+            "_original_id": mcp.id,
 
             # Display fields
-            "action_type": "mcp_server_action",
-            "description": f"{mcp.verb} on {mcp.resource}",
-            "target_system": mcp.mcp_server_name,
-            "agent_id": f"mcp:{mcp.mcp_server_name}",
+            "action_type": verb,  # Use MCP verb as action_type
+            "description": f"{verb} on {resource}" if verb and resource else "MCP server action",
+            "target_system": mcp_server_name,
+            "agent_id": f"mcp:{mcp_server_name}",
 
-            # Risk assessment (MCP uses Integer 0-100)
+            # Risk assessment (standardized to Float 0-100)
             "risk_score": risk_score,
             "enterprise_risk_score": risk_score,
             "risk_level": mcp.risk_level or self._risk_score_to_level(risk_score),
+            "ai_risk_score": risk_score,  # Compatibility field
 
-            # Status (already uppercase)
-            "status": mcp.status,
-            "authorization_status": "pending_approval",
-            "execution_status": "pending_approval",
-            "requires_approval": mcp.requires_approval,
+            # 🏢 OPTION 4 POLICY FUSION FIELDS (NEW!)
+            "policy_evaluated": mcp.policy_evaluated or False,
+            "policy_decision": mcp.policy_decision,
+            "policy_risk_score": mcp.policy_risk_score,
+            "risk_fusion_formula": mcp.risk_fusion_formula,
+
+            # Status (normalize to lowercase for consistency)
+            "status": self._normalize_mcp_status(mcp.status),
+            "authorization_status": "pending_approval" if mcp.status == "pending" else mcp.status,
+            "execution_status": "pending_approval" if mcp.status == "pending" else mcp.status,
+            "requires_approval": True,  # MCP actions always require approval
 
             # Timestamps
-            "created_at": mcp.created_at.isoformat(),
-            "requested_at": mcp.created_at.isoformat(),
-            "reviewed_at": mcp.approved_at.isoformat() if mcp.approved_at else None,
+            "created_at": mcp.created_at.isoformat() if mcp.created_at else datetime.now(UTC).isoformat(),
+            "requested_at": mcp.created_at.isoformat() if mcp.created_at else datetime.now(UTC).isoformat(),
+            "reviewed_at": mcp.reviewed_at.isoformat() if mcp.reviewed_at else None,
+            "approved_at": mcp.approved_at.isoformat() if mcp.approved_at else None,
 
-            # Approval details
-            "approved_by": mcp.approver_email,
-            "reviewed_by": mcp.approver_id,
-            "created_by": mcp.user_email,
-            "user_email": mcp.user_email,
+            # Approval details (now using migration-added fields)
+            "approved_by": mcp.approved_by,
+            "reviewed_by": mcp.reviewed_by,
+            "created_by": mcp.created_by or mcp.user_email or "system",
+            "user_email": mcp.user_email or "unknown",
 
             # MCP-specific fields
-            "namespace": mcp.namespace,
-            "verb": mcp.verb,
-            "resource": mcp.resource,
-            "mcp_server_name": mcp.mcp_server_name,
-            "mcp_server_id": str(mcp.mcp_server_id) if mcp.mcp_server_id else None,
-            "user_id": mcp.user_id,
-            "parameters": mcp.parameters if mcp.parameters else {},
+            "namespace": namespace,
+            "verb": verb,
+            "resource": resource,
+            "mcp_server_name": mcp_server_name,
+            "mcp_server_id": mcp.agent_id,  # Server ID stored in agent_id column
+            "parameters": mcp.context or {},  # Parameters stored in context JSONB
 
             # MCP data structure (for compatibility with frontend)
             "mcp_data": {
-                "server": mcp.mcp_server_name,
-                "namespace": mcp.namespace,
-                "verb": mcp.verb,
-                "resource": mcp.resource,
-                "params": mcp.parameters if mcp.parameters else {}
+                "server": mcp_server_name,
+                "namespace": namespace,
+                "verb": verb,
+                "resource": resource,
+                "params": mcp.context or {}
             },
             "is_mcp_action": True,
+            "is_agent_action": False,
 
-            # Enterprise compliance (map from MCP fields)
-            "nist_control": "AC-3",  # Default for MCP actions
+            # Enterprise compliance (map from MCP fields or defaults)
+            "nist_control": "AC-3",  # Default for MCP actions (Access Control)
             "nist_controls": ["AC-3"],
             "nist_description": f"MCP server action requiring authorization",
-            "mitre_tactic": "TA0009",
-            "mitre_technique": "T1078",
+            "mitre_tactic": "TA0009",  # Collection
+            "mitre_technique": "T1078",  # Valid Accounts
             "mitre_techniques": ["T1078"],
-            "recommendation": f"Review {mcp.verb} operation on {mcp.resource}",
-            "compliance_frameworks": mcp.compliance_tags if mcp.compliance_tags else ["SOX", "PCI_DSS"],
+            "recommendation": f"Review {verb} operation on {resource}",
+            "compliance_frameworks": ["SOX", "PCI_DSS"],  # Default compliance
 
             # Workflow
             "workflow_stage": "pending_stage_1",

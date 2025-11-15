@@ -15,95 +15,55 @@ from database import Base
 
 class MCPServerAction(Base):
     """
-    MCP Server Action Model - Extends existing agent governance patterns
-    Tracks all MCP server interactions with same governance as agent actions
+    🏢 ENTERPRISE: MCP Server Action Model - Unified Policy Engine Compatible
+
+    NOW COMPATIBLE WITH: Production mcp_actions table
+    SUPPORTS: Option 4 Policy Fusion (EnterpriseRealTimePolicyEngine)
+
+    Tracks all MCP server interactions with same governance as agent actions.
+    Uses unified policy engine for consistent risk scoring and policy evaluation.
     """
-    __tablename__ = "mcp_server_actions"
-    
-    # Primary identification
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-    
-    # MCP Server Identity
-    mcp_server_id = Column(UUID(as_uuid=True), ForeignKey("mcp_servers.id"), nullable=False, index=True)  # e.g., "claude-desktop", "vscode-mcp"
-    mcp_server_name = Column(String(200), nullable=False)  # Human readable name
-    mcp_server_version = Column(String(50))  # Version info
-    
-    # MCP Protocol Details
-    namespace = Column(String(100), nullable=False, index=True)  # e.g., "filesystem", "database", "tools"
-    verb = Column(String(100), nullable=False, index=True)  # e.g., "read_file", "write_file", "execute"
-    resource = Column(String(500), nullable=False)  # Target resource path/identifier
-    
-    # Request Details
-    request_id = Column(String(100), nullable=False, unique=True)  # MCP request ID
-    session_id = Column(String(100), nullable=False, index=True)  # MCP session
-    client_id = Column(String(100), nullable=False, index=True)  # Requesting client
-    
-    # Action Parameters
-    parameters = Column(JSON, nullable=False, default=dict)  # MCP action parameters
-    payload_size = Column(Integer, default=0)  # Size of request payload
-    
-    # Risk Assessment (Same as Agent Actions)
-    risk_score = Column(Integer, nullable=False, default=0)  # 0-100 risk score
-    risk_level = Column(String(20), nullable=False, default='LOW')  # LOW, MEDIUM, HIGH, CRITICAL
-    risk_factors = Column(JSON, default=list)  # List of risk factors identified
-    
-    # Governance Status
-    status = Column(String(50), nullable=False, default='PENDING')  # PENDING, APPROVED, DENIED, EXECUTED, FAILED
-    requires_approval = Column(Boolean, nullable=False, default=True)
-    approval_level = Column(Integer, default=1)  # 1-5 approval levels
-    
-    # User Context
-    user_id = Column(String(100), nullable=False, index=True)  # User requesting action
-    user_email = Column(String(255), nullable=False)
-    user_role = Column(String(100))  # User's role/department
-    
-    # Policy & Rules
-    policy_result = Column(String(50), default='EVALUATE')  # ALLOW, DENY, EVALUATE
-    rule_id = Column(String(100), index=True)  # Applied rule ID
-    policy_reason = Column(Text)  # Policy decision reason
-    
-    # Approval Workflow
-    approver_id = Column(String(100), index=True)  # Who approved/denied
-    approver_email = Column(String(255))
-    approved_at = Column(DateTime)
-    approval_reason = Column(Text)
-    
-    # Execution Details
-    executed_at = Column(DateTime)
-    execution_duration_ms = Column(Integer)  # Execution time
-    execution_result = Column(String(50))  # SUCCESS, FAILED, TIMEOUT
-    execution_output = Column(Text)  # Execution output/result
-    error_message = Column(Text)  # Error details if failed
-    
-    # Security & Compliance
-    environment = Column(String(50), default='production')  # production, staging, dev
-    data_classification = Column(String(50), default='internal')  # public, internal, confidential, restricted
-    compliance_tags = Column(JSON, default=list)  # SOX, HIPAA, PCI, GDPR tags
-    
-    # Audit Trail Integration
-    audit_trail_id = Column(UUID(as_uuid=True), index=True)  # Links to immutable audit
-    evidence_pack_id = Column(UUID(as_uuid=True))  # Evidence pack for investigations
-    
-    # Network & Context
-    source_ip = Column(String(45))  # IPv4/IPv6 address
-    user_agent = Column(String(500))  # Client user agent
-    geo_location = Column(String(100))  # Geographic location
-    
-    # Performance Metrics
-    response_time_ms = Column(Integer)  # Gateway response time
-    bytes_transferred = Column(Integer)  # Data transfer size
-    
-    # Database indexes for performance
-    __table_args__ = (
-        Index('idx_mcp_server_namespace', 'mcp_server_id', 'namespace'),
-        Index('idx_mcp_risk_level', 'risk_level', 'status'),
-        Index('idx_mcp_user_time', 'user_id', 'created_at'),
-        Index('idx_mcp_approval', 'status', 'requires_approval'),
-        Index('idx_mcp_compliance', 'compliance_tags'),
-        Index('idx_mcp_session', 'session_id', 'created_at'),
-    )
+    __tablename__ = "mcp_actions"  # ✅ FIXED: Changed from "mcp_server_actions" to match production
+
+    # Primary identification (matches production schema)
+    id = Column(Integer, primary_key=True, index=True)  # ✅ FIXED: INTEGER to match production (not UUID)
+    created_at = Column(DateTime, nullable=True, default=lambda: datetime.now(UTC))
+
+    # Core fields (match production mcp_actions table)
+    agent_id = Column(String(255), nullable=True)  # MCP server identifier (reuses agent_id column)
+    action_type = Column(String(255), nullable=True)  # Action type (reuses column, populated from verb)
+    resource = Column(Text, nullable=True)  # Target resource path
+    context = Column(JSON, nullable=True)  # Additional context as JSONB
+    risk_level = Column(String(50), nullable=True)  # LOW, MEDIUM, HIGH, CRITICAL
+    status = Column(String(50), nullable=True, default='pending')  # pending, approved, denied, executed
+
+    # 🏢 OPTION 4 POLICY FUSION FIELDS (Added by migration 20251115_unified)
+    policy_evaluated = Column(Boolean, default=False, nullable=True)  # True if EnterpriseRealTimePolicyEngine evaluated
+    policy_decision = Column(String(50), nullable=True)  # ALLOW|DENY|REQUIRE_APPROVAL|ESCALATE|CONDITIONAL
+    policy_risk_score = Column(Integer, nullable=True)  # 0-100 policy engine risk score
+    risk_fusion_formula = Column(Text, nullable=True)  # Formula used for risk fusion
+
+    # MCP Protocol Details (Added by migration)
+    namespace = Column(String(100), nullable=True)  # e.g., "filesystem", "database", "tools"
+    verb = Column(String(100), nullable=True)  # e.g., "read_file", "write_file", "execute"
+
+    # User Context (Added by migration)
+    user_email = Column(String(255), nullable=True)  # Email of user who initiated
+    user_role = Column(String(100), nullable=True)  # Role of user (for policy evaluation)
+    created_by = Column(String(255), nullable=True)  # Email/username of creator
+
+    # Approval Workflow (Added by migration)
+    approved_by = Column(String(255), nullable=True)  # Email of approver
+    approved_at = Column(DateTime, nullable=True)  # Timestamp when approved
+    reviewed_by = Column(String(255), nullable=True)  # Email of reviewer
+    reviewed_at = Column(DateTime, nullable=True)  # Timestamp when reviewed
+
+    # Risk Scoring Standardization (Added by migration)
+    risk_score = Column(Float, nullable=True)  # 0-100 comprehensive risk score (matches agent_actions type)
+
+    # Note: Production mcp_actions table has minimal schema (8 base columns + migration additions)
+    # Extended enterprise fields (execution details, compliance, audit trail, etc.) will be stored in context JSONB
+    # This keeps the model compatible with production while supporting rich metadata
 
 class MCPServer(Base):
     """

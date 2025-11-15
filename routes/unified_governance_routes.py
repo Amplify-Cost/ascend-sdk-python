@@ -305,7 +305,7 @@ async def get_unified_pending_actions(
         
         return {"success": True, "actions": demo_actions, "demo_mode": True}
 
-# 🔌 ENTERPRISE: MCP-specific governance endpoint
+# 🔌 ENTERPRISE: MCP-specific governance endpoint (NOW USES UNIFIED POLICY ENGINE)
 @router.post("/mcp-governance/evaluate-action")
 async def evaluate_mcp_action(
     action_data: Dict[str, Any],
@@ -313,52 +313,108 @@ async def evaluate_mcp_action(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    🔌 ENTERPRISE: Evaluate MCP server action using your existing approval workflow
+    🏢 ENTERPRISE: Evaluate MCP server action using UNIFIED policy engine
+
+    NOW USES: UnifiedPolicyEvaluationService (same as agent actions)
+    SUPPORTS: 4-category risk scoring, natural language policies, sub-200ms evaluation
     """
     try:
+        from services.unified_policy_evaluation_service import create_unified_policy_service
+        from models_mcp_governance import MCPServerAction
+
         action_id = action_data.get("action_id")
         decision = action_data.get("decision")
         notes = action_data.get("notes", "")
-        
-        logger.info(f"🔌 Evaluating MCP action {action_id}: {decision}")
-        
-        # Get action from your existing AgentAction table
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-        if not action:
-            raise HTTPException(status_code=404, detail="Action not found")
-        
-        # Update action status using your existing fields
-        action.status = "approved" if decision == "approved" else "denied"
-        action.approved = True if decision == "approved" else False
-        action.reviewed_by = current_user.get("email")
-        action.reviewed_at = datetime.now(UTC)
-        
-        # 🏢 ENTERPRISE: Create audit log entry using your existing AuditLog model
+
+        logger.info(f"🔌 Evaluating MCP action {action_id} with unified policy engine")
+
+        # Extract numeric ID from prefixed ID (e.g., "mcp-123" → 123)
+        if isinstance(action_id, str) and action_id.startswith("mcp-"):
+            numeric_id = int(action_id.replace("mcp-", ""))
+        else:
+            numeric_id = int(action_id)
+
+        # Get MCP action from mcp_actions table
+        mcp_action = db.query(MCPServerAction).filter(MCPServerAction.id == numeric_id).first()
+
+        if not mcp_action:
+            # Fallback: Try AgentAction table (for backward compatibility during migration)
+            logger.warning(f"MCP action {numeric_id} not found in mcp_actions, trying agent_actions")
+            action = db.query(AgentAction).filter(AgentAction.id == numeric_id).first()
+            if not action:
+                raise HTTPException(status_code=404, detail="Action not found")
+
+            # Handle legacy agent_actions approval
+            action.status = "approved" if decision == "approved" else "denied"
+            action.approved = True if decision == "approved" else False
+            action.reviewed_by = current_user.get("email")
+            action.reviewed_at = datetime.now(UTC)
+            db.commit()
+
+            return {
+                "success": True,
+                "decision": decision,
+                "action_id": action_id,
+                "legacy_mode": True
+            }
+
+        # ✅ NEW: Use unified policy evaluation service
+        unified_service = create_unified_policy_service(db)
+
+        user_context = {
+            "email": current_user.get("email"),
+            "role": current_user.get("role", "user"),
+            "user_id": current_user.get("user_id")
+        }
+
+        # Evaluate MCP action using SAME policy engine as agent actions
+        policy_result = await unified_service.evaluate_mcp_action(mcp_action, user_context)
+
+        # Update action status based on decision
+        mcp_action.status = "approved" if decision == "approved" else "denied"
+        mcp_action.reviewed_by = current_user.get("email")
+        mcp_action.reviewed_at = datetime.now(UTC)
+
+        if decision == "approved":
+            mcp_action.approved_by = current_user.get("email")
+            mcp_action.approved_at = datetime.now(UTC)
+
+        # 🏢 ENTERPRISE: Create audit log entry
         audit_entry = AuditLog(
             user_id=current_user.get("user_id"),
-            action="mcp_governance_decision",
+            action="mcp_governance_decision_unified",
             resource_type="mcp_action",
-            resource_id=str(action_id),
+            resource_id=str(numeric_id),
             details={
                 "decision": decision,
                 "notes": notes,
-                "mcp_server": action_data.get("mcp_server_id"),
-                "mcp_namespace": action_data.get("mcp_namespace"),
-                "original_action_type": action.action_type,
-                "risk_score": action.risk_score,
-                "cvss_details": cvss_result if "cvss_result" in locals() else {},
-                "mitre_techniques": mitre_techniques if "mitre_techniques" in locals() else [],
-                "nist_controls": nist_controls if "nist_controls" in locals() else [],
+                "mcp_server": mcp_action.agent_id,  # Server ID stored in agent_id column
+                "mcp_namespace": mcp_action.namespace,
+                "mcp_verb": mcp_action.verb,
+                "resource": mcp_action.resource,
+                "risk_score": mcp_action.risk_score,
+                # Policy evaluation results
+                "policy_evaluated": True,
+                "policy_decision": policy_result.decision.value,
+                "policy_risk_score": policy_result.risk_score.total_score,
+                "category_scores": {k.value: v for k, v in policy_result.risk_score.category_scores.items()},
+                "matched_policies": len(policy_result.matched_policies),
+                "evaluation_time_ms": policy_result.evaluation_time_ms,
+                "recommendations": policy_result.recommendations
             },
             ip_address="127.0.0.1",
             user_agent="OW-AI-Dashboard"
         )
-        
+
         db.add(audit_entry)
         db.commit()
-        
-        logger.info(f"✅ MCP action {action_id} {decision} successfully")
-        
+
+        logger.info(
+            f"✅ MCP action {numeric_id} {decision} - "
+            f"policy_decision={policy_result.decision.value}, "
+            f"risk={policy_result.risk_score.total_score}"
+        )
+
         return {
             "success": True,
             "decision": decision,
@@ -366,7 +422,21 @@ async def evaluate_mcp_action(
             "execution_performed": decision == "approved",
             "execution_success": decision == "approved",
             "execution_message": f"MCP action {decision} successfully",
-            "audit_logged": True
+            "audit_logged": True,
+            # ✅ NEW: Include policy evaluation results
+            "policy_evaluation": {
+                "evaluated": True,
+                "decision": policy_result.decision.value,
+                "risk_score": policy_result.risk_score.total_score,
+                "risk_level": policy_result.risk_score.risk_level,
+                "category_scores": {
+                    k.value: v for k, v in policy_result.risk_score.category_scores.items()
+                },
+                "matched_policies": len(policy_result.matched_policies),
+                "recommendations": policy_result.recommendations,
+                "evaluation_time_ms": policy_result.evaluation_time_ms,
+                "cache_hit": policy_result.cache_hit
+            }
         }
         
     except Exception as e:
