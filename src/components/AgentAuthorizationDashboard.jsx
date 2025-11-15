@@ -167,127 +167,29 @@ useEffect(() => {
       }
       
       const data = await response.json();
-      
-      // 🏢 ENTERPRISE: Process real action data with policy evaluation
+
+      // 🏢 ENTERPRISE: Use backend data directly (single source of truth)
+      // Backend provides complete, accurate data from unified loader
       const actions = (data.pending_actions || data.actions || []).map(action => {
-        // 🔌 ENTERPRISE: Detect if this is an MCP server action or AI agent action
-        const isMcpAction = action.principal?.startsWith('mcp:') || action.action_source === 'mcp_server';
-        const isAgentAction = action.principal?.startsWith('ai_agent:') || action.action_source === 'ai_agent';
-        
-        // 📊 ENTERPRISE: Extract real risk score from policy evaluation
-        const realRiskScore = action.risk_score || 
-                             action.policy_evaluation?.risk_score ||
-                             action.risk_assessment?.overall_score ||
-                             action.ai_risk_score || 
-                             50;
-        
-        // 🎯 ENTERPRISE: Get actual action type (not workflow ID)
-        const actualActionType = action.action || 
-                                 action.action_type || 
-                                 action.resource_action ||
-                                 'unknown_action';
-        
-        // 🔐 ENTERPRISE: Extract NIST/MITRE framework mappings
-        const frameworkMappings = {
-          nist: action.nist_controls || 
-                action.policy_evaluation?.frameworks?.nist || 
-                action.compliance_frameworks?.nist || [],
-          mitre: action.mitre_techniques || 
-                 action.policy_evaluation?.frameworks?.mitre || 
-                 action.compliance_frameworks?.mitre || [],
-          soc2: action.soc2_controls ||
-                action.policy_evaluation?.frameworks?.soc2 || 
-                action.compliance_frameworks?.soc2 || []
-        };
-        
-        // 🤖 ENTERPRISE: Get real agent/MCP server ID
-        const sourceIdentifier = isMcpAction 
-          ? action.principal || action.mcp_server_id || 'mcp:unknown'
-          : isAgentAction
-          ? action.principal || action.agent_id || 'agent:unknown'
-          : action.agent_id || action.workflow_id || 'workflow:unknown';
-        
+        // Add compatibility fields for existing UI code
         return {
-          id: action.action_id || action.id,
-          workflow_execution_id: action.workflow_execution_id,
-          
-          // ✅ FIX: Real agent/MCP ID (not "Workflow-22")
-          agent_id: sourceIdentifier,
-          
-          // ✅ FIX: Real action type (not "risk_70_89")
-          action_type: actualActionType,
-          
-          // ✅ FIX: Real calculated risk score
-          ai_risk_score: realRiskScore,
-          
-          // ✅ NEW: Framework mappings for NIST/MITRE display
-          framework_mappings: frameworkMappings,
-          
-          // Direct NIST/MITRE for display
-          nist_controls: action.nist_controls || [],
-          mitre_techniques: action.mitre_techniques || [],
-          
-          // ✅ NEW: Source type identification
-          action_source: isMcpAction ? 'mcp_server' : isAgentAction ? 'ai_agent' : 'workflow',
-          is_mcp_action: isMcpAction,
-          is_agent_action: isAgentAction,
-          
-          // 🔌 ENTERPRISE: MCP-specific data if applicable
-          mcp_data: isMcpAction ? {
-            server: action.mcp_server || action.principal?.split(':')[1],
-            namespace: action.mcp_namespace || action.resource?.split(':')[0],
-            verb: action.action || action.verb,
-            resource: action.resource,
-            params: action.parameters || action.params
-          } : null,
-          
-          description: action.description || 
-                      `${actualActionType} requiring approval - Stage: ${action.workflow_stage || 'pending'}`,
-          
-          workflow_stage: action.workflow_stage || action.current_stage || 'pending_stage_1',
-          
-          current_approval_level: action.current_approval_level || 0,
-          required_approval_level: action.required_approval_level || 1,
-          
-          is_emergency: action.is_emergency || 
-                       action.sla_status === 'critical' ||
-                       realRiskScore >= 90,
-          
-          authorization_status: action.authorization_status || 'pending_approval',
-          execution_status: action.execution_status || 'pending_approval',
-          
-          contextual_risk_factors: action.risk_factors || 
-                                  action.contextual_risk_factors || 
-                                  (action.sla_status === 'critical' 
-                                    ? ['SLA Critical', 'Immediate Action Required'] 
-                                    : []),
-          
-          time_remaining: action.time_remaining || 
-                         (action.sla_hours_remaining 
-                           ? `${action.sla_hours_remaining.toFixed(1)}h remaining` 
-                           : "No deadline"),
-          
-          requested_at: action.requested_at || action.created_at || new Date().toISOString(),
-          
-          can_approve: action.can_approve !== undefined ? action.can_approve : true,
-          
-          sla_status: action.sla_status || 'normal',
-          
-          target_system: action.target_system || 
-                        action.resource || 
-                        'Unknown System',
-          
-          required_role: action.required_role,
-          
-          user_email: action.user_email || action.requester_email || 'Unknown',
-          
-          // 📋 ENTERPRISE: Policy evaluation details
-          policy_evaluation_summary: action.policy_evaluation?.summary || null,
-          violated_policies: action.policy_evaluation?.violated_policies || [],
-          matched_policies: action.policy_evaluation?.matched_policies || []
+          ...action,
+          // Ensure ai_risk_score exists for UI display (map from risk_score)
+          ai_risk_score: action.ai_risk_score || action.risk_score || 50,
+          // Ensure boolean flags exist for conditional rendering
+          is_mcp_action: action.action_source === 'mcp_server',
+          is_agent_action: action.action_source === 'agent',
+          // Ensure MCP data structure exists for MCP actions
+          mcp_data: action.action_source === 'mcp_server' ? {
+            server: action.mcp_server_name || 'Unknown',
+            namespace: action.namespace || 'Unknown',
+            verb: action.verb || action.action_type,
+            resource: action.resource || action.target_system,
+            params: action.parameters || {}
+          } : null
         };
       });
-      
+
       setPendingActions(actions);
       setError(null);
       
