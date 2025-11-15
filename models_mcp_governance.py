@@ -105,9 +105,9 @@ class MCPServer(Base):
     total_actions = Column(Integer, default=0)
     failed_actions = Column(Integer, default=0)
     avg_response_time_ms = Column(Float, default=0.0)
-    
-    # Relationships
-    actions = relationship("MCPServerAction", backref="mcp_server")
+
+    # Relationships - DISABLED: mcp_actions table doesn't have server_id foreign key
+    # actions = relationship("MCPServerAction", backref="mcp_server")
 
 class MCPSession(Base):
     """
