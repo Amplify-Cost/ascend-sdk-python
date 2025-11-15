@@ -2,14 +2,15 @@
 from services.cedar_enforcement_service import enforcement_engine, policy_compiler
 from services.workflow_bridge import WorkflowBridge
 from services.workflow_approver_service import workflow_approver_service
+from services.immutable_audit_service import ImmutableAuditService
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
-from models import User, AgentAction, AuditLog, EnterprisePolicy  # REMOVED WorkflowConfig - doesn't exist
+from models import User, AgentAction, EnterprisePolicy  # REMOVED AuditLog - replaced with ImmutableAuditService
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, UTC
 import logging
@@ -65,6 +66,7 @@ router = APIRouter()
 @router.post("/unified/action", response_model=Dict[str, Any])
 async def create_unified_action(
     action_data: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -404,25 +406,35 @@ async def create_unified_action(
                 except Exception as e:
                     logger.warning(f"MCP alert failed: {e}")
 
-            # STEP 9: Audit
-            db.add(AuditLog(
-                user_id=current_user.get("user_id"),
-                action="mcp_action_unified",
-                resource_type="mcp_action",
-                resource_id=str(mcp_action.id),
-                details={
-                    "mcp_server": mcp_action.agent_id,
-                    "namespace": mcp_action.namespace,
-                    "verb": mcp_action.verb,
-                    "resource": mcp_action.resource,
-                    "risk_level": enrichment["risk_level"],
-                    "policy_decision": policy_result.decision.value,
-                    "policy_risk_score": policy_result.risk_score.total_score
-                },
-                ip_address="127.0.0.1",
-                user_agent="OW-AI-Dashboard"
-            ))
-            db.commit()
+            # STEP 9: Enterprise Immutable Audit
+            try:
+                audit_service = ImmutableAuditService(db)
+                audit_service.log_event(
+                    event_type="USER_ACTION",
+                    actor_id=str(current_user.get("user_id")) if current_user.get("user_id") else current_user.get("email", "system"),
+                    resource_type="mcp_action",
+                    resource_id=str(mcp_action.id),
+                    action="CREATE",
+                    event_data={
+                        "action_type": "mcp_action_unified",
+                        "mcp_server": mcp_action.agent_id,
+                        "namespace": mcp_action.namespace,
+                        "verb": mcp_action.verb,
+                        "resource": mcp_action.resource,
+                        "risk_level": enrichment["risk_level"],
+                        "policy_decision": policy_result.decision.value,
+                        "policy_risk_score": policy_result.risk_score.total_score
+                    },
+                    risk_level=enrichment["risk_level"],
+                    compliance_tags=["MCP_GOVERNANCE", "UNIFIED_ACTION"],
+                    ip_address=request.client.host if request.client else "127.0.0.1",
+                    user_agent=request.headers.get("user-agent", "OW-AI-Dashboard"),
+                    session_id=current_user.get("session_id")
+                )
+                logger.info(f"Enterprise audit log created for MCP action {mcp_action.id}")
+            except Exception as audit_error:
+                logger.error(f"Failed to create immutable audit log: {audit_error}")
+                # Continue execution even if audit fails
 
             logger.info(f"✅ UNIFIED: MCP action {mcp_action.id} COMPLETE enterprise flow")
 
@@ -696,13 +708,39 @@ async def get_unified_pending_actions(
                 "user_email": "security@company.com"
             }
         ]
-        
+
         return {"success": True, "actions": demo_actions, "demo_mode": True}
+
+# 🔗 ENTERPRISE: URL Alias for frontend compatibility
+# Supports both /unified-actions and /unified/actions
+@router.get("/unified/actions")
+async def get_unified_actions_alias(
+    limit: int = 50,
+    offset: int = 0,
+    risk_threshold: Optional[int] = None,
+    action_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🔗 ENTERPRISE: URL Alias for /unified-actions endpoint
+    Supports frontend calling /api/governance/unified/actions
+    Delegates to the main get_unified_pending_actions implementation
+    """
+    return await get_unified_pending_actions(
+        limit=limit,
+        offset=offset,
+        risk_threshold=risk_threshold,
+        action_type=action_type,
+        db=db,
+        current_user=current_user
+    )
 
 # 🔌 ENTERPRISE: MCP-specific governance endpoint (NOW USES UNIFIED POLICY ENGINE)
 @router.post("/mcp-governance/evaluate-action")
 async def evaluate_mcp_action(
     action_data: Dict[str, Any],
+    request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -794,35 +832,42 @@ async def evaluate_mcp_action(
             mcp_action.approved_by = current_user.get("email")
             mcp_action.approved_at = datetime.now(UTC)
 
-        # 🏢 ENTERPRISE: Create audit log entry
-        audit_entry = AuditLog(
-            user_id=current_user.get("user_id"),
-            action="mcp_governance_decision_unified",
-            resource_type="mcp_action",
-            resource_id=str(mcp_action.id),
-            details={
-                "decision": decision,
-                "notes": notes,
-                "mcp_server": mcp_action.agent_id,  # Server ID stored in agent_id column
-                "mcp_namespace": mcp_action.namespace,
-                "mcp_verb": mcp_action.verb,
-                "resource": mcp_action.resource,
-                "risk_score": mcp_action.risk_score,
-                # Policy evaluation results
-                "policy_evaluated": True,
-                "policy_decision": policy_result.decision.value,
-                "policy_risk_score": policy_result.risk_score.total_score,
-                "category_scores": {k.value: v for k, v in policy_result.risk_score.category_scores.items()},
-                "matched_policies": len(policy_result.matched_policies),
-                "evaluation_time_ms": policy_result.evaluation_time_ms,
-                "recommendations": policy_result.recommendations
-            },
-            ip_address="127.0.0.1",
-            user_agent="OW-AI-Dashboard"
-        )
-
-        db.add(audit_entry)
-        db.commit()
+        # 🏢 ENTERPRISE: Create immutable audit log entry
+        try:
+            audit_service = ImmutableAuditService(db)
+            audit_service.log_event(
+                event_type="USER_ACTION",
+                actor_id=str(current_user.get("user_id")) if current_user.get("user_id") else current_user.get("email", "system"),
+                resource_type="mcp_action",
+                resource_id=str(mcp_action.id),
+                action="UPDATE",
+                event_data={
+                    "action_type": "mcp_governance_decision_unified",
+                    "decision": decision,
+                    "notes": notes,
+                    "mcp_server": mcp_action.agent_id,
+                    "mcp_namespace": mcp_action.namespace,
+                    "mcp_verb": mcp_action.verb,
+                    "resource": mcp_action.resource,
+                    "risk_score": mcp_action.risk_score,
+                    "policy_evaluated": True,
+                    "policy_decision": policy_result.decision.value,
+                    "policy_risk_score": policy_result.risk_score.total_score,
+                    "category_scores": {k.value: v for k, v in policy_result.risk_score.category_scores.items()},
+                    "matched_policies": len(policy_result.matched_policies),
+                    "evaluation_time_ms": policy_result.evaluation_time_ms,
+                    "recommendations": policy_result.recommendations
+                },
+                risk_level="HIGH" if decision == "denied" else "MEDIUM",
+                compliance_tags=["MCP_GOVERNANCE", "POLICY_DECISION", "UNIFIED_POLICY"],
+                ip_address=request.client.host if request.client else "127.0.0.1",
+                user_agent=request.headers.get("user-agent", "OW-AI-Dashboard"),
+                session_id=current_user.get("session_id")
+            )
+            logger.info(f"Enterprise audit log created for MCP governance decision {mcp_action.id}")
+        except Exception as audit_error:
+            logger.error(f"Failed to create immutable audit log: {audit_error}")
+            # Continue execution even if audit fails
 
         logger.info(
             f"✅ MCP action {mcp_action.id} {decision} - "
@@ -1214,20 +1259,26 @@ async def delete_governance_policy(
         
         db.commit()
         
-        # Create audit trail entry
+        # Create audit trail entry using LogAuditTrail (legacy model for compatibility)
         try:
             from models import LogAuditTrail
             audit_entry = LogAuditTrail(
                 user_id=current_user.get("user_id"),
-                user_email=current_user.get("email", "admin"),
-                action="delete_policy",
+                action="DELETE",
                 resource_type="governance_policy",
                 resource_id=str(policy.id),
-                details=f"Policy '{policy.policy_name}' deleted by admin",
-                timestamp=datetime.now(UTC)
+                details={
+                    "policy_name": policy.policy_name,
+                    "action_type": "delete_policy",
+                    "deleted_by": current_user.get("email", "admin"),
+                    "policy_status": policy.policy_status
+                },
+                risk_level="MEDIUM",
+                compliance_framework="GOVERNANCE"
             )
             db.add(audit_entry)
             db.commit()
+            logger.info(f"Audit trail created for policy deletion: {policy.id}")
         except Exception as audit_error:
             logger.warning(f"Failed to create audit trail for policy deletion: {audit_error}")
         
