@@ -23,6 +23,46 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [actionLoading, setActionLoading] = useState({});
   const [message, setMessage] = useState(null);
 
+  // Parse alert message into structured data
+  const parseAlertMessage = (message) => {
+    if (!message) return null;
+
+    const parsed = {
+      action: null,
+      agent: null,
+      risk: null,
+      nist: null,
+      description: null,
+      justification: null
+    };
+
+    // Extract action type
+    const actionMatch = message.match(/🤖 Agent Action Pending: (.+?)\n/);
+    if (actionMatch) parsed.action = actionMatch[1];
+
+    // Extract agent
+    const agentMatch = message.match(/Agent: (.+?)\n/);
+    if (agentMatch) parsed.agent = agentMatch[1];
+
+    // Extract risk
+    const riskMatch = message.match(/Risk: (.+?)\n/);
+    if (riskMatch) parsed.risk = riskMatch[1];
+
+    // Extract NIST control
+    const nistMatch = message.match(/NIST Control: (.+?)\n/);
+    if (nistMatch) parsed.nist = nistMatch[1];
+
+    // Extract description
+    const descMatch = message.match(/Description: (.+?)\n/);
+    if (descMatch) parsed.description = descMatch[1];
+
+    // Extract justification
+    const justMatch = message.match(/Justification: (.+?)$/s);
+    if (justMatch) parsed.justification = justMatch[1].trim();
+
+    return parsed;
+  };
+
   const handleAcknowledgeAlert = async (alertId) => {
     setActionLoading(prev => ({...prev, [alertId]: true}));
     try {
@@ -884,95 +924,154 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                   <p className="text-gray-500">Acknowledged and resolved alerts will appear here</p>
                 </div>
               ) : (
-                filteredAlerts.map((alert) => (
-                  <div
-                    key={alert.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              alert.status === "acknowledged"
-                                ? "bg-green-100 text-green-800"
-                                : alert.status === "escalated"
-                                ? "bg-orange-100 text-orange-800"
-                                : alert.status === "resolved"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {alert.status || "new"}
-                          </span>
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              alert.severity === "critical"
-                                ? "bg-red-100 text-red-800"
-                                : alert.severity === "high"
-                                ? "bg-orange-100 text-orange-800"
-                                : alert.severity === "medium"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-green-100 text-green-800"
-                            }`}
-                          >
-                            {alert.severity}
-                          </span>
-                          <span className="text-sm text-gray-500">ID: {alert.id}</span>
+                filteredAlerts.map((alert) => {
+                  const parsedMessage = parseAlertMessage(alert.message);
+
+                  return (
+                    <div
+                      key={alert.id}
+                      className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-all bg-white"
+                    >
+                      {/* Header Section */}
+                      <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                alert.severity === "critical"
+                                  ? "bg-red-100 text-red-800 border border-red-300"
+                                  : alert.severity === "high"
+                                  ? "bg-orange-100 text-orange-800 border border-orange-300"
+                                  : alert.severity === "medium"
+                                  ? "bg-yellow-100 text-yellow-800 border border-yellow-300"
+                                  : "bg-green-100 text-green-800 border border-green-300"
+                              }`}
+                            >
+                              {alert.severity?.toUpperCase()}
+                            </span>
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                alert.status === "acknowledged"
+                                  ? "bg-green-100 text-green-800"
+                                  : alert.status === "escalated"
+                                  ? "bg-orange-100 text-orange-800"
+                                  : alert.status === "resolved"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-gray-200 text-gray-700"
+                              }`}
+                            >
+                              {alert.status || "new"}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500 font-mono">ID: {alert.id}</span>
                         </div>
-                        <div className="text-sm font-medium text-gray-900 mb-1">
-                          {alert.alert_type || alert.message}
-                        </div>
-                        <div className="text-sm text-gray-600 mb-2">
-                          {alert.message}
-                        </div>
+                      </div>
+
+                      {/* Main Content */}
+                      <div className="p-4 space-y-3">
+                        {/* Action Title */}
+                        {parsedMessage?.action && (
+                          <div>
+                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Agent Action</div>
+                            <div className="text-lg font-semibold text-gray-900">{parsedMessage.action}</div>
+                          </div>
+                        )}
+
+                        {/* Agent & Risk Grid */}
+                        {(parsedMessage?.agent || parsedMessage?.risk) && (
+                          <div className="grid grid-cols-2 gap-3 py-2 border-y border-gray-100">
+                            {parsedMessage.agent && (
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Agent</div>
+                                <div className="text-sm font-semibold text-gray-800">{parsedMessage.agent}</div>
+                              </div>
+                            )}
+                            {parsedMessage.risk && (
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Risk Level</div>
+                                <div className={`text-sm font-bold ${
+                                  parsedMessage.risk === 'HIGH' ? 'text-red-600' :
+                                  parsedMessage.risk === 'MEDIUM' ? 'text-yellow-600' :
+                                  'text-green-600'
+                                }`}>{parsedMessage.risk}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        {parsedMessage?.description && (
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <div className="text-xs font-semibold text-gray-700 mb-1">Description</div>
+                            <div className="text-sm text-gray-700 leading-relaxed">{parsedMessage.description}</div>
+                          </div>
+                        )}
+
+                        {/* Justification */}
+                        {parsedMessage?.justification && (
+                          <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400">
+                            <div className="text-xs font-semibold text-blue-900 mb-1">Justification</div>
+                            <div className="text-sm text-blue-800 leading-relaxed">{parsedMessage.justification}</div>
+                          </div>
+                        )}
 
                         {/* 🏢 ENTERPRISE: NIST SP 800-53 & MITRE ATT&CK Compliance */}
                         {(alert.nist_control || alert.mitre_tactic) && (
-                          <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border border-blue-200 mb-2">
+                          <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border border-blue-200">
                             <div className="text-xs font-semibold text-gray-700 mb-2">🛡️ Security & Compliance Frameworks</div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="space-y-2">
                               {alert.nist_control && (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs font-medium text-blue-700">NIST:</span>
-                                  <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-blue-300">
-                                    {alert.nist_control}
-                                  </span>
-                                  {alert.nist_description && (
-                                    <span className="text-xs text-blue-700">- {alert.nist_description}</span>
-                                  )}
+                                <div className="flex items-start gap-2">
+                                  <span className="text-xs font-semibold text-blue-700 min-w-[50px]">NIST:</span>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="bg-blue-100 text-blue-900 px-2 py-1 rounded text-xs font-mono font-bold border border-blue-300">
+                                      {alert.nist_control}
+                                    </span>
+                                    {alert.nist_description && (
+                                      <span className="text-xs text-blue-800">{alert.nist_description}</span>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {alert.mitre_tactic && (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-xs font-medium text-purple-700">MITRE:</span>
-                                  <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-purple-300">
-                                    {alert.mitre_tactic}
-                                  </span>
-                                  {alert.mitre_technique && (
-                                    <span className="bg-purple-50 text-purple-800 px-2 py-0.5 rounded text-xs font-mono border border-purple-200">
-                                      {alert.mitre_technique}
+                                <div className="flex items-start gap-2">
+                                  <span className="text-xs font-semibold text-purple-700 min-w-[50px]">MITRE:</span>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="bg-purple-100 text-purple-900 px-2 py-1 rounded text-xs font-mono font-bold border border-purple-300">
+                                      {alert.mitre_tactic}
                                     </span>
-                                  )}
+                                    {alert.mitre_technique && (
+                                      <span className="bg-purple-50 text-purple-800 px-2 py-1 rounded text-xs font-mono border border-purple-200">
+                                        {alert.mitre_technique}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>
                           </div>
                         )}
 
-                        <div className="text-xs text-gray-500 space-y-1">
+                        {/* Timestamp Section */}
+                        <div className="pt-2 border-t border-gray-100 space-y-1">
                           {alert.acknowledged_by && (
-                            <div>✅ Acknowledged by {alert.acknowledged_by} at {new Date(alert.acknowledged_at).toLocaleString()}</div>
+                            <div className="text-xs text-gray-600">
+                              <span className="font-medium">✅ Acknowledged:</span> {alert.acknowledged_by} • {new Date(alert.acknowledged_at).toLocaleString()}
+                            </div>
                           )}
                           {alert.escalated_by && (
-                            <div>⚠️ Escalated by {alert.escalated_by} at {new Date(alert.escalated_at).toLocaleString()}</div>
+                            <div className="text-xs text-gray-600">
+                              <span className="font-medium">⚠️ Escalated:</span> {alert.escalated_by} • {new Date(alert.escalated_at).toLocaleString()}
+                            </div>
                           )}
-                          <div>📅 Created: {new Date(alert.timestamp).toLocaleString()}</div>
+                          <div className="text-xs text-gray-500">
+                            <span className="font-medium">📅 Created:</span> {new Date(alert.timestamp).toLocaleString()}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
