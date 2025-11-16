@@ -767,78 +767,186 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
           </div>
 
           <div className="space-y-4">
-            {filteredAlerts.map((alert) => (
-              <div key={alert.id} className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedAlerts.includes(alert.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedAlerts([...selectedAlerts, alert.id]);
-                          } else {
-                            setSelectedAlerts(selectedAlerts.filter(id => id !== alert.id));
-                          }
-                        }}
-                        className="h-4 w-4 text-purple-600 border-gray-300 rounded"
-                      />
+            {filteredAlerts.map((alert) => {
+              const parsedMessage = parseAlertMessage(alert.message);
+
+              return (
+                <div key={alert.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-all bg-white relative">
+                  {/* Header Section */}
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedAlerts.includes(alert.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedAlerts([...selectedAlerts, alert.id]);
+                            } else {
+                              setSelectedAlerts(selectedAlerts.filter(id => id !== alert.id));
+                            }
+                          }}
+                          className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                        />
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          alert.severity === "critical" ? "bg-red-100 text-red-800 border border-red-300" :
+                          alert.severity === "high" ? "bg-orange-100 text-orange-800 border border-orange-300" :
+                          alert.severity === "medium" ? "bg-yellow-100 text-yellow-800 border border-yellow-300" :
+                          "bg-green-100 text-green-800 border border-green-300"
+                        }`}>
+                          {alert.severity?.toUpperCase()}
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${
+                          alert.status === "acknowledged" ? "bg-green-100 text-green-800" :
+                          alert.status === "escalated" ? "bg-orange-100 text-orange-800" :
+                          alert.status === "resolved" ? "bg-blue-100 text-blue-800" :
+                          "bg-gray-200 text-gray-700"
+                        }`}>
+                          {alert.status || "new"}
+                        </span>
+                        <span className="text-sm text-gray-500">{alert.time_since}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <div className={`text-lg font-bold ${getRiskScoreColor(alert.ai_risk_score)}`}>
+                            {alert.ai_risk_score}/100
+                          </div>
+                          <div className="text-xs text-gray-500">AI Risk Score</div>
+                        </div>
+                        <span className="text-xs text-gray-500 font-mono">ID: {alert.id}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Main Content */}
+                  <div className="p-4 space-y-3">
+                    {/* Action Title */}
+                    {parsedMessage?.action && (
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{alert.message}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getSeverityColor(alert.severity)}`}>
-                            {alert.severity.toUpperCase()}
-                          </span>
-                          <span className="text-sm text-gray-500">Agent {alert.agent_id}</span>
-                          <span className="text-sm text-gray-500">{alert.time_since}</span>
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Agent Action</div>
+                        <div className="text-lg font-semibold text-gray-900">{parsedMessage.action}</div>
+                      </div>
+                    )}
+
+                    {/* Agent & Risk Grid */}
+                    {(parsedMessage?.agent || parsedMessage?.risk) && (
+                      <div className="grid grid-cols-2 gap-3 py-2 border-y border-gray-100">
+                        {parsedMessage.agent && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">Agent</div>
+                            <div className="text-sm font-semibold text-gray-800">{parsedMessage.agent}</div>
+                          </div>
+                        )}
+                        {parsedMessage.risk && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">Risk Level</div>
+                            <div className={`text-sm font-bold ${
+                              parsedMessage.risk === 'HIGH' ? 'text-red-600' :
+                              parsedMessage.risk === 'MEDIUM' ? 'text-yellow-600' :
+                              'text-green-600'
+                            }`}>{parsedMessage.risk}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {parsedMessage?.description && (
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs font-semibold text-gray-700 mb-1">Description</div>
+                        <div className="text-sm text-gray-700 leading-relaxed">{parsedMessage.description}</div>
+                      </div>
+                    )}
+
+                    {/* Justification */}
+                    {parsedMessage?.justification && (
+                      <div className="bg-blue-50 p-3 rounded-lg border-l-4 border-blue-400">
+                        <div className="text-xs font-semibold text-blue-900 mb-1">Justification</div>
+                        <div className="text-sm text-blue-800 leading-relaxed">{parsedMessage.justification}</div>
+                      </div>
+                    )}
+
+                    {/* NIST/MITRE Compliance */}
+                    {(alert.nist_control || alert.mitre_tactic) && (
+                      <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border border-blue-200">
+                        <div className="text-xs font-semibold text-gray-700 mb-2">🛡️ Security & Compliance Frameworks</div>
+                        <div className="space-y-2">
+                          {alert.nist_control && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-xs font-semibold text-blue-700 min-w-[50px]">NIST:</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="bg-blue-100 text-blue-900 px-2 py-1 rounded text-xs font-mono font-bold border border-blue-300">
+                                  {alert.nist_control}
+                                </span>
+                                {alert.nist_description && (
+                                  <span className="text-xs text-blue-800">{alert.nist_description}</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {alert.mitre_tactic && (
+                            <div className="flex items-start gap-2">
+                              <span className="text-xs font-semibold text-purple-700 min-w-[50px]">MITRE:</span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="bg-purple-100 text-purple-900 px-2 py-1 rounded text-xs font-mono font-bold border border-purple-300">
+                                  {alert.mitre_tactic}
+                                </span>
+                                {alert.mitre_technique && (
+                                  <span className="bg-purple-50 text-purple-800 px-2 py-1 rounded text-xs font-mono border border-purple-200">
+                                    {alert.mitre_technique}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-lg font-bold ${getRiskScoreColor(alert.ai_risk_score)}`}>
-                        {alert.ai_risk_score}/100
+                    )}
+
+                    {/* Additional Alert Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                      <div className="text-xs text-gray-600">
+                        <span className="font-medium">Threat Category:</span> {alert.threat_category}
                       </div>
-                      <div className="text-xs text-gray-500">AI Risk Score</div>
+                      <div className="text-xs text-gray-600">
+                        <span className="font-medium">Recommended Action:</span> {alert.recommended_action}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        <span className="font-medium">Status:</span> {alert.correlation_id ? '🔗 Correlated' : '⚪ Standalone'}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-4">
-                    <div><strong>Threat Category:</strong> {alert.threat_category}</div>
-                    <div><strong>Recommended Action:</strong> {alert.recommended_action}</div>
-                    <div><strong>Status:</strong> {alert.correlation_id ? '🔗 Correlated' : '⚪ Standalone'}</div>
-                  </div>
-                  
-                  {/* Action Buttons */}
-                  <div className="flex gap-2 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => handleAcknowledgeAlert(alert.id)}
-                      disabled={actionLoading[alert.id]}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading[alert.id] ? '⏳ Processing...' : '✓ Acknowledge'}
-                    </button>
-                    <button
-                      onClick={() => handleEscalateAlert(alert.id)}
-                      disabled={actionLoading[alert.id]}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading[alert.id] ? '⏳ Processing...' : '⚠️ Escalate'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(JSON.stringify(alert, null, 2));
-                        setMessage('📋 Alert details copied to clipboard');
-                        setTimeout(() => setMessage(null), 2000);
-                      }}
-                      className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm ml-auto"
-                    >
-                      📋 Copy Details
-                    </button>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 pt-3 border-t border-gray-200">
+                      <button
+                        onClick={() => handleAcknowledgeAlert(alert.id)}
+                        disabled={actionLoading[alert.id]}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {actionLoading[alert.id] ? '⏳ Processing...' : '✓ Acknowledge'}
+                      </button>
+                      <button
+                        onClick={() => handleEscalateAlert(alert.id)}
+                        disabled={actionLoading[alert.id]}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {actionLoading[alert.id] ? '⏳ Processing...' : '⚠️ Escalate'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(JSON.stringify(alert, null, 2));
+                          setMessage('📋 Alert details copied to clipboard');
+                          setTimeout(() => setMessage(null), 2000);
+                        }}
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md text-sm ml-auto"
+                      >
+                        📋 Copy Details
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {selectedAlerts.length > 0 && (
