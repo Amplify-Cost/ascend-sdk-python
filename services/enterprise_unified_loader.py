@@ -52,14 +52,12 @@ class EnterpriseUnifiedLoader:
         try:
             from sqlalchemy import or_, and_
 
-            # 🏢 ENTERPRISE FIX: Query using BOTH status fields for maximum compatibility
+            # 🏢 ENTERPRISE FIX: Query using status field for pending actions
             # Handles: status=NULL, status='pending', status='pending_approval', workflow-based approvals
             agent_actions = db.query(AgentAction).filter(
                 or_(
                     # Standard status values
                     AgentAction.status.in_(["pending", "pending_approval", "submitted"]),
-                    # Authorization status fallback
-                    AgentAction.authorization_status.in_(["pending", "pending_approval"]),
                     # NULL status with pending workflow
                     and_(
                         AgentAction.status.is_(None),
