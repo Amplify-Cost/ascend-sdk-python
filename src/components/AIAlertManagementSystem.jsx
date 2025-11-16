@@ -25,7 +25,12 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
   // Parse alert message into structured data
   const parseAlertMessage = (message) => {
-    if (!message) return null;
+    if (!message) {
+      console.log('[parseAlertMessage] No message provided');
+      return null;
+    }
+
+    console.log('[parseAlertMessage] Parsing message:', message.substring(0, 100) + '...');
 
     const parsed = {
       action: null,
@@ -60,6 +65,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     const justMatch = message.match(/Justification: (.+?)$/s);
     if (justMatch) parsed.justification = justMatch[1].trim();
 
+    console.log('[parseAlertMessage] Parsed result:', parsed);
     return parsed;
   };
 
