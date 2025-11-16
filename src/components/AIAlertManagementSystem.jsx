@@ -926,6 +926,40 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                         <div className="text-sm text-gray-600 mb-2">
                           {alert.message}
                         </div>
+
+                        {/* 🏢 ENTERPRISE: NIST SP 800-53 & MITRE ATT&CK Compliance */}
+                        {(alert.nist_control || alert.mitre_tactic) && (
+                          <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border border-blue-200 mb-2">
+                            <div className="text-xs font-semibold text-gray-700 mb-2">🛡️ Security & Compliance Frameworks</div>
+                            <div className="flex flex-wrap gap-2">
+                              {alert.nist_control && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-medium text-blue-700">NIST:</span>
+                                  <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-blue-300">
+                                    {alert.nist_control}
+                                  </span>
+                                  {alert.nist_description && (
+                                    <span className="text-xs text-blue-700">- {alert.nist_description}</span>
+                                  )}
+                                </div>
+                              )}
+                              {alert.mitre_tactic && (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-medium text-purple-700">MITRE:</span>
+                                  <span className="bg-purple-100 text-purple-900 px-2 py-0.5 rounded text-xs font-mono font-semibold border border-purple-300">
+                                    {alert.mitre_tactic}
+                                  </span>
+                                  {alert.mitre_technique && (
+                                    <span className="bg-purple-50 text-purple-800 px-2 py-0.5 rounded text-xs font-mono border border-purple-200">
+                                      {alert.mitre_technique}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="text-xs text-gray-500 space-y-1">
                           {alert.acknowledged_by && (
                             <div>✅ Acknowledged by {alert.acknowledged_by} at {new Date(alert.acknowledged_at).toLocaleString()}</div>
