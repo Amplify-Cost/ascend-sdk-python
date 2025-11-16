@@ -32,6 +32,7 @@ class ImmutableAuditLog(Base):
     resource_type = Column(String(50), nullable=False) # AGENT, TOOL, DATA, POLICY
     resource_id = Column(String(100), nullable=False)  # Specific resource identifier
     action = Column(String(100), nullable=False)       # CREATE, READ, UPDATE, DELETE, EXECUTE
+    outcome = Column(String(50), nullable=False)       # SUCCESS, FAILURE, PENDING, DENIED
     
     # Detailed event data
     event_data = Column(JSON, nullable=False)         # Full event context
@@ -75,6 +76,7 @@ class ImmutableAuditLog(Base):
             'resource_type': self.resource_type,
             'resource_id': self.resource_id,
             'action': self.action,
+            'outcome': self.outcome,
             'event_data': self.event_data,
             'risk_level': self.risk_level
         }

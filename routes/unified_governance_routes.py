@@ -415,6 +415,7 @@ async def create_unified_action(
                     resource_type="mcp_action",
                     resource_id=str(mcp_action.id),
                     action="CREATE",
+                    outcome="SUCCESS",
                     event_data={
                         "action_type": "mcp_action_unified",
                         "mcp_server": mcp_action.agent_id,
@@ -841,6 +842,7 @@ async def evaluate_mcp_action(
                 resource_type="mcp_action",
                 resource_id=str(mcp_action.id),
                 action="UPDATE",
+                outcome="SUCCESS" if decision == "approved" else "DENIED",
                 event_data={
                     "action_type": "mcp_governance_decision_unified",
                     "decision": decision,
