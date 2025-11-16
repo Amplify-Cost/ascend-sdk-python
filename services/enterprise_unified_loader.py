@@ -72,12 +72,13 @@ class EnterpriseUnifiedLoader:
             logger.error(f"Failed to query agent_actions: {e}")
             agent_actions = []
 
-        # Query 2: MCP Server Actions (status = 'PENDING' or 'EVALUATE')
+        # Query 2: MCP Server Actions (status = 'pending'/'PENDING' or 'evaluate'/'EVALUATE')
+        # 🏢 ENTERPRISE FIX: Handle both uppercase and lowercase status values
         try:
             mcp_actions = db.query(MCPServerAction).filter(
-                MCPServerAction.status.in_(["PENDING", "EVALUATE"])
+                MCPServerAction.status.in_(["PENDING", "EVALUATE", "pending", "evaluate"])
             ).all()
-            logger.info(f"Loaded {len(mcp_actions)} MCP actions with status=PENDING/EVALUATE")
+            logger.info(f"Loaded {len(mcp_actions)} MCP actions with status=pending/PENDING/evaluate/EVALUATE")
         except Exception as e:
             logger.error(f"Failed to query mcp_server_actions: {e}")
             mcp_actions = []

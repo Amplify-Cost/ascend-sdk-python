@@ -94,7 +94,6 @@ class AgentAction(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_by = Column(String(255), nullable=True)
     approved_by = Column(String(255), nullable=True)
-    created_by = Column(String(255), nullable=True)  # Enterprise audit trail
     
     # JSON fields
     extra_data = Column(JSONB, nullable=True)
@@ -119,13 +118,7 @@ class AgentAction(Base):
     cvss_score = Column(Float, nullable=True)           # 0.0-10.0 (official NIST base score)
     cvss_severity = Column(String(20), nullable=True)   # NONE|LOW|MEDIUM|HIGH|CRITICAL
     cvss_vector = Column(String(100), nullable=True)    # CVSS:3.1/AV:N/AC:L/PR:L/...
-
-    # Option 4: Policy Fusion fields (Hybrid Layered Architecture)
-    policy_evaluated = Column(Boolean, default=False, nullable=True)    # True if policy engine evaluated
-    policy_decision = Column(String(50), nullable=True)                 # ALLOW|DENY|REQUIRE_APPROVAL|ESCALATE
-    policy_risk_score = Column(Integer, nullable=True)                  # 0-100 policy engine risk score
-    risk_fusion_formula = Column(Text, nullable=True)                   # Formula used for risk fusion (80/20 hybrid)
-
+    
     # Approval levels
     approval_level = Column(Integer, default=1)
     current_approval_level = Column(Integer, default=0)
@@ -242,40 +235,6 @@ class LogAuditTrail(Base):
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
-
-class RiskScoringConfig(Base):
-    """
-    Enterprise Risk Scoring Configuration
-    Enables runtime adjustment of risk scoring weights without code deployment
-    """
-    __tablename__ = "risk_scoring_configs"
-
-    # Primary key
-    id = Column(Integer, primary_key=True, index=True)
-
-    # Version tracking
-    config_version = Column(String(20), nullable=False, index=True)
-    algorithm_version = Column(String(20), nullable=False)
-
-    # Configuration weights (JSONB for flexibility)
-    environment_weights = Column(JSONB, nullable=False)
-    action_weights = Column(JSONB, nullable=False)
-    resource_multipliers = Column(JSONB, nullable=False)
-    pii_weights = Column(JSONB, nullable=False)
-    component_percentages = Column(JSONB, nullable=False)
-
-    # Metadata
-    description = Column(Text, nullable=True)
-    is_active = Column(Boolean, default=False, nullable=False)
-    is_default = Column(Boolean, default=False, nullable=False)
-
-    # Audit trail
-    created_at = Column(DateTime, default=datetime.now(UTC))
-    created_by = Column(String(255), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    updated_by = Column(String(255), nullable=True)
-    activated_at = Column(DateTime, nullable=True)
-    activated_by = Column(String(255), nullable=True)
 
 class PendingAgentAction(Base):
     __tablename__ = "pending_agent_actions"

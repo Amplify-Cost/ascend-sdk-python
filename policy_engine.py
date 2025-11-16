@@ -712,21 +712,16 @@ class EnterpriseRealTimePolicyEngine:
         matched_policies = []
         
         # Query active policies from database
-        # Uses the mcp_policies table with enterprise schema (policy_name, natural_language_description, etc.)
-        try:
-            policies_query = """
-                SELECT id, policy_name, natural_language_description,
-                       resource_patterns, namespace_patterns, verb_patterns,
-                       actions as action, conditions, priority
-                FROM mcp_policies
-                WHERE is_active = true AND policy_status = 'deployed'
-                ORDER BY priority DESC, created_at ASC
-            """
-
-            policy_results = self.db.execute(text(policies_query)).fetchall()
-        except Exception as e:
-            logger.warning(f"Policy query failed: {e}")
-            policy_results = []
+        policies_query = """
+            SELECT id, policy_name, natural_language_description, 
+                   resource_patterns, namespace_patterns, verb_patterns,
+                   action, conditions, priority
+            FROM mcp_policies 
+            WHERE is_active = true AND policy_status = 'deployed'
+            ORDER BY priority DESC, created_at ASC
+        """
+        
+        policy_results = self.db.execute(text(policies_query)).fetchall()
         
         for policy_row in policy_results:
             match_result = await self._evaluate_policy_match(policy_row, context)

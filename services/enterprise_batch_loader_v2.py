@@ -139,12 +139,7 @@ class EnterpriseBatchLoaderV2:
                 "recommendation": action.recommendation or "",
                 "workflow_stage": "pending_stage_1",
                 "current_approval_level": 0,
-                "required_approval_level": 2 if risk_score >= 70 else 1,
-                # Option 4 Policy Fusion Fields
-                "policy_evaluated": action.policy_evaluated if hasattr(action, 'policy_evaluated') else False,
-                "policy_decision": action.policy_decision if hasattr(action, 'policy_decision') else None,
-                "policy_risk_score": action.policy_risk_score if hasattr(action, 'policy_risk_score') else None,
-                "risk_fusion_formula": action.risk_fusion_formula if hasattr(action, 'risk_fusion_formula') else None
+                "required_approval_level": 2 if risk_score >= 70 else 1
             }
             transformed_actions.append(transformed_action)
         

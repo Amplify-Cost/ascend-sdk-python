@@ -88,10 +88,10 @@ class AgentActionBase(BaseModel):
 
 class AgentActionCreate(AgentActionBase):
     model_config = ConfigDict(from_attributes=True)
-
+    
     user_id: int
     timestamp: datetime
-
+    
     @field_validator('agent_id')
     @classmethod
     def validate_agent_id(cls, v):
@@ -100,8 +100,8 @@ class AgentActionCreate(AgentActionBase):
         if len(v) > 100:
             raise ValueError('Agent ID too long')
         return v.strip()
-
-    @field_validator('action_type')
+    
+    @field_validator('action_type') 
     @classmethod
     def validate_action_type(cls, v):
         if not v or len(v.strip()) == 0:
@@ -111,54 +111,10 @@ class AgentActionCreate(AgentActionBase):
         return v.strip()
 
 class AgentActionOut(AgentActionBase):
-    """Enterprise Agent Action Output Schema - All 32 Fields"""
     model_config = ConfigDict(from_attributes=True)
-
-    # Primary key
+    
     id: int
     timestamp: datetime
-
-    # Risk Assessment (ARCH-001: CVSS v3.1)
-    risk_score: Optional[float] = None              # 0-100 internal risk score
-    cvss_score: Optional[float] = None              # 0.0-10.0 NIST CVSS score
-    cvss_severity: Optional[str] = None             # NONE|LOW|MEDIUM|HIGH|CRITICAL
-    cvss_vector: Optional[str] = None               # CVSS:3.1/AV:N/AC:L/PR:L/...
-
-    # User & Authorization
-    user_id: Optional[int] = None
-    approved_by: Optional[str] = None
-    requires_approval: Optional[bool] = None
-
-    # Approval Levels
-    approval_level: Optional[int] = None            # 1-5 (required approval tier)
-    current_approval_level: Optional[int] = None    # 0-5 (approvals received so far)
-    required_approval_level: Optional[int] = None   # 1-5 (total approvals needed)
-
-    # Workflow
-    workflow_id: Optional[str] = None
-    workflow_execution_id: Optional[int] = None
-    workflow_stage: Optional[str] = None
-    sla_deadline: Optional[datetime] = None
-    pending_approvers: Optional[str] = None
-    approval_chain: Optional[list] = None
-
-    # Target Information
-    target_system: Optional[str] = None
-    target_resource: Optional[str] = None
-
-    # Timestamps
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    created_by: Optional[str] = None  # Fix for validation error
-
-    # 🏢 ENTERPRISE: Unified Policy Engine Fields (Option 1 Architecture)
-    policy_evaluated: Optional[bool] = False  # Whether unified policy engine evaluated this action
-    policy_decision: Optional[str] = None     # ALLOW, DENY, REQUIRE_APPROVAL, ESCALATE, CONDITIONAL
-    policy_risk_score: Optional[int] = None   # 0-100 policy risk score from 4-category scoring
-    risk_fusion_formula: Optional[str] = None # Formula used for risk calculation (hybrid or policy-only)
-
-    # Additional data
-    extra_data: Optional[dict] = None
 
 # ------------------------------
 # Alert Schemas - Enterprise Security

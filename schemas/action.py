@@ -49,14 +49,8 @@ class ActionResponse(BaseModel):
     risk_score: Optional[float]
     risk_level: Optional[str]
     created_at: datetime
-    created_by: Optional[str]  # Enterprise audit trail - email address
-
-    # Option 4: Hybrid Layered Architecture fields
-    policy_evaluated: Optional[bool] = Field(None, description="Whether policy engine evaluated this action")
-    policy_decision: Optional[str] = Field(None, description="Policy engine decision: ALLOW, DENY, REQUIRE_APPROVAL")
-    policy_risk_score: Optional[int] = Field(None, ge=0, le=100, description="Risk score from policy engine (0-100)")
-    risk_fusion_formula: Optional[str] = Field(None, description="Formula showing how final risk score was calculated")
-
+    created_by: Optional[int]
+    
     class Config:
         from_attributes = True
 

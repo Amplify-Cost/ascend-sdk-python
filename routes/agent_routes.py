@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
@@ -9,7 +9,6 @@ from llm_utils import generate_summary, generate_smart_rule
 from enrichment import evaluate_action_enrichment
 from typing import List
 import logging
-import json
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Agent Actions"])
@@ -24,22 +23,14 @@ async def create_agent_action(
     try:
         data = await request.json()
 
-        # 🏢 ENTERPRISE: Validate required fields (backward compatible)
-        # Only agent_id, action_type, and description are strictly required
-        # tool_name is optional for backward compatibility with external systems
-        required_fields = ["agent_id", "action_type", "description"]
+        # Validate required fields
+        required_fields = ["agent_id", "action_type", "description", "tool_name"]
         missing_fields = [field for field in required_fields if not data.get(field)]
         if missing_fields:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Missing required fields: {', '.join(missing_fields)}"
             )
-
-        # 🏢 ENTERPRISE: Provide intelligent defaults for optional fields
-        if not data.get("tool_name"):
-            # Infer tool name from action type for enterprise audit compliance
-            data["tool_name"] = f"inferred_{data['action_type']}"
-            logger.info(f"Enterprise fallback: Set tool_name='{data['tool_name']}' for action_type='{data['action_type']}'")
 
         # Parse timestamp with enterprise-grade handling
         timestamp = data.get("timestamp")
@@ -211,31 +202,6 @@ async def create_agent_action(
             except Exception as orchestration_error:
                 logger.warning(f"⚠️  Orchestration service failed for action {action.id}: {orchestration_error}")
                 # Continue - alerts/workflows are supplementary
-
-            # 🏢 ENTERPRISE: Unified Policy Engine Evaluation (Option 4 Hybrid)
-            try:
-                from services.unified_policy_evaluation_service import create_unified_policy_service
-
-                unified_service = create_unified_policy_service(db)
-                user_context = {
-                    "email": current_user.get("email", "unknown"),
-                    "role": current_user.get("role", "user"),
-                    "user_id": current_user.get("user_id", 1)
-                }
-
-                # Evaluate agent action using unified policy engine
-                policy_result = await unified_service.evaluate_agent_action(action, user_context)
-
-                logger.info(
-                    f"✅ Policy evaluated: Action {action.id} -> "
-                    f"decision={policy_result.decision.value}, "
-                    f"policy_risk={policy_result.risk_score.total_score}, "
-                    f"time={policy_result.evaluation_time_ms:.2f}ms"
-                )
-
-            except Exception as policy_error:
-                logger.warning(f"⚠️  Policy evaluation failed for action {action.id}: {policy_error}")
-                # Continue without policy evaluation - action still created
 
             # Create enterprise alert if high risk
             if enrichment["risk_level"] == "high":
@@ -439,36 +405,21 @@ def get_agent_activity(
     try:
         # Bulletproof activity query with enterprise filtering
         try:
-            print("🔍 DEBUG: Starting agent-activity query", flush=True)
-            logger.info("🔍 DEPLOYMENT DEBUG: Starting agent-activity query")
             query = db.query(AgentAction).order_by(AgentAction.timestamp.desc())
-
+            
             if risk and risk != "all":
                 query = query.filter(AgentAction.risk_level == risk)
-
+                
             actions = query.limit(50).all()
-
-            print(f"🔍 DEBUG: Query returned {len(actions)} actions", flush=True)
-            logger.info(f"🔍 DEPLOYMENT DEBUG: Query returned {len(actions)} actions")
-
+            
             # Test data accessibility
             if actions and len(actions) > 0:
-                first_action = actions[0]
-                print(f"🔍 DEBUG: First action - ID: {first_action.id}, agent_id: {first_action.agent_id}, cvss: {first_action.cvss_score}", flush=True)
-                logger.info(f"🔍 DEPLOYMENT DEBUG: First action - ID: {first_action.id}, agent_id: {first_action.agent_id}, cvss_score: {first_action.cvss_score}")
-                logger.info(f"🔍 DEPLOYMENT DEBUG: Enrichment - MITRE: {first_action.mitre_tactic}, NIST: {first_action.nist_control}")
-                _ = first_action.id  # Test schema compatibility
-                print(f"🔍 DEBUG: Returning {len(actions)} real actions from database", flush=True)
-                logger.info(f"🔍 DEPLOYMENT DEBUG: Returning {len(actions)} real actions from database")
+                _ = actions[0].id  # Test schema compatibility
                 return actions
             else:
-                print("🔍 DEBUG: No actions found - returning demo data", flush=True)
-                logger.warning("🔍 DEPLOYMENT DEBUG: No actions found in database - falling back to demo data")
                 raise Exception("No activity data")
-
+                
         except Exception as db_error:
-            print(f"🔍 DEBUG: Exception caught: {type(db_error).__name__}: {db_error}", flush=True)
-            logger.error(f"🔍 DEPLOYMENT DEBUG: Activity query failed with error: {db_error}", exc_info=True)
             logger.warning(f"Activity query failed: {db_error}")
             
             # Enterprise-grade activity demonstration data
@@ -729,179 +680,3 @@ def get_audit_trail(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve audit trail"
         )
-
-# ============================================================================
-# ENTERPRISE ACTIVITY TAB ENDPOINTS - Phase 1 Core Functionality
-# ============================================================================
-
-@router.post("/agent-action/false-positive/{action_id}")
-def toggle_false_positive(
-    action_id: int,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Toggle false positive flag on an agent action - Enterprise audit trail"""
-    try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
-
-        if not action:
-            raise HTTPException(status_code=404, detail=f"Agent action {action_id} not found")
-
-        # Toggle false positive status
-        action.is_false_positive = not (action.is_false_positive or False)
-        action.reviewed_by = current_user.get("email", "unknown")
-        action.reviewed_at = datetime.now(UTC)
-        action.updated_at = datetime.now(UTC)
-
-        db.commit()
-        db.refresh(action)
-
-        logger.info(f"Action {action_id} marked as {'FALSE POSITIVE' if action.is_false_positive else 'VALID'} by {current_user.get('email')}")
-
-        return {
-            "message": f"Action {action_id} marked as {'FALSE POSITIVE' if action.is_false_positive else 'VALID'}",
-            "action_id": action_id,
-            "is_false_positive": action.is_false_positive,
-            "reviewed_by": action.reviewed_by,
-            "reviewed_at": action.reviewed_at.isoformat()
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to toggle false positive for action {action_id}: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to toggle false positive: {str(e)}")
-
-
-@router.post("/support/submit")
-async def submit_support_request(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Submit support request - Enterprise ticketing integration ready"""
-    try:
-        data = await request.json()
-        message = data.get("message", "").strip()
-
-        if not message or len(message) < 10:
-            raise HTTPException(status_code=400, detail="Support message must be at least 10 characters")
-
-        if len(message) > 5000:
-            raise HTTPException(status_code=400, detail="Support message too long (max 5000 characters)")
-
-        # Log to audit_logs table for enterprise tracking
-        support_ticket = {
-            "user_id": current_user.get("user_id"),
-            "user_email": current_user.get("email"),
-            "message": message,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "status": "open",
-            "priority": "medium"
-        }
-
-        audit_log = LogAuditTrail(
-            user_id=current_user.get("user_id"),
-            action_type="support_ticket_created",
-            details=json.dumps(support_ticket),
-            timestamp=datetime.now(UTC),
-            ip_address="system"
-        )
-        db.add(audit_log)
-        db.commit()
-
-        logger.info(f"Support ticket created by {current_user.get('email')}: {message[:100]}")
-
-        return {
-            "message": "Support request submitted successfully",
-            "ticket_id": audit_log.id,
-            "status": "open",
-            "email": current_user.get("email")
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to submit support request: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to submit support request: {str(e)}")
-
-
-@router.post("/agent-actions/upload-json")
-async def upload_agent_actions_json(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Upload agent actions from JSON file - Enterprise bulk import"""
-    try:
-        # Validate file type
-        if not file.filename.endswith('.json'):
-            raise HTTPException(status_code=400, detail="Only JSON files are supported")
-
-        # Read and parse JSON
-        contents = await file.read()
-        try:
-            actions_data = json.loads(contents)
-        except json.JSONDecodeError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON format: {str(e)}")
-
-        # Ensure it's a list
-        if not isinstance(actions_data, list):
-            actions_data = [actions_data]
-
-        if len(actions_data) > 1000:
-            raise HTTPException(status_code=400, detail="Maximum 1000 actions per upload")
-
-        imported_count = 0
-        skipped_count = 0
-        errors = []
-
-        for idx, action_data in enumerate(actions_data):
-            try:
-                # Create agent action
-                action = AgentAction(
-                    agent_id=action_data.get("agent_id", "imported"),
-                    action_type=action_data.get("action_type", "imported_action"),
-                    description=action_data.get("description"),
-                    tool_name=action_data.get("tool_name"),
-                    risk_level=action_data.get("risk_level"),
-                    status=action_data.get("status", "imported"),
-                    user_id=current_user.get("user_id"),
-                    timestamp=datetime.now(UTC),
-                    created_at=datetime.now(UTC),
-                    summary=action_data.get("summary"),
-                    nist_control=action_data.get("nist_control"),
-                    mitre_tactic=action_data.get("mitre_tactic"),
-                    mitre_technique=action_data.get("mitre_technique"),
-                    cvss_score=action_data.get("cvss_score"),
-                    cvss_severity=action_data.get("cvss_severity")
-                )
-                db.add(action)
-                imported_count += 1
-
-            except Exception as e:
-                skipped_count += 1
-                errors.append(f"Row {idx+1}: {str(e)}")
-                if len(errors) >= 20:  # Limit error collection
-                    break
-
-        db.commit()
-
-        logger.info(f"Bulk import by {current_user.get('email')}: {imported_count} imported, {skipped_count} skipped")
-
-        return {
-            "message": f"Import completed: {imported_count} imported, {skipped_count} skipped",
-            "imported": imported_count,
-            "skipped": skipped_count,
-            "errors": errors[:10],  # Return first 10 errors only
-            "total_in_file": len(actions_data)
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Upload failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
