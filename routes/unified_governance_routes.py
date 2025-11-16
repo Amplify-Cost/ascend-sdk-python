@@ -579,12 +579,69 @@ async def get_unified_pending_actions(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    🏢 ENTERPRISE: Get unified pending actions for agents and MCP servers
-    Uses your existing AgentAction model with enhanced filtering
+    🏢 ENTERPRISE: Get unified pending actions using EnterpriseUnifiedLoader
+    UPDATED 2025-11-16: Now uses the correct loader that matches production schema
+    """
+    try:
+        from services.enterprise_unified_loader import enterprise_unified_loader
+
+        logger.info(f"🏢 Fetching unified pending actions for user {current_user.get('email', 'unknown')}")
+
+        # Use enterprise loader (handles pending_stage_X, active, etc.)
+        result = enterprise_unified_loader.load_all_pending_actions(db)
+
+        # Apply filters if provided
+        actions = result.get("actions", [])
+
+        if risk_threshold:
+            actions = [a for a in actions if a.get("risk_score", 0) >= risk_threshold]
+
+        if action_type:
+            actions = [a for a in actions if a.get("action_source") == action_type]
+
+        # Apply pagination
+        total = len(actions)
+        actions = actions[offset:offset + limit]
+
+        logger.info(f"✅ Retrieved {len(actions)} unified pending actions")
+        return {
+            "success": True,
+            "actions": actions,
+            "total": total,
+            "has_more": (offset + limit) < total
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching unified pending actions: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+        # Return empty result instead of hard-coded demo data
+        return {
+            "success": False,
+            "actions": [],
+            "total": 0,
+            "has_more": False,
+            "error": str(e)
+        }
+
+
+# OLD CODE BELOW - KEEP FOR REFERENCE BUT NOT USED
+def _old_get_unified_pending_actions_DEPRECATED(
+    limit: int = 50,
+    offset: int = 0,
+    risk_threshold: Optional[int] = None,
+    action_type: Optional[str] = None,
+    db: Session = None,
+    current_user: dict = None
+):
+    """
+    ❌ DEPRECATED: Old implementation with incorrect status query
+    DO NOT USE - kept for reference only
     """
     try:
         logger.info(f"🏢 Fetching unified pending actions for user {current_user.get('email', 'unknown')}")
-        
+
         # Build query using your existing AgentAction model
         query = db.query(AgentAction).filter(
             AgentAction.status.in_(["pending", "pending_approval", "submitted"])
