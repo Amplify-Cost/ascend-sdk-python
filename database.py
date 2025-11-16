@@ -22,8 +22,9 @@ try:
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         pool_pre_ping=True,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=20,  # Increased from 5 to handle concurrent requests
+        max_overflow=30,  # Increased from 10 for peak loads
+        pool_recycle=3600,  # Recycle connections every hour
         # Additional options for better local development
         connect_args={"connect_timeout": 10} if "localhost" in SQLALCHEMY_DATABASE_URL else {}
     )
