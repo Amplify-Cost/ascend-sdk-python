@@ -1134,16 +1134,30 @@ const createWorkflow = async (workflowData) => {
   // 🚀 ENHANCED: handleApproval with real-time execution
   const handleApproval = async (actionId, decision, notes = "", conditions = null) => {
   try {
-    // Handle both numeric and ENT_ACTION formats
+    // 🏢 ENTERPRISE FIX: Handle ALL ID formats (agent-322, ENT_ACTION_322, mcp-123, or numeric)
     let numericId = actionId;
-    if (typeof actionId === 'string' && actionId.includes('ENT_ACTION_')) {
-      numericId = parseInt(actionId.replace('ENT_ACTION_', ''));
+
+    if (typeof actionId === 'string') {
+      if (actionId.includes('ENT_ACTION_')) {
+        numericId = parseInt(actionId.replace('ENT_ACTION_', ''));
+      } else if (actionId.startsWith('agent-')) {
+        numericId = parseInt(actionId.replace('agent-', ''));
+      } else if (actionId.startsWith('mcp-')) {
+        numericId = parseInt(actionId.replace('mcp-', ''));
+      }
     }
-    const action = pendingActions.find(a => 
-      a.id === actionId || 
-      a.workflow_execution_id === actionId || 
+
+    const action = pendingActions.find(a =>
+      a.id === actionId ||
+      a.numeric_id === numericId ||  // 🏢 NEW: Use numeric_id from unified loader
+      a.workflow_execution_id === actionId ||
       a.workflow_id === actionId
     );
+
+    // 🏢 ENTERPRISE: Use numeric_id field if available (from unified loader)
+    if (action?.numeric_id) {
+      numericId = action.numeric_id;
+    }
     
     // 🔌 ENHANCED: Route to appropriate endpoint based on action type
     // 🔌 ENTERPRISE: Route to appropriate endpoint based on action type
