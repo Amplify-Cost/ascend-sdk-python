@@ -164,8 +164,8 @@ class EnterpriseUnifiedLoader:
             # Approval details
             "approved_by": action.approved_by,
             "reviewed_by": action.reviewed_by,
-            "created_by": action.created_by,
-            "user_email": action.created_by or "Unknown",
+            "created_by": getattr(action, 'created_by', None),  # 🏢 ENTERPRISE FIX: Field doesn't exist on AgentAction
+            "user_email": getattr(action, 'created_by', None) or "Unknown",
 
             # 🏢 ENTERPRISE PHASE 2: Action-specific NIST/MITRE controls
             **self._get_nist_mitre_controls(action),
