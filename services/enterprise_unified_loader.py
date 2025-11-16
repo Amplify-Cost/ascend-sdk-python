@@ -443,6 +443,31 @@ class EnterpriseUnifiedLoader:
             "mitre_techniques": [mapping["mitre_technique"]]
         }
 
+    def _normalize_mcp_status(self, status: str) -> str:
+        """
+        🏢 ENTERPRISE: Normalize MCP status to lowercase for consistency
+
+        MCP actions use uppercase status (PENDING, APPROVED, etc.)
+        Agent actions use lowercase (pending_approval, approved, etc.)
+        This normalizes for consistent frontend display
+        """
+        if not status:
+            return "pending_approval"
+
+        status_upper = status.upper()
+
+        # Map MCP statuses to agent-compatible statuses
+        status_map = {
+            "PENDING": "pending_approval",
+            "EVALUATE": "pending_approval",
+            "APPROVED": "approved",
+            "DENIED": "denied",
+            "EXECUTED": "executed",
+            "FAILED": "failed"
+        }
+
+        return status_map.get(status_upper, status.lower())
+
 
 # Singleton instance
 enterprise_unified_loader = EnterpriseUnifiedLoader()
