@@ -36,13 +36,17 @@ class ImmutableAuditService:
     ) -> ImmutableAuditLog:
         """Create immutable audit log entry with hash-chaining"""
         try:
-            # Get the last audit log for hash chaining
+            # Get the last audit log for hash chaining and sequence number
             last_log = self.db.query(ImmutableAuditLog).order_by(
                 desc(ImmutableAuditLog.sequence_number)
             ).first()
-            
+
+            # Calculate next sequence number (enterprise sequence management)
+            next_sequence = (last_log.sequence_number + 1) if last_log else 1
+
             # Create new audit log
             audit_log = ImmutableAuditLog(
+                sequence_number=next_sequence,  # ENTERPRISE FIX: Explicitly set sequence
                 event_type=event_type,
                 actor_id=actor_id,
                 resource_type=resource_type,
