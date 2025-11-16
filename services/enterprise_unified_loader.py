@@ -166,13 +166,8 @@ class EnterpriseUnifiedLoader:
             "created_by": action.created_by,
             "user_email": action.created_by or "Unknown",
 
-            # Enterprise compliance
-            "nist_control": action.nist_control or "AC-3",
-            "nist_controls": [action.nist_control] if action.nist_control else ["AC-3"],
-            "nist_description": action.nist_description or "",
-            "mitre_tactic": action.mitre_tactic or "TA0009",
-            "mitre_technique": action.mitre_technique or "T1078",
-            "mitre_techniques": [action.mitre_technique] if action.mitre_technique else ["T1078"],
+            # 🏢 ENTERPRISE PHASE 2: Action-specific NIST/MITRE controls
+            **self._get_nist_mitre_controls(action),
             "recommendation": action.recommendation or "",
             "compliance_frameworks": ["SOX", "PCI_DSS", "NIST"],
 
@@ -343,6 +338,109 @@ class EnterpriseUnifiedLoader:
             return "medium"
         else:
             return "low"
+
+    def _get_nist_mitre_controls(self, action: AgentAction) -> Dict:
+        """
+        🏢 ENTERPRISE PHASE 2: Map action_type to specific NIST/MITRE controls
+        Returns action-specific controls instead of generic defaults
+
+        Based on NIST SP 800-53 Rev. 5 and MITRE ATT&CK Framework
+        """
+
+        # If action already has controls, use them
+        if action.nist_control and action.mitre_tactic:
+            return {
+                "nist_control": action.nist_control,
+                "nist_controls": [action.nist_control],
+                "nist_description": action.nist_description or "",
+                "mitre_tactic": action.mitre_tactic,
+                "mitre_technique": action.mitre_technique or "T1078",
+                "mitre_techniques": [action.mitre_technique] if action.mitre_technique else ["T1078"]
+            }
+
+        # 🏢 Action-type specific mappings (NIST SP 800-53 + MITRE ATT&CK)
+        action_type_mappings = {
+            "file_write": {
+                "nist_control": "AC-3",
+                "nist_description": "Access Enforcement - File System Write Operations",
+                "mitre_tactic": "TA0005",  # Defense Evasion
+                "mitre_technique": "T1070"  # Indicator Removal on Host
+            },
+            "file_read": {
+                "nist_control": "AC-4",
+                "nist_description": "Information Flow Enforcement - Data Access",
+                "mitre_tactic": "TA0009",  # Collection
+                "mitre_technique": "T1005"  # Data from Local System
+            },
+            "file_delete": {
+                "nist_control": "AC-3",
+                "nist_description": "Access Enforcement - File Deletion",
+                "mitre_tactic": "TA0005",  # Defense Evasion
+                "mitre_technique": "T1485"  # Data Destruction
+            },
+            "api_call": {
+                "nist_control": "AC-6",
+                "nist_description": "Least Privilege - API Access Control",
+                "mitre_tactic": "TA0002",  # Execution
+                "mitre_technique": "T1106"  # Native API
+            },
+            "database_query": {
+                "nist_control": "AC-3",
+                "nist_description": "Access Enforcement - Database Read",
+                "mitre_tactic": "TA0009",  # Collection
+                "mitre_technique": "T1005"  # Data from Information Repositories
+            },
+            "database_execute": {
+                "nist_control": "AC-6",
+                "nist_description": "Least Privilege - Database Execution",
+                "mitre_tactic": "TA0002",  # Execution
+                "mitre_technique": "T1505"  # Server Software Component
+            },
+            "database_delete": {
+                "nist_control": "AC-3",
+                "nist_description": "Access Enforcement - Data Deletion",
+                "mitre_tactic": "TA0040",  # Impact
+                "mitre_technique": "T1485"  # Data Destruction
+            },
+            "system_command": {
+                "nist_control": "CM-7",
+                "nist_description": "Least Functionality - Command Execution",
+                "mitre_tactic": "TA0002",  # Execution
+                "mitre_technique": "T1059"  # Command and Scripting Interpreter
+            },
+            "external_api": {
+                "nist_control": "AC-20",
+                "nist_description": "Use of External Systems",
+                "mitre_tactic": "TA0011",  # Command and Control
+                "mitre_technique": "T1071"  # Application Layer Protocol
+            },
+            "network_access": {
+                "nist_control": "AC-4",
+                "nist_description": "Information Flow Enforcement - Network",
+                "mitre_tactic": "TA0011",  # Command and Control
+                "mitre_technique": "T1095"  # Non-Application Layer Protocol
+            }
+        }
+
+        # Get mapping for action type, or use defaults
+        mapping = action_type_mappings.get(
+            action.action_type,
+            {
+                "nist_control": "AC-2",
+                "nist_description": "Account Management - General Action Authorization",
+                "mitre_tactic": "TA0001",  # Initial Access
+                "mitre_technique": "T1078"  # Valid Accounts
+            }
+        )
+
+        return {
+            "nist_control": mapping["nist_control"],
+            "nist_controls": [mapping["nist_control"]],
+            "nist_description": mapping["nist_description"],
+            "mitre_tactic": mapping["mitre_tactic"],
+            "mitre_technique": mapping["mitre_technique"],
+            "mitre_techniques": [mapping["mitre_technique"]]
+        }
 
 
 # Singleton instance
