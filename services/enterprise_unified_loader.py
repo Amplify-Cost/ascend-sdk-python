@@ -48,12 +48,26 @@ class EnterpriseUnifiedLoader:
             }
         """
 
-        # Query 1: Agent Actions (status = 'pending_approval')
+        # Query 1: Agent Actions (ENTERPRISE: Handle NULL status + multiple status fields)
         try:
+            from sqlalchemy import or_, and_
+
+            # 🏢 ENTERPRISE FIX: Query using BOTH status fields for maximum compatibility
+            # Handles: status=NULL, status='pending', status='pending_approval', workflow-based approvals
             agent_actions = db.query(AgentAction).filter(
-                AgentAction.status == "pending_approval"
+                or_(
+                    # Standard status values
+                    AgentAction.status.in_(["pending", "pending_approval", "submitted"]),
+                    # Authorization status fallback
+                    AgentAction.authorization_status.in_(["pending", "pending_approval"]),
+                    # NULL status with pending workflow
+                    and_(
+                        AgentAction.status.is_(None),
+                        AgentAction.workflow_stage.like("pending%")
+                    )
+                )
             ).all()
-            logger.info(f"Loaded {len(agent_actions)} agent actions with status=pending_approval")
+            logger.info(f"✅ ENTERPRISE: Loaded {len(agent_actions)} agent actions (handles NULL status + multiple fields)")
         except Exception as e:
             logger.error(f"Failed to query agent_actions: {e}")
             agent_actions = []
