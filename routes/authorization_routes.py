@@ -635,7 +635,15 @@ class AuthorizationService:
             
             # Validate current status
             current_status = action_row[6] if len(action_row) > 6 else ActionStatus.PENDING.value
-            if current_status not in [ActionStatus.PENDING.value, ActionStatus.SUBMITTED.value, ActionStatus.PENDING_APPROVAL.value]:
+            # Accept pending statuses, active, and workflow stages
+            approvable_statuses = [
+                ActionStatus.PENDING.value,
+                ActionStatus.SUBMITTED.value,
+                ActionStatus.PENDING_APPROVAL.value,
+                "active",  # Add support for active status
+            ]
+            # Also accept workflow stages (pending_stage_1, pending_stage_2, etc.)
+            if current_status not in approvable_statuses and not current_status.startswith("pending_stage"):
                 raise InvalidActionStateError(f"Action already processed: {current_status}")
             
             # Parse authorization data
