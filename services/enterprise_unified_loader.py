@@ -53,11 +53,13 @@ class EnterpriseUnifiedLoader:
             from sqlalchemy import or_, and_
 
             # 🏢 ENTERPRISE FIX: Query using status field for pending actions
-            # Handles: status=NULL, status='pending', status='pending_approval', workflow-based approvals
+            # Handles: status='pending_stage_1/2/3', status='pending', status='pending_approval', workflow-based approvals
             agent_actions = db.query(AgentAction).filter(
                 or_(
+                    # Workflow stage statuses (pending_stage_1, pending_stage_2, pending_stage_3)
+                    AgentAction.status.like("pending%"),
                     # Standard status values
-                    AgentAction.status.in_(["pending", "pending_approval", "submitted"]),
+                    AgentAction.status.in_(["submitted", "active"]),
                     # NULL status with pending workflow
                     and_(
                         AgentAction.status.is_(None),
