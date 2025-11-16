@@ -3297,46 +3297,64 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           {selectedAction.ai_risk_score}/100
                         </span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <strong>Risk Level:</strong>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          selectedAction.risk_level === 'critical' ? 'bg-red-100 text-red-800' :
+                          selectedAction.risk_level === 'high' ? 'bg-orange-100 text-orange-800' :
+                          selectedAction.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {selectedAction.risk_level?.toUpperCase() || 'LOW'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-                {/* ✅ ENTERPRISE: NIST/MITRE Framework Mappings */}
-                {selectedAction.framework_mappings && (
-                  Object.keys(selectedAction.framework_mappings).some(key => 
-                    selectedAction.framework_mappings[key]?.length > 0
-                  ) && (
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h4 className="font-semibold mb-2">📋 Compliance Framework Mappings</h4>
-                      <div className="space-y-2 text-sm">
-                        {selectedAction.framework_mappings.nist?.length > 0 && (
+                  {/* 🏢 ENTERPRISE: NIST SP 800-53 & MITRE ATT&CK Compliance */}
+                  {(selectedAction.nist_control || selectedAction.mitre_tactic) && (
+                    <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                      <h4 className="font-semibold mb-3 text-blue-900">🛡️ Security & Compliance Frameworks</h4>
+                      <div className="space-y-3">
+                        {selectedAction.nist_control && (
                           <div>
-                            <strong className="text-blue-800">NIST AI RMF:</strong>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedAction.framework_mappings.nist.map((control, idx) => (
-                                <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                                  {control}
+                            <div className="flex items-center gap-2 mb-1">
+                              <strong className="text-blue-800 text-sm">NIST SP 800-53:</strong>
+                              <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-xs font-mono">
+                                {selectedAction.nist_control}
+                              </span>
+                            </div>
+                            {selectedAction.nist_description && (
+                              <p className="text-sm text-blue-700 ml-4">
+                                {selectedAction.nist_description}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedAction.mitre_tactic && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <strong className="text-purple-800 text-sm">MITRE ATT&CK:</strong>
+                              <span className="bg-purple-200 text-purple-900 px-2 py-0.5 rounded text-xs font-mono">
+                                {selectedAction.mitre_tactic}
+                              </span>
+                              {selectedAction.mitre_technique && (
+                                <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-mono">
+                                  {selectedAction.mitre_technique}
                                 </span>
-                              ))}
+                              )}
                             </div>
                           </div>
                         )}
-                        {selectedAction.framework_mappings.mitre?.length > 0 && (
+
+                        {selectedAction.compliance_frameworks && selectedAction.compliance_frameworks.length > 0 && (
                           <div>
-                            <strong className="text-purple-800">MITRE ATLAS:</strong>
+                            <strong className="text-sm text-gray-700">Compliance:</strong>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedAction.framework_mappings.mitre.map((technique, idx) => (
-                                <span key={idx} className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">
-                                  {technique}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {selectedAction.framework_mappings.soc2?.length > 0 && (
-                          <div>
-                            <strong className="text-green-800">SOC 2:</strong>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedAction.framework_mappings.soc2.map((control, idx) => (
-                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
-                                  {control}
+                              {selectedAction.compliance_frameworks.map((fw, idx) => (
+                                <span key={idx} className="bg-gray-200 text-gray-800 px-2 py-0.5 rounded text-xs font-semibold">
+                                  {fw}
                                 </span>
                               ))}
                             </div>
@@ -3344,26 +3362,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                         )}
                       </div>
                     </div>
-                  )
-                )}
-
-                {/* ✅ ENTERPRISE: Policy Violations */}
-                {selectedAction.violated_policies?.length > 0 && (
-                  <div className="bg-red-50 p-4 rounded-lg">
-                    <h4 className="font-semibold mb-2 text-red-900">⚠️ Policy Violations</h4>
-                    <div className="space-y-1">
-                      {selectedAction.violated_policies.map((policy, index) => (
-                        <div key={index} className="text-sm text-red-800">
-                          • {policy.policy_name || policy}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                      <div><strong>Workflow Stage:</strong> {getWorkflowStageLabel(selectedAction.workflow_stage)}</div>
-                      <div><strong>Approval Progress:</strong> {selectedAction.current_approval_level}/{selectedAction.required_approval_level}</div>
-                    </div>
-                  </div>
+                  )}
 
                   {/* 🚀 NEW: Execution Status in Modal */}
                   {selectedAction.execution_status && selectedAction.execution_status !== "pending_approval" && (

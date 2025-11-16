@@ -242,6 +242,43 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     }
   };
 
+  const handleUpdateRole = async () => {
+    if (!editingRole) return;
+
+    try {
+      console.log("🔄 Updating role:", editingRole);
+      const response = await fetch(`${BASE_URL}/api/enterprise-users/roles/${editingRole.id}`, {
+        credentials: "include",
+        method: "PUT",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: editingRole.name,
+          description: editingRole.description,
+          permissions: editingRole.permissions,
+          level: editingRole.level,
+          risk_level: editingRole.risk_level
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log("✅ Role updated:", result);
+        alert("✅ Role updated successfully!");
+        setEditingRole(null);
+        await loadRoles(); // Reload roles
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error("❌ Error updating role:", error);
+      alert(`❌ Failed to update role: ${error.message}`);
+    }
+  };
+
   const handleDeactivateUser = async (userId, userEmail) => {
     if (!confirm(`Are you sure you want to deactivate ${userEmail}?\n\nThis will immediately revoke all access.`)) {
       return;
@@ -314,43 +351,6 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
     } catch (error) {
       console.error("❌ Error creating role:", error);
       alert(`❌ Failed to create role: ${error.message}`);
-    }
-  };
-
-  const handleUpdateRole = async () => {
-    if (!editingRole) return;
-
-    try {
-      console.log("🔄 Updating role:", editingRole);
-      const response = await fetch(`${BASE_URL}/api/enterprise-users/roles/${editingRole.id}`, {
-        credentials: "include",
-        method: "PUT",
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name: editingRole.name,
-          description: editingRole.description,
-          permissions: editingRole.permissions,
-          level: editingRole.level,
-          risk_level: editingRole.risk_level
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log("✅ Role updated:", result);
-        alert("✅ Role updated successfully!");
-        setEditingRole(null);
-        await loadRoles(); // Reload roles
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
-    } catch (error) {
-      console.error("❌ Error updating role:", error);
-      alert(`❌ Failed to update role: ${error.message}`);
     }
   };
 
