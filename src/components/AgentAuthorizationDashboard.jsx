@@ -1245,18 +1245,16 @@ const createWorkflow = async (workflowData) => {
   } catch (err) {
     console.error(`Error ${decision} action:`, err);
 
-    // 🏢 ENTERPRISE: Enhanced error messages based on error type
     let errorMessage = `❌ Failed to ${decision} action.`;
 
     if (err.message?.includes('already processed')) {
-      errorMessage = `⚠️ This action has already been ${decision === 'approved' ? 'approved' : decision === 'denied' ? 'denied' : 'processed'}. Refreshing list...`;
-      // Auto-refresh to remove stale action
+      errorMessage = `⚠️ This action has already been processed. Refreshing...`;
       setTimeout(() => {
         fetchDashboardData();
         setSelectedAction(null);
       }, 1500);
     } else if (err.message?.includes('Not Found') || err.message?.includes('404')) {
-      errorMessage = `❌ Action not found. It may have been processed already. Refreshing list...`;
+      errorMessage = `❌ Action not found. Refreshing...`;
       setTimeout(() => {
         fetchDashboardData();
         setSelectedAction(null);
@@ -1266,9 +1264,8 @@ const createWorkflow = async (workflowData) => {
     } else if (err.message?.includes('permission') || err.message?.includes('403')) {
       errorMessage = `🚫 You don't have permission to ${decision} this action.`;
     } else if (err.message?.includes('network') || err.message?.includes('fetch')) {
-      errorMessage = `📡 Network error. Please check your connection and try again.`;
+      errorMessage = `📡 Network error. Please check your connection.`;
     } else if (err.detail) {
-      // API returned error detail
       errorMessage = `❌ ${err.detail}`;
     }
 
@@ -3300,90 +3297,6 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           {selectedAction.ai_risk_score}/100
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <strong>Risk Level:</strong>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          selectedAction.risk_level === 'critical' ? 'bg-red-100 text-red-800' :
-                          selectedAction.risk_level === 'high' ? 'bg-orange-100 text-orange-800' :
-                          selectedAction.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
-                        }`}>
-                          {selectedAction.risk_level?.toUpperCase() || 'LOW'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 🏢 ENTERPRISE: NIST SP 800-53 & MITRE ATT&CK Compliance */}
-                  {(selectedAction.nist_control || selectedAction.mitre_tactic) && (
-                    <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                      <h4 className="font-semibold mb-3 text-blue-900">🛡️ Security & Compliance Frameworks</h4>
-                      <div className="space-y-3">
-                        {selectedAction.nist_control && (
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <strong className="text-blue-800 text-sm">NIST SP 800-53:</strong>
-                              <span className="bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-xs font-mono">
-                                {selectedAction.nist_control}
-                              </span>
-                            </div>
-                            {selectedAction.nist_description && (
-                              <p className="text-sm text-blue-700 ml-4">
-                                {selectedAction.nist_description}
-                              </p>
-                            )}
-                            {selectedAction.nist_controls && selectedAction.nist_controls.length > 1 && (
-                              <div className="flex flex-wrap gap-1 mt-1 ml-4">
-                                {selectedAction.nist_controls.map((ctrl, idx) => (
-                                  <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs font-mono">
-                                    {ctrl}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {selectedAction.mitre_tactic && (
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <strong className="text-purple-800 text-sm">MITRE ATT&CK:</strong>
-                              <span className="bg-purple-200 text-purple-900 px-2 py-0.5 rounded text-xs font-mono">
-                                {selectedAction.mitre_tactic}
-                              </span>
-                              {selectedAction.mitre_technique && (
-                                <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-mono">
-                                  {selectedAction.mitre_technique}
-                                </span>
-                              )}
-                            </div>
-                            {selectedAction.mitre_techniques && selectedAction.mitre_techniques.length > 1 && (
-                              <div className="flex flex-wrap gap-1 mt-1 ml-4">
-                                {selectedAction.mitre_techniques.map((tech, idx) => (
-                                  <span key={idx} className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-mono">
-                                    {tech}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {selectedAction.compliance_frameworks && selectedAction.compliance_frameworks.length > 0 && (
-                          <div>
-                            <strong className="text-sm text-gray-700">Compliance:</strong>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedAction.compliance_frameworks.map((fw, idx) => (
-                                <span key={idx} className="bg-gray-200 text-gray-800 px-2 py-0.5 rounded text-xs font-semibold">
-                                  {fw}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
                 {/* ✅ ENTERPRISE: NIST/MITRE Framework Mappings */}
                 {selectedAction.framework_mappings && (
