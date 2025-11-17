@@ -963,20 +963,22 @@ class EnterpriseRealTimePolicyEngine:
         }
         
         try:
+            # ENTERPRISE FIX: LogAuditTrail doesn't have timestamp field
+            # Store timestamp in details JSON instead
             audit_log = LogAuditTrail(
                 user_id=1,  # System user for policy engine
                 action="policy_evaluation",
                 details=json.dumps(audit_details),
                 ip_address=context.client_ip or "policy_engine",
-                risk_level=risk_score.risk_level,
-                timestamp=context.timestamp
+                risk_level=risk_score.risk_level
+                # timestamp removed - store in details instead (already there)
             )
-            
+
             self.db.add(audit_log)
-            self.db.commit()
-            
+            self.db.flush()  # ENTERPRISE PATTERN: Use flush() instead of commit()
+
             return str(audit_log.id)
-            
+
         except Exception as e:
             logger.error(f"Failed to create audit trail: {str(e)}")
             return f"audit_trail_error_{evaluation_id}"

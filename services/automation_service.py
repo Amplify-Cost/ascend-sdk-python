@@ -217,12 +217,13 @@ class AutomationService:
                 }
 
             # Create playbook execution record for audit trail
+            # ENTERPRISE FIX: Store action_id in input_data, not as direct field
             execution = PlaybookExecution(
                 playbook_id=playbook_id,
-                action_id=action_id,
                 executed_by='automation_system',
                 execution_context='automatic',
                 input_data={
+                    'action_id': action_id,  # Store in input_data instead
                     'risk_score': action.risk_score,
                     'action_type': action.action_type,
                     'agent_id': action.agent_id
@@ -232,7 +233,8 @@ class AutomationService:
                     'auto_approved': True,
                     'reason': 'Matched playbook trigger conditions',
                     'playbook_name': playbook.name,
-                    'risk_score': action.risk_score
+                    'risk_score': action.risk_score,
+                    'agent_action_id': action_id  # Also store here for reference
                 }
             )
             execution.started_at = datetime.utcnow()

@@ -99,8 +99,10 @@ async def create_agent_action(
         alert_id = None
 
         try:
+            # ENTERPRISE FIX: Always set created_by for Pydantic validation
             action = AgentAction(
                 user_id=current_user.get("user_id", 1),  # Fallback user ID
+                created_by=current_user.get("user_id", 1),  # Enterprise fix: Always set for schema validation
                 agent_id=data["agent_id"],
                 action_type=data["action_type"],
                 description=data["description"],
@@ -255,13 +257,13 @@ async def create_agent_action(
             # Create enterprise alert if high risk
             if enrichment["risk_level"] == "high":
                 try:
+                    # ENTERPRISE FIX: Alert model only has 'timestamp', not 'created_at'
                     alert = Alert(
                         agent_action_id=action.id,
                         alert_type="High Risk Agent Action",
                         severity="high",
                         message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
-                        created_at=timestamp,
-                        timestamp=timestamp
+                        timestamp=timestamp  # Only timestamp field exists
                     )
                     db.add(alert)
                     db.flush()  # Add alert to transaction without committing
