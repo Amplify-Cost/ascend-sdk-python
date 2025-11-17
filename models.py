@@ -728,7 +728,16 @@ class RiskScoringConfig(Base):
     # 📝 ENTERPRISE AUDIT TRAIL
     created_by = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # ENTERPRISE FIX: Add server_default to match database NOT NULL constraint
+    # Matches industry standards (Wiz.io, Splunk, Palo Alto) for timestamp tracking
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),  # Sets timestamp on INSERT (fixes NULL constraint violation)
+        onupdate=func.now(),         # Updates timestamp on UPDATE
+        nullable=False                # Matches database NOT NULL constraint
+    )
+    updated_by = Column(String(255), nullable=True)  # Complete audit trail (who modified)
 
     # Activation tracking (when config was made active)
     activated_by = Column(String(255), nullable=True)
