@@ -1188,8 +1188,13 @@ try:
     from routes import risk_scoring_config_routes
     app.include_router(risk_scoring_config_routes.router, tags=["Risk Scoring Config"])
     print("✅ ENTERPRISE: Risk scoring configuration routes included")
+    logger.info("✅ ENTERPRISE: Risk scoring config routes registered at /api/risk-scoring/*")
+    # Log available routes for debugging
+    for route in risk_scoring_config_routes.router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
 except ImportError as e:
     print(f"⚠️  Risk scoring config routes not available: {e}")
+    logger.error(f"❌ Failed to import risk_scoring_config_routes: {e}")
 
 print("🚀 ENTERPRISE: Application startup complete")
 
