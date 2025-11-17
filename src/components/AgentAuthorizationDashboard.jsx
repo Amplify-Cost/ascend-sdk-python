@@ -556,7 +556,8 @@ const fetchWorkflowOrchestrations = async () => {
   // 🏢 ENTERPRISE: Fetch real-time automation activity feed
   const fetchActivityFeed = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/authorization/automation/activity-feed?limit=5`, {
+      // ENTERPRISE FIX: Use working /api/agent-activity endpoint
+      const response = await fetch(`${API_BASE_URL}/api/agent-activity?limit=5`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: {
           ...getAuthHeaders(),
@@ -566,8 +567,10 @@ const fetchWorkflowOrchestrations = async () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setActivityFeed(data.activities || []);
-        console.log("✅ ENTERPRISE: Activity feed loaded:", data.activities?.length || 0, "activities");
+        // ENTERPRISE: Map agent-activity response to activities format
+        const activities = Array.isArray(data) ? data : (data.activities || []);
+        setActivityFeed(activities);
+        console.log("✅ ENTERPRISE: Activity feed loaded:", activities.length, "activities");
       } else {
         console.warn("⚠️  Activity feed API returned non-OK response - showing empty state");
         setActivityFeed([]);
