@@ -666,3 +666,76 @@ class CVSSAssessment(Base):
 
     # Relationships
     action = relationship("AgentAction", backref="cvss_assessments")
+
+
+# 🏢 ENTERPRISE RISK SCORING CONFIGURATION MODEL
+# Modeled after industry-leading platforms: Wiz.io, Splunk Enterprise Security, Palo Alto Networks
+# Provides database-driven, versioned, auditable risk scoring configuration
+class RiskScoringConfig(Base):
+    """
+    Enterprise Risk Scoring Configuration Model
+
+    Provides configurable, versioned risk scoring similar to:
+    - Wiz.io: Cloud resource risk scoring with environment-specific weights
+    - Splunk Enterprise Security: Risk scoring framework with configurable action weights
+    - Palo Alto Networks: Multi-factor threat assessment with component percentages
+
+    Features:
+    - Database-driven configuration (not hardcoded)
+    - Full version control (config_version)
+    - Activation management (is_active flag for safe transitions)
+    - Complete audit trail (created_by, activated_by, timestamps)
+    - JSONB storage for flexible configuration without schema changes
+    - Factory defaults support (is_default flag)
+    - RBAC protection (admin-only access)
+    """
+    __tablename__ = "risk_scoring_configs"
+
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Version Management
+    config_version = Column(String(20), nullable=False, index=True)
+    algorithm_version = Column(String(20), nullable=False, default="2.0.0")
+
+    # 🔧 ENTERPRISE WEIGHT CONFIGURATIONS
+    # Using JSONB for flexibility - allows configuration updates without schema migrations
+
+    # Environment-specific multipliers (like Wiz.io cloud environment risk)
+    # Example: {"production": 1.5, "staging": 1.2, "development": 0.8}
+    environment_weights = Column(JSONB, nullable=False)
+
+    # Action type weights (like Splunk risk scoring framework)
+    # Example: {"database_write": 0.9, "database_delete": 1.0, "system_command": 0.85}
+    action_weights = Column(JSONB, nullable=False)
+
+    # Resource sensitivity multipliers (like Palo Alto data classification)
+    # Example: {"pii_data": 1.3, "financial": 1.4, "health_records": 1.5}
+    resource_multipliers = Column(JSONB, nullable=False)
+
+    # PII detection weights
+    # Example: {"contains_ssn": 1.5, "contains_email": 1.1, "contains_phone": 1.2}
+    pii_weights = Column(JSONB, nullable=False)
+
+    # Hybrid scoring component percentages
+    # Example: {"cvss_weight": 40, "policy_weight": 30, "context_weight": 30}
+    component_percentages = Column(JSONB, nullable=False)
+
+    # 📋 CONFIGURATION MANAGEMENT
+    is_active = Column(Boolean, nullable=False, default=False, index=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+
+    # 📝 ENTERPRISE AUDIT TRAIL
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Activation tracking (when config was made active)
+    activated_by = Column(String(255), nullable=True)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Optional description for configuration purpose
+    description = Column(String(500), nullable=True)
+
+    def __repr__(self):
+        return f"<RiskScoringConfig(id={self.id}, version={self.config_version}, active={self.is_active})>"
