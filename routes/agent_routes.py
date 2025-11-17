@@ -93,7 +93,11 @@ async def create_agent_action(
                 "cvss_vector": None
             }
 
-        # Create agent action record with bulletproof database handling
+        # Create agent action record with enterprise-grade transaction management
+        # ENTERPRISE PATTERN: All operations use flush(), single commit() at end
+        action_id = None
+        alert_id = None
+
         try:
             action = AgentAction(
                 user_id=current_user.get("user_id", 1),  # Fallback user ID
@@ -118,8 +122,9 @@ async def create_agent_action(
             )
 
             db.add(action)
-            db.commit()
-            db.refresh(action)
+            db.flush()  # Get ID without committing transaction
+            action_id = action.id
+            logger.info(f"Action record created (not committed): {action_id}")
 
             # ARCH-001: Second pass - Create CVSS assessment with action_id and update agent_actions
             try:
@@ -143,15 +148,14 @@ async def create_agent_action(
                 action.cvss_vector = cvss_result["vector_string"]
                 action.risk_score = cvss_result["base_score"] * 10  # 0-100 scale
 
-                # CRITICAL FIX: Explicitly track changes in session
+                # ENTERPRISE PATTERN: Track changes and flush (no commit yet)
                 db.add(action)      # Re-add to session to ensure SQLAlchemy tracks modifications
-                db.flush()          # Flush changes to database immediately
-                db.commit()         # Commit the transaction
-                db.refresh(action)  # Reload from DB to verify persistence
+                db.flush()          # Flush changes without committing transaction
 
                 logger.info(f"✅ CVSS integrated: Action {action.id} -> {cvss_result['base_score']} ({cvss_result['severity']})")
             except Exception as cvss_error:
                 logger.warning(f"⚠️  CVSS integration failed for action {action.id}: {cvss_error}")
+                # Continue - CVSS is supplementary, don't fail the entire transaction
 
             # ENTERPRISE AUTOMATION: Check for playbook-based auto-approval
             try:
@@ -213,29 +217,40 @@ async def create_agent_action(
                 # Continue - alerts/workflows are supplementary
 
             # 🏢 ENTERPRISE: Unified Policy Engine Evaluation (Option 4 Hybrid)
+            # Use nested transaction (savepoint) so policy evaluation errors don't poison main transaction
             try:
-                from services.unified_policy_evaluation_service import create_unified_policy_service
+                # Create savepoint before policy evaluation
+                nested = db.begin_nested()
 
-                unified_service = create_unified_policy_service(db)
-                user_context = {
-                    "email": current_user.get("email", "unknown"),
-                    "role": current_user.get("role", "user"),
-                    "user_id": current_user.get("user_id", 1)
-                }
+                try:
+                    from services.unified_policy_evaluation_service import create_unified_policy_service
 
-                # Evaluate agent action using unified policy engine
-                policy_result = await unified_service.evaluate_agent_action(action, user_context)
+                    unified_service = create_unified_policy_service(db)
+                    user_context = {
+                        "email": current_user.get("email", "unknown"),
+                        "role": current_user.get("role", "user"),
+                        "user_id": current_user.get("user_id", 1)
+                    }
 
-                logger.info(
-                    f"✅ Policy evaluated: Action {action.id} -> "
-                    f"decision={policy_result.decision.value}, "
-                    f"policy_risk={policy_result.risk_score.total_score}, "
-                    f"time={policy_result.evaluation_time_ms:.2f}ms"
-                )
+                    # Evaluate agent action using unified policy engine
+                    policy_result = await unified_service.evaluate_agent_action(action, user_context)
 
-            except Exception as policy_error:
-                logger.warning(f"⚠️  Policy evaluation failed for action {action.id}: {policy_error}")
-                # Continue without policy evaluation - action still created
+                    logger.info(
+                        f"✅ Policy evaluated: Action {action.id} -> "
+                        f"decision={policy_result.decision.value}, "
+                        f"policy_risk={policy_result.risk_score.total_score}, "
+                        f"time={policy_result.evaluation_time_ms:.2f}ms"
+                    )
+                    nested.commit()  # Commit the savepoint
+
+                except Exception as policy_inner_error:
+                    nested.rollback()  # Rollback only the savepoint, not the whole transaction
+                    logger.warning(f"⚠️  Policy evaluation failed for action {action.id}: {policy_inner_error}")
+                    # Continue without policy evaluation - main transaction still valid
+
+            except Exception as savepoint_error:
+                logger.warning(f"⚠️  Savepoint creation failed: {savepoint_error}")
+                # Continue - policy evaluation is optional
 
             # Create enterprise alert if high risk
             if enrichment["risk_level"] == "high":
@@ -249,20 +264,28 @@ async def create_agent_action(
                         timestamp=timestamp
                     )
                     db.add(alert)
-                    db.commit()
+                    db.flush()  # Add alert to transaction without committing
+                    alert_id = alert.id
+                    logger.info(f"Alert created (not committed): {alert_id}")
                 except Exception as alert_error:
                     logger.warning(f"Alert creation failed: {alert_error}")
-                    # Continue without alert - core action still created
+                    # Continue without alert - core action still valid
 
-            logger.info(f"Enterprise agent action created: {action.id} (risk: {enrichment['risk_level']})")
+            # ENTERPRISE PATTERN: Single commit at the end for atomic transaction
+            # All previous operations used flush() to maintain transaction integrity
+            # If any exception occurred, rollback will undo ALL changes
+            db.commit()
+            db.refresh(action)  # Reload from DB to get committed state
+
+            logger.info(f"✅ Enterprise agent action committed: {action.id} (risk: {enrichment['risk_level']})")
             return action
 
         except Exception as db_error:
-            logger.error(f"Database action creation failed: {db_error}")
-            db.rollback()
+            logger.error(f"❌ Database action creation failed: {db_error}")
+            db.rollback()  # Rollback works because we haven't committed yet
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Enterprise action creation temporarily unavailable"
+                detail=f"Enterprise action creation failed: {str(db_error)}"
             )
 
     except HTTPException:

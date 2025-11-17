@@ -713,10 +713,10 @@ class EnterpriseRealTimePolicyEngine:
         
         # Query active policies from database
         policies_query = """
-            SELECT id, policy_name, natural_language_description, 
+            SELECT id, policy_name, natural_language_description,
                    resource_patterns, namespace_patterns, verb_patterns,
-                   action, conditions, priority
-            FROM mcp_policies 
+                   actions, conditions, priority
+            FROM mcp_policies
             WHERE is_active = true AND policy_status = 'deployed'
             ORDER BY priority DESC, created_at ASC
         """

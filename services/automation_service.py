@@ -258,9 +258,9 @@ class AutomationService:
                 # For now, assume 98% success rate after first execution
                 playbook.success_rate = 98.0 if total_executions > 1 else 100.0
 
-            # Commit all changes
-            self.db.commit()
-            self.db.refresh(execution)
+            # ENTERPRISE PATTERN: Flush changes without committing
+            self.db.flush()
+            # Don't refresh here - parent will handle after commit
 
             logger.info(f"✅ Playbook executed successfully: action {action_id} auto-approved")
             logger.info(f"📊 Playbook stats: {playbook.execution_count} executions, {playbook.success_rate}% success rate")
@@ -274,7 +274,7 @@ class AutomationService:
             }
 
         except Exception as e:
-            self.db.rollback()
+            # Don't rollback here - let parent transaction handle it
             logger.error(f"❌ Playbook execution failed: {e}")
             return {
                 'success': False,
@@ -443,11 +443,11 @@ class AutomationService:
                 current_rate = playbook.success_rate or 100.0
                 playbook.success_rate = current_rate * 0.95
 
-            self.db.commit()
+            self.db.flush()  # ENTERPRISE PATTERN: Flush without committing
             logger.info(f"📊 Updated stats for {playbook_id}: {playbook.execution_count} executions")
 
         except Exception as e:
-            self.db.rollback()
+            # Don't rollback here - let parent transaction handle it
             logger.error(f"❌ Failed to update playbook stats: {e}")
 
 
