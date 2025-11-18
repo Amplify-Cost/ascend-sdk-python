@@ -99,10 +99,10 @@ async def create_agent_action(
         alert_id = None
 
         try:
-            # ENTERPRISE FIX: Always set created_by for Pydantic validation
+            # ENTERPRISE FIX: Create AgentAction with valid fields only
+            # Note: AgentAction model uses user_id (not created_by)
             action = AgentAction(
-                user_id=current_user.get("user_id", 1),  # Fallback user ID
-                created_by=current_user.get("user_id", 1),  # Enterprise fix: Always set for schema validation
+                user_id=current_user.get("user_id", 1),  # User who created this action
                 agent_id=data["agent_id"],
                 action_type=data["action_type"],
                 description=data["description"],
