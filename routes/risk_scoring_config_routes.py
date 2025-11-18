@@ -4,15 +4,17 @@ Provides admin endpoints for managing risk scoring weight configurations
 
 Engineer: Donald King (OW-kai Enterprise)
 Created: 2025-11-14
+Updated: 2025-11-17 - Implemented ImmutableAuditService for SOX compliance
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
-from models import RiskScoringConfig, AuditLog
+from models import RiskScoringConfig
 from dependencies import require_admin, require_csrf
 from schemas.risk_config import RiskConfigCreate, RiskConfigResponse, RiskConfigValidation
 from services.risk_config_validator import validate_risk_config
 from services.risk_config_loader import clear_config_cache
+from services.immutable_audit_service import ImmutableAuditService
 from typing import List
 from datetime import datetime, UTC
 import logging
@@ -136,20 +138,25 @@ def create_config(
         db.commit()
         db.refresh(new_config)
 
-        # Create audit log entry
-        audit_entry = AuditLog(
-            action=f"risk_config_created",
-            user_id=admin_user['user_id'],
-            user_email=admin_user['email'],
-            details={
+        # Create immutable audit log entry (enterprise compliance)
+        audit_service = ImmutableAuditService(db)
+        audit_service.log_event(
+            event_type="CONFIG_CHANGE",
+            actor_id=admin_user['email'],
+            resource_type="RISK_CONFIG",
+            resource_id=str(new_config.id),
+            action="CREATE",
+            outcome="SUCCESS",
+            event_data={
                 "config_id": new_config.id,
                 "config_version": new_config.config_version,
-                "warnings": validation_result['warnings']
+                "algorithm_version": new_config.algorithm_version,
+                "warnings": validation_result['warnings'],
+                "created_by": admin_user['email']
             },
-            timestamp=datetime.now(UTC)
+            risk_level="MEDIUM",
+            compliance_tags=["SOX", "CONFIG_MANAGEMENT", "AUDIT_TRAIL"]
         )
-        db.add(audit_entry)
-        db.commit()
 
         logger.info(
             f"Config v{new_config.config_version} (ID: {new_config.id}) "
@@ -218,21 +225,27 @@ def activate_config(
         # Clear config cache (force reload on next request)
         clear_config_cache()
 
-        # Create immutable audit log entry
-        audit_entry = AuditLog(
-            action="risk_config_activated",
-            user_id=admin_user['user_id'],
-            user_email=admin_user['email'],
-            details={
+        # Create immutable audit log entry (enterprise compliance)
+        audit_service = ImmutableAuditService(db)
+        audit_service.log_event(
+            event_type="CONFIG_CHANGE",
+            actor_id=admin_user['email'],
+            resource_type="RISK_CONFIG",
+            resource_id=str(config_to_activate.id),
+            action="ACTIVATE",
+            outcome="SUCCESS",
+            event_data={
                 "config_id": config_to_activate.id,
                 "config_version": config_to_activate.config_version,
+                "algorithm_version": config_to_activate.algorithm_version,
                 "previous_config_id": current_active.id if current_active else None,
-                "previous_config_version": current_active.config_version if current_active else None
+                "previous_config_version": current_active.config_version if current_active else None,
+                "activated_by": admin_user['email'],
+                "activated_at": config_to_activate.activated_at.isoformat()
             },
-            timestamp=datetime.now(UTC)
+            risk_level="HIGH",  # Config activation is high-impact
+            compliance_tags=["SOX", "CONFIG_MANAGEMENT", "CRITICAL_CHANGE", "AUDIT_TRAIL"]
         )
-        db.add(audit_entry)
-        db.commit()
 
         logger.info(
             f"Config v{config_to_activate.config_version} (ID: {config_to_activate.id}) "
@@ -332,22 +345,27 @@ def rollback_to_default(
         # Clear config cache
         clear_config_cache()
 
-        # Create audit log entry
-        audit_entry = AuditLog(
-            action="risk_config_rollback_to_default",
-            user_id=admin_user['user_id'],
-            user_email=admin_user['email'],
-            details={
+        # Create immutable audit log entry (enterprise compliance - emergency rollback)
+        audit_service = ImmutableAuditService(db)
+        audit_service.log_event(
+            event_type="CONFIG_CHANGE",
+            actor_id=admin_user['email'],
+            resource_type="RISK_CONFIG",
+            resource_id=str(factory_default.id),
+            action="ROLLBACK_TO_DEFAULT",
+            outcome="SUCCESS",
+            event_data={
                 "factory_default_id": factory_default.id,
                 "factory_default_version": factory_default.config_version,
                 "previous_config_id": current_active.id if current_active else None,
                 "previous_config_version": current_active.config_version if current_active else None,
-                "reason": "emergency_rollback"
+                "reason": "emergency_rollback",
+                "activated_by": admin_user['email'],
+                "activated_at": factory_default.activated_at.isoformat()
             },
-            timestamp=datetime.now(UTC)
+            risk_level="CRITICAL",  # Emergency rollback is critical event
+            compliance_tags=["SOX", "CONFIG_MANAGEMENT", "EMERGENCY_ROLLBACK", "AUDIT_TRAIL", "INCIDENT_RESPONSE"]
         )
-        db.add(audit_entry)
-        db.commit()
 
         logger.warning(
             f"EMERGENCY ROLLBACK to factory default v{factory_default.config_version} "
