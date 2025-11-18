@@ -3,6 +3,8 @@ import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
 import { PolicyDecisionBadge, PolicyDetailsCard } from "./PolicyDecisionBadge";  // 🏢 NEW: Unified Policy Engine UI
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import TriggerConditionBuilder from './TriggerConditionBuilder';  // 🏢 PHASE 1: Enterprise playbook builder
+import ActionConfigurator from './ActionConfigurator';  // 🏢 PHASE 1: Enterprise action configurator
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -54,7 +56,15 @@ const [actionSourceFilter, setActionSourceFilter] = useState("all"); // all, age
     description: '',
     status: 'active',
     risk_level: 'medium',
-    approval_required: false
+    approval_required: false,
+    trigger_conditions: {
+      risk_score: { min: null, max: null },
+      action_type: [],
+      environment: [],
+      business_hours: null,
+      weekend: null
+    },
+    actions: []
   });
 
 
@@ -610,8 +620,38 @@ const fetchWorkflowOrchestrations = async () => {
         setMessage("❌ Playbook ID and Name are required");
         return;
       }
-      
-      setMessage("⏳ Creating playbook...");
+
+      // 🏢 PHASE 1: Validate enterprise requirements
+      if (newPlaybookData.actions.length === 0) {
+        setMessage("❌ Please add at least one action to the playbook");
+        return;
+      }
+
+      // Validate action types are selected
+      const invalidActions = newPlaybookData.actions.filter(action => !action.type);
+      if (invalidActions.length > 0) {
+        setMessage("❌ Please select a type for all actions");
+        return;
+      }
+
+      // Validate required parameters for notify/escalate actions
+      for (let i = 0; i < newPlaybookData.actions.length; i++) {
+        const action = newPlaybookData.actions[i];
+        if ((action.type === 'notify' || action.type === 'stakeholder_notification') && !action.parameters.recipients) {
+          setMessage(`❌ Action ${i + 1}: Recipients are required for notification actions`);
+          return;
+        }
+        if (action.type === 'escalate_approval' && !action.parameters.level) {
+          setMessage(`❌ Action ${i + 1}: Escalation level is required`);
+          return;
+        }
+        if (action.type === 'temporary_quarantine' && !action.parameters.duration_minutes) {
+          setMessage(`❌ Action ${i + 1}: Duration is required for quarantine`);
+          return;
+        }
+      }
+
+      setMessage("⏳ Creating enterprise playbook...");
       
       const response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
         method: 'POST',
@@ -628,14 +668,22 @@ const fetchWorkflowOrchestrations = async () => {
         const result = await response.json();
         setMessage(`✅ ${result.message || 'Playbook created successfully'}`);
         
-        // Reset form
+        // Reset form (with Phase 1 fields)
         setNewPlaybookData({
           id: '',
           name: '',
           description: '',
           status: 'active',
           risk_level: 'medium',
-          approval_required: false
+          approval_required: false,
+          trigger_conditions: {
+            risk_score: { min: null, max: null },
+            action_type: [],
+            environment: [],
+            business_hours: null,
+            weekend: null
+          },
+          actions: []
         });
         
         // Close modal
@@ -3543,7 +3591,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       {/* 🆕 CREATE PLAYBOOK MODAL */}
       {showCreatePlaybookModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-2xl font-semibold">➕ Create New Playbook</h3>
@@ -3643,6 +3691,24 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                     Require manual approval before execution
                   </label>
                 </div>
+
+                {/* 🏢 PHASE 1: Trigger Condition Builder */}
+                <div className="mt-6 pt-6 border-t">
+                  <TriggerConditionBuilder
+                    value={newPlaybookData.trigger_conditions}
+                    onChange={(conditions) => setNewPlaybookData({...newPlaybookData, trigger_conditions: conditions})}
+                    errors={{}}
+                  />
+                </div>
+
+                {/* 🏢 PHASE 1: Action Configurator */}
+                <div className="mt-6">
+                  <ActionConfigurator
+                    value={newPlaybookData.actions}
+                    onChange={(actions) => setNewPlaybookData({...newPlaybookData, actions: actions})}
+                    errors={{}}
+                  />
+                </div>
               </div>
               
               {/* Action Buttons */}
@@ -3655,8 +3721,17 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 </button>
                 <button
                   onClick={createPlaybook}
-                  disabled={!newPlaybookData.id || !newPlaybookData.name}
+                  disabled={
+                    !newPlaybookData.id ||
+                    !newPlaybookData.name ||
+                    newPlaybookData.actions.length === 0
+                  }
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  title={
+                    newPlaybookData.actions.length === 0
+                      ? "Please add at least one action"
+                      : "Create playbook"
+                  }
                 >
                   Create Playbook
                 </button>
