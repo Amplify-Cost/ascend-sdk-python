@@ -15,6 +15,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, UTC
 import logging
 import json
+import time
 
 # Configure enterprise logging
 logging.basicConfig(level=logging.INFO)
@@ -853,6 +854,7 @@ async def evaluate_mcp_action(
             # Create MCP action only with real data provided by caller
             mcp_action = MCPServerAction(
                 agent_id=action_data["mcp_server"],
+                mcp_server_name=action_data["mcp_server"],  # ENTERPRISE FIX: Set required field
                 action_type=action_data["action_type"],
                 namespace=action_data["namespace"],
                 verb=action_data["verb"],
@@ -860,8 +862,12 @@ async def evaluate_mcp_action(
                 context=action_data.get("context"),
                 user_email=current_user.get("email"),
                 user_role=current_user.get("role"),
+                user_id=str(current_user.get("user_id", 7)),  # ENTERPRISE FIX: Set required field
                 created_by=current_user.get("email"),
-                status="pending"
+                status="pending",
+                request_id=f"sim-{int(time.time())}",  # ENTERPRISE FIX: Set required field
+                session_id=action_data.get("context", {}).get("session_id", f"session-{int(time.time())}"),  # ENTERPRISE FIX
+                client_id=f"simulator-{current_user.get('user_id', 7)}"  # ENTERPRISE FIX
             )
 
             db.add(mcp_action)
