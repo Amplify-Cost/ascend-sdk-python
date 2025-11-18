@@ -154,7 +154,7 @@ async def create_playbook_version(
     return new_version
 
 
-@router.post("/playbooks/{playbook_id}/rollback", response_model=PlaybookVersionResponse])
+@router.post("/playbooks/{playbook_id}/rollback", response_model=PlaybookVersionResponse)
 async def rollback_playbook(
     playbook_id: str,
     rollback_request: PlaybookRollbackRequest,
