@@ -5,6 +5,8 @@ import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 import TriggerConditionBuilder from './TriggerConditionBuilder';  // 🏢 PHASE 1: Enterprise playbook builder
 import ActionConfigurator from './ActionConfigurator';  // 🏢 PHASE 1: Enterprise action configurator
+import PlaybookTemplateLibrary from './PlaybookTemplateLibrary';  // 🏢 PHASE 2: Template library
+import PlaybookTester from './PlaybookTester';  // 🏢 PHASE 2: Dry-run testing
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -50,6 +52,9 @@ const [actionSourceFilter, setActionSourceFilter] = useState("all"); // all, age
   const [selectedPlaybook, setSelectedPlaybook] = useState(null);
   const [showWorkflowBuilder, setShowWorkflowBuilder] = useState(false);
   const [showCreatePlaybookModal, setShowCreatePlaybookModal] = useState(false);
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);  // 🏢 PHASE 2: Template library modal
+  const [showPlaybookTester, setShowPlaybookTester] = useState(false);  // 🏢 PHASE 2: Playbook tester modal
+  const [playbookToTest, setPlaybookToTest] = useState(null);  // 🏢 PHASE 2: Playbook being tested
   const [newPlaybookData, setNewPlaybookData] = useState({
     id: '',
     name: '',
@@ -2355,13 +2360,22 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
         <h3 className="text-lg font-semibold text-gray-900">🤖 Automated Response Playbooks</h3>
         <div className="flex gap-2">
           {user?.role === 'admin' && (
-            <button
-              onClick={() => setShowCreatePlaybookModal(true)}
-              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
-            >
-              <span>➕</span>
-              <span>Create Playbook</span>
-            </button>
+            <>
+              <button
+                onClick={() => setShowTemplateLibrary(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+              >
+                <span>📚</span>
+                <span>Browse Templates</span>
+              </button>
+              <button
+                onClick={() => setShowCreatePlaybookModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+              >
+                <span>➕</span>
+                <span>Create Playbook</span>
+              </button>
+            </>
           )}
 
           <button
@@ -3802,7 +3816,11 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 </button>
                 {user?.role === 'admin' && (
                   <button
-                    onClick={() => executePlaybook(selectedPlaybook.id)}
+                    onClick={() => {
+                      setPlaybookToTest(selectedPlaybook);
+                      setShowPlaybookTester(true);
+                      setSelectedPlaybook(null);
+                    }}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
                   >
                     🧪 Test Playbook
@@ -3940,6 +3958,34 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🏢 PHASE 2: Template Library Modal */}
+      {showTemplateLibrary && (
+        <PlaybookTemplateLibrary
+          onSelectTemplate={(templateData) => {
+            // Pre-fill the create modal with template data
+            setNewPlaybookData(templateData);
+            setShowTemplateLibrary(false);
+            setShowCreatePlaybookModal(true);
+          }}
+          onClose={() => setShowTemplateLibrary(false)}
+          getAuthHeaders={getAuthHeaders}
+          API_BASE_URL={API_BASE_URL}
+        />
+      )}
+
+      {/* 🏢 PHASE 2: Playbook Tester Modal */}
+      {showPlaybookTester && playbookToTest && (
+        <PlaybookTester
+          playbook={playbookToTest}
+          onClose={() => {
+            setShowPlaybookTester(false);
+            setPlaybookToTest(null);
+          }}
+          getAuthHeaders={getAuthHeaders}
+          API_BASE_URL={API_BASE_URL}
+        />
       )}
     </div>
   );
