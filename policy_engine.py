@@ -980,6 +980,9 @@ class EnterpriseRealTimePolicyEngine:
             return str(audit_log.id)
 
         except Exception as e:
+            # ENTERPRISE FIX: Rollback the session to prevent pending rollback errors
+            # This allows the calling code to continue with their own commit
+            self.db.rollback()
             logger.error(f"Failed to create audit trail: {str(e)}")
             return f"audit_trail_error_{evaluation_id}"
     
