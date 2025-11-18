@@ -7,6 +7,8 @@ import TriggerConditionBuilder from './TriggerConditionBuilder';  // 🏢 PHASE 
 import ActionConfigurator from './ActionConfigurator';  // 🏢 PHASE 1: Enterprise action configurator
 import PlaybookTemplateLibrary from './PlaybookTemplateLibrary';  // 🏢 PHASE 2: Template library
 import PlaybookTester from './PlaybookTester';  // 🏢 PHASE 2: Dry-run testing
+import PlaybookVersionHistory from './PlaybookVersionHistory';  // 🏢 PHASE 3: Version control
+import PlaybookAnalyticsDashboard from './PlaybookAnalyticsDashboard';  // 🏢 PHASE 3: Analytics dashboard
 
 const AgentAuthorizationDashboard = ({ getAuthHeaders, user }) => {
   const [dashboardData, setDashboardData] = useState(null);
@@ -54,6 +56,10 @@ const [actionSourceFilter, setActionSourceFilter] = useState("all"); // all, age
   const [showCreatePlaybookModal, setShowCreatePlaybookModal] = useState(false);
   const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);  // 🏢 PHASE 2: Template library modal
   const [showPlaybookTester, setShowPlaybookTester] = useState(false);  // 🏢 PHASE 2: Playbook tester modal
+  const [showVersionHistory, setShowVersionHistory] = useState(false);  // 🏢 PHASE 3: Version history modal
+  const [showAnalyticsDashboard, setShowAnalyticsDashboard] = useState(false);  // 🏢 PHASE 3: Analytics modal
+  const [selectedPlaybookForHistory, setSelectedPlaybookForHistory] = useState(null);  // 🏢 PHASE 3
+  const [selectedPlaybookForAnalytics, setSelectedPlaybookForAnalytics] = useState(null);  // 🏢 PHASE 3
   const [playbookToTest, setPlaybookToTest] = useState(null);  // 🏢 PHASE 2: Playbook being tested
   const [newPlaybookData, setNewPlaybookData] = useState({
     id: '',
@@ -2422,6 +2428,28 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                     >
                       🧪 Test
                     </button>
+                    {/* 🏢 PHASE 3: Version History Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedPlaybookForHistory(playbook);
+                        setShowVersionHistory(true);
+                      }}
+                      className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1 rounded text-xs"
+                      title="View version history"
+                    >
+                      📜 History
+                    </button>
+                    {/* 🏢 PHASE 3: Analytics Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedPlaybookForAnalytics(playbook);
+                        setShowAnalyticsDashboard(true);
+                      }}
+                      className="bg-green-100 hover:bg-green-200 text-green-700 px-2 py-1 rounded text-xs"
+                      title="View analytics"
+                    >
+                      📊 Analytics
+                    </button>
                   </div>
                 )}
               </div>
@@ -3982,6 +4010,32 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           onClose={() => {
             setShowPlaybookTester(false);
             setPlaybookToTest(null);
+          }}
+          getAuthHeaders={getAuthHeaders}
+          API_BASE_URL={API_BASE_URL}
+        />
+      )}
+
+      {/* 🏢 PHASE 3: Version History Modal */}
+      {showVersionHistory && selectedPlaybookForHistory && (
+        <PlaybookVersionHistory
+          playbook={selectedPlaybookForHistory}
+          onClose={() => {
+            setShowVersionHistory(false);
+            setSelectedPlaybookForHistory(null);
+          }}
+          getAuthHeaders={getAuthHeaders}
+          API_BASE_URL={API_BASE_URL}
+        />
+      )}
+
+      {/* 🏢 PHASE 3: Analytics Dashboard Modal */}
+      {showAnalyticsDashboard && selectedPlaybookForAnalytics && (
+        <PlaybookAnalyticsDashboard
+          playbook={selectedPlaybookForAnalytics}
+          onClose={() => {
+            setShowAnalyticsDashboard(false);
+            setSelectedPlaybookForAnalytics(null);
           }}
           getAuthHeaders={getAuthHeaders}
           API_BASE_URL={API_BASE_URL}
