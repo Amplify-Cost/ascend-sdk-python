@@ -217,16 +217,18 @@ class AutomationService:
                 }
 
             # Create playbook execution record for audit trail
-            # ENTERPRISE FIX: Store action_id in input_data, not as direct field
+            # ENTERPRISE FIX: Use system user ID (1) instead of string
+            # This aligns with enterprise standard (see policy_engine.py:969)
             execution = PlaybookExecution(
                 playbook_id=playbook_id,
-                executed_by='automation_system',
+                executed_by=1,  # System user for automated processes
                 execution_context='automatic',
                 input_data={
                     'action_id': action_id,  # Store in input_data instead
                     'risk_score': action.risk_score,
                     'action_type': action.action_type,
-                    'agent_id': action.agent_id
+                    'agent_id': action.agent_id,
+                    'executor': 'automation_system'  # String identifier in data
                 },
                 execution_status='completed',
                 execution_details={
