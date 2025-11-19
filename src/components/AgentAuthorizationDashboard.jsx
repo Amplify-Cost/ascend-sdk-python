@@ -644,12 +644,67 @@ const fetchWorkflowOrchestrations = async () => {
     }
   };
 
+  /**
+   * 🏢 ENTERPRISE: Validate playbook ID format
+   * Returns array of validation errors (empty if valid)
+   *
+   * Pattern: Kubernetes DNS-1123, GitHub Repos
+   * Rules:
+   * - Must start with "pb-"
+   * - Lowercase letters, numbers, hyphens only
+   * - 5-50 characters total
+   */
+  const validatePlaybookId = (id) => {
+    const errors = [];
+
+    if (!id) {
+      return errors; // Don't show errors for empty field
+    }
+
+    // Check pattern (lowercase, numbers, hyphens only)
+    if (!/^[a-z0-9-]+$/.test(id)) {
+      errors.push("Only lowercase letters (a-z), numbers (0-9), and hyphens (-) allowed");
+    }
+
+    // Check prefix
+    if (!id.startsWith('pb-')) {
+      errors.push("Must start with 'pb-'");
+    }
+
+    // Check for spaces (common mistake)
+    if (/\s/.test(id)) {
+      errors.push("No spaces allowed - use hyphens (-) instead");
+    }
+
+    // Check for uppercase (common mistake)
+    if (/[A-Z]/.test(id)) {
+      errors.push("Must be lowercase only");
+    }
+
+    // Check length
+    if (id.length < 5) {
+      errors.push("Must be at least 5 characters (e.g., 'pb-01')");
+    }
+
+    if (id.length > 50) {
+      errors.push("Must be 50 characters or less");
+    }
+
+    return errors;
+  };
 
   const createPlaybook = async () => {
     try {
       // Validate required fields
       if (!newPlaybookData.id || !newPlaybookData.name) {
         setMessage("❌ Playbook ID and Name are required");
+        return;
+      }
+
+      // 🏢 ENTERPRISE: Validate ID format before submission
+      const idErrors = validatePlaybookId(newPlaybookData.id);
+      if (idErrors.length > 0) {
+        setMessage(`❌ Invalid Playbook ID:\n${idErrors.map(e => `• ${e}`).join('\n')}`);
         return;
       }
 
@@ -3794,19 +3849,58 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               </div>
               
               <div className="space-y-4">
-                {/* Playbook ID */}
+                {/* 🏢 ENTERPRISE: Playbook ID with Real-Time Validation */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Playbook ID <span className="text-red-500">*</span>
+                    {newPlaybookData.id && validatePlaybookId(newPlaybookData.id).length === 0 && (
+                      <span className="ml-2 text-green-600 font-semibold">✓ Valid</span>
+                    )}
                   </label>
                   <input
                     type="text"
                     value={newPlaybookData.id}
                     onChange={(e) => setNewPlaybookData({...newPlaybookData, id: e.target.value})}
-                    placeholder="e.g., pb-low-risk-auto"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="pb-low-risk-auto"
+                    pattern="^pb-[a-z0-9-]+$"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-transparent transition-colors ${
+                      newPlaybookData.id && validatePlaybookId(newPlaybookData.id).length > 0
+                        ? 'border-red-500 bg-red-50 focus:ring-red-500'
+                        : newPlaybookData.id
+                        ? 'border-green-500 bg-green-50 focus:ring-green-500'
+                        : 'border-gray-300 focus:ring-blue-500'
+                    }`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Unique identifier (no spaces)</p>
+
+                  {/* Validation Errors */}
+                  {newPlaybookData.id && validatePlaybookId(newPlaybookData.id).length > 0 && (
+                    <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm font-semibold text-red-800 mb-1">❌ Invalid ID Format:</p>
+                      <ul className="text-sm text-red-700 space-y-1">
+                        {validatePlaybookId(newPlaybookData.id).map((error, idx) => (
+                          <li key={idx}>• {error}</li>
+                        ))}
+                      </ul>
+                      <div className="mt-2 pt-2 border-t border-red-200">
+                        <p className="text-xs text-red-600 font-medium mb-1">Valid examples:</p>
+                        <p className="text-xs text-red-600">• pb-low-risk-auto</p>
+                        <p className="text-xs text-red-600">• pb-high-security-2024</p>
+                        <p className="text-xs text-red-600">• pb-sox-compliance-01</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Help Text */}
+                  {(!newPlaybookData.id || validatePlaybookId(newPlaybookData.id).length === 0) && (
+                    <div className="mt-1">
+                      <p className="text-xs text-gray-600">
+                        {newPlaybookData.id
+                          ? '✓ Auto-generated from template. Must be lowercase, numbers, and hyphens only.'
+                          : 'Auto-generated ID. Must start with "pb-", use lowercase letters, numbers, and hyphens only.'
+                        }
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Playbook Name */}

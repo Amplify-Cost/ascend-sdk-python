@@ -80,10 +80,31 @@ const PlaybookTemplateLibrary = ({ onSelectTemplate, onClose, getAuthHeaders, AP
     return badges[complexity] || badges.medium;
   };
 
+  /**
+   * 🏢 ENTERPRISE: Auto-generate valid playbook ID from template name
+   * Pattern: Jira Automation, GitHub Repos, Kubernetes Resources
+   *
+   * Examples:
+   * - "Auto-Approve Low Risk Actions" → "pb-auto-approve-low-risk-actions"
+   * - "High-Risk Escalation Workflow" → "pb-high-risk-escalation-workflow"
+   * - "SOX Compliance!!!" → "pb-sox-compliance"
+   */
+  const generatePlaybookId = (templateName) => {
+    const slug = templateName
+      .toLowerCase()                    // Lowercase all characters
+      .replace(/[^a-z0-9\s-]/g, '')    // Remove special characters (keep letters, numbers, spaces, hyphens)
+      .trim()                           // Remove leading/trailing spaces
+      .replace(/\s+/g, '-')            // Replace spaces with hyphens
+      .replace(/-+/g, '-')             // Replace multiple consecutive hyphens with single hyphen
+      .substring(0, 46);               // Limit to 46 chars (leaves room for "pb-" prefix, max 50 total)
+
+    return `pb-${slug}`;
+  };
+
   const handleUseTemplate = (template) => {
-    // Convert template to playbook format
+    // 🏢 ENTERPRISE: Convert template to playbook format with auto-generated ID
     const playbookData = {
-      id: '', // User will need to provide unique ID
+      id: generatePlaybookId(template.name),  // Auto-generate valid ID
       name: template.name,
       description: template.description,
       status: 'active',
