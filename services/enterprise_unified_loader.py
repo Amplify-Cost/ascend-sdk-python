@@ -219,7 +219,8 @@ class EnterpriseUnifiedLoader:
             "_original_id": mcp.id,
 
             # Display fields
-            "action_type": verb,  # Use MCP verb as action_type
+            "action_type": "mcp_server_action",  # 🏢 FIX (2025-11-18): Frontend expects this exact value
+            "verb": verb,  # Store actual verb separately
             "description": f"{verb} on {resource}" if verb and resource else "MCP server action",
             "target_system": mcp_server_name,
             "agent_id": f"mcp:{mcp_server_name}",
