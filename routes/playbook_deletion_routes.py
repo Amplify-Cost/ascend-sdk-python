@@ -22,8 +22,21 @@ from services.immutable_audit_service import ImmutableAuditService
 
 router = APIRouter(prefix="/api/authorization/automation", tags=["Playbook Deletion"])
 
-# Initialize audit service
-audit_service = ImmutableAuditService()
+
+# ============================================================================
+# DEPENDENCY INJECTION - ENTERPRISE PATTERN
+# ============================================================================
+
+def get_audit_service(db: Session = Depends(get_db)) -> ImmutableAuditService:
+    """
+    🏢 ENTERPRISE: Dependency injection for immutable audit service
+
+    Pattern: ServiceNow + Splunk SOAR
+    - Thread-safe per-request instantiation
+    - Proper database session management
+    - Supports testing and mocking
+    """
+    return ImmutableAuditService(db)
 
 
 # ============================================================================
@@ -74,7 +87,8 @@ async def delete_playbook(
     playbook_id: str,
     delete_request: PlaybookDeleteRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     🏢 SOFT DELETE PLAYBOOK
@@ -197,7 +211,8 @@ async def restore_playbook(
     playbook_id: str,
     restore_request: PlaybookRestoreRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     🏢 RESTORE DELETED PLAYBOOK
@@ -366,7 +381,8 @@ async def permanent_delete_playbook(
     playbook_id: str,
     confirmation: str = Query(..., description="Type playbook name to confirm"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     🏢 PERMANENT DELETE (HARD DELETE)
