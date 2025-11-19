@@ -1357,7 +1357,7 @@ const createWorkflow = async (workflowData) => {
     // 🔌 ENTERPRISE: Route to appropriate endpoint based on action type
     let endpoint;
     if (action?.action_type === 'mcp_server_action') {
-      endpoint = `${API_BASE_URL}/api/mcp-governance/evaluate-action`;
+      endpoint = `${API_BASE_URL}/api/governance/mcp-governance/evaluate-action`;
     } else if (action?.workflow_execution_id) {
       // Use workflow approval endpoint with workflow_execution_id
       endpoint = `${API_BASE_URL}/api/governance/workflows/${action.workflow_execution_id}/approve`;
