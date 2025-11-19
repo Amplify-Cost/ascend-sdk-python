@@ -61,6 +61,9 @@ const [actionSourceFilter, setActionSourceFilter] = useState("all"); // all, age
   const [selectedPlaybookForHistory, setSelectedPlaybookForHistory] = useState(null);  // 🏢 PHASE 3
   const [selectedPlaybookForAnalytics, setSelectedPlaybookForAnalytics] = useState(null);  // 🏢 PHASE 3
   const [playbookToTest, setPlaybookToTest] = useState(null);  // 🏢 PHASE 2: Playbook being tested
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);  // 🏢 PHASE 4: Delete confirmation modal
+  const [playbookToDelete, setPlaybookToDelete] = useState(null);  // 🏢 PHASE 4: Playbook to be deleted
+  const [deletionReason, setDeletionReason] = useState('');  // 🏢 PHASE 4: Optional deletion reason
   const [newPlaybookData, setNewPlaybookData] = useState({
     id: '',
     name: '',
@@ -850,6 +853,62 @@ const fetchWorkflowOrchestrations = async () => {
     setMessage("✅ Playbook executed successfully (demo mode)");
   }
 };
+
+  // 🏢 PHASE 4: Delete playbook with confirmation
+  const handleDeletePlaybook = async () => {
+    if (!playbookToDelete) return;
+
+    try {
+      setMessage(`🗑️ Deleting playbook "${playbookToDelete.name}"...`);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/authorization/automation/playbook/${playbookToDelete.id}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            ...getAuthHeaders(),
+            'Content-Type': 'application/json',
+            'X-API-Version': 'v1.0'
+          },
+          body: JSON.stringify({
+            reason: deletionReason || 'Deleted via UI'
+          })
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+
+        // Remove from local state
+        const updatedPlaybooks = { ...automationData.playbooks };
+        delete updatedPlaybooks[playbookToDelete.id];
+
+        setAutomationData({
+          ...automationData,
+          playbooks: updatedPlaybooks
+        });
+
+        setMessage(
+          `✅ Playbook "${playbookToDelete.name}" soft deleted successfully. ` +
+          `Recovery window: ${result.recovery_window_days} days. ` +
+          `Schedules stopped: ${result.schedules_stopped}`
+        );
+      } else {
+        const error = await response.json();
+        setMessage(`❌ Delete failed: ${error.detail || 'Unknown error'}`);
+      }
+    } catch (err) {
+      console.error('Error deleting playbook:', err);
+      setMessage('❌ Failed to delete playbook. Please try again.');
+    } finally {
+      // Close modal and reset state
+      setShowDeleteConfirmation(false);
+      setPlaybookToDelete(null);
+      setDeletionReason('');
+      setTimeout(() => setMessage(''), 10000);
+    }
+  };
 
 
   const executeWorkflow = async (workflowId, inputData = {}) => {
@@ -2450,6 +2509,17 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                     >
                       📊 Analytics
                     </button>
+                    {/* 🏢 PHASE 4: Delete Button */}
+                    <button
+                      onClick={() => {
+                        setPlaybookToDelete(playbook);
+                        setShowDeleteConfirmation(true);
+                      }}
+                      className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded text-xs"
+                      title="Soft delete playbook (30-day recovery)"
+                    >
+                      🗑️ Delete
+                    </button>
                   </div>
                 )}
               </div>
@@ -4040,6 +4110,104 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           getAuthHeaders={getAuthHeaders}
           API_BASE_URL={API_BASE_URL}
         />
+      )}
+
+      {/* 🏢 PHASE 4: Delete Confirmation Modal */}
+      {showDeleteConfirmation && playbookToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl border-2 border-red-200">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-red-700 flex items-center gap-2">
+                <span>🗑️</span> Delete Playbook
+              </h3>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmation(false);
+                  setPlaybookToDelete(null);
+                  setDeletionReason('');
+                }}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Warning Message */}
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+              <p className="text-sm text-yellow-800">
+                <strong>⚠️ Soft Delete:</strong> This playbook will be moved to the recycle bin with a 30-day recovery window.
+              </p>
+            </div>
+
+            {/* Playbook Info */}
+            <div className="mb-4 p-4 bg-gray-50 rounded">
+              <p className="text-sm text-gray-600 mb-1">Playbook Name:</p>
+              <p className="font-semibold text-gray-900 mb-3">{playbookToDelete.name}</p>
+
+              <p className="text-sm text-gray-600 mb-1">Risk Level:</p>
+              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                playbookToDelete.risk_level === 'critical' ? 'bg-red-100 text-red-700' :
+                playbookToDelete.risk_level === 'high' ? 'bg-orange-100 text-orange-700' :
+                playbookToDelete.risk_level === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                'bg-green-100 text-green-700'
+              }`}>
+                {playbookToDelete.risk_level?.toUpperCase() || 'UNKNOWN'}
+              </span>
+            </div>
+
+            {/* Optional Reason */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Deletion Reason (Optional)
+              </label>
+              <textarea
+                value={deletionReason}
+                onChange={(e) => setDeletionReason(e.target.value)}
+                placeholder="e.g., No longer needed, Replaced by playbook XYZ..."
+                className="w-full border border-gray-300 rounded p-2 text-sm"
+                rows="3"
+              />
+            </div>
+
+            {/* Impact Summary */}
+            <div className="mb-4 p-3 bg-blue-50 rounded text-sm">
+              <p className="font-semibold text-blue-900 mb-2">What will happen:</p>
+              <ul className="list-disc list-inside text-blue-800 space-y-1">
+                <li>Playbook marked as deleted (recoverable)</li>
+                <li>All active schedules will be stopped</li>
+                <li>30-day recovery window</li>
+                <li>Immutable audit log entry created</li>
+                <li>All execution history preserved</li>
+              </ul>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmation(false);
+                  setPlaybookToDelete(null);
+                  setDeletionReason('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePlaybook}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition font-semibold"
+              >
+                Delete Playbook
+              </button>
+            </div>
+
+            {/* Recovery Info */}
+            <p className="text-xs text-gray-500 mt-3 text-center">
+              💡 Deleted playbooks can be restored from the "Deleted Playbooks" tab within 30 days
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
