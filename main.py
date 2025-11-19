@@ -150,7 +150,7 @@ except ImportError as e:
 
 # Core application routers with graceful fallback
 ROUTE_MODULES = {}
-ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance", "automation_orchestration", "playbook_versioning", "playbook_deletion"]
+ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance", "automation_orchestration", "playbook_versioning", "playbook_deletion", "enterprise_workflow_config"]
 
 for router_name in ROUTER_NAMES:
     try:
@@ -191,6 +191,10 @@ for router_name in ROUTER_NAMES:
         elif router_name == "playbook_deletion":
             from routes.playbook_deletion_routes import router as playbook_deletion_router
             ROUTE_MODULES[router_name] = playbook_deletion_router
+        elif router_name == "enterprise_workflow_config":
+            from routes.enterprise_workflow_config_routes import router as enterprise_workflow_config_router
+            ROUTE_MODULES[router_name] = enterprise_workflow_config_router
+            print("✅ ENTERPRISE: Workflow config routes loaded (real database persistence)")
         print(f"✅ {router_name} router loaded")
     except ImportError as e:
         print(f"⚠️  {router_name} router not available: {e}")
@@ -1137,6 +1141,10 @@ for route_name, router in ROUTE_MODULES.items():
             elif route_name == "playbook_deletion":
                 app.include_router(router, tags=["Playbook Deletion"])
                 print(f"✅ ENTERPRISE PHASE 4: {route_name} router included with prefix /api/authorization/automation")
+            elif route_name == "enterprise_workflow_config":
+                # 🏢 ENTERPRISE: Real database-backed workflow config (replaces config_workflows.py)
+                app.include_router(router, tags=["Enterprise Workflow Config"])
+                print(f"✅ ENTERPRISE: Workflow config routes included (NO HARDCODED DATA - Database only)")
             else:
                 app.include_router(router, prefix=f"/api/{route_name}", tags=[route_name.title()])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /{route_name}")

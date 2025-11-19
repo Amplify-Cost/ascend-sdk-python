@@ -437,6 +437,18 @@ class Workflow(Base):
     compliance_frameworks = Column(JSON)  # ["SOX", "PCI-DSS", "HIPAA", "GDPR"]
     tags = Column(JSON)  # ["high-risk", "multi-approval", "24x7"]
 
+    # 🏢 ENTERPRISE: Workflow Configuration Fields (Real-time editable)
+    risk_threshold_min = Column(Integer, nullable=True)  # Min risk score (0-100)
+    risk_threshold_max = Column(Integer, nullable=True)  # Max risk score (0-100)
+    approval_levels = Column(Integer, default=1)  # Required approval count (1-5)
+    approvers = Column(JSONB)  # List of approver emails/user IDs
+    timeout_hours = Column(Integer, default=24)  # Workflow timeout in hours
+    emergency_override = Column(Boolean, default=False)  # Allow emergency overrides
+    escalation_minutes = Column(Integer, default=480)  # Time before escalation
+    is_active = Column(Boolean, default=True, index=True)  # Workflow enabled/disabled
+    modified_by = Column(String(255), nullable=True)  # Last user to modify
+    last_modified = Column(DateTime, nullable=True)  # Last modification time
+
     # Audit timestamps
     created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
