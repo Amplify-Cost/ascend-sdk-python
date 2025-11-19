@@ -32,7 +32,8 @@ from schemas.playbook import (
     PlaybookTestRequest,
     PlaybookTestResponse,
     PlaybookTemplate,
-    TriggerConditions
+    TriggerConditions,
+    PlaybookAction  # 🏢 PHASE 4: Added for template library endpoint (line 572+)
 )
 
 # Configure logging
