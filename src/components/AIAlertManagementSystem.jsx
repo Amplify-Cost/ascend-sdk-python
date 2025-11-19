@@ -191,14 +191,13 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        // ENTERPRISE FIX: Use API data directly - NO random generation
-        // Risk scores come from Single Source of Truth (database via API)
+        // 🏢 ENTERPRISE FIX (2025-11-19): Use ONLY REAL DATA from database
+        // NO random generation, NO hardcoded overrides
+        // API already returns: mitre_tactic, recommendation, agent_name, mcp_server_name
         const enrichedAlerts = data.map(alert => ({
           ...alert,
-          correlation_id: null,
-          threat_category: getRandomThreatCategory(),
-          recommended_action: getRecommendedAction(alert.severity),
           time_since: getTimeSince(alert.timestamp)
+          // Removed: correlation_id (not used), threat_category (random), recommended_action (hardcoded)
         }));
         setAlerts(enrichedAlerts);
       }
@@ -378,19 +377,10 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   };
 
   // Helper functions
-  const getRandomThreatCategory = () => {
-    const categories = ["Malware", "Phishing", "DDoS", "APT", "Insider Threat", "Data Exfiltration"];
-    return categories[Math.floor(Math.random() * categories.length)];
-  };
-
-  const getRecommendedAction = (severity) => {
-    const actions = {
-      "high": "Immediate investigation required",
-      "medium": "Review within 4 hours", 
-      "low": "Monitor and analyze trends"
-    };
-    return actions[severity] || "Standard monitoring";
-  };
+  // 🏢 DELETED (2025-11-19): Removed hardcoded data generators
+  // - getRandomThreatCategory() was generating random fake categories
+  // - getRecommendedAction() was overwriting AI-generated recommendations
+  // App now uses ONLY real data from database via API
 
   const getTimeSince = (timestamp) => {
     const now = new Date();
@@ -737,16 +727,30 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                       </div>
                     )}
 
-                    {/* Additional Alert Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-gray-100">
+                    {/* 🏢 ENTERPRISE FIX (2025-11-19): Show REAL AI-generated recommendation */}
+                    {alert.recommendation && (
+                      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-3">
+                        <div className="text-xs font-semibold text-blue-900 mb-2 flex items-center">
+                          <span className="mr-2">💡</span>
+                          AI-Generated Recommendation (NIST/MITRE-Based)
+                        </div>
+                        <div className="text-sm text-blue-800 leading-relaxed">
+                          {alert.recommendation}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Alert Status */}
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 mt-3">
                       <div className="text-xs text-gray-600">
-                        <span className="font-medium">Threat Category:</span> {alert.threat_category}
+                        <span className="font-medium">Alert Status:</span>{' '}
+                        {alert.status === 'new' ? '⏳ Pending Review' :
+                         alert.status === 'acknowledged' ? '✅ Acknowledged' :
+                         alert.status === 'escalated' ? '🚨 Escalated' :
+                         '⚪ ' + (alert.status || 'New')}
                       </div>
                       <div className="text-xs text-gray-600">
-                        <span className="font-medium">Recommended Action:</span> {alert.recommended_action}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        <span className="font-medium">Status:</span> {alert.correlation_id ? '🔗 Correlated' : '⚪ Standalone'}
+                        <span className="font-medium">MITRE Tactic:</span> {alert.mitre_tactic || 'Not Classified'}
                       </div>
                     </div>
 
