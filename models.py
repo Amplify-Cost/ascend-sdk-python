@@ -589,7 +589,13 @@ class AutomationPlaybook(Base):
     created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    
+
+    # 🏢 ENTERPRISE: Soft Delete (Phase 4)
+    is_deleted = Column(Boolean, default=False, nullable=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    deletion_reason = Column(Text, nullable=True)
+
     # Relationships
     executions = relationship("PlaybookExecution", back_populates="playbook", cascade="all, delete-orphan")
 

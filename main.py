@@ -38,6 +38,7 @@ from routes.data_rights_routes import router as data_rights_router
 from routes.unified_governance_routes import router as unified_governance_router
 from routes.automation_orchestration_routes import router as automation_orchestration_router
 from routes.playbook_versioning_routes import router as playbook_versioning_router  # 🏢 PHASE 3: Version control & analytics
+from routes.playbook_deletion_routes import router as playbook_deletion_router  # 🏢 PHASE 4: Soft delete with recovery
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -149,7 +150,7 @@ except ImportError as e:
 
 # Core application routers with graceful fallback
 ROUTE_MODULES = {}
-ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance", "automation_orchestration", "playbook_versioning"]
+ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance", "automation_orchestration", "playbook_versioning", "playbook_deletion"]
 
 for router_name in ROUTER_NAMES:
     try:
@@ -187,6 +188,9 @@ for router_name in ROUTER_NAMES:
         elif router_name == "playbook_versioning":
             from routes.playbook_versioning_routes import router as playbook_versioning_router
             ROUTE_MODULES[router_name] = playbook_versioning_router
+        elif router_name == "playbook_deletion":
+            from routes.playbook_deletion_routes import router as playbook_deletion_router
+            ROUTE_MODULES[router_name] = playbook_deletion_router
         print(f"✅ {router_name} router loaded")
     except ImportError as e:
         print(f"⚠️  {router_name} router not available: {e}")
@@ -1130,6 +1134,9 @@ for route_name, router in ROUTE_MODULES.items():
             elif route_name == "playbook_versioning":
                 app.include_router(router, tags=["Playbook Versioning & Analytics"])
                 print(f"✅ ENTERPRISE PHASE 3: {route_name} router included with prefix /api/authorization/automation")
+            elif route_name == "playbook_deletion":
+                app.include_router(router, tags=["Playbook Deletion"])
+                print(f"✅ ENTERPRISE PHASE 4: {route_name} router included with prefix /api/authorization/automation")
             else:
                 app.include_router(router, prefix=f"/api/{route_name}", tags=[route_name.title()])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /{route_name}")
