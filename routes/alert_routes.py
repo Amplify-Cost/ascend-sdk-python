@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Alert, AgentAction
 from schemas import AlertOut
-from dependencies import get_current_user, require_csrf  
+from dependencies import get_current_user, require_csrf
 from datetime import datetime, UTC
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,6 +27,21 @@ def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_
 
         enriched_alerts = []
         for alert, action in query:
+            # 🏢 ENTERPRISE FIX (2025-11-19): Extract agent/MCP names from message
+            agent_name = None
+            mcp_server_name = None
+
+            if alert.message:
+                # Extract agent name: "Enterprise Alert: Agent support-ticket-agent performed..."
+                agent_match = re.search(r'Agent\s+([a-z0-9\-]+)\s+performed', alert.message, re.IGNORECASE)
+                if agent_match:
+                    agent_name = agent_match.group(1)
+
+                # Extract MCP server: "MCP Server: aws-s3-connector requested..."
+                mcp_match = re.search(r'MCP Server:\s+([a-z0-9\-]+)', alert.message, re.IGNORECASE)
+                if mcp_match:
+                    mcp_server_name = mcp_match.group(1)
+
             # ENTERPRISE FIX: NULL-safe field access with defensive defaults
             enriched_alerts.append({
                 "id": alert.id,
@@ -34,6 +50,8 @@ def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_
                 "severity": alert.severity,
                 "message": alert.message,
                 "agent_id": action.agent_id if action else None,
+                "agent_name": agent_name,  # 🏢 NEW: Human-readable agent name
+                "mcp_server_name": mcp_server_name,  # 🏢 NEW: MCP server identifier
                 "tool_name": action.tool_name if action else None,
                 "risk_level": action.risk_level if action else "unknown",
                 "ai_risk_score": action.risk_score if action else 50,
