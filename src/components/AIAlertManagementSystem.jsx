@@ -189,6 +189,35 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
+
+      // 🏢 ENTERPRISE FIX (2025-11-19): Handle authentication failures gracefully
+      if (response.status === 401) {
+        setError("🔐 Session expired. Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+        return;
+      }
+
+      // Handle 500 errors (usually JWT decode failures or server issues)
+      if (response.status === 500) {
+        const errorText = await response.text();
+        console.error("❌ Server error:", errorText);
+
+        // If it's a JWT error, treat as expired session
+        if (errorText.includes('jwt') || errorText.includes('token') || errorText.includes('decode')) {
+          setError("🔐 Session expired. Redirecting to login...");
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1500);
+          return;
+        }
+
+        setError("⚠️ Server error. Please try refreshing the page.");
+        setAlerts([]);
+        return;
+      }
+
       if (response.ok) {
         const data = await response.json();
         // 🏢 ENTERPRISE FIX (2025-11-19): Use ONLY REAL DATA from database

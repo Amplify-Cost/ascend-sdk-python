@@ -187,11 +187,39 @@ useEffect(() => {
           "Content-Type": "application/json"
         }
       });
-      
+
+      // 🏢 ENTERPRISE FIX (2025-11-19): Handle authentication failures gracefully
+      if (response.status === 401) {
+        setError("🔐 Session expired. Redirecting to login...");
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+        return;
+      }
+
+      // Handle 500 errors (usually JWT decode failures or server issues)
+      if (response.status === 500) {
+        const errorText = await response.text();
+        console.error("❌ Server error:", errorText);
+
+        // If it's a JWT error, treat as expired session
+        if (errorText.includes('jwt') || errorText.includes('token') || errorText.includes('decode')) {
+          setError("🔐 Session expired. Redirecting to login...");
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 1500);
+          return;
+        }
+
+        setError("⚠️ Server error. Please try refreshing the page.");
+        setLoading(false);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`API returned ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
 
       // 🏢 ENTERPRISE: Use backend data directly (single source of truth)
