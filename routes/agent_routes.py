@@ -577,12 +577,17 @@ def get_agent_activity(
 
 # Enterprise Admin-only endpoints with preserved audit trail functionality
 @router.post("/agent-action/{action_id}/approve")
-def approve_agent_action(
+async def approve_agent_action(
     action_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
 ):
-    """Approve an agent action (admin only) - Enterprise audit trail preserved"""
+    """
+    Approve an agent action (admin only) - Enterprise audit trail preserved
+
+    FIX #2: Now stores approval comments in extra_data field for compliance
+    """
     try:
         action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
         if not action:
@@ -591,10 +596,25 @@ def approve_agent_action(
                 detail="Agent action not found"
             )
 
+        # FIX #2: Extract approval comments from request body
+        try:
+            body = await request.json()
+            comments = body.get("comments", body.get("justification", "Approved by admin"))
+        except:
+            comments = "Approved by admin"
+
         action.status = "approved"
         action.approved = True
         action.reviewed_by = admin_user["email"]
         action.reviewed_at = datetime.now(UTC)
+
+        # FIX #2: Store approval metadata in extra_data
+        approval_metadata = {
+            "approval_comments": comments,
+            "approved_at": datetime.now(UTC).isoformat(),
+            "approved_by": admin_user["email"]
+        }
+        action.extra_data = {**(action.extra_data or {}), **approval_metadata}
 
         # Create enterprise audit trail
         try:
@@ -625,12 +645,17 @@ def approve_agent_action(
         )
 
 @router.post("/agent-action/{action_id}/reject")
-def reject_agent_action(
+async def reject_agent_action(
     action_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
 ):
-    """Reject an agent action (admin only) - Enterprise audit trail preserved"""
+    """
+    Reject an agent action (admin only) - Enterprise audit trail preserved
+
+    FIX #2: Now stores rejection reason in extra_data field for compliance
+    """
     try:
         action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
         if not action:
@@ -639,10 +664,25 @@ def reject_agent_action(
                 detail="Agent action not found"
             )
 
+        # FIX #2: Extract rejection reason from request body
+        try:
+            body = await request.json()
+            rejection_reason = body.get("comments", body.get("rejection_reason", "Rejected by admin"))
+        except:
+            rejection_reason = "Rejected by admin"
+
         action.status = "rejected"
         action.approved = False
         action.reviewed_by = admin_user["email"]
         action.reviewed_at = datetime.now(UTC)
+
+        # FIX #2: Store rejection metadata in extra_data
+        rejection_metadata = {
+            "rejection_reason": rejection_reason,
+            "rejected_at": datetime.now(UTC).isoformat(),
+            "rejected_by": admin_user["email"]
+        }
+        action.extra_data = {**(action.extra_data or {}), **rejection_metadata}
 
         # Create enterprise audit trail
         try:
@@ -671,6 +711,208 @@ def reject_agent_action(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reject action"
         )
+
+# ========== OPTION 3 PHASE 1: ENTERPRISE AGENT WORKFLOW ENDPOINTS ==========
+# Added: 2025-11-19 - Enterprise autonomous agent workflow completion
+# Purpose: Enable complete agent lifecycle (submit → poll → execute → report)
+
+@router.get("/agent-action/{action_id}")
+async def get_agent_action_by_id(
+    action_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    FIX #1: Get individual agent action by ID for deep linking and detailed reports.
+
+    Use Cases:
+    - Client demos: "Show me Action 736 that was blocked"
+    - Audit reports: Pull full details for specific action
+    - Deep linking: https://pilot.owkai.app/action/736
+
+    Returns: Full action details with NIST/MITRE/CVSS mappings
+    """
+    try:
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+
+        if not action:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Action {action_id} not found"
+            )
+
+        # Format response with all enterprise metadata
+        return {
+            "id": action.id,
+            "agent_id": action.agent_id,
+            "action_type": action.action_type,
+            "description": action.description,
+            "status": action.status,
+            "risk_score": action.risk_score,
+            "risk_level": action.risk_level,
+            "nist_control": action.nist_control,
+            "nist_description": action.nist_description,
+            "mitre_tactic": action.mitre_tactic,
+            "mitre_technique": action.mitre_technique,
+            "recommendation": action.recommendation,
+            "reviewed_by": action.reviewed_by,
+            "reviewed_at": action.reviewed_at.isoformat() if action.reviewed_at else None,
+            "created_at": action.created_at.isoformat() if action.created_at else None,
+            "extra_data": action.extra_data or {},  # Include comments if present
+            "cvss_score": action.cvss_score,
+            "cvss_severity": action.cvss_severity,
+            "target_system": action.target_system,
+            "enterprise_grade": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to retrieve action {action_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/models")
+async def get_deployed_models(
+    environment: str = "production",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    FIX #3: Get list of deployed AI models for agent compliance scanning.
+
+    Purpose: Prevent infinite loop where agents scan their own submissions.
+    Agents should scan THIS endpoint (models), not /governance/unified-actions (actions).
+
+    Returns: List of actual deployed models, not agent actions
+    """
+    try:
+        # PHASE 1: Demo data (prevents infinite loop immediately)
+        # PHASE 3: Replace with actual model registry query
+        demo_models = [
+            {
+                "model_id": "fraud-detection-v2.1",
+                "model_name": "Fraud Detection ML Model",
+                "version": "2.1.0",
+                "environment": "production",
+                "deployed_at": "2025-11-15T10:30:00Z",
+                "deployed_by": "ml-ops@company.com",
+                "model_owner": "Data Science Team",
+                "compliance_status": "compliant",
+                "last_audit": "2025-11-18T14:00:00Z",
+                "gdpr_approved": True,
+                "sox_compliant": True,
+                "pci_dss_compliant": False,
+                "model_type": "classification",
+                "framework": "tensorflow",
+                "risk_level": "high"
+            },
+            {
+                "model_id": "customer-churn-v1.5",
+                "model_name": "Customer Churn Prediction",
+                "version": "1.5.2",
+                "environment": "production",
+                "deployed_at": "2025-11-10T09:00:00Z",
+                "deployed_by": "ml-ops@company.com",
+                "model_owner": "Analytics Team",
+                "compliance_status": "pending_review",
+                "last_audit": "2025-11-01T10:00:00Z",
+                "gdpr_approved": True,
+                "sox_compliant": True,
+                "pci_dss_compliant": True,
+                "model_type": "regression",
+                "framework": "pytorch",
+                "risk_level": "medium"
+            },
+            {
+                "model_id": "recommendation-engine-v3.0",
+                "model_name": "Product Recommendation Engine",
+                "version": "3.0.1",
+                "environment": "production",
+                "deployed_at": "2025-11-01T15:20:00Z",
+                "deployed_by": "ml-ops@company.com",
+                "model_owner": "Product Team",
+                "compliance_status": "non_compliant",
+                "last_audit": "2025-10-25T11:30:00Z",
+                "gdpr_approved": False,  # VIOLATION: Missing GDPR approval
+                "sox_compliant": True,
+                "pci_dss_compliant": True,
+                "model_type": "neural_network",
+                "framework": "tensorflow",
+                "risk_level": "high"
+            }
+        ]
+
+        # Filter by environment
+        filtered_models = [m for m in demo_models if m["environment"] == environment]
+
+        return {
+            "success": True,
+            "models": filtered_models,
+            "total_count": len(filtered_models),
+            "environment": environment,
+            "enterprise_metadata": {
+                "model_registry_version": "1.0.0-demo",
+                "phase_1_demo_data": True,
+                "phase_3_will_use_real_registry": True
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Model discovery failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/agent-action/status/{action_id}")
+async def get_action_status(
+    action_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    FIX #4: Agent polling endpoint for autonomous workflow.
+
+    Use Case: Agent submits action, then polls every 30s until approved/rejected.
+    - If approved: Agent executes
+    - If rejected: Agent logs denial reason and aborts
+
+    Returns: Minimal status info optimized for polling (sub-100ms)
+    """
+    try:
+        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+
+        if not action:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Action {action_id} not found"
+            )
+
+        # Extract comments from extra_data if present
+        comments = None
+        if action.extra_data:
+            if action.status == "approved":
+                comments = action.extra_data.get("approval_comments")
+            elif action.status == "rejected":
+                comments = action.extra_data.get("rejection_reason")
+
+        return {
+            "action_id": action.id,
+            "status": action.status,
+            "approved": action.approved,
+            "reviewed_by": action.reviewed_by,
+            "reviewed_at": action.reviewed_at.isoformat() if action.reviewed_at else None,
+            "comments": comments,
+            "requires_approval": action.requires_approval,
+            "risk_score": action.risk_score,
+            "polling_interval_seconds": 30,
+            "enterprise_polling": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Status check failed for action {action_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/agent-action/{action_id}/false-positive")
 def mark_false_positive(
