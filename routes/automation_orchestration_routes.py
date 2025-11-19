@@ -205,12 +205,13 @@ async def create_automation_playbook(
 
     Create new automation playbook with enterprise validation (Admin only)
 
-    PHASE 1 ENHANCEMENTS:
+    PHASE 1-4 ENHANCEMENTS:
     - Full Pydantic validation for trigger_conditions and actions
     - Type-safe parameter validation based on action type
     - Automatic ID format checking (must start with 'pb-')
     - Backward compatibility with legacy field names
     - Prevents creation of non-functional playbooks (null triggers/actions)
+    - Enterprise error messages (validation vs database errors)
 
     Frontend: AgentAuthorizationDashboard.jsx
     Body: PlaybookCreate schema (see schemas/playbook.py)
@@ -222,7 +223,7 @@ async def create_automation_playbook(
         logger.info(f"⚙️ Trigger Conditions: {playbook.trigger_conditions.dict(exclude_none=True)}")
         logger.info(f"⚡ Actions: {[action.type.value for action in playbook.actions]}")
 
-        # Check if ID already exists
+        # 🏢 PHASE 4: Check if ID already exists (enterprise error message)
         existing = db.query(AutomationPlaybook).filter(
             AutomationPlaybook.id == playbook.id
         ).first()
@@ -230,7 +231,16 @@ async def create_automation_playbook(
         if existing:
             raise HTTPException(
                 status_code=409,
-                detail=f"Playbook '{playbook.id}' already exists. Use PUT to update."
+                detail={
+                    "error_type": "DUPLICATE_ID",
+                    "message": f"Playbook ID '{playbook.id}' already exists",
+                    "suggestion": f"Try: {playbook.id}-v2 or {playbook.id}-2024",
+                    "existing_playbook": {
+                        "id": existing.id,
+                        "name": existing.name,
+                        "created_at": existing.created_at.isoformat() if existing.created_at else None
+                    }
+                }
             )
 
         # Convert Pydantic models to database format
@@ -264,10 +274,48 @@ async def create_automation_playbook(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except ValidationError as e:
+        # 🏢 PHASE 4: Enterprise validation error handling
         db.rollback()
-        logger.error(f"❌ Failed to create playbook: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create playbook: {str(e)}")
+        logger.error(f"❌ Validation error: {str(e)}")
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error_type": "VALIDATION_ERROR",
+                "message": "Playbook data failed validation",
+                "validation_errors": e.errors(),
+                "help": {
+                    "playbook_id": "Must start with 'pb-', use lowercase letters, numbers, and hyphens only",
+                    "examples": ["pb-low-risk-auto", "pb-high-security-2024", "pb-sox-compliance-01"]
+                }
+            }
+        )
+    except Exception as e:
+        # 🏢 PHASE 4: Database and other errors
+        db.rollback()
+        error_msg = str(e)
+        logger.error(f"❌ Database error creating playbook: {error_msg}")
+
+        # Check if it's a database connection error
+        if "connection" in error_msg.lower() or "database" in error_msg.lower():
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error_type": "DATABASE_ERROR",
+                    "message": "Database connection failed",
+                    "technical_details": error_msg,
+                    "suggestion": "Please try again. If the issue persists, contact support."
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_type": "SERVER_ERROR",
+                    "message": "Failed to create playbook",
+                    "technical_details": error_msg
+                }
+            )
 
 
 @router.post("/automation/playbook/{playbook_id}/toggle")
