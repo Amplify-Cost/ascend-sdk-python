@@ -254,21 +254,30 @@ async def create_agent_action(
                 logger.warning(f"⚠️  Savepoint creation failed: {savepoint_error}")
                 # Continue - policy evaluation is optional
 
-            # Create enterprise alert if high risk
+            # 🏢 ENTERPRISE FIX (2025-11-19): Create alert with idempotency check
             if enrichment["risk_level"] == "high":
                 try:
-                    # ENTERPRISE FIX: Alert model only has 'timestamp', not 'created_at'
-                    alert = Alert(
-                        agent_action_id=action.id,
-                        alert_type="High Risk Agent Action",
-                        severity="high",
-                        message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
-                        timestamp=timestamp  # Only timestamp field exists
-                    )
-                    db.add(alert)
-                    db.flush()  # Add alert to transaction without committing
-                    alert_id = alert.id
-                    logger.info(f"Alert created (not committed): {alert_id}")
+                    # Check if alert already exists for this action
+                    existing_alert = db.query(Alert).filter(
+                        Alert.agent_action_id == action.id
+                    ).first()
+
+                    if existing_alert:
+                        alert_id = existing_alert.id
+                        logger.info(f"Alert already exists for action {action.id}: alert_id={alert_id} (skipping duplicate)")
+                    else:
+                        # ENTERPRISE FIX: Alert model only has 'timestamp', not 'created_at'
+                        alert = Alert(
+                            agent_action_id=action.id,
+                            alert_type="High Risk Agent Action",
+                            severity="high",
+                            message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
+                            timestamp=timestamp  # Only timestamp field exists
+                        )
+                        db.add(alert)
+                        db.flush()  # Add alert to transaction without committing
+                        alert_id = alert.id
+                        logger.info(f"✅ New alert created for action {action.id}: alert_id={alert_id}")
                 except Exception as alert_error:
                     logger.warning(f"Alert creation failed: {alert_error}")
                     # Continue without alert - core action still valid
