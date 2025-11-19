@@ -322,6 +322,7 @@ async def create_unified_action(
             # STEP 3: Create MCP action
             mcp_action = MCPServerAction(
                 agent_id=action_data["mcp_server"],
+                mcp_server_name=action_data["mcp_server"],  # 🏢 FIX: Add required field
                 action_type=action_data["action_type"],
                 namespace=action_data["namespace"],
                 verb=action_data["verb"],
@@ -329,9 +330,13 @@ async def create_unified_action(
                 context=action_data.get("context", {}),
                 user_email=current_user.get("email"),
                 user_role=current_user.get("role"),
+                user_id=str(current_user.get("user_id", 1)),  # 🏢 FIX: Add required field
                 created_by=current_user.get("email"),
                 status="pending",
-                risk_level=enrichment["risk_level"]
+                risk_level=enrichment["risk_level"],
+                request_id=f"unified-{int(time.time())}",  # 🏢 FIX: Add required field
+                session_id=action_data.get("context", {}).get("session_id", f"session-{int(time.time())}"),  # 🏢 FIX
+                client_id=f"unified-{current_user.get('user_id', 1)}"  # 🏢 FIX: Add required field
             )
             db.add(mcp_action)
             db.commit()
