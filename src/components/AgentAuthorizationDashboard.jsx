@@ -64,6 +64,7 @@ const [actionSourceFilter, setActionSourceFilter] = useState("all"); // all, age
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);  // 🏢 PHASE 4: Delete confirmation modal
   const [playbookToDelete, setPlaybookToDelete] = useState(null);  // 🏢 PHASE 4: Playbook to be deleted
   const [deletionReason, setDeletionReason] = useState('');  // 🏢 PHASE 4: Optional deletion reason
+  const [playbookFilter, setPlaybookFilter] = useState('active');  // 🏢 PHASE 4: Filter - 'active', 'all', 'deleted'
   const [newPlaybookData, setNewPlaybookData] = useState({
     id: '',
     name: '',
@@ -414,15 +415,32 @@ useEffect(() => {
     }
   };
 
-  const fetchAutomationData = async () => {
+  const fetchAutomationData = async (filter = playbookFilter) => {
   try {
-    
+    // 🏢 PHASE 4: Build URL with smart filtering based on tab selection
+    let url = `${API_BASE_URL}/api/authorization/automation/playbooks`;
+    const params = new URLSearchParams();
+
+    if (filter === 'active') {
+      params.append('status', 'active');
+      params.append('include_deleted', 'false');
+    } else if (filter === 'all') {
+      params.append('include_deleted', 'false');  // All operational (not deleted)
+    } else if (filter === 'deleted') {
+      params.append('include_deleted', 'true');
+      params.append('status', 'disabled');  // Recycle bin
+    }
+
+    if (params.toString()) {
+      url += '?' + params.toString();
+    }
+
     let response;
     try {
-      response = await fetch(`${API_BASE_URL}/api/authorization/automation/playbooks`, {
+      response = await fetch(url, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
-        headers: { 
-          ...getAuthHeaders(), 
+        headers: {
+          ...getAuthHeaders(),
           "Content-Type": "application/json",
           "X-API-Version": "v1.0"
         }
@@ -2450,6 +2468,66 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             🔄 Refresh
           </button>
         </div>
+      </div>
+
+      {/* 🏢 PHASE 4: Smart Filter Tabs - ServiceNow/Jira Pattern */}
+      <div className="flex gap-2 mb-4 border-b pb-3">
+        <button
+          onClick={() => {
+            setPlaybookFilter('active');
+            fetchAutomationData('active');
+          }}
+          className={`px-4 py-2 rounded-t text-sm font-medium transition-all ${
+            playbookFilter === 'active'
+              ? 'bg-green-100 text-green-700 border-b-2 border-green-500'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          ▶️ Active
+          {automationData && Object.values(automationData.playbooks || {}).filter(p => p.status === 'active' && !p.is_deleted).length > 0 && (
+            <span className="ml-1 bg-green-200 text-green-800 px-2 py-0.5 rounded-full text-xs">
+              {Object.values(automationData.playbooks || {}).filter(p => p.status === 'active' && !p.is_deleted).length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            setPlaybookFilter('all');
+            fetchAutomationData('all');
+          }}
+          className={`px-4 py-2 rounded-t text-sm font-medium transition-all ${
+            playbookFilter === 'all'
+              ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-500'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          📋 All Playbooks
+          {automationData && Object.keys(automationData.playbooks || {}).length > 0 && (
+            <span className="ml-1 bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+              {Object.keys(automationData.playbooks || {}).length}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            setPlaybookFilter('deleted');
+            fetchAutomationData('deleted');
+          }}
+          className={`px-4 py-2 rounded-t text-sm font-medium transition-all ${
+            playbookFilter === 'deleted'
+              ? 'bg-red-100 text-red-700 border-b-2 border-red-500'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          🗑️ Recycle Bin
+          {automationData && Object.values(automationData.playbooks || {}).filter(p => p.is_deleted).length > 0 && (
+            <span className="ml-1 bg-red-200 text-red-800 px-2 py-0.5 rounded-full text-xs">
+              {Object.values(automationData.playbooks || {}).filter(p => p.is_deleted).length}
+            </span>
+          )}
+        </button>
       </div>
 
       {automationData && automationData.playbooks && Object.keys(automationData.playbooks).length > 0 ? (
