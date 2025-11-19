@@ -76,12 +76,12 @@ class OrchestrationService:
                 "message": f"High-risk action: {action_type} (ID: {action_id})",
                 "timestamp": datetime.utcnow()
             })
-
-            self.db.flush()  # ENTERPRISE PATTERN: Use flush() instead of commit()
+            
+            self.db.commit()
             return result.fetchone()[0]
-
+            
         except Exception as e:
-            # Don't rollback here - let parent transaction handle it
+            self.db.rollback()
             raise OrchestrationError(f"Alert creation failed: {e}")
     
     def _trigger_workflows(self, action_id: int, risk_score: float, action_type: str) -> List[str]:
@@ -136,12 +136,12 @@ class OrchestrationService:
                 "started_at": datetime.utcnow(),
                 "input_data": json.dumps({"risk_score": risk_score})
             })
-
-            self.db.flush()  # ENTERPRISE PATTERN: Use flush() instead of commit()
+            
+            self.db.commit()
             return result.fetchone()[0]
-
+            
         except Exception as e:
-            # Don't rollback here - let parent transaction handle it
+            self.db.rollback()
             raise OrchestrationError(f"Execution creation failed: {e}")
 
 

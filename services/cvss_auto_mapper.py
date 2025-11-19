@@ -1,29 +1,18 @@
 """
-CVSS Auto-Mapper Service - ENTERPRISE v2.0
+CVSS Auto-Mapper Service - ARCH-003
 Automatically assigns CVSS metrics based on agent action characteristics
 
-Industry Standards Alignment:
-- NIST 800-53 Controls (AC, AU, SC, SI, etc.)
-- MITRE ATT&CK Framework
-- PCI-DSS 4.0 (payment/financial operations)
-- SOX (financial transaction integrity)
-- HIPAA (healthcare data operations)
-- GDPR (personal data operations)
-
-Enhancements v2.0:
-- Comprehensive action mappings (30+ enterprise action types)
-- Industry-aligned CVSS scoring (realistic risk levels)
-- Separate database_read (LOW/MEDIUM) vs database_write (CRITICAL)
-- AWS/Cloud infrastructure operations
-- Healthcare/HIPAA-specific operations
-- Network security operations
-- Compliance and audit operations
-- Container/K8s operations
-- Secret/credential management
+Enhancements:
+- Fixed database write metrics (C/I/A: HIGH, Scope: CHANGED)
+- Added financial transaction detection and mapping
+- Enhanced context awareness (production, PII, financial, privilege)
+- Improved action type normalization with description checking
+- Enterprise error handling and logging
+- Backward compatible with existing integrations
 
 Engineer: OW-KAI Platform Engineering Team
-Version: 2.0 (Enterprise Edition)
-Date: 2025-11-18
+Version: ARCH-003
+Date: 2025-11-11
 """
 import logging
 from typing import Dict, Optional
@@ -46,444 +35,34 @@ class CVSSAutoMapper:
     - Privilege escalation detection
     """
 
-    # ============================================================================
-    # ENTERPRISE ACTION MAPPINGS - Industry Standards Aligned
-    # ============================================================================
-    # Scoring Guidelines:
-    # - CVSS 0.0-3.9 = LOW (routine operations, read-only, non-sensitive)
-    # - CVSS 4.0-6.9 = MEDIUM (write operations, config changes, sensitive reads)
-    # - CVSS 7.0-8.9 = HIGH (production changes, PII access, privilege changes)
-    # - CVSS 9.0-10.0 = CRITICAL (data destruction, financial transactions, privilege escalation)
-    # ============================================================================
-
+    # Action type to CVSS metric mappings (ARCH-003 enhanced)
     ACTION_MAPPINGS = {
-        # ====================================================================
-        # DATABASE OPERATIONS (Separated: Read vs Write)
-        # ====================================================================
-
-        # Database READ - CVSS 3.5-4.5 (LOW to MEDIUM)
-        # Industry: NIST AC-3 (Access Enforcement), SOX read access
-        "database_read": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",  # Reading non-PII data
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # Database WRITE - CVSS 9.0-9.3 (CRITICAL)
-        # Industry: SOX data integrity, NIST SI-7 (Software Integrity)
-        "database_write": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",  # Data integrity critical
-            "availability_impact": "HIGH"
-        },
-
-        # Database DELETE - CVSS 9.0+ (CRITICAL)
-        # Industry: SOX data retention, NIST SI-12 (Information Handling)
-        "database_delete": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"  # Data loss impact
-        },
-
-        # ====================================================================
-        # FILE OPERATIONS
-        # ====================================================================
-
-        # File READ - CVSS 2.0-3.5 (LOW)
-        # Industry: NIST AC-4 (Information Flow Enforcement)
-        "file_read": {
-            "attack_vector": "LOCAL",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # File WRITE - CVSS 5.5-6.5 (MEDIUM)
-        # Industry: NIST CM-3 (Configuration Change Control)
-        "file_write": {
-            "attack_vector": "LOCAL",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "NONE",
-            "integrity_impact": "HIGH",  # File integrity
-            "availability_impact": "LOW"
-        },
-
-        # File DELETE - CVSS 6.5-7.5 (MEDIUM to HIGH)
-        # Industry: NIST SI-12 (Information Handling and Retention)
-        "file_delete": {
-            "attack_vector": "LOCAL",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "NONE",
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"  # File loss
-        },
-
-        # ====================================================================
-        # AWS/CLOUD INFRASTRUCTURE OPERATIONS
-        # ====================================================================
-
-        # AWS READ (describe, list, get) - CVSS 3.0-4.0 (LOW)
-        # Industry: NIST CM-8 (System Component Inventory)
-        "aws_read": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",  # Infrastructure metadata
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # AWS WRITE (create, update, modify) - CVSS 7.5-8.5 (HIGH)
-        # Industry: NIST CM-3 (Configuration Change Control)
-        "aws_write": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "LOW",
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"  # Service impact
-        },
-
-        # AWS DELETE (terminate, delete) - CVSS 8.5-9.0 (HIGH to CRITICAL)
-        # Industry: NIST CP-9 (System Backup), availability critical
-        "aws_delete": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "NONE",
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"  # Resource deletion
-        },
-
-        # ====================================================================
-        # FINANCIAL & PAYMENT OPERATIONS (PCI-DSS, SOX)
-        # ====================================================================
-
-        # Financial TRANSACTION - CVSS 9.0-9.8 (CRITICAL)
-        # Industry: PCI-DSS Req 6.5.10, SOX financial integrity
-        "financial_transaction": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",  # Payment data
-            "integrity_impact": "HIGH",  # Transaction integrity
-            "availability_impact": "HIGH"  # Revenue impact
-        },
-
-        # Financial REFUND - CVSS 8.5-9.0 (HIGH to CRITICAL)
-        # Industry: PCI-DSS, SOX (revenue reversal)
-        "financial_refund": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"
-        },
-
-        # ====================================================================
-        # HEALTHCARE OPERATIONS (HIPAA)
-        # ====================================================================
-
-        # PHI/Medical Record READ - CVSS 6.5-7.5 (MEDIUM to HIGH)
-        # Industry: HIPAA Security Rule § 164.308(a)(4)
-        "healthcare_read": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "HIGH",  # PHI is highly sensitive
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # PHI/Medical Record WRITE - CVSS 8.5-9.0 (HIGH to CRITICAL)
-        # Industry: HIPAA Security Rule § 164.312(c)(1)
-        "healthcare_write": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",  # Medical record integrity critical
-            "availability_impact": "HIGH"
-        },
-
-        # ====================================================================
-        # SECURITY & AUTHENTICATION OPERATIONS
-        # ====================================================================
-
-        # Privilege ESCALATION - CVSS 9.0-9.8 (CRITICAL)
-        # Industry: NIST AC-2 (Account Management), MITRE ATT&CK T1078
-        "privilege_escalation": {
-            "attack_vector": "LOCAL",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"
-        },
-
-        # User CREATION - CVSS 6.5-7.5 (MEDIUM to HIGH)
-        # Industry: NIST AC-2 (Account Management)
-        "user_create": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "HIGH",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",
-            "integrity_impact": "HIGH",  # Account integrity
-            "availability_impact": "LOW"
-        },
-
-        # User DELETION - CVSS 5.5-6.5 (MEDIUM)
-        # Industry: NIST AC-2 (Account Management)
-        "user_delete": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "HIGH",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "NONE",
-            "integrity_impact": "HIGH",
-            "availability_impact": "LOW"  # User access loss
-        },
-
-        # Password RESET - CVSS 7.0-8.0 (HIGH)
-        # Industry: NIST IA-5 (Authenticator Management)
-        "password_reset": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "HIGH",  # Account takeover risk
-            "integrity_impact": "HIGH",
-            "availability_impact": "NONE"
-        },
-
-        # Secret/Credential READ - CVSS 7.5-8.5 (HIGH)
-        # Industry: NIST SC-12 (Cryptographic Key Management)
-        "secret_read": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",  # Credential exposure
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # Secret/Credential WRITE - CVSS 8.0-9.0 (HIGH to CRITICAL)
-        # Industry: NIST SC-12 (Cryptographic Key Management)
-        "secret_write": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "HIGH",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",  # Credential integrity
-            "availability_impact": "HIGH"
-        },
-
-        # ====================================================================
-        # NETWORK & INFRASTRUCTURE SECURITY
-        # ====================================================================
-
-        # Firewall MODIFICATION - CVSS 8.0-9.0 (HIGH to CRITICAL)
-        # Industry: NIST SC-7 (Boundary Protection)
-        "firewall_modification": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "HIGH",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",  # Network exposure
-            "integrity_impact": "HIGH",
-            "availability_impact": "HIGH"
-        },
-
-        # Network SCAN - CVSS 3.0-4.0 (LOW)
-        # Industry: NIST RA-5 (Vulnerability Scanning)
-        "network_scan": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",  # Discovery activity
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # ====================================================================
-        # CODE & DEPLOYMENT OPERATIONS
-        # ====================================================================
-
-        # Code DEPLOYMENT - CVSS 8.0-8.8 (HIGH)
-        # Industry: NIST CM-3 (Configuration Change Control)
-        "code_deployment": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "HIGH",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
-            "confidentiality_impact": "LOW",
-            "integrity_impact": "HIGH",  # Code integrity
-            "availability_impact": "HIGH"  # Service impact
-        },
-
-        # Container START/STOP - CVSS 6.5-7.5 (MEDIUM to HIGH)
-        # Industry: NIST CM-2 (Baseline Configuration)
-        "container_control": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "NONE",
-            "integrity_impact": "LOW",
-            "availability_impact": "HIGH"  # Service availability
-        },
-
-        # ====================================================================
-        # DATA OPERATIONS (PII, GDPR)
-        # ====================================================================
-
-        # Data EXFILTRATION - CVSS 7.5-8.5 (HIGH)
-        # Industry: MITRE ATT&CK T1041, GDPR Article 33
+        # Data exfiltration - high confidentiality impact
         "data_exfiltration": {
             "attack_vector": "NETWORK",
             "attack_complexity": "LOW",
             "privileges_required": "LOW",
             "user_interaction": "NONE",
             "scope": "CHANGED",
-            "confidentiality_impact": "HIGH",  # Data breach
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # PII READ - CVSS 5.5-6.5 (MEDIUM)
-        # Industry: GDPR Article 15, CCPA
-        "pii_read": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "HIGH",  # Personal data exposure
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # ====================================================================
-        # COMPLIANCE & AUDIT OPERATIONS
-        # ====================================================================
-
-        # Audit Log READ - CVSS 3.0-4.0 (LOW)
-        # Industry: NIST AU-6 (Audit Review)
-        "audit_read": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",
-            "integrity_impact": "NONE",
-            "availability_impact": "NONE"
-        },
-
-        # Audit Log MODIFICATION - CVSS 9.0-9.8 (CRITICAL)
-        # Industry: NIST AU-9 (Protection of Audit Information), SOX
-        "audit_modification": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "HIGH",
-            "user_interaction": "NONE",
-            "scope": "CHANGED",
             "confidentiality_impact": "HIGH",
-            "integrity_impact": "HIGH",  # Audit trail integrity critical
-            "availability_impact": "HIGH"
-        },
-
-        # ====================================================================
-        # COMMUNICATION OPERATIONS
-        # ====================================================================
-
-        # Email SEND - CVSS 4.0-5.0 (MEDIUM)
-        # Industry: NIST SC-8 (Transmission Confidentiality)
-        "email_send": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "REQUIRED",  # Recipient interaction
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",
-            "integrity_impact": "LOW",  # Message content
-            "availability_impact": "NONE"
-        },
-
-        # Notification SEND - CVSS 3.0-4.0 (LOW)
-        # Industry: General communication
-        "notification_send": {
-            "attack_vector": "NETWORK",
-            "attack_complexity": "LOW",
-            "privileges_required": "LOW",
-            "user_interaction": "NONE",
-            "scope": "UNCHANGED",
-            "confidentiality_impact": "LOW",
             "integrity_impact": "NONE",
             "availability_impact": "NONE"
         },
 
-        # ====================================================================
-        # SYSTEM OPERATIONS
-        # ====================================================================
+        # Database write - FIXED (ARCH-003): Now HIGH for C/I/A, Scope CHANGED
+        # Previously: CVSS 4.9 (MEDIUM), Now: CVSS 9.0+ (CRITICAL)
+        "database_write": {
+            "attack_vector": "NETWORK",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",
+            "user_interaction": "NONE",
+            "scope": "CHANGED",  # Was: UNCHANGED
+            "confidentiality_impact": "HIGH",  # Was: NONE
+            "integrity_impact": "HIGH",
+            "availability_impact": "HIGH"  # Was: NONE
+        },
 
-        # System MODIFICATION - CVSS 8.5-9.3 (HIGH to CRITICAL)
-        # Industry: NIST CM-3 (Configuration Change Control)
+        # System modification - all impacts
         "system_modification": {
             "attack_vector": "LOCAL",
             "attack_complexity": "LOW",
@@ -495,9 +74,34 @@ class CVSSAutoMapper:
             "availability_impact": "HIGH"
         },
 
-        # System MONITORING - CVSS 2.0-3.0 (LOW)
-        # Industry: NIST SI-4 (System Monitoring)
-        "system_monitoring": {
+        # Financial transaction - NEW (ARCH-003)
+        # Covers payment processing, billing, financial operations
+        "financial_transaction": {
+            "attack_vector": "NETWORK",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",
+            "user_interaction": "NONE",
+            "scope": "CHANGED",  # Financial impact affects customers
+            "confidentiality_impact": "HIGH",  # PII/payment data
+            "integrity_impact": "HIGH",  # Transaction integrity
+            "availability_impact": "HIGH"  # Revenue impact
+        },
+
+        # Privilege escalation - NEW (ARCH-003)
+        # Covers admin user creation, permission grants
+        "privilege_escalation": {
+            "attack_vector": "LOCAL",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",  # Starting point
+            "user_interaction": "NONE",
+            "scope": "CHANGED",  # System-wide impact
+            "confidentiality_impact": "HIGH",
+            "integrity_impact": "HIGH",
+            "availability_impact": "HIGH"
+        },
+
+        # File read - low confidentiality impact
+        "file_read": {
             "attack_vector": "LOCAL",
             "attack_complexity": "LOW",
             "privileges_required": "LOW",
@@ -508,12 +112,7 @@ class CVSSAutoMapper:
             "availability_impact": "NONE"
         },
 
-        # ====================================================================
-        # DEFAULT/GENERIC OPERATIONS
-        # ====================================================================
-
-        # API CALL (generic) - CVSS 4.0-5.0 (MEDIUM)
-        # Industry: Baseline for unknown operations
+        # API call - medium risk (baseline, adjusted by context)
         "api_call": {
             "attack_vector": "NETWORK",
             "attack_complexity": "LOW",
@@ -588,178 +187,51 @@ class CVSSAutoMapper:
 
     def _normalize_action_type(self, action_type: str, description: str = "") -> str:
         """
-        Normalize action type to enterprise-standard categories
+        Normalize action type to standard categories
 
-        v2.0 Enhancement: Comprehensive action categorization with 30+ types
-        Priority order ensures specific matches before generic ones
+        ARCH-003 Enhancement: Also checks description for better categorization
         """
         action_lower = action_type.lower()
         desc_lower = description.lower()
         combined = f"{action_lower} {desc_lower}"
 
-        # ====================================================================
-        # PRIORITY 1: Financial & Payment Operations (PCI-DSS, SOX)
-        # ====================================================================
-        if any(x in combined for x in ["refund", "chargeback", "reversal"]):
-            return "financial_refund"
-
+        # Financial transaction detection (ARCH-003 NEW)
         financial_keywords = [
-            "payment", "transaction", "billing", "invoice", "charge",
+            "payment", "transaction", "billing", "invoice", "charge", "refund",
             "stripe", "paypal", "financial", "credit card", "debit", "purchase"
         ]
         if any(keyword in combined for keyword in financial_keywords):
             return "financial_transaction"
 
-        # ====================================================================
-        # PRIORITY 2: Healthcare/HIPAA Operations
-        # ====================================================================
-        healthcare_keywords = ["phi", "medical", "patient", "health", "hipaa", "ehr", "emr"]
-        if any(keyword in combined for keyword in healthcare_keywords):
-            if any(x in combined for x in ["write", "update", "modify", "create", "insert"]):
-                return "healthcare_write"
-            elif any(x in combined for x in ["read", "view", "get", "query", "select", "access"]):
-                return "healthcare_read"
-
-        # ====================================================================
-        # PRIORITY 3: Security & Authentication Operations
-        # ====================================================================
-
-        # Audit log operations (check BEFORE general log operations)
-        if any(x in combined for x in ["audit", "audit_log", "auditlog"]):
-            if any(x in combined for x in ["modify", "delete", "tamper", "alter", "edit"]):
-                return "audit_modification"
-            return "audit_read"
-
-        # Secret/credential management
-        if any(x in combined for x in ["secret", "credential", "api_key", "token", "password"]):
-            if any(x in combined for x in ["write", "create", "rotate", "update"]):
-                return "secret_write"
-            return "secret_read"
-
-        # Password operations
-        if "password" in combined and any(x in combined for x in ["reset", "change", "recover"]):
-            return "password_reset"
-
-        # Privilege escalation (check for privilege changes, NOT reads)
+        # Privilege escalation detection (ARCH-003 NEW)
         privilege_keywords = [
             "admin", "administrator", "root", "sudo", "privilege", "privileges",
-            "superuser", "elevated", "grant", "role", "permission"
+            "superuser", "elevated", "grant", "permission", "access control"
         ]
         if any(keyword in combined for keyword in privilege_keywords):
-            # Escalation: creating/modifying privileges
-            if any(x in combined for x in ["create", "grant", "escalate", "elevate", "promote", "add"]):
+            # But not if it's just reading/viewing
+            if not any(x in combined for x in ["read", "view", "list", "get", "check"]):
                 return "privilege_escalation"
-            # User management
-            if "user" in combined:
-                if any(x in combined for x in ["delete", "remove", "deactivate"]):
-                    return "user_delete"
-                if any(x in combined for x in ["create", "add", "invite"]):
-                    return "user_create"
-
-        # ====================================================================
-        # PRIORITY 4: Data Operations (PII, Exfiltration)
-        # ====================================================================
 
         # Data exfiltration
-        if any(x in combined for x in ["exfil", "exfiltrat", "extract", "download", "copy", "export"]):
-            # But not routine backups
-            if not any(x in combined for x in ["backup", "scheduled"]):
-                return "data_exfiltration"
+        if any(x in combined for x in ["exfil", "export", "download", "copy", "extract"]):
+            return "data_exfiltration"
 
-        # PII operations
-        if any(x in combined for x in ["pii", "personal", "ssn", "social security"]):
-            return "pii_read"
+        # Database operations
+        elif any(x in combined for x in ["write", "update", "modify", "database", "schema", "sql"]):
+            return "database_write"
 
-        # ====================================================================
-        # PRIORITY 5: Database Operations (Separate Read/Write/Delete)
-        # ====================================================================
-
-        # Database DELETE (check BEFORE write)
-        if any(x in combined for x in ["database", "db", "sql", "query"]):
-            if any(x in combined for x in ["delete", "drop", "truncate", "remove"]):
-                return "database_delete"
-
-        # Database WRITE (check BEFORE read)
-        if any(x in combined for x in ["database", "db", "sql"]):
-            if any(x in combined for x in ["write", "update", "modify", "insert", "upsert", "create", "alter"]):
-                return "database_write"
-
-        # Database READ (must come AFTER write/delete)
-        if any(x in combined for x in ["database", "db", "sql", "query"]):
-            if any(x in combined for x in ["read", "select", "get", "query", "fetch", "view", "lookup"]):
-                return "database_read"
-
-        # ====================================================================
-        # PRIORITY 6: AWS/Cloud Operations (Separate Read/Write/Delete)
-        # ====================================================================
-
-        aws_keywords = ["aws", "ec2", "s3", "rds", "lambda", "cloudformation", "eks", "ecs"]
-        if any(keyword in combined for keyword in aws_keywords):
-            if any(x in combined for x in ["terminate", "delete", "destroy"]):
-                return "aws_delete"
-            elif any(x in combined for x in ["create", "update", "modify", "start", "stop", "reboot", "scale"]):
-                return "aws_write"
-            elif any(x in combined for x in ["describe", "list", "get", "read", "view"]):
-                return "aws_read"
-
-        # ====================================================================
-        # PRIORITY 7: File Operations (Separate Read/Write/Delete)
-        # ====================================================================
-
-        file_keywords = ["file", "document", "upload", "filesystem"]
-        if any(keyword in combined for keyword in file_keywords):
-            if any(x in combined for x in ["delete", "remove", "unlink"]):
-                return "file_delete"
-            elif any(x in combined for x in ["write", "create", "upload", "save", "modify"]):
-                return "file_write"
-            elif any(x in combined for x in ["read", "download", "view", "get", "fetch"]):
-                return "file_read"
-
-        # ====================================================================
-        # PRIORITY 8: Network & Infrastructure
-        # ====================================================================
-
-        if any(x in combined for x in ["firewall", "security group", "network acl", "iptables"]):
-            return "firewall_modification"
-
-        if any(x in combined for x in ["scan", "port scan", "vulnerability scan", "nmap"]):
-            return "network_scan"
-
-        # ====================================================================
-        # PRIORITY 9: Deployment & Code Operations
-        # ====================================================================
-
-        if any(x in combined for x in ["deploy", "deployment", "release", "rollout"]):
-            return "code_deployment"
-
-        container_keywords = ["docker", "container", "kubernetes", "k8s", "pod"]
-        if any(keyword in combined for keyword in container_keywords):
-            return "container_control"
-
-        # ====================================================================
-        # PRIORITY 10: Communication Operations
-        # ====================================================================
-
-        if any(x in combined for x in ["email", "send email", "mail"]):
-            return "email_send"
-
-        if any(x in combined for x in ["notification", "alert", "slack", "teams"]):
-            return "notification_send"
-
-        # ====================================================================
-        # PRIORITY 11: System Operations
-        # ====================================================================
-
-        if any(x in combined for x in ["monitor", "monitoring", "metrics", "observability"]):
-            return "system_monitoring"
-
-        if any(x in combined for x in ["system", "config", "configuration", "install"]):
+        # System modification
+        elif any(x in combined for x in ["system", "config", "deploy", "install", "firewall"]):
             return "system_modification"
 
-        # ====================================================================
-        # DEFAULT: Generic API Call
-        # ====================================================================
-        return "api_call"
+        # File read
+        elif any(x in combined for x in ["read", "view", "list", "get"]):
+            return "file_read"
+
+        # Default to API call
+        else:
+            return "api_call"
 
     def _get_default_metrics(self) -> Dict[str, str]:
         """Default metrics for unknown action types"""

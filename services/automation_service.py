@@ -217,26 +217,22 @@ class AutomationService:
                 }
 
             # Create playbook execution record for audit trail
-            # ENTERPRISE FIX: Use system user ID (1) instead of string
-            # This aligns with enterprise standard (see policy_engine.py:969)
             execution = PlaybookExecution(
                 playbook_id=playbook_id,
-                executed_by=1,  # System user for automated processes
+                action_id=action_id,
+                executed_by='automation_system',
                 execution_context='automatic',
                 input_data={
-                    'action_id': action_id,  # Store in input_data instead
                     'risk_score': action.risk_score,
                     'action_type': action.action_type,
-                    'agent_id': action.agent_id,
-                    'executor': 'automation_system'  # String identifier in data
+                    'agent_id': action.agent_id
                 },
                 execution_status='completed',
                 execution_details={
                     'auto_approved': True,
                     'reason': 'Matched playbook trigger conditions',
                     'playbook_name': playbook.name,
-                    'risk_score': action.risk_score,
-                    'agent_action_id': action_id  # Also store here for reference
+                    'risk_score': action.risk_score
                 }
             )
             execution.started_at = datetime.utcnow()
@@ -262,9 +258,9 @@ class AutomationService:
                 # For now, assume 98% success rate after first execution
                 playbook.success_rate = 98.0 if total_executions > 1 else 100.0
 
-            # ENTERPRISE PATTERN: Flush changes without committing
-            self.db.flush()
-            # Don't refresh here - parent will handle after commit
+            # Commit all changes
+            self.db.commit()
+            self.db.refresh(execution)
 
             logger.info(f"✅ Playbook executed successfully: action {action_id} auto-approved")
             logger.info(f"📊 Playbook stats: {playbook.execution_count} executions, {playbook.success_rate}% success rate")
@@ -278,7 +274,7 @@ class AutomationService:
             }
 
         except Exception as e:
-            # Don't rollback here - let parent transaction handle it
+            self.db.rollback()
             logger.error(f"❌ Playbook execution failed: {e}")
             return {
                 'success': False,
@@ -447,11 +443,11 @@ class AutomationService:
                 current_rate = playbook.success_rate or 100.0
                 playbook.success_rate = current_rate * 0.95
 
-            self.db.flush()  # ENTERPRISE PATTERN: Flush without committing
+            self.db.commit()
             logger.info(f"📊 Updated stats for {playbook_id}: {playbook.execution_count} executions")
 
         except Exception as e:
-            # Don't rollback here - let parent transaction handle it
+            self.db.rollback()
             logger.error(f"❌ Failed to update playbook stats: {e}")
 
 

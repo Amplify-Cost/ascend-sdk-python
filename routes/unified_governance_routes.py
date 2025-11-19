@@ -845,6 +845,19 @@ async def evaluate_mcp_action(
         except (ValueError, TypeError):
             pass  # Not a numeric ID, will create new action below
 
+        # 🏢 ENTERPRISE FIX (2025-11-18): Prevent duplicate processing
+        if mcp_action and mcp_action.status in ["approved", "denied"]:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error_type": "ALREADY_PROCESSED",
+                    "message": f"MCP action {mcp_action.id} has already been {mcp_action.status}",
+                    "processed_by": mcp_action.reviewed_by,
+                    "processed_at": mcp_action.reviewed_at.isoformat() if mcp_action.reviewed_at else None,
+                    "current_status": mcp_action.status
+                }
+            )
+
         if not mcp_action:
             # 🏢 ENTERPRISE: Require complete MCP action data (no hardcoded defaults)
             required_fields = ["mcp_server", "action_type", "namespace", "verb", "resource"]
@@ -900,6 +913,11 @@ async def evaluate_mcp_action(
         if decision == "approved":
             mcp_action.approved_by = current_user.get("email")
             mcp_action.approved_at = datetime.now(UTC)
+
+        # 🏢 ENTERPRISE FIX (2025-11-18): Commit status update to database
+        db.commit()
+        db.refresh(mcp_action)
+        logger.info(f"✅ MCP action {mcp_action.id} status committed to database: '{mcp_action.status}'")
 
         # 🏢 ENTERPRISE: Create immutable audit log entry
         try:
