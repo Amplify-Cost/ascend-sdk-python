@@ -120,205 +120,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   };
 
 
-  // Demo data generators - FIXED VERSION
-  const generateDemoMetrics = () => {
-    console.log("🎯 Generating demo performance metrics with REAL ROI data");
-    
-    const demoData = {
-      ai_performance: {
-        accuracy_rate: 94.2,
-        false_positive_rate: 5.8,
-        avg_processing_time: "1.3 seconds",
-        alerts_processed_24h: 1247,
-        threats_prevented: 23,
-        cost_savings: "$125,000"
-      },
-      trend_analysis: {
-        alert_volume_change: "+15%",
-        accuracy_improvement: "+8%", 
-        response_time_improvement: "-23%",
-        roi_percentage: 340  // This should show 340%
-      },
-      roi_details: {
-        annual_savings: 450000,
-        implementation_cost: 132000,
-        roi_calculation: 340,
-        time_savings_hours: 2400,
-        false_positive_reduction: 67
-      }
-    };
-    
-    console.log("📊 Demo metrics generated with ROI:", demoData.trend_analysis.roi_percentage);
-    return demoData;
-  };
-
-  const generateDemoAlerts = () => [
-    {
-      id: 1,
-      type: "Security Event",
-      severity: "high",
-      message: "Multiple failed login attempts detected",
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      agent_id: "agent-001",
-      ai_risk_score: 95,
-      threat_category: "Brute Force Attack",
-      recommended_action: "Immediate investigation required",
-      time_since: "5m ago"
-    },
-    {
-      id: 2,
-      type: "Anomaly Detection",
-      severity: "medium", 
-      message: "Unusual data access pattern detected",
-      timestamp: new Date(Date.now() - 1800000).toISOString(),
-      agent_id: "agent-002",
-      ai_risk_score: 78,
-      threat_category: "Data Exfiltration",
-      recommended_action: "Review within 4 hours",
-      time_since: "30m ago"
-    }
-  ];
-
-  const generateDemoInsights = () => ({
-    threat_summary: {
-      total_threats: 15,
-      critical_threats: 5,
-      automated_responses: 8,
-      false_positive_rate: 12.5,
-      avg_response_time: "4.2 minutes",
-      trends_analysis: "↗️ 33% of alerts are high-severity"
-    },
-    ai_recommendations: [
-      {
-        type: "immediate_action",
-        priority: "critical",
-        title: "Threat Correlation Analysis", 
-        description: "AI detected 5 high-severity alerts requiring correlation analysis",
-        action: "Review alert patterns for potential coordinated attacks"
-      },
-      {
-        type: "process_improvement",
-        priority: "medium",
-        title: "Alert Optimization",
-        description: "Machine learning suggests optimizing alert rules",
-        action: "Tune detection thresholds to reduce false positives"
-      }
-    ],
-    predictive_analysis: {
-      risk_score: 85,
-      trend_direction: "increasing",
-      predicted_incidents: 3,
-      confidence_level: 87
-    }
-  });
-
-  const generateDemoThreatIntel = () => ({
-    active_campaigns: [
-      {
-        name: "Operation CloudStrike",
-        severity: "high",
-        targets: "Cloud Infrastructure", 
-        first_seen: "2025-07-28",
-        indicators: 15,
-        description: "Sophisticated APT targeting cloud environments",
-        attribution: "APT-2024-07",
-        confidence: "High",
-        affected_regions: ["North America", "Europe"],
-        industry_impact: ["Technology", "Finance"],
-        ttps: ["T1190", "T1078", "T1055"],
-        mitigations: [
-          "Implement zero-trust architecture",
-          "Enhanced cloud monitoring",
-          "Multi-factor authentication for all cloud access"
-        ]
-      },
-      {
-        name: "Ransomware-as-a-Service",
-        severity: "critical",
-        targets: "Healthcare, Finance",
-        first_seen: "2025-07-25", 
-        indicators: 32,
-        description: "New ransomware variant targeting critical infrastructure",
-        attribution: "Lazarus Group",
-        confidence: "Medium",
-        affected_regions: ["Global"],
-        industry_impact: ["Healthcare", "Finance", "Manufacturing"],
-        ttps: ["T1486", "T1083", "T1012"],
-        mitigations: [
-          "Offline backup verification",
-          "Network segmentation",
-          "Employee security awareness training"
-        ]
-      }
-    ],
-    ioc_matches: 7,
-    new_indicators: 23,
-    threat_actors: [
-      { 
-        name: "APT-2024-07", 
-        activity: "Active", 
-        risk_level: "High",
-        motivation: "Espionage",
-        primary_targets: "Cloud Infrastructure",
-        sophistication: "Advanced",
-        last_activity: "2025-08-07",
-        recent_activity: "Targeting cloud service providers with new exploitation techniques",
-        recent_campaigns: ["Operation CloudStrike", "SolarWinds 2.0"]
-      },
-      { 
-        name: "Lazarus Group", 
-        activity: "Monitoring", 
-        risk_level: "Critical",
-        motivation: "Financial",
-        primary_targets: "Financial Institutions",
-        sophistication: "Nation-State",
-        last_activity: "2025-08-05",
-        recent_activity: "Deploying new ransomware variants with improved encryption",
-        recent_campaigns: ["Ransomware-as-a-Service", "CryptoHeist 3.0"]
-      }
-    ],
-    feed_sources: [
-      { name: "MISP Feed", status: "active", reliability: "High" },
-      { name: "CISA Alerts", status: "active", reliability: "Very High" },
-      { name: "VirusTotal Intelligence", status: "active", reliability: "High" },
-      { name: "AlienVault OTX", status: "maintenance", reliability: "Medium" }
-    ],
-    threat_landscape: {
-      current_risk: "elevated",
-      global_activity: "High",
-      attack_sophistication: "Advanced",
-      trending_threats: [
-        "AI-powered social engineering",
-        "Supply chain compromises",
-        "Cloud infrastructure attacks",
-        "Ransomware evolution"
-      ]
-    },
-    intelligence_summary: {
-      new_campaigns: 2,
-      updated_campaigns: 5,
-      new_actors: 1,
-      ioc_updates: 156,
-      last_refresh: new Date().toISOString()
-    }
-  });
-
-  const generateDemoExecutiveBrief = () => ({
-    summary: "In the past 24 hours, our AI security systems processed 1,247 alerts, identifying 23 genuine threats and preventing potential damages of $125,000. System accuracy improved by 8% while reducing response times by 23%.",
-    key_metrics: {
-      threats_detected: 23,
-      threats_prevented: 21,
-      cost_savings: "$125,000",
-      system_accuracy: "94.2%"
-    },
-    recommendations: [
-      "Consider increasing monitoring on cloud infrastructure following Operation CloudStrike intelligence",
-      "Review and update incident response procedures for ransomware threats", 
-      "Implement additional MFA controls for high-privilege accounts"
-    ],
-    risk_assessment: "ELEVATED",
-    next_review: "2025-08-01T09:00:00Z"
-  });
+  // 🏢 ENTERPRISE FIX (2025-11-19): ALL DEMO DATA GENERATORS REMOVED
+  // Application now uses ONLY REAL DATA from backend APIs
 
   useEffect(() => {
     console.log("🚀 AIAlertManagementSystem: Initial load");
@@ -362,24 +165,21 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         credentials: "include",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log("✅ Backend metrics loaded:", data);
         setPerformanceMetrics(data);
       } else {
-        console.log("⚠️ Backend metrics failed, loading demo data");
-        const demoData = generateDemoMetrics();
-        setPerformanceMetrics(demoData);
+        // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+        console.error("Backend metrics failed - API returned non-OK status");
+        setPerformanceMetrics(null);
       }
       setError(null);
     } catch (err) {
       console.error("❌ Error fetching performance metrics:", err);
-      console.log("🎯 Loading demo performance metrics as fallback");
-      
-      // Always load demo data as fallback
-      const demoData = generateDemoMetrics();
-      setPerformanceMetrics(demoData);
+      // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+      setPerformanceMetrics(null);
     }
   };
 
@@ -422,15 +222,17 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         setAiInsights(data);
         console.log("🔍 AI Insights Response:", data);
         console.log("🔍 Has threat_summary?", data?.threat_summary);
-
       } else {
-        setAiInsights(generateDemoInsights());
+        // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+        console.error("Failed to load AI insights - API returned non-OK status");
+        setAiInsights(null);
       }
       setError(null);
     } catch (err) {
       console.error("Error fetching AI insights:", err);
       setError("Failed to load AI insights");
-      setAiInsights(generateDemoInsights());
+      // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+      setAiInsights(null);
     }
   };
 
@@ -444,13 +246,16 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         const data = await response.json();
         setThreatIntelligence(data);
       } else {
-        setThreatIntelligence(generateDemoThreatIntel());
+        // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+        console.error("Failed to load threat intelligence - API returned non-OK status");
+        setThreatIntelligence(null);
       }
       setError(null);
     } catch (err) {
       console.error("Error fetching threat intelligence:", err);
       setError("Failed to load threat intelligence");
-      setThreatIntelligence(generateDemoThreatIntel());
+      // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+      setThreatIntelligence(null);
     }
   };
 
@@ -558,14 +363,15 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         setExecutiveBrief(processedBrief);
         
       } else {
-        console.log("⚠️ Backend brief generation failed, using demo data");
-        setExecutiveBrief(generateDemoExecutiveBrief());
+        // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+        console.error("Backend brief generation failed - API returned non-OK status");
+        setExecutiveBrief(null);
       }
-      
+
     } catch (err) {
       console.error("❌ Error generating executive brief:", err);
-      console.log("🎯 Loading demo executive brief as fallback");
-      setExecutiveBrief(generateDemoExecutiveBrief());
+      // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+      setExecutiveBrief(null);
     } finally {
       setBriefLoading(false);
     }
@@ -657,29 +463,35 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         </p>
       </div>
 
-      {/* Quick Stats Banner */}
-      {(aiInsights?.threat_summary || true) && (
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{aiInsights.threat_summary.total_threats}</div>
-              <div className="text-purple-100">Total Threats</div>
+      {/* Quick Stats Banner - 🏢 ENTERPRISE FIX (2025-11-19): Use REAL DATA ONLY */}
+      <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold">
+              {alerts.filter(a => a.status === "new" || !a.status).length}
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{aiInsights.threat_summary.critical_threats}</div>
-              <div className="text-purple-100">Critical Alerts</div>
+            <div className="text-purple-100">Active Alerts</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold">
+              {alerts.filter(a => a.severity === "critical").length}
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{aiInsights.threat_summary.automated_responses}</div>
-              <div className="text-purple-100">Auto Responses</div>
+            <div className="text-purple-100">Critical Alerts</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold">
+              {alerts.filter(a => a.status === "acknowledged").length}
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold">{aiInsights.predictive_analysis.risk_score}</div>
-              <div className="text-purple-100">Risk Score</div>
+            <div className="text-purple-100">Acknowledged</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold">
+              {Math.round(alerts.reduce((sum, a) => sum + (a.ai_risk_score || 0), 0) / Math.max(alerts.length, 1))}
             </div>
+            <div className="text-purple-100">Avg Risk Score</div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Navigation Tabs */}
       <div className="border-b border-gray-200 mb-6">
@@ -820,6 +632,28 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
 
                   {/* Main Content */}
                   <div className="p-4 space-y-3">
+                    {/* 🏢 ENTERPRISE FIX (2025-11-19): Show agent/MCP names prominently */}
+                    {(alert.agent_name || alert.mcp_server_name) && (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {alert.agent_name && (
+                          <div className="flex items-center space-x-2 bg-purple-50 px-3 py-2 rounded-lg border border-purple-200">
+                            <span className="font-semibold text-purple-700 text-sm">🤖 Agent:</span>
+                            <span className="bg-purple-100 px-2 py-1 rounded text-purple-900 font-mono text-xs font-semibold">
+                              {alert.agent_name}
+                            </span>
+                          </div>
+                        )}
+                        {alert.mcp_server_name && (
+                          <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+                            <span className="font-semibold text-blue-700 text-sm">🔌 MCP Server:</span>
+                            <span className="bg-blue-100 px-2 py-1 rounded text-blue-900 font-mono text-xs font-semibold">
+                              {alert.mcp_server_name}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Action Title */}
                     {parsedMessage?.action && (
                       <div>
