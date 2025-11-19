@@ -148,7 +148,10 @@ async def delete_playbook(
     playbook.deleted_at = datetime.now(UTC)
     playbook.deleted_by = current_user.get('user_id')
     playbook.deletion_reason = delete_request.reason
-    playbook.status = 'deleted'
+    # 🏢 ENTERPRISE: Use 'disabled' status (DB constraint allows: active, inactive, disabled, maintenance)
+    # The is_deleted flag is the source of truth for soft delete status
+    # Pattern: ServiceNow CMDB (Retired state), Splunk SOAR (disabled playbooks)
+    playbook.status = 'disabled'
 
     # Stop all active schedules
     active_schedules = db.query(PlaybookSchedule).filter(

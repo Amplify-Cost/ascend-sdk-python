@@ -87,14 +87,15 @@ class WorkflowExecuteRequest(BaseModel):
 async def get_automation_playbooks(
     status: Optional[str] = None,
     risk_level: Optional[str] = None,
+    include_deleted: bool = False,  # 🏢 ENTERPRISE: Hide soft-deleted playbooks by default
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """
     🏢 GET /api/authorization/automation/playbooks
-    
+
     List all automation playbooks with optional filtering
-    
+
     Frontend: AgentAuthorizationDashboard.jsx
     Expected response:
     {
@@ -102,14 +103,26 @@ async def get_automation_playbooks(
         "data": [array of playbooks],
         "total": number
     }
+
+    Query Parameters:
+    - status: Filter by status (active, inactive, disabled, maintenance)
+    - risk_level: Filter by risk level (low, medium, high, critical)
+    - include_deleted: Show soft-deleted playbooks (default: false)
+
+    Enterprise Pattern: ServiceNow CMDB filtering, Jira issue states
     """
     try:
-        logger.info(f"📋 Listing automation playbooks for user {current_user.get('email')}")
-        
+        logger.info(f"📋 Listing automation playbooks for user {current_user.get('email')} (include_deleted={include_deleted})")
+
         # Build database query - REAL DATA, NOT DEMO
         query = db.query(AutomationPlaybook)
-        
-        # Apply filters
+
+        # 🏢 ENTERPRISE: Smart filtering - hide soft-deleted playbooks by default
+        # Pattern: ServiceNow CMDB (hides Retired CIs), Jira (hides Archived issues)
+        if not include_deleted:
+            query = query.filter(AutomationPlaybook.is_deleted == False)
+
+        # Apply additional filters
         if status:
             query = query.filter(AutomationPlaybook.status == status)
         if risk_level:
