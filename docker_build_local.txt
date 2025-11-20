@@ -1,0 +1,34 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 776B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:22-alpine
+#2 ...
+
+#3 [auth] library/nginx:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 [auth] library/node:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:22-alpine
+#2 ERROR: failed to authorize: failed to fetch oauth token: unexpected status from GET request to https://auth.docker.io/token?scope=repository%3Alibrary%2Fnode%3Apull&service=registry.docker.io: 401 Unauthorized: email must be verified before using account
+
+#5 [internal] load metadata for docker.io/library/nginx:alpine
+#5 ERROR: failed to authorize: failed to fetch oauth token: unexpected status from GET request to https://auth.docker.io/token?scope=repository%3Alibrary%2Fnginx%3Apull&service=registry.docker.io: 401 Unauthorized: email must be verified before using account
+------
+ > [internal] load metadata for docker.io/library/nginx:alpine:
+------
+------
+ > [internal] load metadata for docker.io/library/node:22-alpine:
+------
+Dockerfile:2
+--------------------
+   1 |     # Multi-stage build for production optimization
+   2 | >>> FROM node:22-alpine AS build
+   3 |     
+   4 |     WORKDIR /app
+--------------------
+ERROR: failed to build: failed to solve: failed to fetch oauth token: unexpected status from GET request to https://auth.docker.io/token?scope=repository%3Alibrary%2Fnode%3Apull&service=registry.docker.io: 401 Unauthorized: email must be verified before using account

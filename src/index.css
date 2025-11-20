@@ -1,0 +1,340 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.5s ease-out;
+  }
+
+  /* Donald King: Toast notification animation */
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s ease-out;
+  }
+}
+
+
+/* Add this to your main CSS file (src/index.css or similar) */
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Show screen reader content on focus */
+.sr-only:focus,
+.focus\:not-sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Focus mode styles - enhanced focus indicators */
+.focus-mode *:focus {
+  outline: 3px solid #fbbf24 !important;
+  outline-offset: 2px !important;
+  border-radius: 4px;
+}
+
+.focus-mode button:focus,
+.focus-mode a:focus,
+.focus-mode input:focus,
+.focus-mode select:focus,
+.focus-mode textarea:focus {
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.5) !important;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  * {
+    border-color: currentColor !important;
+  }
+  
+  .bg-gray-50,
+  .bg-gray-100,
+  .bg-slate-50,
+  .bg-slate-100 {
+    background-color: white !important;
+  }
+  
+  .bg-gray-800,
+  .bg-gray-900,
+  .bg-slate-800,
+  .bg-slate-900 {
+    background-color: black !important;
+  }
+  
+  .text-gray-600,
+  .text-gray-700,
+  .text-slate-600,
+  .text-slate-700 {
+    color: black !important;
+  }
+  
+  .text-gray-300,
+  .text-gray-400,
+  .text-slate-300,
+  .text-slate-400 {
+    color: white !important;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
+
+/* Skip link positioning */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: #1e40af;
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  z-index: 100;
+  font-weight: 600;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Enhanced button states */
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Form validation styles */
+input:invalid,
+select:invalid,
+textarea:invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 1px #ef4444;
+}
+
+input:valid,
+select:valid,
+textarea:valid {
+  border-color: #10b981;
+}
+
+/* Loading states */
+.loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  animation: loading 1.5s infinite;
+  content: '';
+}
+
+@keyframes loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Dark mode loading animation */
+.dark .loading::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+}
+
+/* Tooltip accessibility */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 1000;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+/* Keyboard navigation indicators */
+.keyboard-navigation [tabindex="0"]:focus,
+.keyboard-navigation button:focus,
+.keyboard-navigation a:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+  
+  a::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
+}
+
+/* Color-blind friendly colors */
+.colorblind-safe {
+  --success: #228B22;
+  --warning: #FF8C00;
+  --error: #DC143C;
+  --info: #4169E1;
+}
+
+/* Ensure minimum tap target size for mobile */
+@media (max-width: 768px) {
+  button,
+  a,
+  input[type="button"],
+  input[type="submit"],
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Animation for page transitions */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 300ms ease-out;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 300ms ease-in;
+}
+
+/* Ensure text remains visible during font loading */
+@font-face {
+  font-display: swap;
+}
+
+/* Custom scrollbar for better UX */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.8);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.8);
+}

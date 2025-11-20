@@ -1,0 +1,11 @@
+            {showWorkflowBuilder && (
+              <div className="mt-4">
+                <EnterpriseWorkflowBuilder
+                  newWorkflow={newWorkflow}
+                  setNewWorkflow={setNewWorkflow}
+                  createWorkflow={createWorkflow}
+                  onCancel={() => setShowWorkflowBuilder(false)}
+                  workflows={workflows}
+                />
+              </div>
+            )}

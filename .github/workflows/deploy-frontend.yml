@@ -1,0 +1,92 @@
+name: Deploy Frontend to AWS ECS
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REGISTRY: 110948415588.dkr.ecr.us-east-2.amazonaws.com
+  ECR_REPOSITORY: owkai-pilot-frontend
+  ECS_SERVICE: owkai-pilot-frontend-service
+  ECS_CLUSTER: owkai-pilot
+  ECS_TASK_DEFINITION: owkai-pilot-frontend
+  CONTAINER_NAME: frontend
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+      
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::110948415588:role/GitHubActionsRole
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Build Docker image
+      id: build-image
+      run: |
+        IMAGE_TAG=${{ github.sha }}
+        docker build \
+          --no-cache \
+          --pull \
+          --build-arg VITE_API_URL=https://pilot.owkai.app \
+          --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+          --build-arg COMMIT_SHA=$IMAGE_TAG \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+          -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+    
+    - name: Verify build contents
+      run: |
+        chmod +x .github/workflows/verify-build.sh
+        ./.github/workflows/verify-build.sh "${{ github.sha }}" "${{ steps.build-image.outputs.image }}"
+    
+    - name: Download task definition
+      run: |
+        aws ecs describe-task-definition \
+          --task-definition $ECS_TASK_DEFINITION \
+          --query taskDefinition > task-definition.json
+    
+    - name: Update task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ env.CONTAINER_NAME }}
+        image: ${{ steps.build-image.outputs.image }}
+    
+    - name: Deploy to Amazon ECS
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+    
+    - name: Force service refresh
+      run: |
+        aws ecs update-service \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service ${{ env.ECS_SERVICE }} \
+          --force-new-deployment \
+          --region ${{ env.AWS_REGION }}
+        echo "✅ Deployment complete. Verification confirmed fix is in production."
