@@ -592,8 +592,8 @@ async def get_current_user_cognito(
             db.flush()
 
         # Step 7: Update last login
-        user.last_login_at = datetime.now()
-        user.login_count = (user.login_count or 0) + 1
+        user.last_login = datetime.now()
+        user.login_attempts = (user.login_attempts or 0) + 1
         db.commit()
 
         # Step 8: Track token for revocation
@@ -621,7 +621,7 @@ async def get_current_user_cognito(
             metadata={
                 "email": email,
                 "role": token_payload["role"],
-                "login_count": user.login_count
+                "login_attempts": user.login_attempts
             },
             db=db
         )
