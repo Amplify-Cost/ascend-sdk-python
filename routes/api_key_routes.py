@@ -22,6 +22,7 @@ import logging
 # Import dependencies
 from database import get_db
 from dependencies import get_current_user
+from dependencies_api_keys import get_current_user_or_api_key  # ENTERPRISE: Dual auth support
 from models import User
 from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyPermission, ApiKeyRateLimit
 from models_audit import ImmutableAuditLog  # For audit trail
@@ -163,7 +164,7 @@ def log_audit_event(
 async def generate_api_key(
     request: GenerateKeyRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key)
 ):
     """
     Generate a new API key for the current user
@@ -282,7 +283,7 @@ async def list_api_keys(
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key)
 ):
     """
     List all API keys for the current user (masked)
@@ -343,7 +344,7 @@ async def revoke_api_key(
     key_id: int,
     reason: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key)
 ):
     """
     Revoke an API key (soft delete)
@@ -426,7 +427,7 @@ async def get_api_key_usage(
     key_id: int,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key)
 ):
     """
     Get usage statistics for an API key
