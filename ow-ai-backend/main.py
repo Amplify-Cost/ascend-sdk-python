@@ -37,6 +37,8 @@ from routes.data_rights_routes import router as data_rights_router
 #from routes.mcp_governance_routes import router as mcp_governance_router
 from routes.unified_governance_routes import router as unified_governance_router
 from routes.automation_orchestration_routes import router as automation_orchestration_router
+from routes.playbook_versioning_routes import router as playbook_versioning_router  # 🏢 PHASE 3: Version control & analytics
+from routes.playbook_deletion_routes import router as playbook_deletion_router  # 🏢 PHASE 4: Soft delete with recovery
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -148,7 +150,7 @@ except ImportError as e:
 
 # Core application routers with graceful fallback
 ROUTE_MODULES = {}
-ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance", "automation_orchestration"]
+ROUTER_NAMES = ["auth", "smart_rules", "analytics", "smart_alerts", "data_rights", "unified_governance", "automation_orchestration", "playbook_versioning", "playbook_deletion", "enterprise_workflow_config"]
 
 for router_name in ROUTER_NAMES:
     try:
@@ -183,6 +185,16 @@ for router_name in ROUTER_NAMES:
         elif router_name == "automation_orchestration":
             from routes.automation_orchestration_routes import router as automation_orchestration_router
             ROUTE_MODULES[router_name] = automation_orchestration_router
+        elif router_name == "playbook_versioning":
+            from routes.playbook_versioning_routes import router as playbook_versioning_router
+            ROUTE_MODULES[router_name] = playbook_versioning_router
+        elif router_name == "playbook_deletion":
+            from routes.playbook_deletion_routes import router as playbook_deletion_router
+            ROUTE_MODULES[router_name] = playbook_deletion_router
+        elif router_name == "enterprise_workflow_config":
+            from routes.enterprise_workflow_config_routes import router as enterprise_workflow_config_router
+            ROUTE_MODULES[router_name] = enterprise_workflow_config_router
+            print("✅ ENTERPRISE: Workflow config routes loaded (real database persistence)")
         print(f"✅ {router_name} router loaded")
     except ImportError as e:
         print(f"⚠️  {router_name} router not available: {e}")
@@ -227,8 +239,9 @@ except ImportError:
                 return json.loads(base64.b64decode(token).decode())
         jwt = DummyJWT()
 
+# Agent routes for enterprise enrichment (REQUIRED for /api/agent-activity)
+from routes.agent_routes import router as agent_router
 # Unchanged commented-out routers
-# from agent_routes import agent_router
 # from rule_routes import rule_router
 # from authorization_routes import authorization_router
 
@@ -1122,6 +1135,16 @@ for route_name, router in ROUTE_MODULES.items():
             elif route_name == "automation_orchestration":
                 app.include_router(router, tags=["Automation & Orchestration"])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /api/authorization")
+            elif route_name == "playbook_versioning":
+                app.include_router(router, tags=["Playbook Versioning & Analytics"])
+                print(f"✅ ENTERPRISE PHASE 3: {route_name} router included with prefix /api/authorization/automation")
+            elif route_name == "playbook_deletion":
+                app.include_router(router, tags=["Playbook Deletion"])
+                print(f"✅ ENTERPRISE PHASE 4: {route_name} router included with prefix /api/authorization/automation")
+            elif route_name == "enterprise_workflow_config":
+                # 🏢 ENTERPRISE: Real database-backed workflow config (replaces config_workflows.py)
+                app.include_router(router, tags=["Enterprise Workflow Config"])
+                print(f"✅ ENTERPRISE: Workflow config routes included (NO HARDCODED DATA - Database only)")
             else:
                 app.include_router(router, prefix=f"/api/{route_name}", tags=[route_name.title()])
                 print(f"✅ ENTERPRISE: {route_name} router included with prefix /{route_name}")
@@ -1174,6 +1197,16 @@ try:
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
 
+# ========================================
+# API Key Management Routes (Enterprise SDK)
+# ========================================
+try:
+    from routes.api_key_routes import router as api_key_router
+    app.include_router(api_key_router, tags=["API Key Management"])
+    print("✅ API Key Management routes loaded")
+except Exception as e:
+    print(f"⚠️  API Key Management routes not available: {e}")
+
 # Enterprise Retention Policy Routes (Phase 2.1)
 try:
     from routes import retention_routes
@@ -1181,6 +1214,46 @@ try:
     print("✅ ENTERPRISE: Retention policy routes included")
 except ImportError as e:
     print(f"⚠️  Retention policy routes not available: {e}")
+
+# Enterprise Risk Scoring Configuration Routes
+try:
+    from routes import risk_scoring_config_routes
+    app.include_router(risk_scoring_config_routes.router, tags=["Risk Scoring Config"])
+    print("✅ ENTERPRISE: Risk scoring configuration routes included")
+    logger.info("✅ ENTERPRISE: Risk scoring config routes registered at /api/risk-scoring/*")
+    # Log available routes for debugging
+    for route in risk_scoring_config_routes.router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Risk scoring config routes not available: {e}")
+    logger.error(f"❌ Failed to import risk_scoring_config_routes: {e}")
+
+# ============================================================================
+# PHASE 2: AWS Cognito Integration Routes
+# ============================================================================
+# Organization Admin Routes - User management via Cognito
+try:
+    from routes.organization_admin_routes import router as org_admin_router
+    app.include_router(org_admin_router, tags=["Organization Admin"])
+    print("✅ PHASE 2: Organization admin routes included")
+    logger.info("✅ PHASE 2: Organization admin routes registered at /organizations/*")
+    for route in org_admin_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Organization admin routes not available: {e}")
+    logger.error(f"❌ Failed to import organization_admin_routes: {e}")
+
+# Platform Admin Routes - Cross-organization monitoring
+try:
+    from routes.platform_admin_routes import router as platform_admin_router
+    app.include_router(platform_admin_router, tags=["Platform Admin"])
+    print("✅ PHASE 2: Platform admin routes included")
+    logger.info("✅ PHASE 2: Platform admin routes registered at /platform/*")
+    for route in platform_admin_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Platform admin routes not available: {e}")
+    logger.error(f"❌ Failed to import platform_admin_routes: {e}")
 
 print("🚀 ENTERPRISE: Application startup complete")
 
@@ -1191,8 +1264,9 @@ print("🚀 ENTERPRISE: Application startup complete")
 security = HTTPBearer()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+# Include agent router for enterprise enrichment (REQUIRED for /api/agent-activity)
+app.include_router(agent_router, prefix="/api", tags=["agent-activity"])
 # Unchanged commented-out includes
-# app.include_router(agent_router)
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
 
@@ -1201,44 +1275,8 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
 
-# ================== YOUR AGENT ACTIVITY ROUTES (PRESERVED) ==================
-@app.get("/api/agent-activity")
-async def get_agent_activity():
-    """Get agent activity data"""
-    try:
-        current_time = datetime.now()
-        return [
-            {
-                "id": 1,
-                "agent_id": "security-scanner-01",
-                "action": "Vulnerability scan completed",
-                "timestamp": current_time.isoformat(),
-                "status": "completed",
-                "details": "Scanned 245 endpoints, found 3 vulnerabilities"
-            },
-            {
-                "id": 2,
-                "agent_id": "compliance-checker",
-                "action": "SOX compliance audit",
-                "timestamp": (current_time - timedelta(minutes=15)).isoformat(),
-                "status": "in_progress",
-                "details": "Auditing financial system access controls"
-            },
-            {
-                "id": 3,
-                "agent_id": "threat-detector",
-                "action": "Network anomaly detection",
-                "timestamp": (current_time - timedelta(minutes=30)).isoformat(),
-                "status": "completed",
-                "details": "Analyzed 1.2M network packets, no threats detected"
-            }
-        ]
-    except Exception as e:
-        logger.error(f"Agent activity error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch agent activity")
-
-
 # ================== ENTERPRISE RULES ROUTER INTEGRATION ==================
+# NOTE: /api/agent-activity endpoint moved to routes/agent_routes.py for enterprise enrichment
 
 @app.get("/api/rules")
 async def get_rules_enhanced(current_user: dict = Depends(get_current_user)):
@@ -2028,14 +2066,14 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
     try:
         data = await request.json()
         logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
-        
+
         # Enterprise validation - ensure all required fields
         required_fields = ["agent_id", "action_type", "description"]
         for field in required_fields:
             if field not in data:
                 logger.error(f"Enterprise validation failed: Missing {field}")
                 raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-        
+
         db: Session = next(get_db())
 
         try:
@@ -2072,17 +2110,19 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                 'nist_description': enrichment["nist_description"],
                 'recommendation': enrichment["recommendation"]
             })
-            
+
             # Get the inserted action ID
             action_id = result.fetchone()[0]
-            
+
             db.commit()
-            
+
             # === ENTERPRISE RISK ASSESSMENT ===
             try:
                 from services.cvss_auto_mapper import cvss_auto_mapper
                 from services.mitre_mapper import mitre_mapper
                 from services.nist_mapper import nist_mapper
+                from services.enterprise_risk_calculator_v2 import enterprise_risk_calculator
+                from policy_engine import create_policy_engine, create_evaluation_context, PolicyDecision
                 
                 # 1. CVSS Assessment
                 cvss_result = cvss_auto_mapper.auto_assess_action(
@@ -2105,28 +2145,194 @@ async def submit_agent_action_fixed(request: Request, current_user: dict = Depen
                     action_id=action_id,
                     action_type=data["action_type"]
                 )
-                
-                # 4. Update risk_score based on CVSS
-                if cvss_result and 'base_score' in cvss_result:
-                    risk_score = min(int(cvss_result['base_score'] * 10), 100)
 
-                    # Calculate risk_level from CVSS risk_score (authoritative)
-                    if risk_score >= 90:
+                # === LAYER 1: POLICY ENGINE EVALUATION (Option 4: Hybrid Architecture) ===
+                policy_evaluated = False
+                policy_risk = None
+                policy_decision = None
+
+                try:
+                    logger.info(f"🔍 LAYER 1: Evaluating policy engine for action {action_id}")
+                    policy_engine = create_policy_engine(db)
+
+                    policy_context = create_evaluation_context(
+                        user_id=str(current_user.get("user_id", 1)),
+                        user_email=current_user.get("email", "unknown"),
+                        user_role=current_user.get("role", "user"),
+                        action_type=data["action_type"],
+                        resource=data.get("description", ""),
+                        namespace="agent_actions",
+                        environment=data.get("environment", "production"),
+                        client_ip=request.client.host if hasattr(request, "client") else ""
+                    )
+
+                    policy_result = await policy_engine.evaluate_policy(
+                        policy_context,
+                        action_metadata={
+                            "cvss_score": cvss_result.get("base_score") if cvss_result else None,
+                            "risk_level": enrichment.get("risk_level"),
+                            "mitre_tactic": enrichment.get("mitre_tactic"),
+                            "nist_control": enrichment.get("nist_control")
+                        }
+                    )
+
+                    policy_risk = policy_result.risk_score.total_score  # 0-100
+                    policy_evaluated = True
+                    policy_decision = policy_result.decision
+
+                    logger.info(f"✅ Policy evaluation: score={policy_risk}, decision={policy_decision}")
+
+                except Exception as policy_error:
+                    logger.warning(f"⚠️ Policy evaluation failed for action {action_id}: {policy_error}")
+                    # Fallback: Use CVSS-only scoring
+                    policy_risk = None
+                    policy_evaluated = False
+                    policy_decision = "REQUIRE_APPROVAL"
+
+                # === LAYER 2 & 3: RISK SCORE FUSION (80% Policy / 20% Hybrid) ===
+                if cvss_result and 'base_score' in cvss_result:
+                    # 🏢 ENTERPRISE HYBRID RISK SCORING (v2.0.0)
+                    # Calculate context-aware hybrid risk score
+                    hybrid_result = enterprise_risk_calculator.calculate_hybrid_risk_score(
+                        cvss_score=cvss_result.get('base_score'),
+                        environment=data.get('environment', 'production'),  # Default to production for safety
+                        action_type=data.get('action_type', 'unknown'),
+                        contains_pii=data.get('contains_pii', False),
+                        resource_name=data.get('resource_name', data.get('description', '')),
+                        resource_type=data.get('resource_type', 'unknown'),
+                        description=data.get('description', ''),
+                        action_metadata={
+                            'user_id': current_user.get('user_id'),
+                            'action_id': action_id,
+                            'timestamp': datetime.now(UTC).isoformat()
+                        },
+                        db=db  # Pass database session for config loading
+                    )
+
+                    hybrid_risk = hybrid_result['risk_score']  # 0-100 score
+                    cvss_risk = hybrid_risk  # Use hybrid risk for fusion (preserves existing variable name)
+
+                    logger.info(f"📊 Hybrid risk: {hybrid_risk}/100 (algorithm v{hybrid_result.get('algorithm_version', 'N/A')})")
+                    logger.info(f"   Formula: {hybrid_result.get('formula', 'N/A')}")
+                    logger.info(f"   Breakdown: {hybrid_result.get('breakdown', {})}")
+                    logger.info(f"   Reasoning: {hybrid_result.get('reasoning', 'N/A')}")
+
+                    if policy_evaluated and policy_risk is not None:
+                        # Weighted fusion: 80% policy, 20% hybrid risk
+                        fused_score = (policy_risk * 0.8) + (cvss_risk * 0.2)
+                        logger.info(f"🔀 Fusion formula: ({policy_risk} × 0.8) + ({cvss_risk} × 0.2 [hybrid]) = {fused_score:.1f}")
+
+                        # === INTELLIGENT SAFETY RULES ===
+
+                        # Safety Rule 1: CRITICAL CVSS overrides policy
+                        if cvss_result.get('severity') == 'CRITICAL':
+                            fused_score = max(fused_score, 85)  # Minimum 85 for critical CVEs
+                            logger.info(f"🚨 Safety Rule 1: CRITICAL CVSS detected, floor set to 85")
+
+                        # Safety Rule 2: DENY policy sets maximum
+                        if policy_decision == PolicyDecision.DENY:
+                            fused_score = 100  # Absolute block
+                            logger.info(f"🚫 Safety Rule 2: DENY policy detected, score set to 100")
+
+                        # Safety Rule 3: ALLOW policy with safe CVSS caps score
+                        if policy_decision == PolicyDecision.ALLOW and cvss_result['base_score'] < 7.0:
+                            fused_score = min(fused_score, 40)  # Max 40 for safe allowed actions
+                            logger.info(f"✅ Safety Rule 3: ALLOW + safe CVSS, capped at 40")
+
+                        final_risk_score = round(fused_score)
+                        fusion_formula = f"({policy_risk} × 0.8) + ({cvss_risk} × 0.2) = {fused_score:.1f}"
+
+                    else:
+                        # Fallback to CVSS-only if policy engine unavailable
+                        final_risk_score = cvss_risk
+                        fusion_formula = f"CVSS-only (policy unavailable): {cvss_risk}"
+                        logger.warning(f"⚠️ Using CVSS-only fallback: {cvss_risk}/100")
+
+                    # Calculate risk_level from final score
+                    if final_risk_score >= 90:
                         calculated_risk_level = "critical"
-                    elif risk_score >= 70:
+                    elif final_risk_score >= 70:
                         calculated_risk_level = "high"
-                    elif risk_score >= 50:
+                    elif final_risk_score >= 50:
                         calculated_risk_level = "medium"
                     else:
                         calculated_risk_level = "low"
 
-                    db.execute(text("UPDATE agent_actions SET risk_score = :score, risk_level = :level WHERE id = :id"),
-                              {"score": risk_score, "level": calculated_risk_level, "id": action_id})
+                    # === LAYER 4: WORKFLOW ROUTING ===
+                    # 🏢 ENTERPRISE ARCHITECTURE: Aligns with WorkflowBridge standard
+                    # Engineer: Donald King (OW-kai Enterprise)
+                    # Pattern: status="pending_approval" + workflow_stage for approval level
+                    # Maintains compatibility with enterprise_batch_loader_v2 and Authorization Center
+
+                    if final_risk_score <= 40:
+                        # Low risk: Auto-approved
+                        workflow_status = "approved"
+                        workflow_stage = None
+                        approval_level = 0  # L0_AUTO
+                        logger.info(f"✅ Auto-approved (score: {final_risk_score})")
+                    else:
+                        # Requires approval: Use enterprise standard status="pending_approval"
+                        workflow_status = "pending_approval"
+
+                        # Set workflow_stage based on risk score (enterprise multi-level approval)
+                        if final_risk_score <= 60:
+                            workflow_stage = "pending_stage_1"
+                            approval_level = 1  # L1_PEER
+                            logger.info(f"👥 L1_PEER approval required (score: {final_risk_score})")
+                        elif final_risk_score <= 80:
+                            workflow_stage = "pending_stage_2"
+                            approval_level = 2  # L2_MANAGER
+                            logger.info(f"👔 L2_MANAGER approval required (score: {final_risk_score})")
+                        elif final_risk_score <= 95:
+                            workflow_stage = "pending_stage_3"
+                            approval_level = 3  # L3_DIRECTOR
+                            logger.info(f"🎯 L3_DIRECTOR approval required (score: {final_risk_score})")
+                        else:
+                            # Critical risk or DENY decision
+                            if policy_decision == PolicyDecision.DENY:
+                                workflow_status = "denied"
+                                workflow_stage = None
+                            else:
+                                workflow_stage = "pending_stage_4"
+                            approval_level = 4  # L4_EXECUTIVE
+                            logger.info(f"🚨 L4_EXECUTIVE approval required (score: {final_risk_score})")
+
+                    # Update database with fusion scoring
+                    # 🏢 ENTERPRISE: Includes workflow_stage for WorkflowBridge compatibility
+                    # Engineer: Donald King (OW-kai Enterprise)
+                    db.execute(text("""
+                        UPDATE agent_actions
+                        SET risk_score = :score,
+                            risk_level = :level,
+                            status = :status,
+                            workflow_stage = :workflow_stage,
+                            policy_evaluated = :policy_eval,
+                            policy_decision = :policy_dec,
+                            policy_risk_score = :policy_score,
+                            risk_fusion_formula = :formula,
+                            approval_level = :approval
+                        WHERE id = :id
+                    """), {
+                        "score": final_risk_score,
+                        "level": calculated_risk_level,
+                        "status": workflow_status,
+                        "workflow_stage": workflow_stage,
+                        "policy_eval": policy_evaluated,
+                        "policy_dec": str(policy_decision) if policy_decision else None,
+                        "policy_score": policy_risk,
+                        "formula": fusion_formula,
+                        "approval": approval_level,
+                        "id": action_id
+                    })
                     db.commit()
+
+                    risk_score = final_risk_score  # For orchestration service
+
                 else:
                     # Fallback if CVSS fails - use submitted risk_level
                     risk_score = 50  # Default medium risk
                     calculated_risk_level = data.get("risk_level", "medium")
+                    logger.warning(f"⚠️ CVSS unavailable, using fallback: {risk_score}/100")
 
 
                 # === ENTERPRISE ORCHESTRATION (Service Layer) ===

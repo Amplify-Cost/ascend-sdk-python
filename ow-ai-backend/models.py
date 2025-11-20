@@ -27,9 +27,19 @@ class User(Base):
     is_emergency_approver = Column(Boolean, default=False)
     max_risk_approval = Column(Integer, default=50)
 
+    # PHASE 2: AWS Cognito Integration
+    cognito_user_id = Column(String(255), unique=True, nullable=True, index=True)
+    last_login_at = Column(DateTime, nullable=True)
+    login_count = Column(Integer, default=0)
+
+    # PHASE 2: Multi-Tenancy
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    is_org_admin = Column(Boolean, default=False, nullable=False)
+
     # Relationships
 
     logs = relationship("Log", back_populates="user")
+    organization = relationship("Organization", back_populates="users")
 
 class Alert(Base):
     __tablename__ = "alerts"
@@ -437,6 +447,18 @@ class Workflow(Base):
     compliance_frameworks = Column(JSON)  # ["SOX", "PCI-DSS", "HIPAA", "GDPR"]
     tags = Column(JSON)  # ["high-risk", "multi-approval", "24x7"]
 
+    # 🏢 ENTERPRISE: Workflow Configuration Fields (Real-time editable)
+    risk_threshold_min = Column(Integer, nullable=True)  # Min risk score (0-100)
+    risk_threshold_max = Column(Integer, nullable=True)  # Max risk score (0-100)
+    approval_levels = Column(Integer, default=1)  # Required approval count (1-5)
+    approvers = Column(JSONB)  # List of approver emails/user IDs
+    timeout_hours = Column(Integer, default=24)  # Workflow timeout in hours
+    emergency_override = Column(Boolean, default=False)  # Allow emergency overrides
+    escalation_minutes = Column(Integer, default=480)  # Time before escalation
+    is_active = Column(Boolean, default=True, index=True)  # Workflow enabled/disabled
+    modified_by = Column(String(255), nullable=True)  # Last user to modify
+    last_modified = Column(DateTime, nullable=True)  # Last modification time
+
     # Audit timestamps
     created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
@@ -589,7 +611,13 @@ class AutomationPlaybook(Base):
     created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    
+
+    # 🏢 ENTERPRISE: Soft Delete (Phase 4)
+    is_deleted = Column(Boolean, default=False, nullable=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    deletion_reason = Column(Text, nullable=True)
+
     # Relationships
     executions = relationship("PlaybookExecution", back_populates="playbook", cascade="all, delete-orphan")
 
@@ -666,3 +694,250 @@ class CVSSAssessment(Base):
 
     # Relationships
     action = relationship("AgentAction", backref="cvss_assessments")
+
+
+# 🏢 ENTERPRISE RISK SCORING CONFIGURATION MODEL
+# Modeled after industry-leading platforms: Wiz.io, Splunk Enterprise Security, Palo Alto Networks
+# Provides database-driven, versioned, auditable risk scoring configuration
+class RiskScoringConfig(Base):
+    """
+    Enterprise Risk Scoring Configuration Model
+
+    Provides configurable, versioned risk scoring similar to:
+    - Wiz.io: Cloud resource risk scoring with environment-specific weights
+    - Splunk Enterprise Security: Risk scoring framework with configurable action weights
+    - Palo Alto Networks: Multi-factor threat assessment with component percentages
+
+    Features:
+    - Database-driven configuration (not hardcoded)
+    - Full version control (config_version)
+    - Activation management (is_active flag for safe transitions)
+    - Complete audit trail (created_by, activated_by, timestamps)
+    - JSONB storage for flexible configuration without schema changes
+    - Factory defaults support (is_default flag)
+    - RBAC protection (admin-only access)
+    """
+    __tablename__ = "risk_scoring_configs"
+
+    # Primary Key
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Version Management
+    config_version = Column(String(20), nullable=False, index=True)
+    algorithm_version = Column(String(20), nullable=False, default="2.0.0")
+
+    # 🔧 ENTERPRISE WEIGHT CONFIGURATIONS
+    # Using JSONB for flexibility - allows configuration updates without schema migrations
+
+    # Environment-specific multipliers (like Wiz.io cloud environment risk)
+    # Example: {"production": 1.5, "staging": 1.2, "development": 0.8}
+    environment_weights = Column(JSONB, nullable=False)
+
+    # Action type weights (like Splunk risk scoring framework)
+    # Example: {"database_write": 0.9, "database_delete": 1.0, "system_command": 0.85}
+    action_weights = Column(JSONB, nullable=False)
+
+    # Resource sensitivity multipliers (like Palo Alto data classification)
+    # Example: {"pii_data": 1.3, "financial": 1.4, "health_records": 1.5}
+    resource_multipliers = Column(JSONB, nullable=False)
+
+    # PII detection weights
+    # Example: {"contains_ssn": 1.5, "contains_email": 1.1, "contains_phone": 1.2}
+    pii_weights = Column(JSONB, nullable=False)
+
+    # Hybrid scoring component percentages
+    # Example: {"cvss_weight": 40, "policy_weight": 30, "context_weight": 30}
+    component_percentages = Column(JSONB, nullable=False)
+
+    # 📋 CONFIGURATION MANAGEMENT
+    is_active = Column(Boolean, nullable=False, default=False, index=True)
+    is_default = Column(Boolean, nullable=False, default=False)
+
+    # 📝 ENTERPRISE AUDIT TRAIL
+    created_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # ENTERPRISE FIX: Add server_default to match database NOT NULL constraint
+    # Matches industry standards (Wiz.io, Splunk, Palo Alto) for timestamp tracking
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),  # Sets timestamp on INSERT (fixes NULL constraint violation)
+        onupdate=func.now(),         # Updates timestamp on UPDATE
+        nullable=False                # Matches database NOT NULL constraint
+    )
+    updated_by = Column(String(255), nullable=True)  # Complete audit trail (who modified)
+
+    # Activation tracking (when config was made active)
+    activated_by = Column(String(255), nullable=True)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Optional description for configuration purpose
+    description = Column(String(500), nullable=True)
+
+    def __repr__(self):
+        return f"<RiskScoringConfig(id={self.id}, version={self.config_version}, active={self.is_active})>"
+
+
+# ============================================================================
+# PHASE 2: AWS Cognito Integration & Multi-Tenancy Models
+# ============================================================================
+
+class Organization(Base):
+    """
+    Organization model for multi-tenant support.
+
+    Each organization represents a separate customer tenant with:
+    - Isolated data via PostgreSQL RLS
+    - Subscription tier and billing
+    - Usage tracking and limits
+    - Stripe integration for payments
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "organizations"
+
+    # Primary key and identifiers
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    domain = Column(String(255), nullable=True)
+
+    # Subscription and billing
+    subscription_tier = Column(String(50), nullable=False, default='pilot')  # pilot, growth, enterprise, mega
+    subscription_status = Column(String(50), nullable=False, default='trial')  # trial, active, past_due, cancelled, suspended
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Usage limits based on subscription tier
+    included_api_calls = Column(Integer, nullable=False, default=100000)
+    included_users = Column(Integer, nullable=False, default=5)
+    included_mcp_servers = Column(Integer, nullable=False, default=3)
+
+    # Overage rates
+    overage_rate_per_call = Column(Float, nullable=False, default=0.005)
+    overage_rate_per_user = Column(Float, nullable=False, default=50.00)
+    overage_rate_per_server = Column(Float, nullable=False, default=100.00)
+
+    # Current usage tracking
+    current_month_api_calls = Column(Integer, nullable=False, default=0)
+    current_month_overage_calls = Column(Integer, nullable=False, default=0)
+    current_month_overage_cost = Column(Float, nullable=False, default=0.00)
+    last_usage_reset_date = Column(DateTime, nullable=True)
+
+    # Stripe integration
+    stripe_customer_id = Column(String(255), unique=True, nullable=True, index=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    next_billing_date = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    created_by = Column(Integer, nullable=True)  # User ID who created (platform admin)
+
+    # Relationships
+    users = relationship("User", back_populates="organization")
+
+    def __repr__(self):
+        return f"<Organization(id={self.id}, name={self.name}, tier={self.subscription_tier})>"
+
+
+class LoginAttempt(Base):
+    """
+    Login attempt tracking for brute force detection.
+
+    Tracks all login attempts (successful and failed) for:
+    - Brute force attack detection
+    - Security monitoring
+    - Compliance audit requirements
+
+    Brute force limits:
+    - 5 failed attempts per IP in 15 minutes
+    - 10 failed attempts per email in 15 minutes
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "login_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True, index=True)  # IPv6 support (max 45 chars)
+    user_agent = Column(String(500), nullable=True)
+    success = Column(Boolean, default=False, nullable=False)
+    failure_reason = Column(String(255), nullable=True)
+    cognito_user_id = Column(String(255), nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    attempted_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<LoginAttempt(email={self.email}, success={self.success}, ip={self.ip_address})>"
+
+
+class AuthAuditLog(Base):
+    """
+    Complete authentication audit log for compliance.
+
+    Logs all authentication events including:
+    - User logins (Cognito)
+    - User logouts
+    - Token refreshes
+    - API key usage
+    - Permission denials
+
+    Used for:
+    - SOC2 compliance
+    - HIPAA compliance
+    - Security incident investigation
+    - User activity monitoring
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "auth_audit_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(100), nullable=False, index=True)  # login, logout, token_refresh, api_key_use, permission_denied
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    cognito_user_id = Column(String(255), nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    api_key_id = Column(Integer, nullable=True)  # ForeignKey to api_keys table
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    success = Column(Boolean, nullable=False)
+    failure_reason = Column(String(255), nullable=True)
+    audit_metadata = Column("metadata", JSON, nullable=True)  # Maps to database column 'metadata', named audit_metadata to avoid SQLAlchemy reserved word
+    timestamp = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<AuthAuditLog(event={self.event_type}, user_id={self.user_id}, success={self.success})>"
+
+
+class CognitoToken(Base):
+    """
+    Cognito token tracking for immediate revocation support.
+
+    Tracks all issued JWT tokens to enable:
+    - Immediate token revocation (user logout, role change, security incident)
+    - Token lifecycle management
+    - Session monitoring
+
+    Token types:
+    - id: Identity token (user info)
+    - access: Access token (API access)
+    - refresh: Refresh token (long-lived)
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "cognito_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    cognito_user_id = Column(String(255), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    token_jti = Column(String(255), nullable=False, unique=True, index=True)  # JWT ID claim (unique identifier)
+    token_type = Column(String(50), nullable=False)  # id, access, refresh
+    issued_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    is_revoked = Column(Boolean, default=False, nullable=False, index=True)
+    revocation_reason = Column(String(255), nullable=True)
+
+    def __repr__(self):
+        return f"<CognitoToken(jti={self.token_jti}, type={self.token_type}, revoked={self.is_revoked})>"

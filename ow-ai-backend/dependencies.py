@@ -147,21 +147,35 @@ def get_current_user(
     # 2) Migration fallback: Bearer
     if True:  # ENTERPRISE FIX: Always allow Bearer tokens
         if credentials and credentials.credentials:
-            try:
-                payload = _decode_jwt(credentials.credentials)
-                payload["auth_method"] = "bearer"
-                request.state.auth = payload
-                logger.info(f"✅ Authentication successful (bearer): {payload.get('email')}")
-                return {
-                    "user_id": int(payload.get("sub")) if payload.get("sub") else None,
-                    "email": payload.get("email"),
-                    "role": payload.get("role", "user"),
-                    "auth_method": "bearer",
-                    **payload
-                }
-            except JWTError as e:
-                logger.error(f"JWT decode error (bearer): {str(e)}")
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token")
+            token = credentials.credentials
+
+            # ENTERPRISE: Distinguish JWT from API key by format
+            # - JWT: 3 segments separated by dots (header.payload.signature)
+            # - API key: Single string with role prefix (owkai_admin_xyz...)
+            is_jwt = token.count('.') == 2
+
+            if is_jwt:
+                # JWT token authentication
+                try:
+                    payload = _decode_jwt(token)
+                    payload["auth_method"] = "bearer"
+                    request.state.auth = payload
+                    logger.info(f"✅ Authentication successful (bearer): {payload.get('email')}")
+                    return {
+                        "user_id": int(payload.get("sub")) if payload.get("sub") else None,
+                        "email": payload.get("email"),
+                        "role": payload.get("role", "user"),
+                        "auth_method": "bearer",
+                        **payload
+                    }
+                except JWTError as e:
+                    logger.error(f"JWT decode error (bearer): {str(e)}")
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token")
+            else:
+                # API key format detected - pass through for dual auth handler
+                # (will be caught by get_current_user_or_api_key if route uses it)
+                logger.debug(f"Bearer token appears to be API key (no JWT dots), passing through")
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     # Neither cookie nor allowed bearer present
     raise HTTPException(

@@ -1,0 +1,173 @@
+❌ Input Validation Error: CVSS score must be 0-10, got: -5.0
+🛡️ Safe Fallback Score: 80/100 (conservative estimate)
+❌ Input Validation Error: CVSS score must be 0-10, got: 15.0
+🛡️ Safe Fallback Score: 85/100 (conservative estimate)
+❌ Input Validation Error: Environment must be non-empty string, got: ''
+🛡️ Safe Fallback Score: 80/100 (conservative estimate)
+❌ Input Validation Error: Resource name must be non-empty string, got: None
+🛡️ Safe Fallback Score: 80/100 (conservative estimate)
+❌ Input Validation Error: Action type must be non-empty string, got: 12345
+🛡️ Safe Fallback Score: 75/100 (conservative estimate)
+❌ Input Validation Error: CVSS score must be 0-10, got: -1.0
+🛡️ Safe Fallback Score: 85/100 (conservative estimate)
+❌ Input Validation Error: Resource name must be non-empty string, got: ''
+🛡️ Safe Fallback Score: 50/100 (conservative estimate)
+❌ Input Validation Error: CVSS score must be numeric, got: str
+🛡️ Safe Fallback Score: 85/100 (conservative estimate)
+
+[94m[1m================================================================================[0m
+[94m[1mENTERPRISE HYBRID RISK SCORING - COMPREHENSIVE TEST SUITE V2.0[0m
+[94m[1m================================================================================[0m
+
+Engineer: Donald King (OW-kai Enterprise)
+Purpose: Validate all enterprise enhancements and risk score calibration
+
+
+[94m[1m================================================================================[0m
+[94m[1mCATEGORY 1: RISK SCORE VALIDATION TESTS (8 tests)[0m
+[94m[1m================================================================================[0m
+
+
+[1mTest 1/18: Development Database Read (No PII)[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Dev read, no PII
+   Score: 20/100 (expected: 20-30/100)
+   Breakdown: {'environment_score': 5, 'sensitivity_score': 0, 'action_score': 7, 'context_score': 8, 'amplification_bonus': 0, 'resource_multiplier': 1.0}
+   Reasoning: Development environment (+5); Read-only action (+7)
+
+[1mTest 2/18: Staging Database Write (No PII)[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Staging write, no PII
+   Score: 44/100 (expected: 40-55/100)
+   Breakdown: {'environment_score': 18, 'sensitivity_score': 5, 'action_score': 13, 'context_score': 8, 'amplification_bonus': 0, 'resource_multiplier': 1.0}
+   Reasoning: Staging environment (+18); Read-only action (+13)
+
+[1mTest 3/18: Production Database Read (No PII)[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Prod read, no PII
+   Score: 56/100 (expected: 45-60/100)
+   Breakdown: {'environment_score': 35, 'sensitivity_score': 5, 'action_score': 8, 'context_score': 8, 'amplification_bonus': 0, 'resource_multiplier': 1.0}
+   Reasoning: Production environment (+35); Read-only action (+8)
+
+[1mTest 4/18: Production Database Write (No PII)[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Prod write, no PII
+   Score: 70/100 (expected: 70-80/100)
+   Breakdown: {'environment_score': 35, 'sensitivity_score': 5, 'action_score': 17, 'context_score': 8, 'amplification_bonus': 5, 'resource_multiplier': 1.0}
+   Reasoning: Production environment (+35); Modifying action (+17)
+
+[1mTest 5/18: Production Database Delete (No PII)[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Prod delete, no PII
+   Score: 91/100 (expected: 85-92/100)
+   Breakdown: {'environment_score': 35, 'sensitivity_score': 18, 'action_score': 22, 'context_score': 8, 'amplification_bonus': 8, 'resource_multiplier': 1.0}
+   Reasoning: Production environment (+35); Customer data (+18); Destructive action (+22)
+
+[1mTest 6/18: Production S3 Upload with PII (Most Dangerous)[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Prod write with PII
+   Score: 98/100 (expected: 95-99/100)
+   Breakdown: {'environment_score': 35, 'sensitivity_score': 25, 'action_score': 20, 'context_score': 8, 'amplification_bonus': 10, 'resource_multiplier': 1.0}
+   Reasoning: Production environment (+35); PII/Sensitive data (+25); Destructive action (+20)
+
+[1mTest 7/18: Production Database Read with PII[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Prod read with PII
+   Score: 80/100 (expected: 70-85/100)
+   Breakdown: {'environment_score': 35, 'sensitivity_score': 27, 'action_score': 10, 'context_score': 8, 'amplification_bonus': 0, 'resource_multiplier': 1.0}
+   Reasoning: Production environment (+35); PII/Sensitive data (+27); Read-only action (+10)
+
+[1mTest 8/18: Development Database Write with PII[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Dev write with PII
+   Score: 57/100 (expected: 45-60/100)
+   Breakdown: {'environment_score': 5, 'sensitivity_score': 27, 'action_score': 17, 'context_score': 8, 'amplification_bonus': 0, 'resource_multiplier': 1.0}
+   Reasoning: Development environment (+5); PII/Sensitive data (+27); Modifying action (+17)
+
+[94m[1m================================================================================[0m
+[94m[1mCATEGORY 2: ERROR HANDLING TESTS (5 tests)[0m
+[94m[1m================================================================================[0m
+
+
+[1mTest 9/18: Invalid CVSS Score - Negative Value[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Negative CVSS handling - Fallback mode activated correctly
+   Fallback score: 80/100
+
+[1mTest 10/18: Invalid CVSS Score - Exceeds Maximum[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Excessive CVSS handling - Fallback mode activated correctly
+   Fallback score: 85/100
+
+[1mTest 11/18: Invalid Environment - Empty String[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Empty environment handling - Fallback mode activated correctly
+   Fallback score: 80/100
+
+[1mTest 12/18: Invalid Resource Name - None Value[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: None resource name handling - Fallback mode activated correctly
+   Fallback score: 80/100
+
+[1mTest 13/18: Invalid Action Type - Wrong Data Type[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Invalid action type handling - Fallback mode activated correctly
+   Fallback score: 75/100
+
+[94m[1m================================================================================[0m
+[94m[1mCATEGORY 3: FALLBACK SCORING TESTS (3 tests)[0m
+[94m[1m================================================================================[0m
+
+
+[1mTest 14/18: Safe Fallback - Production Context[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Production fallback is conservative
+   Fallback score: 85/100 (conservative)
+
+[1mTest 15/18: Safe Fallback - Development Context[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Development fallback is calibrated
+   Fallback score: 50/100 (permissive)
+
+[1mTest 16/18: High-Risk Fallback - Production Destructive Action[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Production destructive fallback is appropriately high
+   Fallback score: 85/100 (production + delete)
+
+[94m[1m================================================================================[0m
+[94m[1mCATEGORY 4: ENTERPRISE FEATURES TESTS (2 tests)[0m
+[94m[1m================================================================================[0m
+
+
+[1mTest 17/18: Algorithm Versioning - Metadata Presence[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: Algorithm version - Field 'algorithm_version' exists
+[92m✅ PASS[0m: Calculation timestamp - Field 'calculation_timestamp' exists
+   Algorithm version: 2.0.0
+   Timestamp: 2025-11-14T21:27:31.867552+00:00
+
+[1mTest 18/18: Algorithm Metadata - Version Details[0m
+--------------------------------------------------------------------------------
+[92m✅ PASS[0m: All metadata fields present
+   Version: 2.0.0
+   Name: Enterprise Hybrid Multi-Factor Risk Scoring
+   Date: 2025-11-14
+   Components: ['environment', 'data_sensitivity', 'action_type', 'operational_context', 'resource_type_multiplier']
+
+[94m[1m================================================================================[0m
+[94m[1mTEST SUITE RESULTS[0m
+[94m[1m================================================================================[0m
+
+Total Tests: 18
+[92m✅ Passed: 18[0m
+[91m❌ Failed: 0[0m
+Pass Rate: 100.0%
+
+[1mCategory Breakdown:[0m
+  1. Validation Tests (8):        8/8 passed
+  2. Error Handling Tests (5):    5/5 passed
+  3. Fallback Scoring Tests (3):  3/3 passed
+  4. Enterprise Features Tests (2): 2/2 passed
+
+[92m[1m🎉 ALL TESTS PASSED - ENTERPRISE SOLUTION READY FOR INTEGRATION[0m
+

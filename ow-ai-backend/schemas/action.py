@@ -46,11 +46,11 @@ class ActionResponse(BaseModel):
     action_type: str
     description: str
     status: str
-    risk_score: Optional[float]
-    risk_level: Optional[str]
+    risk_score: Optional[float] = None
+    risk_level: Optional[str] = None
     created_at: datetime
-    created_by: Optional[int]
-    
+    created_by: Optional[int] = None  # ENTERPRISE FIX: Pydantic v2 requires explicit default for nullable fields
+
     class Config:
         from_attributes = True
 

@@ -34,7 +34,8 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func, and_, or_
 from models_mcp_governance import MCPPolicy
-from models import User, AgentAction, LogAuditTrail
+from models import User, AgentAction
+from services.immutable_audit_service import ImmutableAuditService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -713,10 +714,10 @@ class EnterpriseRealTimePolicyEngine:
         
         # Query active policies from database
         policies_query = """
-            SELECT id, policy_name, natural_language_description, 
+            SELECT id, policy_name, natural_language_description,
                    resource_patterns, namespace_patterns, verb_patterns,
-                   action, conditions, priority
-            FROM mcp_policies 
+                   actions, conditions, priority
+            FROM mcp_policies
             WHERE is_active = true AND policy_status = 'deployed'
             ORDER BY priority DESC, created_at ASC
         """
@@ -963,22 +964,39 @@ class EnterpriseRealTimePolicyEngine:
         }
         
         try:
-            audit_log = LogAuditTrail(
-                user_id=1,  # System user for policy engine
-                action="policy_evaluation",
-                details=json.dumps(audit_details),
-                ip_address=context.client_ip or "policy_engine",
+            # ENTERPRISE STANDARD: Use ImmutableAuditService for tamper-proof audit logs
+            # Provides hash-chaining, WORM compliance, and GDPR/SOX/HIPAA audit trails
+            audit_service = ImmutableAuditService(self.db)
+
+            # Determine compliance tags based on risk level
+            compliance_tags = []
+            if risk_score.risk_level in ["CRITICAL", "HIGH"]:
+                compliance_tags.extend(["SOX", "ENTERPRISE_SECURITY"])
+            if "patient" in context.resource.lower() or "medical" in context.resource.lower():
+                compliance_tags.append("HIPAA")
+            if "payment" in context.resource.lower() or "financial" in context.resource.lower():
+                compliance_tags.extend(["PCI-DSS", "SOX"])
+
+            audit_log = audit_service.log_event(
+                event_type="policy_evaluation",
+                actor_id=str(context.user_id),
+                resource_type=context.resource_type or "action",
+                resource_id=str(context.resource_id or evaluation_id),
+                action=context.action_type,
+                event_data=audit_details,
+                outcome="SUCCESS",
                 risk_level=risk_score.risk_level,
-                timestamp=context.timestamp
+                compliance_tags=compliance_tags,
+                ip_address=context.client_ip,
+                session_id=context.session_id
             )
-            
-            self.db.add(audit_log)
-            self.db.commit()
-            
+
             return str(audit_log.id)
-            
+
         except Exception as e:
-            logger.error(f"Failed to create audit trail: {str(e)}")
+            # ENTERPRISE PATTERN: Log error but don't fail policy evaluation
+            # Audit logging is important but shouldn't block authorization decisions
+            logger.error(f"Failed to create immutable audit trail: {str(e)}")
             return f"audit_trail_error_{evaluation_id}"
     
     def _generate_evaluation_id(self, context: PolicyEvaluationContext) -> str:

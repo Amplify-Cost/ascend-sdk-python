@@ -635,7 +635,15 @@ class AuthorizationService:
             
             # Validate current status
             current_status = action_row[6] if len(action_row) > 6 else ActionStatus.PENDING.value
-            if current_status not in [ActionStatus.PENDING.value, ActionStatus.SUBMITTED.value, ActionStatus.PENDING_APPROVAL.value]:
+            # Accept pending statuses, active, and workflow stages
+            approvable_statuses = [
+                ActionStatus.PENDING.value,
+                ActionStatus.SUBMITTED.value,
+                ActionStatus.PENDING_APPROVAL.value,
+                "active",  # Add support for active status
+            ]
+            # Also accept workflow stages (pending_stage_1, pending_stage_2, etc.)
+            if current_status not in approvable_statuses and not current_status.startswith("pending_stage"):
                 raise InvalidActionStateError(f"Action already processed: {current_status}")
             
             # Parse authorization data
@@ -1442,45 +1450,59 @@ async def create_test_action_api(
             action_id = row[0]
             created_at = row[1]
 
-            # 🏢 ENTERPRISE: Create corresponding alert for AI Alert Management
-            alert_severity_mapping = {
-                "low": "low",
-                "medium": "medium",
-                "high": "high",
-                "critical": "critical"
-            }
+            # 🏢 ENTERPRISE FIX (2025-11-19): Check for duplicate alerts before creating
+            # IDEMPOTENCY: Prevent duplicate alert creation
+            existing_alert = db.execute(text("""
+                SELECT id FROM alerts
+                WHERE agent_action_id = :action_id
+                LIMIT 1
+            """), {"action_id": action_id}).fetchone()
 
-            # Build alert message with action details
-            alert_message = f"🤖 Agent Action Pending: {action_type.replace('_', ' ').title()}\n"
-            alert_message += f"Agent: {agent_id}\n"
-            alert_message += f"Risk: {risk_level.upper()}\n"
-            alert_message += f"NIST Control: {compliance['nist_control']}\n"
-            alert_message += f"Description: {description[:150]}...\n"
-            alert_message += f"Justification: {business_justification[:150]}..."
+            if existing_alert:
+                alert_id = existing_alert[0]
+                logger.info(f"Alert already exists for action {action_id}: alert_id={alert_id} (skipping duplicate creation)")
+            else:
+                # 🏢 ENTERPRISE: Create corresponding alert for AI Alert Management
+                alert_severity_mapping = {
+                    "low": "low",
+                    "medium": "medium",
+                    "high": "high",
+                    "critical": "critical"
+                }
 
-            alert_data = {
-                "alert_type": f"agent_action_{action_type}",
-                "severity": alert_severity_mapping.get(risk_level.lower(), "medium"),
-                "message": alert_message,
-                "timestamp": datetime.now(UTC),
-                "agent_id": agent_id,
-                "agent_action_id": action_id,
-                "status": "new"
-            }
+                # Build alert message with action details
+                alert_message = f"🤖 Agent Action Pending: {action_type.replace('_', ' ').title()}\n"
+                alert_message += f"Agent: {agent_id}\n"
+                alert_message += f"Risk: {risk_level.upper()}\n"
+                alert_message += f"NIST Control: {compliance['nist_control']}\n"
+                alert_message += f"Description: {description[:150]}...\n"
+                alert_message += f"Justification: {business_justification[:150]}..."
 
-            # Insert alert and get its ID
-            result = db.execute(text("""
-                INSERT INTO alerts (
-                    alert_type, severity, message, timestamp, agent_id,
-                    agent_action_id, status
-                )
-                VALUES (
-                    :alert_type, :severity, :message, :timestamp, :agent_id,
-                    :agent_action_id, :status
-                )
-                RETURNING id
-            """), alert_data)
-            alert_id = result.fetchone()[0]
+                alert_data = {
+                    "alert_type": f"agent_action_{action_type}",
+                    "severity": alert_severity_mapping.get(risk_level.lower(), "medium"),
+                    "message": alert_message,
+                    "timestamp": datetime.now(UTC),
+                    "agent_id": agent_id,
+                    "agent_action_id": action_id,
+                    "status": "new"
+                }
+
+                # Insert alert and get its ID
+                result = db.execute(text("""
+                    INSERT INTO alerts (
+                        alert_type, severity, message, timestamp, agent_id,
+                        agent_action_id, status
+                    )
+                    VALUES (
+                        :alert_type, :severity, :message, :timestamp, :agent_id,
+                        :agent_action_id, :status
+                    )
+                    RETURNING id
+                """), alert_data)
+                alert_id = result.fetchone()[0]
+                logger.info(f"✅ New alert created for action {action_id}: alert_id={alert_id}")
+
             db.commit()
 
             # Route alert to active A/B tests for real metrics tracking

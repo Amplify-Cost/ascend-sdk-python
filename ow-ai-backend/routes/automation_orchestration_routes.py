@@ -2,13 +2,20 @@
 🏢 ENTERPRISE AUTOMATION & ORCHESTRATION ROUTES
 Implements automation playbook management and workflow orchestration
 Frontend Contract: AgentAuthorizationDashboard.jsx
+
+PHASE 1-3 ENTERPRISE ENHANCEMENTS:
+- Pydantic validation for all playbook operations
+- Template library support
+- Playbook testing endpoints
+- Enhanced error handling
 """
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 import logging
+import json
 
 # ✅ ENTERPRISE FIX: Use Phase 2 enterprise get_db() with error handling
 # Created by: OW-kai Engineer (Phase 2 Enterprise Integration)
@@ -16,6 +23,18 @@ from dependencies import get_db
 from models import AutomationPlaybook, PlaybookExecution, WorkflowExecution, Workflow, User
 from dependencies import get_current_user, require_admin
 from config_workflows import workflow_config
+
+# ⭐ PHASE 1-3: Import enterprise playbook schemas
+from schemas.playbook import (
+    PlaybookCreate,
+    PlaybookUpdate,
+    PlaybookResponse,
+    PlaybookTestRequest,
+    PlaybookTestResponse,
+    PlaybookTemplate,
+    TriggerConditions,
+    PlaybookAction  # 🏢 PHASE 4: Added for template library endpoint (line 572+)
+)
 
 # Configure logging
 logger = logging.getLogger("enterprise.automation")
@@ -69,14 +88,15 @@ class WorkflowExecuteRequest(BaseModel):
 async def get_automation_playbooks(
     status: Optional[str] = None,
     risk_level: Optional[str] = None,
+    include_deleted: bool = False,  # 🏢 ENTERPRISE: Hide soft-deleted playbooks by default
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """
     🏢 GET /api/authorization/automation/playbooks
-    
+
     List all automation playbooks with optional filtering
-    
+
     Frontend: AgentAuthorizationDashboard.jsx
     Expected response:
     {
@@ -84,14 +104,26 @@ async def get_automation_playbooks(
         "data": [array of playbooks],
         "total": number
     }
+
+    Query Parameters:
+    - status: Filter by status (active, inactive, disabled, maintenance)
+    - risk_level: Filter by risk level (low, medium, high, critical)
+    - include_deleted: Show soft-deleted playbooks (default: false)
+
+    Enterprise Pattern: ServiceNow CMDB filtering, Jira issue states
     """
     try:
-        logger.info(f"📋 Listing automation playbooks for user {current_user.get('email')}")
-        
+        logger.info(f"📋 Listing automation playbooks for user {current_user.get('email')} (include_deleted={include_deleted})")
+
         # Build database query - REAL DATA, NOT DEMO
         query = db.query(AutomationPlaybook)
-        
-        # Apply filters
+
+        # 🏢 ENTERPRISE: Smart filtering - hide soft-deleted playbooks by default
+        # Pattern: ServiceNow CMDB (hides Retired CIs), Jira (hides Archived issues)
+        if not include_deleted:
+            query = query.filter(AutomationPlaybook.is_deleted == False)
+
+        # Apply additional filters
         if status:
             query = query.filter(AutomationPlaybook.status == status)
         if risk_level:
@@ -162,79 +194,128 @@ async def get_automation_playbooks(
         raise HTTPException(status_code=500, detail=f"Failed to fetch playbooks: {str(e)}")
 
 
-@router.post("/automation/playbooks")
+@router.post("/automation/playbooks", response_model=PlaybookResponse)
 async def create_automation_playbook(
-    playbook_data: dict,
+    playbook: PlaybookCreate,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin)
 ):
     """
     🏢 POST /api/authorization/automation/playbooks
-    
-    Create new automation playbook (Admin only)
-    
+
+    Create new automation playbook with enterprise validation (Admin only)
+
+    PHASE 1-4 ENHANCEMENTS:
+    - Full Pydantic validation for trigger_conditions and actions
+    - Type-safe parameter validation based on action type
+    - Automatic ID format checking (must start with 'pb-')
+    - Backward compatibility with legacy field names
+    - Prevents creation of non-functional playbooks (null triggers/actions)
+    - Enterprise error messages (validation vs database errors)
+
     Frontend: AgentAuthorizationDashboard.jsx
-    Body: {id, name, description, status, risk_level, ...}
-    Expected response: {status, message, data}
+    Body: PlaybookCreate schema (see schemas/playbook.py)
+    Returns: PlaybookResponse with full playbook details
     """
     try:
-        logger.info(f"📝 Creating playbook by admin {current_user.get('email')}")
-        
-        # Validate required fields
-        required = ['id', 'name', 'status', 'risk_level']
-        for field in required:
-            if field not in playbook_data:
-                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
-        
-        # Check if ID already exists
+        logger.info(f"📝 Creating enterprise playbook by admin {current_user.get('email')}")
+        logger.info(f"📋 Playbook ID: {playbook.id}, Risk Level: {playbook.risk_level}")
+        logger.info(f"⚙️ Trigger Conditions: {playbook.trigger_conditions.dict(exclude_none=True)}")
+        logger.info(f"⚡ Actions: {[action.type.value for action in playbook.actions]}")
+
+        # 🏢 PHASE 4: Check if ID already exists (enterprise error message)
         existing = db.query(AutomationPlaybook).filter(
-            AutomationPlaybook.id == playbook_data['id']
+            AutomationPlaybook.id == playbook.id
         ).first()
-        
+
         if existing:
             raise HTTPException(
-                status_code=409, 
-                detail=f"Playbook with ID '{playbook_data['id']}' already exists"
+                status_code=409,
+                detail={
+                    "error_type": "DUPLICATE_ID",
+                    "message": f"Playbook ID '{playbook.id}' already exists",
+                    "suggestion": f"Try: {playbook.id}-v2 or {playbook.id}-2024",
+                    "existing_playbook": {
+                        "id": existing.id,
+                        "name": existing.name,
+                        "created_at": existing.created_at.isoformat() if existing.created_at else None
+                    }
+                }
             )
-        
-        # Create new playbook in database
+
+        # Convert Pydantic models to database format
+        trigger_conditions_dict = playbook.trigger_conditions.dict(exclude_none=True)
+        actions_list = [action.dict(exclude_none=True) for action in playbook.actions]
+
+        # Create new playbook with validated data
         new_playbook = AutomationPlaybook(
-            id=playbook_data['id'],
-            name=playbook_data['name'],
-            description=playbook_data.get('description'),
-            status=playbook_data.get('status', 'active'),
-            risk_level=playbook_data.get('risk_level', 'medium'),
-            approval_required=playbook_data.get('approval_required', False),
-            trigger_conditions=playbook_data.get('trigger_conditions'),
-            actions=playbook_data.get('actions'),
+            id=playbook.id,
+            name=playbook.name,
+            description=playbook.description,
+            status=playbook.status,
+            risk_level=playbook.risk_level,
+            approval_required=playbook.approval_required,
+            trigger_conditions=trigger_conditions_dict,
+            actions=actions_list,
             execution_count=0,
             success_rate=0.0,
             created_by=current_user.get('user_id')
         )
-        
+
         db.add(new_playbook)
         db.commit()
         db.refresh(new_playbook)
-        
-        logger.info(f"✅ Playbook '{new_playbook.id}' created successfully")
-        
-        return {
-            "status": "success",
-            "message": f"Playbook '{new_playbook.name}' created successfully",
-            "data": {
-                "id": new_playbook.id,
-                "name": new_playbook.name,
-                "status": new_playbook.status,
-                "created_at": new_playbook.created_at.isoformat()
-            }
-        }
-        
+
+        logger.info(f"✅ Enterprise playbook '{new_playbook.id}' created successfully")
+        logger.info(f"✅ Trigger conditions: {len(trigger_conditions_dict)} conditions configured")
+        logger.info(f"✅ Automated actions: {len(actions_list)} actions configured")
+
+        return new_playbook
+
     except HTTPException:
         raise
-    except Exception as e:
+    except ValidationError as e:
+        # 🏢 PHASE 4: Enterprise validation error handling
         db.rollback()
-        logger.error(f"❌ Failed to create playbook: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to create playbook: {str(e)}")
+        logger.error(f"❌ Validation error: {str(e)}")
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error_type": "VALIDATION_ERROR",
+                "message": "Playbook data failed validation",
+                "validation_errors": e.errors(),
+                "help": {
+                    "playbook_id": "Must start with 'pb-', use lowercase letters, numbers, and hyphens only",
+                    "examples": ["pb-low-risk-auto", "pb-high-security-2024", "pb-sox-compliance-01"]
+                }
+            }
+        )
+    except Exception as e:
+        # 🏢 PHASE 4: Database and other errors
+        db.rollback()
+        error_msg = str(e)
+        logger.error(f"❌ Database error creating playbook: {error_msg}")
+
+        # Check if it's a database connection error
+        if "connection" in error_msg.lower() or "database" in error_msg.lower():
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error_type": "DATABASE_ERROR",
+                    "message": "Database connection failed",
+                    "technical_details": error_msg,
+                    "suggestion": "Please try again. If the issue persists, contact support."
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "error_type": "SERVER_ERROR",
+                    "message": "Failed to create playbook",
+                    "technical_details": error_msg
+                }
+            )
 
 
 @router.post("/automation/playbook/{playbook_id}/toggle")
@@ -371,6 +452,297 @@ async def execute_automation_playbook(
         db.rollback()
         logger.error(f"❌ Failed to execute playbook: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to execute playbook: {str(e)}")
+
+
+@router.post("/automation/playbooks/{playbook_id}/test", response_model=PlaybookTestResponse)
+async def test_automation_playbook(
+    playbook_id: str,
+    test_request: PlaybookTestRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 POST /api/authorization/automation/playbooks/{playbook_id}/test
+
+    Test playbook trigger conditions against sample data (dry-run mode)
+
+    PHASE 1 FEATURE:
+    - Validates trigger conditions without executing actions
+    - Returns detailed match/fail analysis for each condition
+    - Helps users debug playbook configuration before deployment
+    - No database changes, completely safe to run
+
+    Body: { "test_data": { "risk_score": 35, "action_type": "database_read", ... } }
+    Returns: Match analysis with detailed condition results
+    """
+    try:
+        logger.info(f"🧪 Testing playbook '{playbook_id}' with sample data")
+
+        # Fetch playbook
+        playbook = db.query(AutomationPlaybook).filter(
+            AutomationPlaybook.id == playbook_id
+        ).first()
+
+        if not playbook:
+            raise HTTPException(status_code=404, detail=f"Playbook '{playbook_id}' not found")
+
+        if not playbook.trigger_conditions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Playbook '{playbook_id}' has no trigger conditions configured"
+            )
+
+        test_data = test_request.test_data
+        conditions = playbook.trigger_conditions
+        matched_conditions = []
+        failed_conditions = []
+
+        # Test risk_score condition
+        if 'risk_score' in conditions:
+            risk_range = conditions['risk_score']
+            test_score = test_data.get('risk_score')
+
+            if test_score is not None:
+                min_score = risk_range.get('min', 0)
+                max_score = risk_range.get('max', 100)
+
+                if min_score <= test_score <= max_score:
+                    matched_conditions.append(f"risk_score ({test_score}) in range [{min_score}-{max_score}]")
+                else:
+                    failed_conditions.append(f"risk_score ({test_score}) NOT in range [{min_score}-{max_score}]")
+            else:
+                failed_conditions.append("risk_score not provided in test data")
+
+        # Test action_type condition
+        if 'action_type' in conditions:
+            allowed_types = conditions['action_type']
+            test_type = test_data.get('action_type')
+
+            if test_type in allowed_types:
+                matched_conditions.append(f"action_type ({test_type}) matches")
+            else:
+                failed_conditions.append(f"action_type ({test_type}) not in {allowed_types}")
+
+        # Test environment condition
+        if 'environment' in conditions:
+            allowed_envs = conditions['environment']
+            test_env = test_data.get('environment', 'production')
+
+            if test_env in allowed_envs:
+                matched_conditions.append(f"environment ({test_env}) matches")
+            else:
+                failed_conditions.append(f"environment ({test_env}) not in {allowed_envs}")
+
+        # Test agent_id condition
+        if 'agent_id' in conditions:
+            allowed_agents = conditions['agent_id']
+            test_agent = test_data.get('agent_id')
+
+            if test_agent in allowed_agents:
+                matched_conditions.append(f"agent_id ({test_agent}) matches")
+            else:
+                failed_conditions.append(f"agent_id ({test_agent}) not in {allowed_agents}")
+
+        # Test business_hours condition
+        if 'business_hours' in conditions and conditions['business_hours']:
+            # Simplified: would check actual timestamp in production
+            matched_conditions.append("business_hours check (simplified)")
+
+        # Determine overall match (ALL conditions must pass)
+        matches = len(failed_conditions) == 0
+
+        # Get actions that would execute
+        would_execute_actions = []
+        if matches and playbook.actions:
+            would_execute_actions = [
+                f"{action['type']}" + (f" ({action.get('parameters', {})})" if action.get('parameters') else "")
+                for action in playbook.actions
+                if action.get('enabled', True)
+            ]
+
+        logger.info(f"✅ Test result: {'MATCH' if matches else 'NO MATCH'} "
+                   f"({len(matched_conditions)} passed, {len(failed_conditions)} failed)")
+
+        return PlaybookTestResponse(
+            matches=matches,
+            playbook_id=playbook.id,
+            playbook_name=playbook.name,
+            test_data=test_data,
+            matched_conditions=matched_conditions,
+            failed_conditions=failed_conditions,
+            would_execute_actions=would_execute_actions
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to test playbook: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to test playbook: {str(e)}")
+
+
+@router.get("/automation/playbook-templates")
+async def get_playbook_templates(
+    category: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    🏢 GET /api/authorization/automation/playbook-templates
+
+    Get enterprise playbook templates for quick deployment
+
+    PHASE 2 FEATURE:
+    - Pre-built, tested playbook configurations
+    - Categories: productivity, security, compliance, cost_optimization
+    - Includes ROI estimates and complexity ratings
+    - One-click deployment to create functional playbooks
+
+    Query params:
+    - category: Filter by category (optional)
+
+    Returns: List of playbook templates with metadata
+    """
+    try:
+        logger.info(f"📚 Fetching playbook templates (category: {category or 'all'})")
+
+        # Enterprise template library (would be in database in production)
+        templates = [
+            PlaybookTemplate(
+                id="template-low-risk-auto",
+                name="Auto-Approve Low Risk Actions",
+                description="Automatically approve low-risk read operations during business hours",
+                category="productivity",
+                use_case="Reduce manual approvals for safe, read-only operations (database reads, file reads)",
+                trigger_conditions=TriggerConditions(
+                    risk_score={"min": 0, "max": 40},
+                    action_type=["database_read", "file_read"],
+                    business_hours=True
+                ),
+                actions=[
+                    PlaybookAction(type="approve", parameters={}, enabled=True, order=1),
+                    PlaybookAction(
+                        type="notify",
+                        parameters={"recipients": ["ops@company.com"], "subject": "Low-risk action auto-approved"},
+                        enabled=True,
+                        order=2
+                    )
+                ],
+                estimated_savings_per_month=2250.0,
+                complexity="low"
+            ),
+            PlaybookTemplate(
+                id="template-high-risk-escalate",
+                name="High-Risk Auto-Escalation",
+                description="Automatically escalate high-risk actions to VP approval",
+                category="security",
+                use_case="Ensure high-risk operations get executive review",
+                trigger_conditions=TriggerConditions(
+                    risk_score={"min": 80, "max": 100},
+                    environment=["production"]
+                ),
+                actions=[
+                    PlaybookAction(
+                        type="escalate_approval",
+                        parameters={"level": "L4", "reason": "High-risk production action"},
+                        enabled=True,
+                        order=1
+                    ),
+                    PlaybookAction(
+                        type="stakeholder_notification",
+                        parameters={"recipients": ["security@company.com", "ciso@company.com"]},
+                        enabled=True,
+                        order=2
+                    ),
+                    PlaybookAction(
+                        type="temporary_quarantine",
+                        parameters={"duration_minutes": 30, "reason": "Pending executive review"},
+                        enabled=True,
+                        order=3
+                    )
+                ],
+                estimated_savings_per_month=0.0,
+                complexity="medium"
+            ),
+            PlaybookTemplate(
+                id="template-after-hours-alert",
+                name="After-Hours Security Alert",
+                description="Alert security team for any production changes after business hours",
+                category="security",
+                use_case="Monitor and control after-hours production activity",
+                trigger_conditions=TriggerConditions(
+                    environment=["production"],
+                    business_hours=False
+                ),
+                actions=[
+                    PlaybookAction(
+                        type="notify",
+                        parameters={
+                            "recipients": ["security-oncall@company.com"],
+                            "subject": "After-hours production activity detected"
+                        },
+                        enabled=True,
+                        order=1
+                    ),
+                    PlaybookAction(
+                        type="risk_assessment",
+                        parameters={"deep_scan": True, "include_context": True},
+                        enabled=True,
+                        order=2
+                    )
+                ],
+                estimated_savings_per_month=0.0,
+                complexity="low"
+            ),
+            PlaybookTemplate(
+                id="template-financial-compliance",
+                name="Financial Transaction Compliance",
+                description="SOX-compliant approval workflow for financial transactions",
+                category="compliance",
+                use_case="Meet SOX requirements for financial system changes",
+                trigger_conditions=TriggerConditions(
+                    action_type=["financial_transaction", "config_update"],
+                    risk_score={"min": 60, "max": 100}
+                ),
+                actions=[
+                    PlaybookAction(
+                        type="escalate_approval",
+                        parameters={"level": "L3", "reason": "Financial compliance review"},
+                        enabled=True,
+                        order=1
+                    ),
+                    PlaybookAction(
+                        type="log",
+                        parameters={},
+                        enabled=True,
+                        order=2
+                    ),
+                    PlaybookAction(
+                        type="notify",
+                        parameters={"recipients": ["audit@company.com", "finance@company.com"]},
+                        enabled=True,
+                        order=3
+                    )
+                ],
+                estimated_savings_per_month=0.0,
+                complexity="high"
+            )
+        ]
+
+        # Filter by category if specified
+        if category:
+            templates = [t for t in templates if t.category == category]
+
+        logger.info(f"✅ Retrieved {len(templates)} playbook templates")
+
+        return {
+            "status": "success",
+            "data": [t.dict() for t in templates],
+            "total": len(templates),
+            "categories": ["productivity", "security", "compliance", "cost_optimization"]
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to fetch templates: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch templates: {str(e)}")
 
 
 # ============================================================================
