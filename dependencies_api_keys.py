@@ -288,22 +288,71 @@ async def get_current_user_or_api_key(
         HTTPException: If neither authentication method succeeds
     """
     # 1. Try JWT first (admin UI)
-    try:
-        user_context = get_current_user(request)
-        if user_context:
-            logger.debug(f"Authenticated via JWT: {user_context.get('email')}")
-            return user_context
-    except HTTPException:
-        pass  # JWT failed, try API key
+    # Check cookie session
+    cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
+    if cookie_jwt:
+        try:
+            from security.jwt_security import secure_jwt_decode
+            from config import SECRET_KEY, ALGORITHM
 
-    # 2. Try API key from Authorization header
+            payload = secure_jwt_decode(
+                token=cookie_jwt,
+                secret_key=SECRET_KEY,
+                algorithms=[ALGORITHM],
+                required_claims=["sub", "exp"],
+                operation_name="dual_auth_cookie"
+            )
+            logger.debug(f"✅ Authenticated via JWT cookie: {payload.get('email')}")
+            return {
+                "user_id": int(payload.get("sub")) if payload.get("sub") else None,
+                "email": payload.get("email"),
+                "role": payload.get("role", "user"),
+                "auth_method": "cookie",
+                **payload
+            }
+        except Exception as e:
+            logger.debug(f"JWT cookie authentication failed: {e}")
+            pass  # Try next method
+
+    # Check Authorization header for JWT or API key
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
-        api_key = auth_header[7:]  # Remove "Bearer " prefix
+        token = auth_header[7:]  # Remove "Bearer " prefix
 
+        # Distinguish JWT from API key by format
+        # JWT: 3 segments with dots (header.payload.signature)
+        # API key: Single string with prefix (owkai_admin_xyz...)
+        is_jwt = token.count('.') == 2
+
+        if is_jwt:
+            # Try JWT authentication
+            try:
+                from security.jwt_security import secure_jwt_decode
+                from config import SECRET_KEY, ALGORITHM
+
+                payload = secure_jwt_decode(
+                    token=token,
+                    secret_key=SECRET_KEY,
+                    algorithms=[ALGORITHM],
+                    required_claims=["sub", "exp"],
+                    operation_name="dual_auth_bearer_jwt"
+                )
+                logger.debug(f"✅ Authenticated via JWT bearer: {payload.get('email')}")
+                return {
+                    "user_id": int(payload.get("sub")) if payload.get("sub") else None,
+                    "email": payload.get("email"),
+                    "role": payload.get("role", "user"),
+                    "auth_method": "bearer",
+                    **payload
+                }
+            except Exception as e:
+                logger.debug(f"JWT bearer authentication failed: {e}")
+                pass  # Try API key
+
+        # 2. Try API key (non-JWT Bearer token)
         try:
-            user_context = await verify_api_key(api_key, db)
-            logger.debug(f"Authenticated via API key: {user_context.get('email')}")
+            user_context = await verify_api_key(token, db)
+            logger.debug(f"✅ Authenticated via API key: {user_context.get('email')}")
 
             # Store in request state for middleware access
             request.state.api_key_id = user_context.get("api_key_id")
@@ -314,7 +363,7 @@ async def get_current_user_or_api_key(
             pass  # API key failed
 
     # 3. Neither method succeeded
-    logger.warning("Authentication failed: No valid JWT or API key")
+    logger.warning("❌ Authentication failed: No valid JWT or API key")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication required. Provide either session cookie or API key."
