@@ -599,9 +599,9 @@ async def approve_agent_action(
         # FIX #2: Extract approval comments from request body
         try:
             body = await request.json()
-            comments = body.get("comments", body.get("justification", "Approved by admin"))
+            comments = body.get("comments", body.get("justification", "Approved without additional comments"))
         except:
-            comments = "Approved by admin"
+            comments = "Approved without additional comments"
 
         action.status = "approved"
         action.approved = True
@@ -667,9 +667,9 @@ async def reject_agent_action(
         # FIX #2: Extract rejection reason from request body
         try:
             body = await request.json()
-            rejection_reason = body.get("comments", body.get("rejection_reason", "Rejected by admin"))
+            rejection_reason = body.get("comments", body.get("rejection_reason", "Rejected without additional comments"))
         except:
-            rejection_reason = "Rejected by admin"
+            rejection_reason = "Rejected without additional comments"
 
         action.status = "rejected"
         action.approved = False
@@ -787,75 +787,24 @@ async def get_deployed_models(
     Returns: List of actual deployed models, not agent actions
     """
     try:
-        # PHASE 1: Demo data (prevents infinite loop immediately)
-        # PHASE 3: Replace with actual model registry query
-        demo_models = [
-            {
-                "model_id": "fraud-detection-v2.1",
-                "model_name": "Fraud Detection ML Model",
-                "version": "2.1.0",
-                "environment": "production",
-                "deployed_at": "2025-11-15T10:30:00Z",
-                "deployed_by": "ml-ops@company.com",
-                "model_owner": "Data Science Team",
-                "compliance_status": "compliant",
-                "last_audit": "2025-11-18T14:00:00Z",
-                "gdpr_approved": True,
-                "sox_compliant": True,
-                "pci_dss_compliant": False,
-                "model_type": "classification",
-                "framework": "tensorflow",
-                "risk_level": "high"
-            },
-            {
-                "model_id": "customer-churn-v1.5",
-                "model_name": "Customer Churn Prediction",
-                "version": "1.5.2",
-                "environment": "production",
-                "deployed_at": "2025-11-10T09:00:00Z",
-                "deployed_by": "ml-ops@company.com",
-                "model_owner": "Analytics Team",
-                "compliance_status": "pending_review",
-                "last_audit": "2025-11-01T10:00:00Z",
-                "gdpr_approved": True,
-                "sox_compliant": True,
-                "pci_dss_compliant": True,
-                "model_type": "regression",
-                "framework": "pytorch",
-                "risk_level": "medium"
-            },
-            {
-                "model_id": "recommendation-engine-v3.0",
-                "model_name": "Product Recommendation Engine",
-                "version": "3.0.1",
-                "environment": "production",
-                "deployed_at": "2025-11-01T15:20:00Z",
-                "deployed_by": "ml-ops@company.com",
-                "model_owner": "Product Team",
-                "compliance_status": "non_compliant",
-                "last_audit": "2025-10-25T11:30:00Z",
-                "gdpr_approved": False,  # VIOLATION: Missing GDPR approval
-                "sox_compliant": True,
-                "pci_dss_compliant": True,
-                "model_type": "neural_network",
-                "framework": "tensorflow",
-                "risk_level": "high"
-            }
-        ]
+        # Enterprise ML Model Registry: Query deployed_models table
+        from models_ml_registry import DeployedModel
 
-        # Filter by environment
-        filtered_models = [m for m in demo_models if m["environment"] == environment]
+        # Query models for the specified environment
+        deployed_models = db.query(DeployedModel).filter(
+            DeployedModel.environment == environment,
+            DeployedModel.status == "active"  # Only return active models
+        ).all()
+
+        # Convert to API response format
+        models = [model.to_dict() for model in deployed_models]
 
         return {
             "success": True,
-            "models": filtered_models,
-            "total_count": len(filtered_models),
+            "models": models,
+            "total_count": len(models),
             "environment": environment,
-            "enterprise_metadata": {
-                "model_registry_version": "1.0.0-demo",
-                "phase_1_demo_data": True,
-                "phase_3_will_use_real_registry": True
-            }
+            "registry_type": "enterprise_database"
         }
 
     except Exception as e:
