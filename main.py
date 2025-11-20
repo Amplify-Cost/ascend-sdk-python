@@ -1228,6 +1228,33 @@ except ImportError as e:
     print(f"⚠️  Risk scoring config routes not available: {e}")
     logger.error(f"❌ Failed to import risk_scoring_config_routes: {e}")
 
+# ============================================================================
+# PHASE 2: AWS Cognito Integration Routes
+# ============================================================================
+# Organization Admin Routes - User management via Cognito
+try:
+    from routes.organization_admin_routes import router as org_admin_router
+    app.include_router(org_admin_router, tags=["Organization Admin"])
+    print("✅ PHASE 2: Organization admin routes included")
+    logger.info("✅ PHASE 2: Organization admin routes registered at /organizations/*")
+    for route in org_admin_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Organization admin routes not available: {e}")
+    logger.error(f"❌ Failed to import organization_admin_routes: {e}")
+
+# Platform Admin Routes - Cross-organization monitoring
+try:
+    from routes.platform_admin_routes import router as platform_admin_router
+    app.include_router(platform_admin_router, tags=["Platform Admin"])
+    print("✅ PHASE 2: Platform admin routes included")
+    logger.info("✅ PHASE 2: Platform admin routes registered at /platform/*")
+    for route in platform_admin_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Platform admin routes not available: {e}")
+    logger.error(f"❌ Failed to import platform_admin_routes: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete")
 
 

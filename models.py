@@ -27,9 +27,19 @@ class User(Base):
     is_emergency_approver = Column(Boolean, default=False)
     max_risk_approval = Column(Integer, default=50)
 
+    # PHASE 2: AWS Cognito Integration
+    cognito_user_id = Column(String(255), unique=True, nullable=True, index=True)
+    last_login_at = Column(DateTime, nullable=True)
+    login_count = Column(Integer, default=0)
+
+    # PHASE 2: Multi-Tenancy
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    is_org_admin = Column(Boolean, default=False, nullable=False)
+
     # Relationships
 
     logs = relationship("Log", back_populates="user")
+    organization = relationship("Organization", back_populates="users")
 
 class Alert(Base):
     __tablename__ = "alerts"
@@ -766,3 +776,168 @@ class RiskScoringConfig(Base):
 
     def __repr__(self):
         return f"<RiskScoringConfig(id={self.id}, version={self.config_version}, active={self.is_active})>"
+
+
+# ============================================================================
+# PHASE 2: AWS Cognito Integration & Multi-Tenancy Models
+# ============================================================================
+
+class Organization(Base):
+    """
+    Organization model for multi-tenant support.
+
+    Each organization represents a separate customer tenant with:
+    - Isolated data via PostgreSQL RLS
+    - Subscription tier and billing
+    - Usage tracking and limits
+    - Stripe integration for payments
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "organizations"
+
+    # Primary key and identifiers
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False, index=True)
+    domain = Column(String(255), nullable=True)
+
+    # Subscription and billing
+    subscription_tier = Column(String(50), nullable=False, default='pilot')  # pilot, growth, enterprise, mega
+    subscription_status = Column(String(50), nullable=False, default='trial')  # trial, active, past_due, cancelled, suspended
+    trial_ends_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Usage limits based on subscription tier
+    included_api_calls = Column(Integer, nullable=False, default=100000)
+    included_users = Column(Integer, nullable=False, default=5)
+    included_mcp_servers = Column(Integer, nullable=False, default=3)
+
+    # Overage rates
+    overage_rate_per_call = Column(Float, nullable=False, default=0.005)
+    overage_rate_per_user = Column(Float, nullable=False, default=50.00)
+    overage_rate_per_server = Column(Float, nullable=False, default=100.00)
+
+    # Current usage tracking
+    current_month_api_calls = Column(Integer, nullable=False, default=0)
+    current_month_overage_calls = Column(Integer, nullable=False, default=0)
+    current_month_overage_cost = Column(Float, nullable=False, default=0.00)
+    last_usage_reset_date = Column(DateTime, nullable=True)
+
+    # Stripe integration
+    stripe_customer_id = Column(String(255), unique=True, nullable=True, index=True)
+    stripe_subscription_id = Column(String(255), nullable=True)
+    next_billing_date = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    created_by = Column(Integer, nullable=True)  # User ID who created (platform admin)
+
+    # Relationships
+    users = relationship("User", back_populates="organization")
+
+    def __repr__(self):
+        return f"<Organization(id={self.id}, name={self.name}, tier={self.subscription_tier})>"
+
+
+class LoginAttempt(Base):
+    """
+    Login attempt tracking for brute force detection.
+
+    Tracks all login attempts (successful and failed) for:
+    - Brute force attack detection
+    - Security monitoring
+    - Compliance audit requirements
+
+    Brute force limits:
+    - 5 failed attempts per IP in 15 minutes
+    - 10 failed attempts per email in 15 minutes
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "login_attempts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True, index=True)  # IPv6 support (max 45 chars)
+    user_agent = Column(String(500), nullable=True)
+    success = Column(Boolean, default=False, nullable=False)
+    failure_reason = Column(String(255), nullable=True)
+    cognito_user_id = Column(String(255), nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    attempted_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<LoginAttempt(email={self.email}, success={self.success}, ip={self.ip_address})>"
+
+
+class AuthAuditLog(Base):
+    """
+    Complete authentication audit log for compliance.
+
+    Logs all authentication events including:
+    - User logins (Cognito)
+    - User logouts
+    - Token refreshes
+    - API key usage
+    - Permission denials
+
+    Used for:
+    - SOC2 compliance
+    - HIPAA compliance
+    - Security incident investigation
+    - User activity monitoring
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "auth_audit_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(100), nullable=False, index=True)  # login, logout, token_refresh, api_key_use, permission_denied
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    cognito_user_id = Column(String(255), nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    api_key_id = Column(Integer, nullable=True)  # ForeignKey to api_keys table
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    success = Column(Boolean, nullable=False)
+    failure_reason = Column(String(255), nullable=True)
+    audit_metadata = Column("metadata", JSON, nullable=True)  # Maps to database column 'metadata', named audit_metadata to avoid SQLAlchemy reserved word
+    timestamp = Column(DateTime, nullable=False, server_default=func.now(), index=True)
+
+    def __repr__(self):
+        return f"<AuthAuditLog(event={self.event_type}, user_id={self.user_id}, success={self.success})>"
+
+
+class CognitoToken(Base):
+    """
+    Cognito token tracking for immediate revocation support.
+
+    Tracks all issued JWT tokens to enable:
+    - Immediate token revocation (user logout, role change, security incident)
+    - Token lifecycle management
+    - Session monitoring
+
+    Token types:
+    - id: Identity token (user info)
+    - access: Access token (API access)
+    - refresh: Refresh token (long-lived)
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "cognito_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    cognito_user_id = Column(String(255), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    token_jti = Column(String(255), nullable=False, unique=True, index=True)  # JWT ID claim (unique identifier)
+    token_type = Column(String(50), nullable=False)  # id, access, refresh
+    issued_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    is_revoked = Column(Boolean, default=False, nullable=False, index=True)
+    revocation_reason = Column(String(255), nullable=True)
+
+    def __repr__(self):
+        return f"<CognitoToken(jti={self.token_jti}, type={self.token_type}, revoked={self.is_revoked})>"

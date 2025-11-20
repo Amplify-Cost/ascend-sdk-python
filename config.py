@@ -285,6 +285,21 @@ COOKIE_SAMESITE = "strict" if COOKIE_SECURE else "lax"
 # Created by: OW-kai Engineer (Phase 2 Security Fixes - Password Hardening)
 BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "14"))  # 2^14 iterations (~300ms)
 
+# ============================================================================
+# PHASE 2: AWS Cognito Configuration
+# ============================================================================
+# Created by: Donald King (OW-AI Enterprise - Phase 2 Cognito Integration)
+# Date: 2025-11-20
+
+COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID", "us-east-2_HPew14Rbn")
+COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID", "2t9sms0kmd85huog79fqpslc2u")
+AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
+
+# Cognito URLs (computed from pool ID)
+COGNITO_ISSUER = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
+COGNITO_JWKS_URL = f"{COGNITO_ISSUER}/.well-known/jwks.json"
+COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN", "owkai-enterprise-auth.auth.us-east-2.amazoncognito.com")
+
 # Log configuration status
 logger.info(f"Configuration initialized successfully")
 logger.info(f"Environment: {_config.environment}")
