@@ -21,6 +21,7 @@ from database import get_db
 from models import User
 from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyRateLimit
 from dependencies import get_current_user
+from security.cookies import SESSION_COOKIE_NAME  # For JWT cookie authentication
 
 # Setup logging
 logger = logging.getLogger("enterprise.api_key_auth")
