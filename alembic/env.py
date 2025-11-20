@@ -10,6 +10,7 @@ from alembic import context
 
 from database import Base  # ✅ Load SQLAlchemy Base from your project
 from models import AgentAction  # ✅ Ensure model is registered
+from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyPermission, ApiKeyRateLimit  # API key models
 
 # ✅ Alembic Config object
 config = context.config
