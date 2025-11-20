@@ -710,3 +710,185 @@ async def get_subscription_info(
         "available_slots": max(0, limit - active_users),
         "usage_percentage": round((active_users / limit) * 100, 2)
     }
+
+
+# ============================================================================
+# ORGANIZATION ADMIN ROUTES - Auto-detect org from JWT token (Enterprise UX)
+# ============================================================================
+
+@router.post("/users", response_model=UserResponse)
+async def invite_user_auto_org(
+    request: InviteUserRequest,
+    req: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin)
+):
+    """
+    Invite new user to organization (auto-detect org from JWT token).
+
+    This is the enterprise-grade UX version that extracts organization_id
+    from the JWT token custom claims, eliminating the need for clients to
+    pass org_id in the URL path.
+
+    Security:
+    - Organization ID extracted from validated JWT token
+    - All security validations same as /{org_id}/users endpoint
+    - Complete audit logging
+
+    Args:
+        request: User invitation details
+        db: Database session
+        current_user: Current authenticated user (JWT validated)
+
+    Returns:
+        Created user details
+    """
+    # Extract organization ID from JWT token
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Delegate to existing endpoint (reuse all security logic)
+    return await invite_user(org_id, request, req, db, current_user)
+
+
+@router.get("/users", response_model=List[UserResponse])
+async def list_organization_users_auto_org(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin)
+):
+    """
+    List all users in organization (auto-detect org from JWT token).
+
+    Enterprise-grade UX: Organization ID extracted from JWT token.
+
+    Security:
+    - Organization ID extracted from validated JWT token
+    - PostgreSQL RLS enforces multi-tenancy isolation
+    - Only returns users from current organization
+
+    Args:
+        db: Database session
+        current_user: Current authenticated user (JWT validated)
+
+    Returns:
+        List of users in organization
+    """
+    # Extract organization ID from JWT token
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Delegate to existing endpoint
+    return await list_organization_users(org_id, db, current_user)
+
+
+@router.delete("/users/{user_id}")
+async def remove_user_auto_org(
+    user_id: int,
+    req: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin)
+):
+    """
+    Remove user from organization (auto-detect org from JWT token).
+
+    Enterprise-grade UX: Organization ID extracted from JWT token.
+
+    Security:
+    - Organization ID extracted from validated JWT token
+    - All security validations same as /{org_id}/users/{user_id} endpoint
+    - Complete audit logging
+
+    Args:
+        user_id: User ID to remove
+        db: Database session
+        current_user: Current authenticated user (JWT validated)
+
+    Returns:
+        Success message
+    """
+    # Extract organization ID from JWT token
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Delegate to existing endpoint
+    return await remove_user(org_id, user_id, req, db, current_user)
+
+
+@router.patch("/users/{user_id}/role", response_model=UserResponse)
+async def update_user_role_auto_org(
+    user_id: int,
+    request: UpdateUserRoleRequest,
+    req: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin)
+):
+    """
+    Update user role and permissions (auto-detect org from JWT token).
+
+    Enterprise-grade UX: Organization ID extracted from JWT token.
+
+    Security:
+    - Organization ID extracted from validated JWT token
+    - All security validations same as /{org_id}/users/{user_id}/role endpoint
+    - Complete audit logging
+
+    Args:
+        user_id: User ID to update
+        request: New role details
+        db: Database session
+        current_user: Current authenticated user (JWT validated)
+
+    Returns:
+        Updated user details
+    """
+    # Extract organization ID from JWT token
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Delegate to existing endpoint
+    return await update_user_role(org_id, user_id, request, req, db, current_user)
+
+
+@router.get("/subscription-info")
+async def get_subscription_info_auto_org(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin)
+):
+    """
+    Get organization subscription information (auto-detect org from JWT token).
+
+    Enterprise-grade UX: Organization ID extracted from JWT token.
+
+    Args:
+        db: Database session
+        current_user: Current authenticated user (JWT validated)
+
+    Returns:
+        Subscription details and usage
+    """
+    # Extract organization ID from JWT token
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Delegate to existing endpoint
+    return await get_subscription_info(org_id, db, current_user)

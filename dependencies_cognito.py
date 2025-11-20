@@ -22,6 +22,7 @@ from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from jose import jwt, jwk, JWTError
 from jose.backends import RSAKey
 
@@ -572,7 +573,7 @@ async def get_current_user_cognito(
             )
 
         # Step 5: Set PostgreSQL RLS context (DATABASE-ENFORCED multi-tenancy)
-        db.execute(f"SET LOCAL app.current_organization_id = {organization_id}")
+        db.execute(text(f"SET LOCAL app.current_organization_id = {organization_id}"))
 
         # Step 6: Get or create user in local database
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
