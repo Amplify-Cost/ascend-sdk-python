@@ -1194,6 +1194,8 @@ try:
     from routes import audit_routes
     app.include_router(audit_routes.router, prefix="/api", tags=["audit"])
     print("✅ ENTERPRISE: Audit routes included")
+except ImportError as e:
+    print(f"⚠️  Audit routes not available: {e}")
 
 # ========================================
 # API Key Management Routes (Enterprise SDK)
@@ -1204,9 +1206,6 @@ try:
     print("✅ API Key Management routes loaded")
 except Exception as e:
     print(f"⚠️  API Key Management routes not available: {e}")
-
-except ImportError as e:
-    print(f"⚠️  Audit routes not available: {e}")
 
 # Enterprise Retention Policy Routes (Phase 2.1)
 try:
