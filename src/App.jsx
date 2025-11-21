@@ -8,9 +8,9 @@ import AuthErrorBoundary from "./components/AuthErrorBoundary";
 import SessionTimeoutWarning from "./components/SessionTimeoutWarning";
 import Breadcrumb from "./components/Breadcrumb";
 import GlobalSearch from "./components/GlobalSearch";
-import Login from "./components/Login";
+import CognitoLogin from "./components/CognitoLogin";
 import Register from "./components/Register";
-import ForgotPassword from "./components/ForgotPassword";
+import ForgotPasswordEnterpriseV3 from "./components/ForgotPasswordEnterpriseV3";
 import Sidebar from "./components/Sidebar";
 import SupportModal from "./components/SupportModal";
 import Dashboard from "./components/Dashboard";
@@ -441,7 +441,7 @@ const AppContent = () => {
       isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
     }`}>
       {view === "login" && (
-        <Login
+        <CognitoLogin
           onLoginSuccess={handleLoginSuccess}
           switchToRegister={() => setView("register")}
           switchToForgotPassword={() => setView("forgot")}
@@ -453,7 +453,7 @@ const AppContent = () => {
           switchToLogin={() => setView("login")}
         />
       )}
-      {view === "forgot" && <ForgotPassword switchToLogin={() => setView("login")} />}
+      {view === "forgot" && <ForgotPasswordEnterpriseV3 switchToLogin={() => setView("login")} />}
       {view === "app" && (
         <>
           <Sidebar
