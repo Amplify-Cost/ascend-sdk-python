@@ -403,6 +403,12 @@ async def track_token(
     """
     Track issued token for revocation support.
 
+    Enterprise Design:
+    - Uses idempotent insert (token can be used multiple times)
+    - Only tracks first occurrence to avoid duplicate key errors
+    - Allows same JWT to be validated across multiple requests
+    - Token revocation check happens separately in check_token_revoked()
+
     Args:
         token_jti: JWT ID claim (unique identifier)
         user_id: Local user ID
@@ -412,6 +418,17 @@ async def track_token(
         expires_at: Token expiration timestamp
         db: Database session
     """
+    # Check if token already tracked (idempotent operation)
+    existing_token = db.query(CognitoToken).filter(
+        CognitoToken.token_jti == token_jti
+    ).first()
+
+    if existing_token:
+        # Token already tracked - this is normal for JWT reuse
+        logger.debug(f"Token {token_jti[:10]}... already tracked")
+        return
+
+    # Track new token
     token_record = CognitoToken(
         user_id=user_id,
         cognito_user_id=cognito_user_id,
@@ -425,6 +442,7 @@ async def track_token(
 
     db.add(token_record)
     db.commit()
+    logger.debug(f"✅ Token tracked: {token_jti[:10]}... (user: {user_id}, org: {organization_id})")
 
 
 async def check_token_revoked(token_jti: str, db: Session) -> bool:
