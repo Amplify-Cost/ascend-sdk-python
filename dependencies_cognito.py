@@ -493,7 +493,7 @@ async def get_current_user_cognito(
     4. Verify organization exists in database
     5. Set PostgreSQL RLS context for multi-tenancy
     6. Track token in cognito_tokens table
-    7. Update user.last_login_at
+    7. Update user.last_login
     8. Log authentication event
     9. Return user context
 

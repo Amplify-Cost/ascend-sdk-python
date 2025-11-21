@@ -29,8 +29,7 @@ class User(Base):
 
     # PHASE 2: AWS Cognito Integration
     cognito_user_id = Column(String(255), unique=True, nullable=True, index=True)
-    last_login_at = Column(DateTime, nullable=True)
-    login_count = Column(Integer, default=0)
+    # Note: Using existing last_login and login_attempts columns from production schema
 
     # PHASE 2: Multi-Tenancy
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
