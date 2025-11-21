@@ -833,6 +833,19 @@ class Organization(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     created_by = Column(Integer, nullable=True)  # User ID who created (platform admin)
 
+    # PHASE 3: AWS Cognito Multi-Pool Integration
+    # Enterprise-grade authentication with dedicated Cognito user pool per organization
+    cognito_user_pool_id = Column(String(255), nullable=True, unique=True, index=True)
+    cognito_app_client_id = Column(String(255), nullable=True, unique=True)
+    cognito_domain = Column(String(255), nullable=True, unique=True)
+    cognito_region = Column(String(50), nullable=True, default='us-east-2')
+    cognito_pool_created_at = Column(DateTime(timezone=True), nullable=True)
+    cognito_pool_status = Column(String(50), nullable=True, default='pending')  # pending, active, disabled
+    cognito_pool_arn = Column(String(500), nullable=True)
+    cognito_mfa_configuration = Column(String(50), nullable=True, default='OPTIONAL')  # OFF, OPTIONAL, ON
+    cognito_password_policy = Column(JSONB, nullable=True)
+    cognito_advanced_security = Column(Boolean, nullable=True, default=False)
+
     # Relationships
     users = relationship("User", back_populates="organization")
 
