@@ -144,52 +144,87 @@ const AppContent = () => {
     checkEnterpriseAuthentication();
   }, []);
 
-  // 🍪 ENTERPRISE FIX: Handle login response without problematic toast calls
-  // 🍪 ENTERPRISE: Cookie-based login handler
-  const handleLoginSuccess = async (loginResponse) => {
+  // 🏦 PHASE 3 ENTERPRISE BANKING-LEVEL: Cognito JWT → Server Session
+  // This is the critical bridge that connects AWS Cognito MFA authentication
+  // with secure server-side session management (HttpOnly cookies)
+  const handleLoginSuccess = async (cognitoResult) => {
     try {
-      logger.debug("🏢 Processing enterprise login response...");
-      logger.debug("🔍 Login response received:", loginResponse);
-      
-      if (loginResponse && typeof loginResponse === 'object') {
-        
-        // Extract user data from response
-        const userData = loginResponse.user || loginResponse;
-        
-        if (userData && userData.email) {
-          logger.debug("✅ Enterprise cookie authentication established");
-          
-          // Set user state from response
-          setUser({
-            id: userData.user_id || userData.id,
-            email: userData.email,
-            role: userData.role,
-          });
-          
-          // Set auth mode - cookies are working in background
-          setAuthMode("cookie");
-          setIsAuthenticated(true);
-          
-          logger.debug("🍪 Secure cookie authentication activated");
-          
-        } else {
-          throw new Error("Invalid user data in login response");
-        }
-      } else {
-        throw new Error("Invalid login response format");
+      logger.debug("🔐 PHASE 3: Cognito authentication successful, creating server session...");
+      logger.debug("🔍 Cognito result:", cognitoResult);
+
+      // Validate we have Cognito tokens
+      if (!cognitoResult || !cognitoResult.tokens) {
+        throw new Error("Missing Cognito tokens in login response");
       }
-      
+
+      const { tokens } = cognitoResult;
+
+      if (!tokens.AccessToken || !tokens.IdToken || !tokens.RefreshToken) {
+        throw new Error("Incomplete Cognito token set");
+      }
+
+      logger.debug("✅ Cognito tokens validated, exchanging for server session...");
+
+      // CRITICAL: Exchange Cognito JWT for secure server session
+      const response = await fetch(`${API_BASE_URL}/api/auth/cognito-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include', // CRITICAL: Include cookies in request
+        body: JSON.stringify({
+          accessToken: tokens.AccessToken,
+          idToken: tokens.IdToken,
+          refreshToken: tokens.RefreshToken
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Session creation failed' }));
+        throw new Error(errorData.detail || `Session creation failed: ${response.status}`);
+      }
+
+      const sessionData = await response.json();
+
+      logger.debug("✅ Server session created:", sessionData);
+
+      // Validate session response
+      if (!sessionData.user || !sessionData.enterprise_validated) {
+        throw new Error("Invalid session response from server");
+      }
+
+      // Set user state from server session response
+      setUser({
+        id: sessionData.user.user_id || sessionData.user.id,
+        email: sessionData.user.email,
+        role: sessionData.user.role,
+      });
+
+      // Set auth mode - Cognito MFA → Server Session (Banking Level)
+      setAuthMode("cognito-session");
+      setIsAuthenticated(true);
+
+      logger.debug("✅ Enterprise banking-level authentication complete");
+      logger.debug("🔐 Auth Chain: Cognito MFA → JWT Validation → Server Session → HttpOnly Cookie");
+
       setView("app");
       setActiveTab("dashboard");
-      logger.debug("✅ Enterprise login processing complete");
-      
+
+      // Success toast
+      toast(`Welcome, ${sessionData.user.email}!`, "success");
+      announce(`Logged in as ${sessionData.user.email}`, 'polite');
+
     } catch (err) {
-      logger.error("❌ Login processing error:", err);
+      logger.error("❌ Cognito session creation failed:", err);
       logger.error("❌ Error details:", err.message);
-      logger.error("❌ Login response that failed:", loginResponse);
-      
-      logger.debug("Login processing failed - please try again");
+
+      // User-friendly error message
+      toast(`Login failed: ${err.message}`, "error");
+      announce(`Login failed: ${err.message}`, 'assertive');
+
       setView("login");
+      setIsAuthenticated(false);
+      setUser(null);
     }
   };
 
