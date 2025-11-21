@@ -1197,6 +1197,22 @@ try:
 except ImportError as e:
     print(f"⚠️  Audit routes not available: {e}")
 
+# Enterprise Cognito Pool Routes (Phase 3)
+try:
+    from routes.cognito_pool_routes import router as cognito_pool_router
+    app.include_router(cognito_pool_router, tags=["Cognito", "Authentication"])
+    print("✅ ENTERPRISE PHASE 3: Cognito pool routes included")
+    print("   → /api/cognito/pool-config/by-slug/{slug}")
+    print("   → /api/cognito/pool-config/by-id/{id}")
+    print("   → /api/cognito/pool-config/by-email/{email}")
+    print("   → /api/cognito/pool-status/{slug}")
+    print("   → /api/cognito/organizations")
+except Exception as e:
+    import traceback
+    print(f"⚠️  Cognito pool routes not available: {type(e).__name__}: {e}")
+    print(f"⚠️  Traceback:")
+    traceback.print_exc()
+
 # ========================================
 # API Key Management Routes (Enterprise SDK)
 # ========================================
