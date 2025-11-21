@@ -1,8 +1,11 @@
-// App.jsx - Enhanced Enterprise Cookie Authentication (Phase 2 Complete)
+// App.jsx - Enterprise AWS Cognito Multi-Pool Authentication (Phase 3)
 import React, { useState, useEffect } from "react";
+import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ToastProvider, useToast } from "./components/ToastNotification";
 import { AccessibilityProvider, useScreenReaderAnnounce } from "./contexts/AccessibilityContext";
+import AuthErrorBoundary from "./components/AuthErrorBoundary";
+import SessionTimeoutWarning from "./components/SessionTimeoutWarning";
 import Breadcrumb from "./components/Breadcrumb";
 import GlobalSearch from "./components/GlobalSearch";
 import Login from "./components/Login";
@@ -530,19 +533,24 @@ const AppContent = () => {
   );
 };
 
-// PRESERVED: App wrapper (unchanged)
+// Phase 3: App wrapper with Cognito Authentication
 const App = () => {
   return (
-    <ErrorBoundary fallbackMessage="The OW-AI Enterprise Platform encountered an unexpected error. Our team has been notified.">
-      <ThemeProvider>
-        <AccessibilityProvider>
-          <ToastProvider>
-            <AppContent />
-          </ToastProvider>
-        </AccessibilityProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <AuthErrorBoundary>
+      <AuthProvider>
+        <ErrorBoundary fallbackMessage="The OW-AI Enterprise Platform encountered an unexpected error. Our team has been notified.">
+          <ThemeProvider>
+            <AccessibilityProvider>
+              <ToastProvider>
+                <SessionTimeoutWarning />
+                <AppContent />
+              </ToastProvider>
+            </AccessibilityProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
+      </AuthProvider>
+    </AuthErrorBoundary>
   );
 };
 
-export default App;// Force complete rebuild: 1759977438
+export default App;
