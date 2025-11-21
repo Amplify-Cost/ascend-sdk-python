@@ -928,7 +928,7 @@ class CognitoSessionResponse(BaseModel):
     auth_mode: str
 
 @router.post("/cognito-session", response_model=CognitoSessionResponse)
-@limiter.limit(RATE_LIMITS["auth"])
+@limiter.limit(RATE_LIMITS["auth_login"])
 async def create_cognito_session(
     request: Request,
     response: Response,
