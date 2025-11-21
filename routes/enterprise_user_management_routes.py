@@ -149,22 +149,25 @@ async def create_user(
         temp_password = generate_secure_temp_password(length=16)
         password_hash = hash_password(temp_password)
 
-        # PHASE 1 FIX: Use correct column name 'password' (not 'password_hash')
-        # PHASE 1.4 FIX: Match actual database schema (only email, password, role, is_active, created_at)
-        # Database schema: id, email, password, role, is_active, created_at, last_login,
-        #                 approval_level, is_emergency_approver, max_risk_approval
+        # ENTERPRISE FIX: Add organization_id (required NOT NULL column)
+        # Get the current user's organization_id
+        current_user_org_id = current_user.get('organization_id', 1)  # Default to OW-AI Internal
+
+        # Database schema: id, email, password, role, is_active, created_at, organization_id,
+        #                 last_login, approval_level, is_emergency_approver, max_risk_approval
         insert_query = text("""
             INSERT INTO users (
-                email, password, role, is_active, created_at
+                email, password, role, is_active, organization_id, created_at
             ) VALUES (
-                :email, :password, :role, true, CURRENT_TIMESTAMP
+                :email, :password, :role, true, :organization_id, CURRENT_TIMESTAMP
             ) RETURNING id, email, created_at
         """)
 
         result = db.execute(insert_query, {
             "email": user_data.email,
-            "password": password_hash,  # FIXED: Changed from password_hash
-            "role": user_data.role
+            "password": password_hash,
+            "role": user_data.role,
+            "organization_id": current_user_org_id
         })
         
         new_user = result.fetchone()
