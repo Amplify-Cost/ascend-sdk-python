@@ -36,6 +36,10 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const COGNITO_REGION = import.meta.env.VITE_COGNITO_REGION || 'us-east-2';
 
+// ENTERPRISE: Production organization slug (single-tenant configuration)
+// For multi-tenant deployments, use environment variable override
+const DEFAULT_ORG_SLUG = import.meta.env.VITE_ORG_SLUG || 'owkai-internal';
+
 /**
  * Get Cognito pool configuration from backend by organization slug
  */
@@ -85,21 +89,17 @@ export async function getPoolConfigByEmail(email) {
 }
 
 /**
- * Detect organization from URL subdomain or email domain
+ * Detect organization from environment configuration
+ *
+ * ENTERPRISE: Single-tenant production uses DEFAULT_ORG_SLUG.
+ * Multi-tenant can override via VITE_ORG_SLUG environment variable.
+ *
+ * Security: No client-side subdomain parsing to prevent subdomain spoofing.
  */
 export async function detectOrganizationFromEmail(email) {
-  // First, try to detect from URL subdomain
-  const hostname = window.location.hostname;
-
-  // Extract subdomain (e.g., "owkai-internal" from "owkai-internal.owkai.app")
-  const parts = hostname.split('.');
-  if (parts.length >= 3 && parts[0] !== 'www') {
-    return parts[0]; // Return subdomain as org slug
-  }
-
-  // Fallback: Get pool config by email (backend will determine org)
-  const poolConfig = await getPoolConfigByEmail(email);
-  return poolConfig.organization_slug;
+  // Enterprise: Use configured organization slug
+  // This prevents subdomain-based attacks and ensures proper tenant isolation
+  return DEFAULT_ORG_SLUG;
 }
 
 /**
