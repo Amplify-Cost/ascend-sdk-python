@@ -418,31 +418,33 @@ async def track_token(
         expires_at: Token expiration timestamp
         db: Database session
     """
-    # Check if token already tracked (idempotent operation)
-    existing_token = db.query(CognitoToken).filter(
-        CognitoToken.token_jti == token_jti
-    ).first()
+    # Use database-level idempotent insert (handles race conditions)
+    # PostgreSQL will enforce uniqueness at database level
+    try:
+        token_record = CognitoToken(
+            user_id=user_id,
+            cognito_user_id=cognito_user_id,
+            organization_id=organization_id,
+            token_jti=token_jti,
+            token_type=token_type,
+            issued_at=datetime.now(),
+            expires_at=expires_at,
+            is_revoked=False
+        )
 
-    if existing_token:
-        # Token already tracked - this is normal for JWT reuse
-        logger.debug(f"Token {token_jti[:10]}... already tracked")
-        return
+        db.add(token_record)
+        db.commit()
+        logger.debug(f"✅ Token tracked: {token_jti[:10]}... (user: {user_id}, org: {organization_id})")
 
-    # Track new token
-    token_record = CognitoToken(
-        user_id=user_id,
-        cognito_user_id=cognito_user_id,
-        organization_id=organization_id,
-        token_jti=token_jti,
-        token_type=token_type,
-        issued_at=datetime.now(),
-        expires_at=expires_at,
-        is_revoked=False
-    )
-
-    db.add(token_record)
-    db.commit()
-    logger.debug(f"✅ Token tracked: {token_jti[:10]}... (user: {user_id}, org: {organization_id})")
+    except Exception as e:
+        # Token already exists - this is normal for JWT reuse across concurrent requests
+        db.rollback()
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            logger.debug(f"Token {token_jti[:10]}... already tracked (concurrent request)")
+        else:
+            # Re-raise if it's not a duplicate key error
+            logger.error(f"Error tracking token: {str(e)}")
+            raise
 
 
 async def check_token_revoked(token_jti: str, db: Session) -> bool:
