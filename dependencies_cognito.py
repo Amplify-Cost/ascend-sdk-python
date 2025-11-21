@@ -593,7 +593,10 @@ async def get_current_user_cognito(
 
         # Step 7: Update last login
         user.last_login = datetime.now()
-        user.login_attempts = (user.login_attempts or 0) + 1
+        # Note: production has both login_attempts and failed_login_attempts
+        # We increment login_attempts for successful logins
+        if hasattr(user, 'login_attempts'):
+            user.login_attempts = (user.login_attempts or 0) + 1
         db.commit()
 
         # Step 8: Track token for revocation

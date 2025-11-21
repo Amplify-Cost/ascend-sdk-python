@@ -17,6 +17,7 @@ class User(Base):
 
     # PHASE 2 RBAC: Account lockout and password management
     failed_login_attempts = Column(Integer, default=0, nullable=False)
+    login_attempts = Column(Integer, default=0, nullable=False)  # Total successful logins
     is_locked = Column(Boolean, default=False, nullable=False)
     locked_until = Column(DateTime, nullable=True)
     password_last_changed = Column(DateTime, nullable=True)
