@@ -32,6 +32,7 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [currentSession, setCurrentSession] = useState(session); // 🏦 CRITICAL: Track updated session
 
   // Initialize TOTP setup when component mounts
   useEffect(() => {
@@ -58,13 +59,15 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
 
       // Use SESSION (not AccessToken) for MFA_SETUP challenge
       const associateCommand = new AssociateSoftwareTokenCommand({
-        Session: session
+        Session: currentSession
       });
 
       const response = await client.send(associateCommand);
       const secretCode = response.SecretCode;
+      const newSession = response.Session; // 🏦 CRITICAL: AWS returns NEW session
 
       setTotpSecret(secretCode);
+      setCurrentSession(newSession); // 🏦 CRITICAL: Update session for verification
 
       // Generate QR code for authenticator apps
       const otpAuthUrl = `otpauth://totp/OW-KAI:${username}?secret=${secretCode}&issuer=OW-KAI`;
@@ -74,7 +77,14 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       setCurrentStep(2);
     } catch (err) {
       console.error('TOTP setup error:', err);
-      setError(`Setup failed: ${err.message}`);
+
+      // 🏦 ENTERPRISE: Handle session expiration gracefully
+      if (err.name === 'NotAuthorizedException' || err.message.includes('Invalid session')) {
+        setError('Session expired. Please log in again to set up MFA.');
+        setTimeout(() => onCancel(), 3000);
+      } else {
+        setError(`Setup failed: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -97,10 +107,11 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       });
 
       // Respond to MFA_SETUP challenge with verification code
+      // 🏦 CRITICAL: Use the UPDATED session from AssociateSoftwareToken response
       const challengeResponse = new RespondToAuthChallengeCommand({
         ChallengeName: 'MFA_SETUP',
         ClientId: poolConfig.app_client_id,
-        Session: session,
+        Session: currentSession, // 🏦 CRITICAL: Use updated session, not original
         ChallengeResponses: {
           USERNAME: username, // 🏦 REQUIRED by AWS Cognito
           SOFTWARE_TOKEN_MFA_CODE: verificationCode
@@ -133,10 +144,17 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
     } catch (err) {
       console.error('MFA verification error:', err);
 
+      // 🏦 ENTERPRISE: Comprehensive error handling
       if (err.name === 'CodeMismatchException') {
-        setError('Invalid verification code. Please check your authenticator app.');
+        setError('Invalid verification code. Please check your authenticator app and try again.');
       } else if (err.name === 'EnableSoftwareTokenMFAException') {
         setError('Failed to enable MFA. Please try again.');
+      } else if (err.name === 'NotAuthorizedException' || err.message.includes('Invalid session')) {
+        setError('Session expired. Please log in again to set up MFA.');
+        setTimeout(() => onCancel(), 3000);
+      } else if (err.message.includes('Invalid session for the user')) {
+        setError('Session expired. Please close this window and log in again.');
+        setTimeout(() => onCancel(), 3000);
       } else {
         setError(`Verification failed: ${err.message}`);
       }
