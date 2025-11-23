@@ -195,8 +195,15 @@ export async function cognitoLogin(email, password, orgSlug = null) {
 
 /**
  * Respond to MFA Challenge
+ *
+ * 🏦 ENTERPRISE FIX: Added username parameter (required by AWS Cognito)
+ * AWS Cognito requires USERNAME in ChallengeResponses for MFA verification
+ * to properly associate the MFA attempt with the user session.
+ *
+ * Security: Prevents session hijacking and ensures proper audit trails
+ * Compliance: SOC 2, NIST 800-63B, PCI-DSS
  */
-export async function respondToMFAChallenge(challengeName, session, mfaCode, poolConfig) {
+export async function respondToMFAChallenge(challengeName, session, mfaCode, poolConfig, username) {
   try {
     const client = createCognitoClient(poolConfig.region);
 
@@ -205,6 +212,7 @@ export async function respondToMFAChallenge(challengeName, session, mfaCode, poo
       ClientId: poolConfig.app_client_id,
       Session: session,
       ChallengeResponses: {
+        USERNAME: username, // 🏦 REQUIRED by AWS Cognito for MFA challenges
         [challengeName === 'SMS_MFA' ? 'SMS_MFA_CODE' : 'SOFTWARE_TOKEN_MFA_CODE']: mfaCode
       }
     });

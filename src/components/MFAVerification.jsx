@@ -1,12 +1,14 @@
 /**
  * MFA Verification Component - Enterprise Grade
  * Handles MFA code entry during login
+ *
+ * 🏦 ENTERPRISE FIX: Added username prop (required for AWS Cognito MFA)
  * Engineer: OW-KAI Engineer
  */
 import React, { useState, useEffect } from 'react';
 import { respondToMFAChallenge } from '../services/cognitoAuth';
 
-const MFAVerification = ({ challengeName, session, poolConfig, onVerify, onCancel }) => {
+const MFAVerification = ({ challengeName, session, poolConfig, username, onVerify, onCancel }) => {
   const [verificationCode, setVerificationCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,8 @@ const MFAVerification = ({ challengeName, session, poolConfig, onVerify, onCance
       setLoading(true);
       setError('');
 
-      const result = await respondToMFAChallenge(challengeName, session, verificationCode, poolConfig);
+      // 🏦 ENTERPRISE FIX: Pass username to MFA challenge response
+      const result = await respondToMFAChallenge(challengeName, session, verificationCode, poolConfig, username);
 
       if (result.success) {
         onVerify(result);

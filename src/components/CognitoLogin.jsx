@@ -201,6 +201,7 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
         challengeName={mfaChallenge.challengeName}
         session={mfaChallenge.session}
         poolConfig={mfaChallenge.poolConfig}
+        username={email} // 🏦 ENTERPRISE FIX: Pass username for AWS Cognito MFA
         onVerify={handleMFAVerified}
         onCancel={handleMFACancel}
       />
