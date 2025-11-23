@@ -25,7 +25,7 @@ import {
   RespondToAuthChallengeCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 
-const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onCancel }) => {
+const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onCancel, onSessionExpired }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [totpSecret, setTotpSecret] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
@@ -33,6 +33,7 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentSession, setCurrentSession] = useState(session); // 🏦 CRITICAL: Track updated session
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   // Initialize TOTP setup when component mounts
   useEffect(() => {
@@ -49,6 +50,10 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       setLoading(true);
       setError('');
 
+      console.log('🏦 [MFA_SETUP] Step 1: Initializing TOTP setup');
+      console.log('🏦 [MFA_SETUP] Session A (from login):', currentSession.substring(0, 50) + '...');
+      console.log('🏦 [MFA_SETUP] Session A length:', currentSession.length);
+
       const client = new CognitoIdentityProviderClient({
         region: poolConfig.region,
         credentials: {
@@ -62,9 +67,16 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
         Session: currentSession
       });
 
+      console.log('🏦 [MFA_SETUP] Calling AssociateSoftwareTokenCommand...');
       const response = await client.send(associateCommand);
       const secretCode = response.SecretCode;
       const newSession = response.Session; // 🏦 CRITICAL: AWS returns NEW session
+
+      console.log('🏦 [MFA_SETUP] AssociateSoftwareToken SUCCESS');
+      console.log('🏦 [MFA_SETUP] Session B (from associate):', newSession.substring(0, 50) + '...');
+      console.log('🏦 [MFA_SETUP] Session B length:', newSession.length);
+      console.log('🏦 [MFA_SETUP] Secret code:', secretCode);
+      console.log('🏦 [MFA_SETUP] Sessions different?', currentSession !== newSession ? '✅ YES (CORRECT)' : '❌ NO (ERROR)');
 
       setTotpSecret(secretCode);
       setCurrentSession(newSession); // 🏦 CRITICAL: Update session for verification
@@ -74,9 +86,12 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       const qrUrl = await QRCode.toDataURL(otpAuthUrl);
       setQrCodeUrl(qrUrl);
 
+      console.log('🏦 [MFA_SETUP] QR code generated, advancing to step 2');
       setCurrentStep(2);
     } catch (err) {
-      console.error('TOTP setup error:', err);
+      console.error('🏦 [MFA_SETUP] ERROR:', err);
+      console.error('🏦 [MFA_SETUP] Error name:', err.name);
+      console.error('🏦 [MFA_SETUP] Error message:', err.message);
 
       // 🏦 ENTERPRISE: Handle session expiration gracefully
       if (err.name === 'NotAuthorizedException' || err.message.includes('Invalid session')) {
@@ -98,6 +113,12 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       setLoading(true);
       setError('');
 
+      console.log('🏦 [MFA_SETUP] Step 2: Verifying TOTP code');
+      console.log('🏦 [MFA_SETUP] Verification code:', verificationCode);
+      console.log('🏦 [MFA_SETUP] Username:', username);
+      console.log('🏦 [MFA_SETUP] Using Session (should be Session B):', currentSession.substring(0, 50) + '...');
+      console.log('🏦 [MFA_SETUP] Session length:', currentSession.length);
+
       const client = new CognitoIdentityProviderClient({
         region: poolConfig.region,
         credentials: {
@@ -118,7 +139,9 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
         }
       });
 
+      console.log('🏦 [MFA_SETUP] Calling RespondToAuthChallengeCommand...');
       const response = await client.send(challengeResponse);
+      console.log('🏦 [MFA_SETUP] Verification SUCCESS:', response);
 
       // MFA setup successful - get user data and tokens
       const tokens = response.AuthenticationResult;
@@ -142,7 +165,11 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       });
 
     } catch (err) {
-      console.error('MFA verification error:', err);
+      console.error('🏦 [MFA_SETUP] VERIFICATION ERROR:', err);
+      console.error('🏦 [MFA_SETUP] Error name:', err.name);
+      console.error('🏦 [MFA_SETUP] Error message:', err.message);
+      console.error('🏦 [MFA_SETUP] Error code:', err.code);
+      console.error('🏦 [MFA_SETUP] Full error object:', JSON.stringify(err, null, 2));
 
       // 🏦 ENTERPRISE: Comprehensive error handling
       if (err.name === 'CodeMismatchException') {
@@ -150,11 +177,17 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       } else if (err.name === 'EnableSoftwareTokenMFAException') {
         setError('Failed to enable MFA. Please try again.');
       } else if (err.name === 'NotAuthorizedException' || err.message.includes('Invalid session')) {
-        setError('Session expired. Please log in again to set up MFA.');
-        setTimeout(() => onCancel(), 3000);
+        console.error('🏦 [MFA_SETUP] Session invalidation detected');
+        console.error('🏦 [MFA_SETUP] Current session being used:', currentSession.substring(0, 50) + '...');
+
+        // 🏦 BANKING-LEVEL FIX: Session expired (3-minute AWS limit)
+        // User needs to get a fresh session by logging in again
+        setSessionExpired(true);
+        setError('⏱️ Security session expired (3-minute limit). Your TOTP code is still valid in your authenticator app. Please close this window and log in again to get a fresh session, then enter the same code.');
       } else if (err.message.includes('Invalid session for the user')) {
-        setError('Session expired. Please close this window and log in again.');
-        setTimeout(() => onCancel(), 3000);
+        console.error('🏦 [MFA_SETUP] AWS Cognito session error detected');
+        setSessionExpired(true);
+        setError('⏱️ Security session expired. Please close this window and log in again. Your authenticator app code is still valid - use the same code after logging in.');
       } else {
         setError(`Verification failed: ${err.message}`);
       }
@@ -256,27 +289,47 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
               </div>
             )}
 
-            <button
-              onClick={handleVerifySetup}
-              disabled={verificationCode.length !== 6 || loading}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold transition-colors"
-            >
-              {loading ? 'Verifying...' : 'Verify and Complete Setup'}
-            </button>
+            {sessionExpired ? (
+              <button
+                onClick={onCancel}
+                className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 font-semibold transition-colors"
+              >
+                Close and Login Again
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleVerifySetup}
+                  disabled={verificationCode.length !== 6 || loading}
+                  className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold transition-colors"
+                >
+                  {loading ? 'Verifying...' : 'Verify and Complete Setup'}
+                </button>
 
-            <button
-              onClick={onCancel}
-              className="w-full mt-3 text-gray-600 hover:text-gray-800 py-2"
-              disabled={loading}
-            >
-              Cancel
-            </button>
+                <button
+                  onClick={onCancel}
+                  className="w-full mt-3 text-gray-600 hover:text-gray-800 py-2"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
 
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-800">
-                <strong>🔐 Security Note:</strong> This app will generate a new 6-digit code every 30 seconds.
-                You'll need this app every time you log in for enhanced security.
-              </p>
+            <div className="mt-6 space-y-3">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>🔐 Security Note:</strong> This app will generate a new 6-digit code every 30 seconds.
+                  You'll need this app every time you log in for enhanced security.
+                </p>
+              </div>
+
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-800">
+                  <strong>⏱️ Time Limit:</strong> For security, you have 3 minutes to complete MFA setup.
+                  If the session expires, simply close this window and log in again - your QR code will remain the same.
+                </p>
+              </div>
             </div>
           </div>
         )}
