@@ -24,6 +24,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import MFAVerification from './MFAVerification';
+import MFASetupChallenge from './MFASetupChallenge'; // 🏦 ENTERPRISE: Handle MFA_SETUP challenge
 
 const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
   // Form state
@@ -194,18 +195,33 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
     setError('MFA verification cancelled');
   };
 
-  // If MFA challenge is active, show MFA verification
+  // If MFA challenge is active, route to appropriate component
   if (mfaChallenge) {
-    return (
-      <MFAVerification
-        challengeName={mfaChallenge.challengeName}
-        session={mfaChallenge.session}
-        poolConfig={mfaChallenge.poolConfig}
-        username={email} // 🏦 ENTERPRISE FIX: Pass username for AWS Cognito MFA
-        onVerify={handleMFAVerified}
-        onCancel={handleMFACancel}
-      />
-    );
+    // 🏦 ENTERPRISE: MFA_SETUP challenge requires different flow
+    // MFA_SETUP = First-time setup with QR code
+    // SMS_MFA / SOFTWARE_TOKEN_MFA = Verification for existing MFA
+    if (mfaChallenge.challengeName === 'MFA_SETUP') {
+      return (
+        <MFASetupChallenge
+          session={mfaChallenge.session}
+          poolConfig={mfaChallenge.poolConfig}
+          username={email}
+          onSetupComplete={handleMFAVerified}
+          onCancel={handleMFACancel}
+        />
+      );
+    } else {
+      return (
+        <MFAVerification
+          challengeName={mfaChallenge.challengeName}
+          session={mfaChallenge.session}
+          poolConfig={mfaChallenge.poolConfig}
+          username={email} // 🏦 ENTERPRISE FIX: Pass username for AWS Cognito MFA
+          onVerify={handleMFAVerified}
+          onCancel={handleMFACancel}
+        />
+      );
+    }
   }
 
   return (
