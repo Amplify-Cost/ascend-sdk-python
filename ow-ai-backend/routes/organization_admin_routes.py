@@ -115,8 +115,8 @@ class UserResponse(BaseModel):
     role: str
     is_org_admin: bool
     cognito_user_id: Optional[str]
-    last_login_at: Optional[datetime]
-    login_count: int
+    last_login: Optional[datetime]
+    login_attempts: int
     created_at: datetime
 
     class Config:
@@ -391,7 +391,7 @@ async def invite_user(
         organization_id=org.id,
         role=request.role,
         is_org_admin=request.is_org_admin,
-        login_count=0
+        login_attempts=0
     )
     db.add(new_user)
     db.commit()

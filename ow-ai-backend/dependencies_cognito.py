@@ -403,6 +403,12 @@ async def track_token(
     """
     Track issued token for revocation support.
 
+    Enterprise Design:
+    - Uses idempotent insert (token can be used multiple times)
+    - Only tracks first occurrence to avoid duplicate key errors
+    - Allows same JWT to be validated across multiple requests
+    - Token revocation check happens separately in check_token_revoked()
+
     Args:
         token_jti: JWT ID claim (unique identifier)
         user_id: Local user ID
@@ -412,19 +418,33 @@ async def track_token(
         expires_at: Token expiration timestamp
         db: Database session
     """
-    token_record = CognitoToken(
-        user_id=user_id,
-        cognito_user_id=cognito_user_id,
-        organization_id=organization_id,
-        token_jti=token_jti,
-        token_type=token_type,
-        issued_at=datetime.now(),
-        expires_at=expires_at,
-        is_revoked=False
-    )
+    # Use database-level idempotent insert (handles race conditions)
+    # PostgreSQL will enforce uniqueness at database level
+    try:
+        token_record = CognitoToken(
+            user_id=user_id,
+            cognito_user_id=cognito_user_id,
+            organization_id=organization_id,
+            token_jti=token_jti,
+            token_type=token_type,
+            issued_at=datetime.now(),
+            expires_at=expires_at,
+            is_revoked=False
+        )
 
-    db.add(token_record)
-    db.commit()
+        db.add(token_record)
+        db.commit()
+        logger.debug(f"✅ Token tracked: {token_jti[:10]}... (user: {user_id}, org: {organization_id})")
+
+    except Exception as e:
+        # Token already exists - this is normal for JWT reuse across concurrent requests
+        db.rollback()
+        if "duplicate key" in str(e).lower() or "unique constraint" in str(e).lower():
+            logger.debug(f"Token {token_jti[:10]}... already tracked (concurrent request)")
+        else:
+            # Re-raise if it's not a duplicate key error
+            logger.error(f"Error tracking token: {str(e)}")
+            raise
 
 
 async def check_token_revoked(token_jti: str, db: Session) -> bool:
@@ -493,7 +513,7 @@ async def get_current_user_cognito(
     4. Verify organization exists in database
     5. Set PostgreSQL RLS context for multi-tenancy
     6. Track token in cognito_tokens table
-    7. Update user.last_login_at
+    7. Update user.last_login
     8. Log authentication event
     9. Return user context
 
@@ -592,8 +612,11 @@ async def get_current_user_cognito(
             db.flush()
 
         # Step 7: Update last login
-        user.last_login_at = datetime.now()
-        user.login_count = (user.login_count or 0) + 1
+        user.last_login = datetime.now()
+        # Note: production has both login_attempts and failed_login_attempts
+        # We increment login_attempts for successful logins
+        if hasattr(user, 'login_attempts'):
+            user.login_attempts = (user.login_attempts or 0) + 1
         db.commit()
 
         # Step 8: Track token for revocation
@@ -621,7 +644,7 @@ async def get_current_user_cognito(
             metadata={
                 "email": email,
                 "role": token_payload["role"],
-                "login_count": user.login_count
+                "login_attempts": user.login_attempts
             },
             db=db
         )
