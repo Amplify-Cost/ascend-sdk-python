@@ -135,7 +135,9 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
         setAccountLocked(false);
 
         if (onLoginSuccess) {
-          onLoginSuccess(result.user);
+          // 🏦 BANKING-LEVEL FIX: Pass complete result with tokens
+          // This enables App.jsx to bridge Cognito JWT → Server Session
+          onLoginSuccess(result);
         }
       } else if (result.mfaRequired) {
         // MFA challenge required - handled by AuthContext
@@ -178,7 +180,9 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
     setMfaChallenge(null);
 
     if (onLoginSuccess) {
-      onLoginSuccess(result.user);
+      // 🏦 BANKING-LEVEL FIX: Pass complete result with tokens
+      // This enables App.jsx to bridge Cognito JWT → Server Session
+      onLoginSuccess(result);
     }
   };
 
