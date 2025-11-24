@@ -55,11 +55,8 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       console.log('🏦 [MFA_SETUP] Session A length:', currentSession.length);
 
       const client = new CognitoIdentityProviderClient({
-        region: poolConfig.region,
-        credentials: {
-          accessKeyId: 'ANONYMOUS',
-          secretAccessKey: 'ANONYMOUS'
-        }
+        region: poolConfig.region
+        // NO credentials - Cognito User Pools don't require them for auth operations
       });
 
       // Use SESSION (not AccessToken) for MFA_SETUP challenge
@@ -120,11 +117,8 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       console.log('🏦 [MFA_SETUP] Session length:', currentSession.length);
 
       const client = new CognitoIdentityProviderClient({
-        region: poolConfig.region,
-        credentials: {
-          accessKeyId: 'ANONYMOUS',
-          secretAccessKey: 'ANONYMOUS'
-        }
+        region: poolConfig.region
+        // NO credentials - Cognito User Pools don't require them for auth operations
       });
 
       // Respond to MFA_SETUP challenge with verification code
