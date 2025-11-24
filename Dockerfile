@@ -21,6 +21,9 @@ RUN npm ci --cache /tmp/empty-cache && rm -rf /tmp/empty-cache
 
 COPY . .
 
+# CRITICAL: Clear Vite cache to ensure fresh build with latest source code
+RUN rm -rf node_modules/.vite dist
+
 # Build with error output visible
 RUN echo "Building with VITE_API_URL=${VITE_API_URL}" && npm run build
 
