@@ -104,15 +104,18 @@ export async function detectOrganizationFromEmail(email) {
 
 /**
  * Create Cognito client for specific pool
+ *
+ * 🏦 ENTERPRISE FIX: No credentials required for public Cognito User Pool operations
+ * AWS Cognito User Pools support unauthenticated access for authentication operations
+ * (InitiateAuth, RespondToAuthChallenge, etc.) directly from the browser.
+ *
+ * Security: Public APIs are secured by Cognito's app client configuration
+ * and user pool settings, NOT by AWS credentials.
  */
 function createCognitoClient(region = COGNITO_REGION) {
   return new CognitoIdentityProviderClient({
-    region,
-    credentials: {
-      // Anonymous credentials for authentication operations
-      accessKeyId: 'ANONYMOUS',
-      secretAccessKey: 'ANONYMOUS'
-    }
+    region
+    // NO credentials - Cognito User Pools don't require them for auth operations
   });
 }
 
