@@ -988,8 +988,8 @@ async def create_cognito_session(
             raise HTTPException(status_code=401, detail="Invalid token issuer format")
         
         pool_id = token_issuer.split('/')[-1]
-        region = token_issuer.split('.')[2]  # Extract region from URL
-        
+        region = token_issuer.split('.')[1]  # Extract region from URL (us-east-2)
+
         logger.info(f"🔍 Extracted: Pool ID={pool_id}, Region={region}")
         
         # Step 2: Fetch Cognito public keys (JWKS) for signature verification
