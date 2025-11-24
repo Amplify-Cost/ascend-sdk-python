@@ -4,4 +4,6 @@ node_modules/
 node_modules
 dist
 .git
+.vite
+node_modules/.vite
 BUILD_TIMESTAMP=1757197703
