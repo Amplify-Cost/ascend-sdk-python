@@ -764,6 +764,7 @@ async def enterprise_logout(
 @limiter.limit("10/minute")
 async def revoke_all_user_tokens(
     request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -850,6 +851,7 @@ async def revoke_all_user_tokens(
 async def admin_revoke_user_tokens(
     target_user_id: int,
     request: Request,
+    response: Response,
     reason: str = "Administrative action",
     admin_user: dict = Depends(require_admin),
     db: Session = Depends(get_db)
@@ -933,6 +935,7 @@ async def admin_revoke_user_tokens(
 async def admin_revoke_organization_tokens(
     org_id: int,
     request: Request,
+    response: Response,
     reason: str = "Organization-wide security action",
     admin_user: dict = Depends(require_admin),
     db: Session = Depends(get_db)
@@ -1496,6 +1499,7 @@ class AdminForceResetRequest(BaseModel):
 @limiter.limit("5/minute")
 async def forgot_password(
     request: Request,
+    response: Response,
     forgot_request: ForgotPasswordRequest,
     db: Session = Depends(get_db)
 ):
@@ -1582,6 +1586,7 @@ async def forgot_password(
 @limiter.limit("10/minute")
 async def confirm_reset_password(
     request: Request,
+    response: Response,
     reset_request: ConfirmForgotPasswordRequest,
     db: Session = Depends(get_db)
 ):
@@ -1703,6 +1708,7 @@ async def confirm_reset_password(
 async def admin_force_password_reset(
     target_user_id: int,
     request: Request,
+    response: Response,
     reset_request: AdminForceResetRequest,
     admin_user: dict = Depends(require_admin),
     db: Session = Depends(get_db)
@@ -2055,6 +2061,7 @@ async def verify_totp_mfa(
 @limiter.limit("3/hour")
 async def disable_mfa(
     request: Request,
+    response: Response,
     verification_code: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
