@@ -1,9 +1,24 @@
+/**
+ * Enterprise Security Reports Component
+ *
+ * COMPLIANCE:
+ * - SOC 2 Type II: Audit reporting
+ * - HIPAA: Protected health information reports
+ * - PCI-DSS: Cardholder data environment reports
+ * - GDPR: Data protection impact assessments
+ *
+ * Engineer: Donald King (OW-AI Enterprise)
+ * Updated: 2025-11-25 (Migrated to centralized toast system)
+ */
+
 import React, { useState, useEffect } from "react";
 import { useTheme } from "../contexts/ThemeContext";
+import { useToast } from "./ToastNotification";
 import { downloadPDF, viewPDF } from "../utils/pdfGenerator";
 
 const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const { isDarkMode } = useTheme();
+  const { toast } = useToast(); // Enterprise centralized toast system
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reports, setReports] = useState([]);
   const [scheduledReports, setScheduledReports] = useState([]);
@@ -36,16 +51,9 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   });
   const [recipientEmail, setRecipientEmail] = useState('');
   const [scheduleLoading, setScheduleLoading] = useState(false);
-  const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [deleteConfirm, setDeleteConfirm] = useState({ show: false, scheduleId: null, scheduleName: '' });
 
   const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-  // Donald King: Toast notification helper
-  const showToast = (message, type = 'success') => {
-    setToast({ show: true, message, type });
-    setTimeout(() => setToast({ show: false, message: '', type: '' }), 4000);
-  };
 
   // Load data on component mount
   useEffect(() => {
@@ -351,7 +359,7 @@ Classification: ${result.classification}`);
 
   const handleSaveSchedule = async () => {
     if (!scheduleFormData.name || scheduleFormData.recipients.length === 0) {
-      showToast('Please provide a schedule name and at least one recipient', 'error');
+      toast.error('Please provide a schedule name and at least one recipient');
       return;
     }
 
@@ -383,21 +391,20 @@ Classification: ${result.classification}`);
 
       if (response.ok) {
         const result = await response.json();
-        showToast(
+        toast.success(
           editingSchedule
             ? 'Schedule updated successfully!'
-            : 'Schedule created successfully!',
-          'success'
+            : 'Schedule created successfully!'
         );
         setShowScheduleModal(false);
         await loadReportsData();
       } else {
         const error = await response.json();
-        showToast(error.detail || 'Failed to save schedule', 'error');
+        toast.error(error.detail || 'Failed to save schedule');
       }
     } catch (error) {
       console.error('Error saving schedule:', error);
-      showToast('Failed to save schedule. Please try again.', 'error');
+      toast.error('Failed to save schedule. Please try again.');
     } finally {
       setScheduleLoading(false);
     }
@@ -413,16 +420,16 @@ Classification: ${result.classification}`);
       });
 
       if (response.ok) {
-        showToast('Schedule deleted successfully!', 'success');
+        toast.success('Schedule deleted successfully!');
         setDeleteConfirm({ show: false, scheduleId: null, scheduleName: '' });
         await loadReportsData();
       } else {
         const error = await response.json();
-        showToast(error.detail || 'Failed to delete schedule', 'error');
+        toast.error(error.detail || 'Failed to delete schedule');
       }
     } catch (error) {
       console.error('Error deleting schedule:', error);
-      showToast('Failed to delete schedule. Please try again.', 'error');
+      toast.error('Failed to delete schedule. Please try again.');
     } finally {
       setScheduleLoading(false);
     }
@@ -438,18 +445,17 @@ Classification: ${result.classification}`);
       });
 
       if (response.ok) {
-        showToast(
-          currentStatus ? 'Schedule paused successfully!' : 'Schedule resumed successfully!',
-          'success'
+        toast.success(
+          currentStatus ? 'Schedule paused successfully!' : 'Schedule resumed successfully!'
         );
         await loadReportsData();
       } else {
         const error = await response.json();
-        showToast(error.detail || 'Failed to toggle schedule', 'error');
+        toast.error(error.detail || 'Failed to toggle schedule');
       }
     } catch (error) {
       console.error('Error toggling schedule:', error);
-      showToast('Failed to toggle schedule. Please try again.', 'error');
+      toast.error('Failed to toggle schedule. Please try again.');
     } finally {
       setScheduleLoading(false);
     }
@@ -464,10 +470,10 @@ Classification: ${result.classification}`);
         });
         setRecipientEmail('');
       } else {
-        showToast('Email already added', 'error');
+        toast.error('Email already added');
       }
     } else {
-      showToast('Please enter a valid email address', 'error');
+      toast.error('Please enter a valid email address');
     }
   };
 
@@ -985,21 +991,7 @@ Classification: ${result.classification}`);
     <div className={`p-6 space-y-6 transition-colors duration-300 ${
       isDarkMode ? 'bg-slate-800' : 'bg-gray-100'
     }`}>
-      {/* Donald King: Toast Notification */}
-      {toast.show && (
-        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
-          <div className={`px-6 py-4 rounded-lg shadow-lg border ${
-            toast.type === 'success'
-              ? 'bg-green-50 border-green-200 text-green-800'
-              : 'bg-red-50 border-red-200 text-red-800'
-          }`}>
-            <div className="flex items-center space-x-3">
-              <span className="text-xl">{toast.type === 'success' ? '✅' : '❌'}</span>
-              <p className="font-medium">{toast.message}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Toast notifications now handled by centralized ToastProvider */}
 
       {/* Donald King: Delete Confirmation Dialog */}
       {deleteConfirm.show && (
