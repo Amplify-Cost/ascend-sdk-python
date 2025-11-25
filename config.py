@@ -288,17 +288,44 @@ BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "14"))  # 2^14 iterations (~300ms
 # ============================================================================
 # PHASE 2: AWS Cognito Configuration
 # ============================================================================
-# Created by: Donald King (OW-AI Enterprise - Phase 2 Cognito Integration)
-# Date: 2025-11-20
+# ENTERPRISE SECURITY: No hardcoded values - all from environment/secrets
+# Pool configuration is loaded dynamically from database per organization
+# ============================================================================
 
-COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID", "us-east-2_HPew14Rbn")
-COGNITO_APP_CLIENT_ID = os.getenv("COGNITO_APP_CLIENT_ID", "2t9sms0kmd85huog79fqpslc2u")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
 
-# Cognito URLs (computed from pool ID)
-COGNITO_ISSUER = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
-COGNITO_JWKS_URL = f"{COGNITO_ISSUER}/.well-known/jwks.json"
-COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN", "owkai-enterprise-auth.auth.us-east-2.amazoncognito.com")
+# ENTERPRISE: Cognito pool IDs are loaded from database per organization
+# These are ONLY used as fallback for single-tenant deployments
+# Multi-tenant deployments MUST use database-driven pool configuration
+def _get_required_env(key: str, allow_empty_in_dev: bool = True) -> str:
+    """Get required environment variable with enterprise security validation"""
+    value = os.getenv(key)
+    env = os.getenv("ENVIRONMENT", "development")
+
+    if not value:
+        if env == "production":
+            logger.critical(f"⛔ SECURITY: Required environment variable {key} not set in production!")
+            raise ValueError(f"Required environment variable {key} not configured")
+        elif allow_empty_in_dev:
+            logger.warning(f"⚠️ {key} not set - using database-driven configuration")
+            return ""
+        else:
+            raise ValueError(f"Required environment variable {key} not configured")
+    return value
+
+# Cognito configuration - loaded from environment (no hardcoded defaults)
+COGNITO_USER_POOL_ID = _get_required_env("COGNITO_USER_POOL_ID")
+COGNITO_APP_CLIENT_ID = _get_required_env("COGNITO_APP_CLIENT_ID")
+COGNITO_DOMAIN = _get_required_env("COGNITO_DOMAIN")
+
+# Cognito URLs (computed from pool ID if available)
+if COGNITO_USER_POOL_ID:
+    COGNITO_ISSUER = f"https://cognito-idp.{AWS_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
+    COGNITO_JWKS_URL = f"{COGNITO_ISSUER}/.well-known/jwks.json"
+else:
+    COGNITO_ISSUER = ""
+    COGNITO_JWKS_URL = ""
+    logger.info("Cognito URLs will be loaded dynamically from database per organization")
 
 # Log configuration status
 logger.info(f"Configuration initialized successfully")

@@ -121,9 +121,11 @@ def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ):
     """
-    Enterprise user extraction:
+    Enterprise user extraction with MANDATORY organization isolation:
     1) Prefer cookie session (HttpOnly JWT in SESSION_COOKIE_NAME)
     2) Optionally allow Bearer token during migration (if flag enabled)
+
+    SECURITY: organization_id is REQUIRED for multi-tenant data isolation
     """
     # 1) Cookie session
     cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
@@ -132,11 +134,19 @@ def get_current_user(
             payload = _decode_jwt(cookie_jwt)
             payload["auth_method"] = "cookie"
             request.state.auth = payload
-            logger.info(f"✅ Authentication successful (cookie): {payload.get('email')}")
+
+            # ENTERPRISE SECURITY: Extract organization_id from token
+            # This is CRITICAL for multi-tenant data isolation
+            organization_id = payload.get("organization_id")
+            if organization_id:
+                organization_id = int(organization_id)
+
+            logger.info(f"✅ Authentication successful (cookie): {payload.get('email')} [org_id={organization_id}]")
             return {
                 "user_id": int(payload.get("sub")) if payload.get("sub") else None,
                 "email": payload.get("email"),
                 "role": payload.get("role", "user"),
+                "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
                 "auth_method": "cookie",
                 **payload
             }
@@ -144,38 +154,45 @@ def get_current_user(
             logger.error(f"JWT decode error (cookie): {str(e)}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
 
-    # 2) Migration fallback: Bearer
-    if True:  # ENTERPRISE FIX: Always allow Bearer tokens
-        if credentials and credentials.credentials:
-            token = credentials.credentials
+    # 2) Bearer token authentication (controlled by feature flag)
+    # ENTERPRISE SECURITY: Bearer tokens are disabled by default for browser clients
+    # They are only allowed during explicit migration periods via environment variable
+    if ALLOW_BEARER_FOR_MIGRATION and credentials and credentials.credentials:
+        token = credentials.credentials
 
-            # ENTERPRISE: Distinguish JWT from API key by format
-            # - JWT: 3 segments separated by dots (header.payload.signature)
-            # - API key: Single string with role prefix (owkai_admin_xyz...)
-            is_jwt = token.count('.') == 2
+        # ENTERPRISE: Distinguish JWT from API key by format
+        # - JWT: 3 segments separated by dots (header.payload.signature)
+        # - API key: Single string with role prefix (owkai_admin_xyz...)
+        is_jwt = token.count('.') == 2
 
-            if is_jwt:
-                # JWT token authentication
-                try:
-                    payload = _decode_jwt(token)
-                    payload["auth_method"] = "bearer"
-                    request.state.auth = payload
-                    logger.info(f"✅ Authentication successful (bearer): {payload.get('email')}")
-                    return {
-                        "user_id": int(payload.get("sub")) if payload.get("sub") else None,
-                        "email": payload.get("email"),
-                        "role": payload.get("role", "user"),
-                        "auth_method": "bearer",
-                        **payload
-                    }
-                except JWTError as e:
-                    logger.error(f"JWT decode error (bearer): {str(e)}")
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token")
-            else:
-                # API key format detected - pass through for dual auth handler
-                # (will be caught by get_current_user_or_api_key if route uses it)
-                logger.debug(f"Bearer token appears to be API key (no JWT dots), passing through")
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        if is_jwt:
+            # JWT token authentication
+            try:
+                payload = _decode_jwt(token)
+                payload["auth_method"] = "bearer"
+                request.state.auth = payload
+
+                # ENTERPRISE SECURITY: Extract organization_id from token
+                organization_id = payload.get("organization_id")
+                if organization_id:
+                    organization_id = int(organization_id)
+
+                logger.info(f"✅ Authentication successful (bearer): {payload.get('email')} [org_id={organization_id}]")
+                return {
+                    "user_id": int(payload.get("sub")) if payload.get("sub") else None,
+                    "email": payload.get("email"),
+                    "role": payload.get("role", "user"),
+                    "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
+                    "auth_method": "bearer",
+                    **payload
+                }
+            except JWTError as e:
+                logger.error(f"JWT decode error (bearer): {str(e)}")
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token")
+        else:
+            # API key format detected - pass through for dual auth handler
+            logger.debug(f"Bearer token appears to be API key (no JWT dots), passing through")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     # Neither cookie nor allowed bearer present
     raise HTTPException(
@@ -252,6 +269,54 @@ def require_manager_or_admin_with_db(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Manager or Admin access required")
     
     return {"user": current_user, "db": db}
+
+# ===== ENTERPRISE: Organization Isolation Enforcement =====
+def require_organization_context(current_user: dict = Depends(get_current_user)):
+    """
+    🏢 ENTERPRISE SECURITY: Enforce organization context for multi-tenant isolation.
+
+    This dependency REQUIRES organization_id to be present in the user token.
+    Any route using this dependency will fail if organization_id is missing.
+
+    COMPLIANCE:
+    - HIPAA § 164.308(a)(1)(ii)(A): Access Controls
+    - PCI-DSS 7.1: Access Control Model
+    - SOC 2 CC6.1: Logical Access Controls
+
+    Returns:
+        dict with guaranteed organization_id
+    """
+    organization_id = current_user.get("organization_id")
+
+    if not organization_id:
+        logger.error(f"🚨 SECURITY: Organization context missing for user {current_user.get('email')}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organization context required for this operation"
+        )
+
+    logger.info(f"✅ Organization context verified: org_id={organization_id} for {current_user.get('email')}")
+    return current_user
+
+
+def get_organization_filter(current_user: dict = Depends(require_organization_context)):
+    """
+    🏢 ENTERPRISE: Get organization filter for database queries.
+
+    Returns the organization_id that MUST be used in all database queries
+    to ensure multi-tenant data isolation.
+
+    Usage in routes:
+        @router.get("/data")
+        async def get_data(
+            org_filter: int = Depends(get_organization_filter),
+            db: Session = Depends(get_db)
+        ):
+            # All queries MUST filter by org_filter
+            data = db.query(Model).filter(Model.organization_id == org_filter).all()
+    """
+    return current_user.get("organization_id")
+
 
 # ===== PRESERVE: Legacy aliases =====
 verify_token = get_current_user

@@ -1,7 +1,16 @@
 """
 Enterprise Rate Limiting Configuration
 Prevents brute force attacks on authentication endpoints
-Compliant with: SOC2, ISO27001, OWASP ASVS
+
+COMPLIANCE:
+- SOC 2 CC6.1: Logical Access Controls
+- ISO 27001 A.9.4.3: Password Management
+- OWASP ASVS 2.3.1: Rate Limiting
+- NIST SP 800-63B 5.2.5: Throttling
+
+Engineer: OW-KAI Enterprise Security Team
+Date: 2025-11-24
+Security Level: Banking/Financial Services Grade
 """
 
 from slowapi import Limiter
@@ -10,17 +19,56 @@ from slowapi.errors import RateLimitExceeded
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
-# Enterprise rate limiting configuration
+# =============================================================================
+# ENTERPRISE BANKING-LEVEL RATE LIMITING CONFIGURATION
+# =============================================================================
 # These limits are per IP address per time window
+# CRITICAL: Authentication endpoints have strict limits to prevent brute force
+# =============================================================================
 
 RATE_LIMITS = {
-    "auth_login": "5/minute",      # Login endpoint - most restrictive
-    "auth_refresh": "10/minute",   # Token refresh - moderate
-    "auth_csrf": "20/minute",      # CSRF token generation - lenient
-    "default": "60/minute"         # Default for non-auth endpoints
+    # Authentication - STRICT limits (brute force protection)
+    "auth_login": os.getenv("RATE_LIMIT_LOGIN", "5/minute"),           # Login attempts
+    "auth_refresh": os.getenv("RATE_LIMIT_REFRESH", "10/minute"),      # Token refresh
+    "auth_csrf": os.getenv("RATE_LIMIT_CSRF", "20/minute"),            # CSRF token generation
+
+    # Password operations - VERY STRICT (credential stuffing protection)
+    "auth_password_change": os.getenv("RATE_LIMIT_PASSWORD_CHANGE", "3/minute"),   # Password change
+    "auth_password_reset": os.getenv("RATE_LIMIT_PASSWORD_RESET", "3/minute"),     # Forgot password
+    "auth_password_verify": os.getenv("RATE_LIMIT_PASSWORD_VERIFY", "5/minute"),   # Password verification
+
+    # MFA operations - STRICT (OTP guessing protection)
+    "auth_mfa_setup": os.getenv("RATE_LIMIT_MFA_SETUP", "5/minute"),    # MFA setup
+    "auth_mfa_verify": os.getenv("RATE_LIMIT_MFA_VERIFY", "10/minute"), # MFA verification
+
+    # User enumeration protection - STRICT
+    "auth_user_lookup": os.getenv("RATE_LIMIT_USER_LOOKUP", "10/minute"),  # User existence check
+
+    # Account operations - MODERATE
+    "auth_register": os.getenv("RATE_LIMIT_REGISTER", "3/minute"),     # Registration
+    "auth_logout": os.getenv("RATE_LIMIT_LOGOUT", "30/minute"),        # Logout
+
+    # API operations - STANDARD
+    "api_read": os.getenv("RATE_LIMIT_API_READ", "100/minute"),        # Read operations
+    "api_write": os.getenv("RATE_LIMIT_API_WRITE", "30/minute"),       # Write operations
+
+    # Default fallback
+    "default": os.getenv("RATE_LIMIT_DEFAULT", "60/minute")
+}
+
+# =============================================================================
+# ENTERPRISE: IP-based blocking for repeated violations
+# =============================================================================
+
+VIOLATION_THRESHOLDS = {
+    "soft_block_threshold": 10,    # Number of rate limit hits before soft block
+    "soft_block_duration": 300,    # 5 minutes soft block
+    "hard_block_threshold": 25,    # Number of rate limit hits before hard block
+    "hard_block_duration": 3600,   # 1 hour hard block
 }
 
 # Initialize the limiter with IP-based key function

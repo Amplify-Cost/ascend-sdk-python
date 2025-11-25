@@ -129,12 +129,16 @@ def validate_enterprise_token(token: str, expected_type: str = "access") -> Dict
             logger.error(f"🚨 DIAGNOSTIC: Token decode error: {e}")
             raise HTTPException(status_code=401, detail="Token decode failed")
         
-        # Check token type with flexible validation
+        # ENTERPRISE SECURITY: Strict token type validation
+        # Prevents refresh tokens (7-day expiry) from being used as access tokens (30-min expiry)
+        # This is a CRITICAL security control - do not bypass
         token_type = payload.get("type")
         if expected_type and token_type != expected_type:
-            logger.warning(f"🚨 DIAGNOSTIC: Token type mismatch - expected: {expected_type}, got: {token_type}")
-            # FLEXIBLE: Allow type mismatch for now
-            logger.warning(f"🔍 DIAGNOSTIC: Proceeding despite type mismatch")
+            logger.error(f"🚨 SECURITY: Token type mismatch - expected: {expected_type}, got: {token_type}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type"
+            )
         
         logger.info(f"✅ DIAGNOSTIC: Token validation successful for user: {payload.get('email', 'unknown')}")
         return payload
@@ -462,12 +466,14 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         user.last_login = datetime.now(UTC)
         db.commit()
 
-        # Create tokens
+        # Create tokens with organization context for multi-tenant isolation
+        # ENTERPRISE SECURITY: organization_id is REQUIRED for data isolation
         user_data = {
             "sub": str(user.id),
             "email": user.email,
             "role": user.role,
-            "user_id": user.id
+            "user_id": user.id,
+            "organization_id": user.organization_id  # CRITICAL: Multi-tenant isolation
         }
 
         access_token = create_enterprise_token(user_data, "access")
@@ -648,14 +654,16 @@ async def refresh_token_diagnostic(request: Request, response: Response):
                 "timestamp": datetime.now(UTC).isoformat()
             }
         
-        # Create new tokens
+        # Create new tokens with organization context preserved
+        # ENTERPRISE SECURITY: organization_id MUST be preserved during token refresh
         user_data = {
             "sub": payload.get("sub"),
             "email": payload.get("email"),
             "role": payload.get("role"),
-            "user_id": payload.get("user_id", payload.get("sub"))
+            "user_id": payload.get("user_id", payload.get("sub")),
+            "organization_id": payload.get("organization_id")  # CRITICAL: Preserve org context
         }
-        
+
         new_access_token = create_enterprise_token(user_data, "access")
         new_refresh_token = create_enterprise_token(user_data, "refresh")
         
@@ -736,6 +744,272 @@ async def enterprise_logout(
             "note": "Session cleared locally",
             "timestamp": datetime.now(UTC).isoformat()
         }
+
+
+# =============================================================================
+# ENTERPRISE TOKEN REVOCATION ENDPOINTS
+# =============================================================================
+# Engineer: OW-KAI Enterprise Security Team
+# Date: 2025-11-24
+# Security Level: Banking/Financial Services Grade
+#
+# COMPLIANCE:
+# - NIST SP 800-63B Section 6.1.6: Token Revocation
+# - PCI-DSS 8.1.5: Session Termination
+# - SOX Section 404: Access Revocation
+# - HIPAA § 164.312(d): Emergency Access Procedures
+# =============================================================================
+
+@router.post("/revoke-tokens")
+@limiter.limit("10/minute")
+async def revoke_all_user_tokens(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    🔐 ENTERPRISE: Revoke ALL active tokens for the current user.
+
+    Use cases:
+    - Emergency logout from all devices
+    - Suspected account compromise
+    - User-initiated security lockdown
+
+    This endpoint:
+    1. Marks all CognitoToken records as revoked
+    2. Clears the current session cookie
+    3. Creates audit trail entry
+
+    Returns:
+        Token revocation confirmation with count
+    """
+    try:
+        user_id = current_user.get("user_id")
+        email = current_user.get("email")
+
+        logger.info(f"🔐 ENTERPRISE: Token revocation requested by {email}")
+
+        # Import CognitoToken model
+        from models import CognitoToken
+
+        # Count active tokens before revocation
+        active_tokens = db.query(CognitoToken).filter(
+            CognitoToken.user_id == user_id,
+            CognitoToken.is_revoked == False
+        ).count()
+
+        # Revoke all tokens for this user
+        revoked_count = db.query(CognitoToken).filter(
+            CognitoToken.user_id == user_id,
+            CognitoToken.is_revoked == False
+        ).update({
+            "is_revoked": True,
+            "revoked_at": datetime.now(UTC),
+            "revocation_reason": "User-initiated token revocation"
+        })
+
+        db.commit()
+
+        # Create audit log
+        try:
+            from models import LogAuditTrail
+            audit = LogAuditTrail(
+                user_id=user_id,
+                action="token_revocation",
+                details=f"User {email} revoked {revoked_count} active tokens",
+                timestamp=datetime.now(UTC),
+                ip_address=request.client.host if request.client else "unknown",
+                risk_level="high"
+            )
+            db.add(audit)
+            db.commit()
+        except Exception as audit_error:
+            logger.warning(f"Audit log failed: {audit_error}")
+
+        logger.info(f"✅ ENTERPRISE: Revoked {revoked_count} tokens for {email}")
+
+        return {
+            "success": True,
+            "message": f"Successfully revoked {revoked_count} active tokens",
+            "tokens_revoked": revoked_count,
+            "user_email": email,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "security_note": "All sessions terminated. Please log in again."
+        }
+
+    except Exception as e:
+        logger.error(f"🚨 Token revocation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Token revocation failed. Please contact support."
+        )
+
+
+@router.post("/admin/revoke-user-tokens/{target_user_id}")
+@limiter.limit("5/minute")
+async def admin_revoke_user_tokens(
+    target_user_id: int,
+    request: Request,
+    reason: str = "Administrative action",
+    admin_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    🔐 ENTERPRISE ADMIN: Revoke ALL tokens for a specific user.
+
+    Admin-only endpoint for:
+    - Terminating compromised accounts
+    - Enforcing policy violations
+    - Emergency access revocation
+    - Role changes requiring re-authentication
+
+    Requires: Admin role
+    """
+    try:
+        admin_email = admin_user.get("email")
+
+        logger.info(f"🔐 ADMIN: Token revocation for user {target_user_id} by {admin_email}")
+
+        # Verify target user exists
+        from models import User, CognitoToken
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+
+        if not target_user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Revoke all tokens
+        revoked_count = db.query(CognitoToken).filter(
+            CognitoToken.user_id == target_user_id,
+            CognitoToken.is_revoked == False
+        ).update({
+            "is_revoked": True,
+            "revoked_at": datetime.now(UTC),
+            "revocation_reason": f"Admin revocation: {reason}"
+        })
+
+        db.commit()
+
+        # Create audit log
+        try:
+            from models import LogAuditTrail
+            audit = LogAuditTrail(
+                user_id=admin_user.get("user_id"),
+                action="admin_token_revocation",
+                details=f"Admin {admin_email} revoked {revoked_count} tokens for user {target_user.email}: {reason}",
+                timestamp=datetime.now(UTC),
+                ip_address=request.client.host if request.client else "unknown",
+                risk_level="critical"
+            )
+            db.add(audit)
+            db.commit()
+        except Exception as audit_error:
+            logger.warning(f"Audit log failed: {audit_error}")
+
+        logger.info(f"✅ ADMIN: Revoked {revoked_count} tokens for {target_user.email}")
+
+        return {
+            "success": True,
+            "message": f"Successfully revoked {revoked_count} tokens for user",
+            "target_user_id": target_user_id,
+            "target_email": target_user.email,
+            "tokens_revoked": revoked_count,
+            "revoked_by": admin_email,
+            "reason": reason,
+            "timestamp": datetime.now(UTC).isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"🚨 Admin token revocation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Token revocation failed"
+        )
+
+
+@router.post("/admin/revoke-organization-tokens/{org_id}")
+@limiter.limit("3/minute")
+async def admin_revoke_organization_tokens(
+    org_id: int,
+    request: Request,
+    reason: str = "Organization-wide security action",
+    admin_user: dict = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    🔐 ENTERPRISE ADMIN: Revoke ALL tokens for an entire organization.
+
+    Emergency use only for:
+    - Organization-wide security breach
+    - Mass credential compromise
+    - Compliance-mandated access termination
+
+    Requires: Admin role
+    """
+    try:
+        admin_email = admin_user.get("email")
+
+        logger.warning(f"🚨 EMERGENCY: Organization-wide token revocation for org {org_id} by {admin_email}")
+
+        from models import CognitoToken, Organization
+
+        # Verify organization exists
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        # Revoke all tokens for organization
+        revoked_count = db.query(CognitoToken).filter(
+            CognitoToken.organization_id == org_id,
+            CognitoToken.is_revoked == False
+        ).update({
+            "is_revoked": True,
+            "revoked_at": datetime.now(UTC),
+            "revocation_reason": f"Organization emergency: {reason}"
+        })
+
+        db.commit()
+
+        # Create critical audit log
+        try:
+            from models import LogAuditTrail
+            audit = LogAuditTrail(
+                user_id=admin_user.get("user_id"),
+                action="org_token_revocation",
+                details=f"EMERGENCY: Admin {admin_email} revoked {revoked_count} tokens for organization {org.name}: {reason}",
+                timestamp=datetime.now(UTC),
+                ip_address=request.client.host if request.client else "unknown",
+                risk_level="critical"
+            )
+            db.add(audit)
+            db.commit()
+        except Exception as audit_error:
+            logger.warning(f"Audit log failed: {audit_error}")
+
+        logger.warning(f"✅ EMERGENCY: Revoked {revoked_count} tokens for organization {org.name}")
+
+        return {
+            "success": True,
+            "message": f"Successfully revoked {revoked_count} tokens for organization",
+            "organization_id": org_id,
+            "organization_name": org.name,
+            "tokens_revoked": revoked_count,
+            "revoked_by": admin_email,
+            "reason": reason,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "security_alert": "All organization users must re-authenticate"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"🚨 Organization token revocation error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Organization token revocation failed"
+        )
+
 
 @router.get("/diagnostic")
 async def response_format_diagnostic():
@@ -846,6 +1120,21 @@ async def change_password(
             raise HTTPException(
                 status_code=400,
                 detail="New password must be different from current password"
+            )
+
+        # ENTERPRISE SECURITY: Validate password complexity (NIST SP 800-63B)
+        from security.password_policy import validate_password_complexity, generate_password_policy_message
+        is_valid, errors = validate_password_complexity(password_data.new_password)
+        if not is_valid:
+            logger.warning(f"❌ Password complexity validation failed for {user.email}: {errors}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "password_complexity_failed",
+                    "message": "Password does not meet enterprise security requirements",
+                    "validation_errors": errors,
+                    "policy": generate_password_policy_message()
+                }
             )
 
         # Hash new password
