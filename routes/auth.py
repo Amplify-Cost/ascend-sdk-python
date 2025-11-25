@@ -11,7 +11,7 @@ from passlib.context import CryptContext
 from auth_utils import verify_password
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any
-from dependencies import get_current_user, require_csrf  # PHASE 2: Added require_csrf for logout, require_csrf
+from dependencies import get_current_user, require_csrf, require_admin  # PHASE 2: Added require_csrf for logout, require_admin for token revocation
 from pydantic import BaseModel
 from secrets import token_urlsafe
 import jwt
