@@ -21,6 +21,7 @@ from database import engine
 from models import User, AgentAction, Alert, LogAuditTrail
 from dependencies import get_current_user, verify_token
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
+from security.headers import SecurityHeadersMiddleware, get_cors_origins
 from slowapi.errors import RateLimitExceeded
 from routes.smart_rules_routes import router as smart_rules_router
 from contextlib import asynccontextmanager
@@ -341,23 +342,28 @@ ALLOWED_CORS_HEADERS = [
     "Pragma"
 ]
 
-# CORS Configuration - Enterprise Security
+# ============================================================================
+# 🔒 ENTERPRISE SECURITY MIDDLEWARE STACK
+# Order matters: Security headers MUST be added BEFORE CORS
+# ============================================================================
+
+# 1. Security Headers Middleware (OWASP-compliant)
+# Adds: X-Frame-Options, CSP, HSTS, X-Content-Type-Options, etc.
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. CORS Configuration - Enterprise Security
+# Uses dynamic origins from environment or secure defaults
+cors_origins = get_cors_origins()
+print(f"🔒 CORS origins configured: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React dev server
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:5175",  # Alternative Vite port
-        "http://localhost:4173",  # Vite preview
-        "http://127.0.0.1:3000",  # Alternative localhost
-        "http://127.0.0.1:5173",  # Alternative localhost
-        "http://127.0.0.1:5175"   # Alternative localhost
-    ],  # NO WILDCARDS when using credentials
-    allow_credentials=True,  # Required for cookies
+    allow_origins=cors_origins,  # Dynamic from env/config
+    allow_credentials=True,  # Required for HttpOnly cookies
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=ALLOWED_CORS_HEADERS,  # ✅ SECURE: Explicit whitelist
+    allow_headers=ALLOWED_CORS_HEADERS,  # Explicit whitelist
     expose_headers=["Content-Length", "X-Request-ID"],
-    max_age=600,
+    max_age=600,  # Preflight cache: 10 minutes
 )
 
 # ✅ ADD THIS HERE - Enterprise Demo Storage Systems
