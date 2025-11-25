@@ -219,7 +219,14 @@ export const AuthProvider = ({ children }) => {
           startSessionMonitoring(tokens.expiresAt);
         }
 
-        return { success: true, user: result.user };
+        // 🏦 BANKING-LEVEL FIX: Return tokens for Cognito → Server Session bridge
+        // App.jsx handleLoginSuccess needs the tokens to create the server session
+        return {
+          success: true,
+          user: result.user,
+          tokens: result.tokens,  // CRITICAL: Include Cognito tokens
+          poolConfig: result.poolConfig
+        };
       } else if (result.challengeName) {
         // MFA challenge required
         setMfaChallenge({
