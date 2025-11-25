@@ -6,7 +6,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import text  # PHASE 2: For password change SQL queries
 from database import get_db
-from models import User
+from models import User, Organization, LogAuditTrail
 from passlib.context import CryptContext
 from auth_utils import verify_password
 from datetime import datetime, timedelta, UTC
