@@ -211,7 +211,7 @@ const AppContent = () => {
       setActiveTab("dashboard");
 
       // Success toast
-      toast(`Welcome, ${sessionData.user.email}!`, "success");
+      toast.success(`Welcome, ${sessionData.user.email}!`);
       announce(`Logged in as ${sessionData.user.email}`, 'polite');
 
     } catch (err) {
@@ -219,7 +219,7 @@ const AppContent = () => {
       logger.error("❌ Error details:", err.message);
 
       // User-friendly error message
-      toast(`Login failed: ${err.message}`, "error");
+      toast.error(`Login failed: ${err.message}`);
       announce(`Login failed: ${err.message}`, 'assertive');
 
       setView("login");
@@ -241,7 +241,7 @@ const AppContent = () => {
         logger.debug("🧹 Local session cleanup only");
       }
       
-      toast("Logged out successfully", "success");
+      toast.success("Logged out successfully");
       
     } catch (error) {
       logger.warn("⚠️ Logout API error:", error);
@@ -558,7 +558,7 @@ const AppContent = () => {
               onSubmit={(message) => {
                 logger.debug("Support message submitted:", message);
                 setShowSupportModal(false);
-                toast("Support ticket submitted successfully", "success");
+                toast.success("Support ticket submitted successfully");
               }}
             />
           )}
