@@ -1342,32 +1342,47 @@ async def create_cognito_session(
         
         logger.info(f"✅ User claims validated: {email} (verified)")
         
-        # Step 6: Create or update user in database
+        # Step 6: Find or create user in database
+        # ENTERPRISE FIX: First try by cognito_user_id, then by email (for existing users)
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
-        
+
         if not user:
-            # Create new user from Cognito claims
-            logger.info(f"📝 Creating new user from Cognito: {email}")
-            
-            # Extract custom attributes (if any)
-            custom_role = decoded_token.get('custom:role', 'viewer')
-            
-            user = User(
-                email=email,
-                cognito_user_id=cognito_user_id,
-                role=custom_role,
-                organization_id=organization.id,
-                is_active=True,
-                password="",  # No password needed for Cognito users
-                created_at=datetime.now(UTC),
-                last_login=datetime.now(UTC)
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-            logger.info(f"✅ User created: ID={user.id}, Email={email}")
+            # Check if user exists by email (legacy user without cognito_user_id)
+            user = db.query(User).filter(
+                User.email == email,
+                User.organization_id == organization.id
+            ).first()
+
+            if user:
+                # Link existing user to Cognito account
+                logger.info(f"🔗 Linking existing user to Cognito: {email}")
+                user.cognito_user_id = cognito_user_id
+                user.last_login = datetime.now(UTC)
+                db.commit()
+                logger.info(f"✅ User linked to Cognito: ID={user.id}, Email={email}")
+            else:
+                # Create new user from Cognito claims
+                logger.info(f"📝 Creating new user from Cognito: {email}")
+
+                # Extract custom attributes (if any)
+                custom_role = decoded_token.get('custom:role', 'viewer')
+
+                user = User(
+                    email=email,
+                    cognito_user_id=cognito_user_id,
+                    role=custom_role,
+                    organization_id=organization.id,
+                    is_active=True,
+                    password="",  # No password needed for Cognito users
+                    created_at=datetime.now(UTC),
+                    last_login=datetime.now(UTC)
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                logger.info(f"✅ User created: ID={user.id}, Email={email}")
         else:
-            # Update last login
+            # Update last login for existing Cognito-linked user
             user.last_login = datetime.now(UTC)
             db.commit()
             logger.info(f"✅ User updated: ID={user.id}, Email={email}")
