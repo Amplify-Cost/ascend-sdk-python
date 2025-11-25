@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "owkai-sdk"
+version = "0.1.0"
+description = "Enterprise AI Agent Authorization SDK for OW-AI Platform"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "OW-AI Enterprise", email = "sdk@owkai.com"}
+]
+maintainers = [
+    {name = "Donald King", email = "donald.king@ow-kai.com"}
+]
+keywords = [
+    "ai", "agents", "authorization", "governance", "enterprise",
+    "security", "compliance", "mcp", "boto3"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "tenacity>=8.0.0",
+]
+
+[project.optional-dependencies]
+boto3 = ["boto3>=1.28.0"]
+async = ["anyio>=3.0.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "types-requests>=2.31.0",
+]
+all = [
+    "owkai-sdk[boto3,async,dev]",
+]
+
+[project.urls]
+Homepage = "https://owkai.com"
+Documentation = "https://docs.owkai.com/sdk"
+Repository = "https://github.com/ow-ai/owkai-sdk"
+Changelog = "https://github.com/ow-ai/owkai-sdk/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["owkai*"]
+
+[tool.setuptools.package-data]
+owkai = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312", "py313"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "I", "N", "D", "UP", "S", "B", "A", "C4", "T20"]
+ignore = ["D100", "D104", "D107"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --cov=owkai --cov-report=term-missing"
