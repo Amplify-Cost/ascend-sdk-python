@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, get_organization_filter, require_csrf
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, UTC
 import json
@@ -229,24 +229,30 @@ async def forward_authorization_to_siem(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin), _=Depends(require_csrf)
+    current_user: dict = Depends(require_admin), _=Depends(require_csrf),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Forward authorization decision to SIEM"""
     try:
-        logger.info(f"🔄 Authorization forwarding to SIEM: Action {action_id} by {current_user.get('email', 'unknown')}")
-        
+        logger.info(f"🔄 Authorization forwarding to SIEM: Action {action_id} by {current_user.get('email', 'unknown')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Strict multi-tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: SIEM forward denied - no organization context")
+            raise HTTPException(status_code=403, detail="Organization context required")
+
         if not siem_manager.active_connector:
             logger.warning("⚠️ SIEM not configured - authorization not forwarded")
             return {"message": "⚠️ SIEM not configured - authorization logged locally"}
-        
-        # Get action details from database
+
+        # 🏢 ENTERPRISE: Get action details with org_id filter for tenant isolation
         action_query = text("""
             SELECT agent_id, action_type, risk_level, status, approved, reviewed_by
-            FROM agent_actions 
-            WHERE id = :action_id
+            FROM agent_actions
+            WHERE id = :action_id AND organization_id = :org_id
         """)
         
-        result = db.execute(action_query, {"action_id": action_id}).fetchone()
+        result = db.execute(action_query, {"action_id": action_id, "org_id": org_id}).fetchone()
         
         if not result:
             raise HTTPException(status_code=404, detail="Action not found")
@@ -418,30 +424,37 @@ async def get_siem_integration_metrics(current_user: dict = Depends(get_current_
 async def bulk_forward_events(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin), _=Depends(require_csrf)
+    current_user: dict = Depends(require_admin), _=Depends(require_csrf),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Bulk forward recent events to SIEM"""
     try:
         data = await request.json()
         hours = data.get("hours", 24)
-        
-        logger.info(f"🔄 Bulk SIEM forwarding requested by: {current_user.get('email', 'unknown')} for {hours} hours")
-        
+
+        logger.info(f"🔄 Bulk SIEM forwarding requested by: {current_user.get('email', 'unknown')} for {hours} hours [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Strict multi-tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: Bulk forward denied - no organization context")
+            raise HTTPException(status_code=403, detail="Organization context required")
+
         if not siem_manager.active_connector:
             raise HTTPException(status_code=400, detail="No SIEM connector configured")
-        
+
         # Get recent events from database
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
-        
+
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         events_query = text("""
             SELECT id, agent_id, action_type, risk_level, status, approved, created_at
-            FROM agent_actions 
-            WHERE created_at >= :cutoff_time
+            FROM agent_actions
+            WHERE created_at >= :cutoff_time AND organization_id = :org_id
             ORDER BY created_at DESC
             LIMIT 100
         """)
-        
-        result = db.execute(events_query, {"cutoff_time": cutoff_time})
+
+        result = db.execute(events_query, {"cutoff_time": cutoff_time, "org_id": org_id})
         
         # Convert to SecurityEvent objects
         security_events = []
