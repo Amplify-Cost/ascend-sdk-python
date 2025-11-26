@@ -1132,41 +1132,39 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                   {executiveBrief.summary || executiveBrief.brief || "Executive brief generated successfully"}
                 </p>
                 
-                {/* Safe Metrics Display with Fallbacks */}
+                {/* 🏢 ENTERPRISE: Safe Metrics Display - NO hardcoded demo fallbacks */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div className="text-center">
                     <div className="font-bold text-blue-900">
-                      {executiveBrief.key_metrics?.threats_detected || 
-                       executiveBrief.threats_detected || 
-                       (executiveBrief.statistics && executiveBrief.statistics.threats_detected) || 
-                       '23'}
+                      {executiveBrief.key_metrics?.threats_detected ??
+                       executiveBrief.threats_detected ??
+                       executiveBrief.alert_count ??
+                       0}
                     </div>
                     <div className="text-blue-700">Threats Detected</div>
                   </div>
                   <div className="text-center">
                     <div className="font-bold text-blue-900">
-                      {executiveBrief.key_metrics?.threats_prevented || 
-                       executiveBrief.threats_prevented || 
-                       (executiveBrief.statistics && executiveBrief.statistics.threats_prevented) || 
-                       '21'}
+                      {executiveBrief.key_metrics?.threats_prevented ??
+                       executiveBrief.threats_prevented ??
+                       executiveBrief.high_priority_count ??
+                       0}
                     </div>
                     <div className="text-blue-700">Threats Prevented</div>
                   </div>
                   <div className="text-center">
                     <div className="font-bold text-blue-900">
-                      {executiveBrief.key_metrics?.cost_savings || 
-                       executiveBrief.cost_savings || 
-                       (executiveBrief.statistics && executiveBrief.statistics.cost_savings) || 
-                       '$125K'}
+                      {executiveBrief.key_metrics?.cost_savings ||
+                       executiveBrief.cost_savings ||
+                       '$0'}
                     </div>
                     <div className="text-blue-700">Cost Savings</div>
                   </div>
                   <div className="text-center">
                     <div className="font-bold text-blue-900">
-                      {executiveBrief.key_metrics?.system_accuracy || 
-                       executiveBrief.accuracy || 
-                       (executiveBrief.statistics && executiveBrief.statistics.accuracy) || 
-                       '94.2%'}
+                      {executiveBrief.key_metrics?.system_accuracy ||
+                       executiveBrief.accuracy ||
+                       (executiveBrief.confidence_level ? `${executiveBrief.confidence_level}%` : 'N/A')}
                     </div>
                     <div className="text-blue-700">Accuracy</div>
                   </div>
