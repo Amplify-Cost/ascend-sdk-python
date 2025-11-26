@@ -24,6 +24,14 @@ def list_alerts(
 ):
     """Get all alerts with enriched agent action data - filtered by organization"""
     try:
+        # 🏢 ENTERPRISE: Strict multi-tenant isolation enforcement
+        # SECURITY: If org_id is None, return empty to prevent data leakage
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: Alert access denied - no organization context for user {user.get('email')}")
+            return []
+
+        logger.info(f"📊 Fetching alerts for org_id={org_id}, user={user.get('email')}")
+
         # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         query = (
             db.query(Alert, AgentAction)
