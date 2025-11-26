@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from dependencies import get_db
 from database import engine
 from models import User, AgentAction, Alert, LogAuditTrail
-from dependencies import get_current_user, verify_token
+from dependencies import get_current_user, verify_token, get_organization_filter
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
 from security.headers import SecurityHeadersMiddleware, get_cors_origins
 from slowapi.errors import RateLimitExceeded
