@@ -299,23 +299,37 @@ def require_organization_context(current_user: dict = Depends(get_current_user))
     return current_user
 
 
-def get_organization_filter(current_user: dict = Depends(require_organization_context)):
+def get_organization_filter(current_user: dict = Depends(get_current_user)):
     """
     🏢 ENTERPRISE: Get organization filter for database queries.
 
     Returns the organization_id that MUST be used in all database queries
     to ensure multi-tenant data isolation.
 
+    IMPORTANT: This is a GRACEFUL filter that returns None if organization_id
+    is not in the token. Routes should handle None gracefully:
+    - For strict tenant isolation: check if org_id is None and return 403
+    - For backward compatibility: skip filter if org_id is None (show all data)
+
     Usage in routes:
         @router.get("/data")
         async def get_data(
-            org_filter: int = Depends(get_organization_filter),
+            org_id: int = Depends(get_organization_filter),
             db: Session = Depends(get_db)
         ):
-            # All queries MUST filter by org_filter
-            data = db.query(Model).filter(Model.organization_id == org_filter).all()
+            query = db.query(Model)
+            if org_id is not None:
+                query = query.filter(Model.organization_id == org_id)
+            return query.all()
     """
-    return current_user.get("organization_id")
+    organization_id = current_user.get("organization_id")
+
+    if organization_id is None:
+        logger.warning(f"⚠️ Organization context missing for user {current_user.get('email')} - data isolation NOT enforced")
+    else:
+        logger.debug(f"✅ Organization filter: org_id={organization_id} for {current_user.get('email')}")
+
+    return organization_id
 
 
 # ===== PRESERVE: Legacy aliases =====

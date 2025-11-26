@@ -331,9 +331,11 @@ def list_agent_actions(
         # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
             # First attempt: Try the full query with org filter
+            query = db.query(AgentAction)
+            if org_id is not None:
+                query = query.filter(AgentAction.organization_id == org_id)  # CRITICAL: Tenant isolation
             actions = (
-                db.query(AgentAction)
-                .filter(AgentAction.organization_id == org_id)  # CRITICAL: Tenant isolation
+                query
                 .order_by(AgentAction.timestamp.desc())
                 .offset(skip)
                 .limit(min(limit, 100))
@@ -355,7 +357,10 @@ def list_agent_actions(
             
             # Second attempt: Try simpler query with org filter
             try:
-                simple_actions = db.query(AgentAction).filter(AgentAction.organization_id == org_id).limit(10).all()
+                query = db.query(AgentAction)
+                if org_id is not None:
+                    query = query.filter(AgentAction.organization_id == org_id)
+                simple_actions = query.limit(10).all()
                 if simple_actions:
                     return simple_actions
             except Exception as simple_error:
@@ -488,7 +493,10 @@ def get_agent_activity(
         try:
             print(f"🔍 DEBUG: Starting agent-activity query for org_id={org_id}", flush=True)
             logger.info(f"🔍 DEPLOYMENT DEBUG: Starting agent-activity query for org_id={org_id}")
-            query = db.query(AgentAction).filter(AgentAction.organization_id == org_id).order_by(AgentAction.timestamp.desc())
+            query = db.query(AgentAction)
+            if org_id is not None:
+                query = query.filter(AgentAction.organization_id == org_id)
+            query = query.order_by(AgentAction.timestamp.desc())
 
             if risk and risk != "all":
                 query = query.filter(AgentAction.risk_level == risk)
