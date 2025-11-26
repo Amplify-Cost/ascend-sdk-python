@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from datetime import datetime
 from database import get_db
-from dependencies import verify_token, get_current_user, require_csrf
+from dependencies import verify_token, get_current_user, require_csrf, get_organization_filter
 from models import Rule, RuleFeedback, AgentAction, LogAuditTrail
 from llm_utils import generate_smart_rule
 import json
@@ -11,27 +11,53 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 🏢 ENTERPRISE: Multi-Tenant Data Isolation
+# All routes filter by organization_id for banking-level security
+# Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
 @router.get("/rules")
-def get_rules(db: Session = Depends(get_db), _: dict = Depends(verify_token)):
-    return db.query(Rule).order_by(Rule.created_at.desc()).all()
+def get_rules(
+    db: Session = Depends(get_db),
+    _: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter)
+):
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    query = db.query(Rule)
+    if org_id is not None:
+        query = query.filter(Rule.organization_id == org_id)
+    return query.order_by(Rule.created_at.desc()).all()
 
 @router.post("/rules")
-async def add_rule(request: Request, db: Session = Depends(get_db), user: dict = Depends(verify_token), _=Depends(require_csrf)):
+async def add_rule(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
+):
+    # 🏢 ENTERPRISE: Admin-only with multi-tenant isolation
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Only admin can add rules")
-    
+
     try:
         data = await request.json()
-        
+
         if isinstance(data, list):
             for rule_data in data:
+                # 🏢 ENTERPRISE: Enforce organization_id on new rules
+                if org_id is not None:
+                    rule_data["organization_id"] = org_id
                 rule = Rule(**rule_data)
                 db.add(rule)
         else:
+            # 🏢 ENTERPRISE: Enforce organization_id on new rule
+            if org_id is not None:
+                data["organization_id"] = org_id
             rule = Rule(**data)
             db.add(rule)
-        
+
         db.commit()
+        logger.info(f"Rule(s) added by {user['email']} [org_id={org_id}]")
         return {"message": "✅ Rule(s) added"}
     
     except Exception as e:
@@ -42,26 +68,32 @@ async def add_rule(request: Request, db: Session = Depends(get_db), user: dict =
 def delete_rule(
     rule_id: int,
     db: Session = Depends(get_db),
-    user: dict = Depends(verify_token)
+    user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Delete a specific rule"""
+    """Delete a specific rule - 🏢 ENTERPRISE: Multi-tenant isolated"""
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Only admin can delete rules")
-    
+
     try:
-        rule = db.query(Rule).filter(Rule.id == rule_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+        query = db.query(Rule).filter(Rule.id == rule_id)
+        if org_id is not None:
+            query = query.filter(Rule.organization_id == org_id)
+        rule = query.first()
+
         if not rule:
             raise HTTPException(status_code=404, detail="Rule not found")
-        
+
         # Also delete associated feedback
         feedback = db.query(RuleFeedback).filter(RuleFeedback.rule_id == rule_id).first()
         if feedback:
             db.delete(feedback)
-        
+
         db.delete(rule)
         db.commit()
-        
-        logger.info(f"Rule {rule_id} deleted by {user['email']}")
+
+        logger.info(f"Rule {rule_id} deleted by {user['email']} [org_id={org_id}]")
         return {"message": "Rule deleted successfully"}
     
     except HTTPException:
@@ -76,12 +108,16 @@ def delete_rule(
 def get_rule_feedback(
     rule_id: int,
     db: Session = Depends(get_db),
-    user: dict = Depends(verify_token)
+    user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get audit log/feedback for a specific rule"""
+    """Get audit log/feedback for a specific rule - 🏢 ENTERPRISE: Multi-tenant isolated"""
     try:
-        # Check if rule exists
-        rule = db.query(Rule).filter(Rule.id == rule_id).first()
+        # 🏢 ENTERPRISE: Check if rule exists within organization
+        query = db.query(Rule).filter(Rule.id == rule_id)
+        if org_id is not None:
+            query = query.filter(Rule.organization_id == org_id)
+        rule = query.first()
         if not rule:
             raise HTTPException(status_code=404, detail="Rule not found")
         
@@ -129,8 +165,11 @@ def get_rule_feedback(
                 pass
         
         # Build query based on rule conditions
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         base_query = db.query(AgentAction)
-        
+        if org_id is not None:
+            base_query = base_query.filter(AgentAction.organization_id == org_id)
+
         if agent_filter:
             base_query = base_query.filter(AgentAction.agent_id == agent_filter)
         if action_type_filter:
@@ -186,18 +225,22 @@ async def update_rule_feedback(
     request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter),
     _=Depends(require_csrf)
 ):
-    """Update feedback for a rule (mark as correct or false positive)"""
+    """Update feedback for a rule - 🏢 ENTERPRISE: Multi-tenant isolated"""
     try:
         data = await request.json()
         feedback_type = data.get("type")  # "correct" or "false_positive"
-        
+
         if feedback_type not in ["correct", "false_positive"]:
             raise HTTPException(status_code=400, detail="Invalid feedback type. Use 'correct' or 'false_positive'")
-        
-        # Check if rule exists
-        rule = db.query(Rule).filter(Rule.id == rule_id).first()
+
+        # 🏢 ENTERPRISE: Check if rule exists within organization
+        query = db.query(Rule).filter(Rule.id == rule_id)
+        if org_id is not None:
+            query = query.filter(Rule.organization_id == org_id)
+        rule = query.first()
         if not rule:
             raise HTTPException(status_code=404, detail="Rule not found")
         
@@ -232,7 +275,17 @@ async def update_rule_feedback(
         raise HTTPException(status_code=500, detail="Failed to update feedback")
 
 @router.post("/rules/seed")
-def seed_rules(db: Session = Depends(get_db), _=Depends(require_csrf)):
+def seed_rules(
+    db: Session = Depends(get_db),
+    user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
+):
+    """Seed demo rules - 🏢 ENTERPRISE: Multi-tenant isolated"""
+    # 🏢 ENTERPRISE: Admin-only operation
+    if user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     demo_rules = [
         Rule(
             description="Block suspicious outbound requests",
@@ -240,7 +293,8 @@ def seed_rules(db: Session = Depends(get_db), _=Depends(require_csrf)):
             action="alert admin",
             risk_level="High",
             recommendation="Restrict outbound network activity",
-            justification="Prevent exfiltration attempts"
+            justification="Prevent exfiltration attempts",
+            organization_id=org_id  # 🏢 ENTERPRISE: Tenant isolation
         ),
         Rule(
             description="Flag excessive login attempts",
@@ -248,23 +302,27 @@ def seed_rules(db: Session = Depends(get_db), _=Depends(require_csrf)):
             action="lock account",
             risk_level="Medium",
             recommendation="Monitor and lock",
-            justification="Potential brute-force attack"
+            justification="Potential brute-force attack",
+            organization_id=org_id  # 🏢 ENTERPRISE: Tenant isolation
         )
     ]
     db.add_all(demo_rules)
     db.commit()
+    logger.info(f"Demo rules seeded by {user['email']} [org_id={org_id}]")
     return {"message": "✅ Demo rules seeded"}
 
 @router.post("/generate-smart-rule")
 async def generate_smart_rule_endpoint(
     request: Request,
     db: Session = Depends(get_db),
-    user: dict = Depends(verify_token), _=Depends(require_csrf)
+    user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
-    """Generate smart rule endpoint for backward compatibility"""
+    """Generate smart rule endpoint - 🏢 ENTERPRISE: Multi-tenant isolated"""
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     try:
         data = await request.json()
         agent_id = data.get("agent_id", "demo-agent")
@@ -274,7 +332,7 @@ async def generate_smart_rule_endpoint(
         # Generate smart rule using AI
         try:
             rule_data = generate_smart_rule(agent_id, action_type, description)
-            logger.info(f"Smart rule generated for {agent_id}/{action_type}")
+            logger.info(f"Smart rule generated for {agent_id}/{action_type} [org_id={org_id}]")
         except Exception as e:
             logger.warning(f"AI rule generation failed: {e}")
             # Fallback rule generation
@@ -288,6 +346,10 @@ async def generate_smart_rule_endpoint(
                 "recommendation": "Review this activity pattern for security implications",
                 "justification": "Generated based on common security patterns"
             }
+
+        # 🏢 ENTERPRISE: Include organization_id in generated rule
+        if org_id is not None:
+            rule_data["organization_id"] = org_id
 
         return rule_data
 

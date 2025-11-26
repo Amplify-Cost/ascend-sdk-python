@@ -24,6 +24,7 @@ import logging
 from database import get_db
 from models import Organization
 from services.cognito_pool_provisioner import get_provisioner
+from dependencies import get_organization_filter
 
 # ============================================
 # ROUTER CONFIGURATION
@@ -47,7 +48,8 @@ logger = logging.getLogger("enterprise.cognito.api")
 async def get_pool_config_by_slug(
     organization_slug: str,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> Dict[str, Any]:
     """
     Get Cognito pool configuration by organization slug
@@ -85,16 +87,23 @@ async def get_pool_config_by_slug(
 
     try:
         # Audit log the request
-        logger.info(f"🔐 AUDIT: Pool config request by slug", extra={
+        logger.info(f"🔐 AUDIT: Pool config request by slug [org_id={org_id}]", extra={
             'organization_slug': organization_slug,
+            'organization_id': org_id,
             'client_ip': request.client.host if request.client else 'unknown',
             'user_agent': request.headers.get('user-agent', 'unknown')
         })
 
-        # Find organization
-        org = db.query(Organization).filter(
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        # Find organization with optional org_id filter for security
+        query = db.query(Organization).filter(
             Organization.slug == organization_slug
-        ).first()
+        )
+
+        if org_id is not None:
+            query = query.filter(Organization.id == org_id)
+
+        org = query.first()
 
         if not org:
             logger.warning(f"⚠️  Organization not found: {organization_slug}")
@@ -152,7 +161,8 @@ async def get_pool_config_by_slug(
 async def get_pool_config_by_id(
     organization_id: int,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> Dict[str, Any]:
     """
     Get Cognito pool configuration by organization ID
@@ -176,16 +186,23 @@ async def get_pool_config_by_id(
 
     try:
         # Audit log the request
-        logger.info(f"🔐 AUDIT: Pool config request by ID", extra={
+        logger.info(f"🔐 AUDIT: Pool config request by ID [org_id={org_id}]", extra={
             'organization_id': organization_id,
+            'filter_org_id': org_id,
             'client_ip': request.client.host if request.client else 'unknown',
             'user_agent': request.headers.get('user-agent', 'unknown')
         })
 
-        # Find organization
-        org = db.query(Organization).filter(
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        # Find organization with optional org_id filter for security
+        query = db.query(Organization).filter(
             Organization.id == organization_id
-        ).first()
+        )
+
+        if org_id is not None:
+            query = query.filter(Organization.id == org_id)
+
+        org = query.first()
 
         if not org:
             logger.warning(f"⚠️  Organization not found: ID {organization_id}")
@@ -243,7 +260,8 @@ async def get_pool_config_by_id(
 async def get_pool_config_by_email(
     email: str,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> Dict[str, Any]:
     """
     Get Cognito pool configuration by user email
@@ -275,8 +293,9 @@ async def get_pool_config_by_email(
     try:
         # Audit log the request (don't log full email for privacy)
         email_domain = email.split('@')[-1] if '@' in email else 'unknown'
-        logger.info(f"🔐 AUDIT: Pool config request by email domain", extra={
+        logger.info(f"🔐 AUDIT: Pool config request by email domain [org_id={org_id}]", extra={
             'email_domain': email_domain,
+            'organization_id': org_id,
             'client_ip': request.client.host if request.client else 'unknown',
             'user_agent': request.headers.get('user-agent', 'unknown')
         })
@@ -285,14 +304,26 @@ async def get_pool_config_by_email(
         # This requires users table to have organization_id
         from models import User
 
-        user = db.query(User).filter(
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        user_query = db.query(User).filter(
             User.email == email.lower().strip()
-        ).first()
+        )
+
+        if org_id is not None:
+            user_query = user_query.filter(User.organization_id == org_id)
+
+        user = user_query.first()
 
         if user and user.organization_id:
-            org = db.query(Organization).filter(
+            # 🏢 ENTERPRISE: Multi-tenant isolation
+            org_query = db.query(Organization).filter(
                 Organization.id == user.organization_id
-            ).first()
+            )
+
+            if org_id is not None:
+                org_query = org_query.filter(Organization.id == org_id)
+
+            org = org_query.first()
 
             if org:
                 logger.info(f"✅ Found organization from user email: {org.slug}")
@@ -336,9 +367,15 @@ async def get_pool_config_by_email(
         # Uses PostgreSQL ARRAY contains operator for efficient lookup
         from sqlalchemy import any_
 
-        org = db.query(Organization).filter(
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        org_domain_query = db.query(Organization).filter(
             email_domain == any_(Organization.email_domains)
-        ).first()
+        )
+
+        if org_id is not None:
+            org_domain_query = org_domain_query.filter(Organization.id == org_id)
+
+        org = org_domain_query.first()
 
         if org:
             logger.info(f"✅ Found organization from email domain database lookup: {org.slug}")
@@ -386,7 +423,8 @@ async def get_pool_config_by_email(
 async def get_pool_status(
     organization_slug: str,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> Dict[str, Any]:
     """
     Get Cognito pool status and health
@@ -413,12 +451,18 @@ async def get_pool_status(
     """
 
     try:
-        logger.info(f"🔐 AUDIT: Pool status request for {organization_slug}")
+        logger.info(f"🔐 AUDIT: Pool status request for {organization_slug} [org_id={org_id}]")
 
-        # Find organization
-        org = db.query(Organization).filter(
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        # Find organization with optional org_id filter for security
+        query = db.query(Organization).filter(
             Organization.slug == organization_slug
-        ).first()
+        )
+
+        if org_id is not None:
+            query = query.filter(Organization.id == org_id)
+
+        org = query.first()
 
         if not org:
             raise HTTPException(
@@ -458,7 +502,8 @@ async def get_pool_status(
 @router.get("/organizations")
 async def list_organizations_with_pools(
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> Dict[str, Any]:
     """
     List all organizations and their pool status
@@ -484,10 +529,16 @@ async def list_organizations_with_pools(
     """
 
     try:
-        logger.info(f"🔐 AUDIT: Organization list request")
+        logger.info(f"🔐 AUDIT: Organization list request [org_id={org_id}]")
 
-        # Get all organizations
-        orgs = db.query(Organization).order_by(Organization.id).all()
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        # Get all organizations with optional org_id filter for security
+        query = db.query(Organization).order_by(Organization.id)
+
+        if org_id is not None:
+            query = query.filter(Organization.id == org_id)
+
+        orgs = query.all()
 
         organizations = []
         with_pools = 0

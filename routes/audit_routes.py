@@ -8,7 +8,7 @@ from datetime import datetime, UTC
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 from database import get_db
-from dependencies import verify_token
+from dependencies import verify_token, get_organization_filter
 
 router = APIRouter()
 
@@ -78,13 +78,18 @@ def get_audit_logs(
     limit: int = Query(100, le=1000),
     offset: int = Query(0),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_token)
+    current_user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """Get audit logs with pagination"""
     try:
         from models_audit import ImmutableAuditLog
         query = db.query(ImmutableAuditLog)
-        
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
+        if org_id is not None:
+            query = query.filter(ImmutableAuditLog.organization_id == org_id)
+
         total = query.count()
         logs = query.order_by(ImmutableAuditLog.timestamp.desc()).offset(offset).limit(limit).all()
         
@@ -139,7 +144,8 @@ def export_audit_logs_csv(
     actor_id: Optional[str] = Query(None, description="Filter by actor ID"),
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_token)
+    current_user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """Export audit logs to CSV format with compliance metadata"""
     try:
@@ -150,6 +156,10 @@ def export_audit_logs_csv(
 
         # Build query with filters
         query = db.query(ImmutableAuditLog)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
+        if org_id is not None:
+            query = query.filter(ImmutableAuditLog.organization_id == org_id)
 
         if start_date:
             start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
@@ -225,7 +235,8 @@ def export_audit_logs_pdf(
     actor_id: Optional[str] = Query(None, description="Filter by actor ID"),
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_token)
+    current_user: dict = Depends(verify_token),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """Export audit logs to PDF format with professional formatting and compliance badges"""
     try:
@@ -242,6 +253,10 @@ def export_audit_logs_pdf(
 
         # Build query with filters
         query = db.query(ImmutableAuditLog)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
+        if org_id is not None:
+            query = query.filter(ImmutableAuditLog.organization_id == org_id)
 
         if start_date:
             start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))

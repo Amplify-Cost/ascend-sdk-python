@@ -14,7 +14,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta, UTC
 
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, get_organization_filter
 from models import AutomationPlaybook, PlaybookExecution, User
 from models_playbook_versioning import (
     PlaybookVersion,
@@ -49,7 +49,8 @@ async def get_playbook_versions(
     playbook_id: str,
     include_performance: bool = Query(default=True, description="Include execution metrics"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 GET ALL VERSIONS OF A PLAYBOOK
@@ -61,7 +62,13 @@ async def get_playbook_versions(
     - Performance tracking across versions
     - Rollback decision support
     """
-    playbook = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id).first()
+    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -77,7 +84,8 @@ async def create_playbook_version(
     playbook_id: str,
     version_data: PlaybookVersionCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 CREATE NEW PLAYBOOK VERSION
@@ -87,7 +95,13 @@ async def create_playbook_version(
 
     Pattern: GitLab Merge Request Versioning
     """
-    playbook = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id).first()
+    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -159,7 +173,8 @@ async def rollback_playbook(
     playbook_id: str,
     rollback_request: PlaybookRollbackRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ROLLBACK PLAYBOOK TO PREVIOUS VERSION
@@ -172,7 +187,13 @@ async def rollback_playbook(
     - Zero-downtime rollback
     - Complete audit trail maintained
     """
-    playbook = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id).first()
+    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -248,7 +269,8 @@ async def compare_playbook_versions(
     version_a: int = Query(..., description="First version number to compare"),
     version_b: int = Query(..., description="Second version number to compare"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 COMPARE TWO PLAYBOOK VERSIONS
@@ -260,6 +282,15 @@ async def compare_playbook_versions(
 
     Pattern: GitHub Pull Request Diff View
     """
+    # 🏢 ENTERPRISE: Multi-tenant isolation - verify playbook access first
+    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
+    if not playbook:
+        raise HTTPException(status_code=404, detail="Playbook not found")
+
     # Get both versions
     ver_a = db.query(PlaybookVersion).filter(
         and_(
@@ -337,7 +368,8 @@ async def get_playbook_analytics(
     playbook_id: str,
     days: int = Query(default=30, ge=1, le=365, description="Number of days to analyze"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 GET PLAYBOOK EXECUTION ANALYTICS
@@ -350,7 +382,13 @@ async def get_playbook_analytics(
 
     Pattern: Splunk SOAR Analytics Dashboard
     """
-    playbook = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id).first()
+    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -456,7 +494,8 @@ async def get_playbook_analytics(
 async def get_playbook_performance(
     playbook_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 GET REAL-TIME PLAYBOOK PERFORMANCE METRICS
@@ -464,7 +503,13 @@ async def get_playbook_performance(
     Quick health check for playbook performance.
     Returns alerts if performance degrades.
     """
-    playbook = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id).first()
+    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -552,7 +597,8 @@ async def get_playbook_performance(
 async def clone_playbook(
     clone_request: PlaybookCloneRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 CLONE EXISTING PLAYBOOK
@@ -561,17 +607,29 @@ async def clone_playbook(
     Optionally includes execution statistics.
     """
     # Get source playbook
-    source = db.query(AutomationPlaybook).filter(
+    query = db.query(AutomationPlaybook).filter(
         AutomationPlaybook.id == clone_request.source_playbook_id
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    source = query.first()
 
     if not source:
         raise HTTPException(status_code=404, detail="Source playbook not found")
 
     # Check new ID doesn't exist
-    existing = db.query(AutomationPlaybook).filter(
+    existing_query = db.query(AutomationPlaybook).filter(
         AutomationPlaybook.id == clone_request.new_playbook_id
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        existing_query = existing_query.filter(AutomationPlaybook.organization_id == org_id)
+
+    existing = existing_query.first()
 
     if existing:
         raise HTTPException(status_code=400, detail="Playbook with this ID already exists")
@@ -588,6 +646,7 @@ async def clone_playbook(
         actions=source.actions,
         execution_count=source.execution_count if clone_request.include_execution_history else 0,
         success_rate=source.success_rate if clone_request.include_execution_history else 0.0,
+        organization_id=org_id,  # 🏢 ENTERPRISE: Set organization_id for new playbook
         created_by=current_user.get("user_id"),
         created_at=datetime.now(UTC)
     )

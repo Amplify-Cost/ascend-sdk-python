@@ -12,7 +12,7 @@ import logging
 import json
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, get_organization_filter
 from models_data_rights import DataSubjectRequest, DataLineage, ConsentRecord, DataErasureLog
 from services.data_rights_service import DataSubjectRightsService as DataRightsService
 from services.immutable_audit_service import ImmutableAuditService
@@ -112,20 +112,22 @@ async def submit_access_request(
     request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Submit a Right to Access request under GDPR Article 15 or CCPA §1798.110
-    
+
     **Legal Compliance:**
     - GDPR: Must respond within 30 days (Article 15)
     - CCPA: Must respond within 45 days (§1798.130)
-    
+
     **Enterprise Features:**
     - Automatic request validation and prioritization
     - Audit trail logging for compliance
     - Data discovery across all systems
+    - Multi-tenant data isolation
     """
     try:
         # Create the data subject request
@@ -138,13 +140,14 @@ async def submit_access_request(
                 "data_categories": request_data.data_categories or [],
                 "verification_token": request_data.verification_token,
                 "ip_address": request.client.host,
-                "user_agent": request.headers.get("user-agent")
+                "user_agent": request.headers.get("user-agent"),
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             }
         )
-        
+
         # Process the request
         data_request = await data_service.create_data_subject_request(
-            request_create, created_by=current_user.email
+            request_create, created_by=current_user.email, organization_id=org_id
         )
         
         # Log to immutable audit trail
@@ -158,7 +161,8 @@ async def submit_access_request(
                 "request_id": str(data_request.id),
                 "legal_basis": data_request.legal_basis,
                 "due_date": data_request.due_date.isoformat(),
-                "verification_required": bool(request_data.verification_token)
+                "verification_required": bool(request_data.verification_token),
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             },
             risk_level="MEDIUM",
             compliance_tags=["GDPR", "CCPA", "DATA_ACCESS"],
@@ -187,7 +191,7 @@ async def submit_access_request(
         )
         
     except Exception as e:
-        logger.error(f"Failed to submit access request: {e}")
+        logger.error(f"Failed to submit access request [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to submit access request: {str(e)}"
@@ -201,23 +205,31 @@ async def get_subject_data(
     verification_token: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Retrieve all data for a data subject (GDPR Article 15 compliance)
-    
+
     **Enterprise Features:**
     - Comprehensive data discovery across all systems
     - Structured machine-readable format
     - Metadata about data processing activities
     - Audit logging for access events
+    - Multi-tenant data isolation
     """
     try:
         # Get and validate the request
-        data_request = db.query(DataSubjectRequest).filter(
+        query = db.query(DataSubjectRequest).filter(
             DataSubjectRequest.id == request_id
-        ).first()
+        )
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(DataSubjectRequest.organization_id == org_id)
+
+        data_request = query.first()
         
         if not data_request:
             raise HTTPException(
@@ -281,7 +293,7 @@ async def get_subject_data(
         }
         
     except Exception as e:
-        logger.error(f"Failed to retrieve subject data: {e}")
+        logger.error(f"Failed to retrieve subject data [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve subject data: {str(e)}"
@@ -301,22 +313,24 @@ async def submit_erasure_request(
     request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Submit a Right to Erasure request under GDPR Article 17 or CCPA §1798.105
-    
+
     **Legal Compliance:**
     - GDPR: Must process within 30 days (Article 17)
     - CCPA: Must process within 45 days (§1798.105)
     - Considers legitimate interests and legal obligations
-    
+
     **Enterprise Features:**
     - Automated legal basis assessment
     - Cross-system erasure coordination
     - Immutable audit logging
     - Retention exception handling
+    - Multi-tenant data isolation
     """
     try:
         # Create the erasure request
@@ -331,13 +345,14 @@ async def submit_erasure_request(
                 "retention_exceptions": request_data.retention_exceptions or [],
                 "verification_token": request_data.verification_token,
                 "ip_address": request.client.host,
-                "user_agent": request.headers.get("user-agent")
+                "user_agent": request.headers.get("user-agent"),
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             }
         )
-        
+
         # Process the request
         data_request = await data_service.create_data_subject_request(
-            request_create, created_by=current_user.email
+            request_create, created_by=current_user.email, organization_id=org_id
         )
         
         # Log to immutable audit trail
@@ -353,7 +368,8 @@ async def submit_erasure_request(
                 "legal_basis": data_request.legal_basis,
                 "due_date": data_request.due_date.isoformat(),
                 "data_categories": request_data.data_categories or [],
-                "retention_exceptions": request_data.retention_exceptions or []
+                "retention_exceptions": request_data.retention_exceptions or [],
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             },
             risk_level="HIGH",
             compliance_tags=["GDPR", "CCPA", "DATA_ERASURE", "RIGHT_TO_BE_FORGOTTEN"],
@@ -382,7 +398,7 @@ async def submit_erasure_request(
         )
         
     except Exception as e:
-        logger.error(f"Failed to submit erasure request: {e}")
+        logger.error(f"Failed to submit erasure request [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to submit erasure request: {str(e)}"
@@ -397,24 +413,32 @@ async def execute_erasure(
     confirmation_token: str,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Execute a verified data erasure request
-    
+
     **Enterprise Features:**
     - Multi-system coordinated erasure
     - Retention exception handling
     - Comprehensive audit logging
     - Verification and evidence generation
+    - Multi-tenant data isolation
     """
     try:
         # Get and validate the request
-        data_request = db.query(DataSubjectRequest).filter(
+        query = db.query(DataSubjectRequest).filter(
             DataSubjectRequest.id == request_id,
             DataSubjectRequest.request_type == "ERASURE"
-        ).first()
+        )
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(DataSubjectRequest.organization_id == org_id)
+
+        data_request = query.first()
         
         if not data_request:
             raise HTTPException(
@@ -477,7 +501,7 @@ async def execute_erasure(
         }
         
     except Exception as e:
-        logger.error(f"Failed to execute erasure: {e}")
+        logger.error(f"Failed to execute erasure [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to execute erasure: {str(e)}"
@@ -497,17 +521,19 @@ async def submit_portability_request(
     request: Request = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Submit a data portability request under GDPR Article 20
-    
+
     **Enterprise Features:**
     - Multiple export formats (JSON, CSV, XML)
     - Structured machine-readable data
     - Complete metadata inclusion
     - Audit trail compliance
+    - Multi-tenant data isolation
     """
     try:
         # Create portability request
@@ -519,12 +545,13 @@ async def submit_portability_request(
                 "target_format": target_format,
                 "include_metadata": include_metadata,
                 "ip_address": request.client.host if request else None,
-                "user_agent": request.headers.get("user-agent") if request else None
+                "user_agent": request.headers.get("user-agent") if request else None,
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             }
         )
-        
+
         data_request = await data_service.create_data_subject_request(
-            request_create, created_by=current_user.email
+            request_create, created_by=current_user.email, organization_id=org_id
         )
         
         # Log to audit trail
@@ -537,7 +564,8 @@ async def submit_portability_request(
             event_data={
                 "request_id": str(data_request.id),
                 "target_format": target_format,
-                "include_metadata": include_metadata
+                "include_metadata": include_metadata,
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             },
             risk_level="MEDIUM",
             compliance_tags=["GDPR", "DATA_PORTABILITY"]
@@ -557,7 +585,7 @@ async def submit_portability_request(
         )
         
     except Exception as e:
-        logger.error(f"Failed to submit portability request: {e}")
+        logger.error(f"Failed to submit portability request [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to submit portability request: {str(e)}"
@@ -575,17 +603,19 @@ async def record_consent(
     request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Record consent for data processing (GDPR compliance)
-    
+
     **Enterprise Features:**
     - Granular consent tracking by purpose
     - Legal basis documentation
     - Withdrawal capability
     - Immutable audit logging
+    - Multi-tenant data isolation
     """
     try:
         # Create consent record
@@ -599,6 +629,7 @@ async def record_consent(
             consent_method=consent_data.consent_method,
             data_controller=consent_data.data_controller,
             privacy_policy_version=consent_data.privacy_policy_version,
+            organization_id=org_id,  # 🏢 ENTERPRISE: Multi-tenant isolation
             consent_evidence={
                 "ip_address": request.client.host,
                 "user_agent": request.headers.get("user-agent"),
@@ -618,7 +649,8 @@ async def record_consent(
                 "consent_type": consent_data.consent_type,
                 "processing_purposes": consent_data.processing_purposes,
                 "legal_basis": consent_data.legal_basis,
-                "data_controller": consent_data.data_controller
+                "data_controller": consent_data.data_controller,
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             },
             risk_level="MEDIUM",
             compliance_tags=["GDPR", "CONSENT", "LEGAL_BASIS"],
@@ -635,7 +667,7 @@ async def record_consent(
         }
         
     except Exception as e:
-        logger.error(f"Failed to record consent: {e}")
+        logger.error(f"Failed to record consent [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to record consent: {str(e)}"
@@ -652,17 +684,19 @@ async def record_data_lineage(
     lineage_data: DataLineageCreate,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service),
     audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Record data lineage for comprehensive data mapping
-    
+
     **Enterprise Features:**
     - Complete data flow tracking
     - Processing purpose documentation
     - Retention period management
     - Cross-system visibility
+    - Multi-tenant data isolation
     """
     try:
         # Create lineage record
@@ -676,6 +710,7 @@ async def record_data_lineage(
             retention_period=lineage_data.retention_period,
             data_location=lineage_data.data_location,
             data_classification=lineage_data.data_classification,
+            organization_id=org_id,  # 🏢 ENTERPRISE: Multi-tenant isolation
             lineage_metadata={
                 "created_by": current_user.email,
                 "creation_timestamp": datetime.now(UTC).isoformat()
@@ -694,7 +729,8 @@ async def record_data_lineage(
                 "data_type": lineage_data.data_type,
                 "source_system": lineage_data.source_system,
                 "processing_purpose": lineage_data.processing_purpose,
-                "legal_basis": lineage_data.legal_basis
+                "legal_basis": lineage_data.legal_basis,
+                "organization_id": org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
             },
             risk_level="LOW",
             compliance_tags=["DATA_LINEAGE", "GDPR", "MAPPING"]
@@ -712,7 +748,7 @@ async def record_data_lineage(
         }
         
     except Exception as e:
-        logger.error(f"Failed to record data lineage: {e}")
+        logger.error(f"Failed to record data lineage [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to record data lineage: {str(e)}"
@@ -725,19 +761,21 @@ async def get_subject_lineage(
     subject_identifier: str,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service)
 ):
     """
     Get complete data lineage for a data subject
-    
+
     **Enterprise Features:**
     - Complete data flow visualization
     - Processing purpose mapping
     - Retention schedule overview
     - Cross-system data tracking
+    - Multi-tenant data isolation
     """
     try:
-        lineage_map = await data_service.get_subject_data_lineage(subject_identifier)
+        lineage_map = await data_service.get_subject_data_lineage(subject_identifier, org_id)
         
         return {
             "subject_identifier": subject_identifier,
@@ -751,7 +789,7 @@ async def get_subject_lineage(
         }
         
     except Exception as e:
-        logger.error(f"Failed to get subject lineage: {e}")
+        logger.error(f"Failed to get subject lineage [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get subject lineage: {str(e)}"
@@ -770,22 +808,25 @@ async def generate_compliance_report(
     report_type: str = "SUMMARY",  # SUMMARY, DETAILED, AUDIT
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service)
 ):
     """
     Generate comprehensive GDPR/CCPA compliance report
-    
+
     **Enterprise Features:**
     - Request processing metrics
     - Compliance timeline analysis
     - Audit trail summaries
     - Regulatory readiness assessment
+    - Multi-tenant data isolation
     """
     try:
         report = await data_service.generate_compliance_report(
             start_date=start_date,
             end_date=end_date,
-            report_type=report_type
+            report_type=report_type,
+            org_id=org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
         )
         
         return {
@@ -800,7 +841,7 @@ async def generate_compliance_report(
         }
         
     except Exception as e:
-        logger.error(f"Failed to generate compliance report: {e}")
+        logger.error(f"Failed to generate compliance report [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate compliance report: {str(e)}"
@@ -820,15 +861,17 @@ async def list_data_requests(
     offset: int = 0,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     data_service: DataRightsService = Depends(get_data_rights_service)
 ):
-    """List and filter data subject requests with pagination"""
+    """List and filter data subject requests with pagination (multi-tenant isolated)"""
     try:
         requests = await data_service.list_data_requests(
             status=status,
             request_type=request_type,
             limit=limit,
-            offset=offset
+            offset=offset,
+            org_id=org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
         )
         
         return {
@@ -852,7 +895,7 @@ async def list_data_requests(
         }
         
     except Exception as e:
-        logger.error(f"Failed to list data requests: {e}")
+        logger.error(f"Failed to list data requests [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list data requests: {str(e)}"
@@ -865,13 +908,20 @@ async def list_data_requests(
 async def get_data_request(
     request_id: str,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get detailed information about a specific data subject request"""
+    """Get detailed information about a specific data subject request (multi-tenant isolated)"""
     try:
-        data_request = db.query(DataSubjectRequest).filter(
+        query = db.query(DataSubjectRequest).filter(
             DataSubjectRequest.id == request_id
-        ).first()
+        )
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(DataSubjectRequest.organization_id == org_id)
+
+        data_request = query.first()
         
         if not data_request:
             raise HTTPException(
@@ -893,7 +943,7 @@ async def get_data_request(
         )
         
     except Exception as e:
-        logger.error(f"Failed to get data request: {e}")
+        logger.error(f"Failed to get data request [org_id={org_id}]: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get data request: {str(e)}"

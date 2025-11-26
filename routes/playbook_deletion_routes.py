@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, UTC
 from pydantic import BaseModel, Field
 
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, get_organization_filter
 from models import AutomationPlaybook, PlaybookExecution, User
 from models_playbook_versioning import PlaybookVersion, PlaybookSchedule
 from services.immutable_audit_service import ImmutableAuditService
@@ -88,7 +88,8 @@ async def delete_playbook(
     delete_request: PlaybookDeleteRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    audit_service: ImmutableAuditService = Depends(get_audit_service)
+    audit_service: ImmutableAuditService = Depends(get_audit_service),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 SOFT DELETE PLAYBOOK
@@ -117,12 +118,18 @@ async def delete_playbook(
     **Pattern:** Splunk SOAR Soft Delete
     """
     # Get playbook
-    playbook = db.query(AutomationPlaybook).filter(
+    query = db.query(AutomationPlaybook).filter(
         and_(
             AutomationPlaybook.id == playbook_id,
             AutomationPlaybook.is_deleted == False
         )
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
 
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found or already deleted")
@@ -167,7 +174,7 @@ async def delete_playbook(
 
     db.commit()
 
-    # 🏢 ENTERPRISE: Immutable audit log
+    # 🏢 ENTERPRISE: Immutable audit log [org_id={org_id}]
     audit_service.log_event(
         event_type="PLAYBOOK_DELETED",
         actor_id=str(current_user.get('user_id')),
@@ -182,7 +189,8 @@ async def delete_playbook(
             "execution_count": execution_count,
             "version_count": version_count,
             "schedules_stopped": schedule_count,
-            "recovery_window_days": 30
+            "recovery_window_days": 30,
+            "organization_id": org_id
         },
         outcome="SUCCESS",
         risk_level="HIGH",
@@ -215,7 +223,8 @@ async def restore_playbook(
     restore_request: PlaybookRestoreRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    audit_service: ImmutableAuditService = Depends(get_audit_service)
+    audit_service: ImmutableAuditService = Depends(get_audit_service),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 RESTORE DELETED PLAYBOOK
@@ -237,12 +246,18 @@ async def restore_playbook(
     **Pattern:** ServiceNow Recycle Bin Restore
     """
     # Get deleted playbook
-    playbook = db.query(AutomationPlaybook).filter(
+    query = db.query(AutomationPlaybook).filter(
         and_(
             AutomationPlaybook.id == playbook_id,
             AutomationPlaybook.is_deleted == True
         )
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
 
     if not playbook:
         raise HTTPException(status_code=404, detail="Deleted playbook not found")
@@ -278,7 +293,7 @@ async def restore_playbook(
 
     db.commit()
 
-    # 🏢 ENTERPRISE: Immutable audit log
+    # 🏢 ENTERPRISE: Immutable audit log [org_id={org_id}]
     audit_service.log_event(
         event_type="PLAYBOOK_RESTORED",
         actor_id=str(current_user.get('user_id')),
@@ -291,7 +306,8 @@ async def restore_playbook(
             "originally_deleted_at": playbook.deleted_at.isoformat() if playbook.deleted_at else None,
             "originally_deleted_by": playbook.deleted_by,
             "schedules_restarted": schedules_restarted,
-            "restart_schedules_requested": restore_request.restart_schedules
+            "restart_schedules_requested": restore_request.restart_schedules,
+            "organization_id": org_id
         },
         outcome="SUCCESS",
         risk_level="MEDIUM",
@@ -314,7 +330,8 @@ async def restore_playbook(
 @router.get("/playbooks/deleted", response_model=List[DeletedPlaybookResponse])
 async def list_deleted_playbooks(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 LIST DELETED PLAYBOOKS
@@ -330,9 +347,15 @@ async def list_deleted_playbooks(
     **Recovery Window:** 30 days
     **Auto-Purge:** Playbooks deleted >30 days ago (future enhancement)
     """
-    deleted_playbooks = db.query(AutomationPlaybook).filter(
+    query = db.query(AutomationPlaybook).filter(
         AutomationPlaybook.is_deleted == True
-    ).order_by(AutomationPlaybook.deleted_at.desc()).all()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    deleted_playbooks = query.order_by(AutomationPlaybook.deleted_at.desc()).all()
 
     result = []
     for playbook in deleted_playbooks:
@@ -385,7 +408,8 @@ async def permanent_delete_playbook(
     confirmation: str = Query(..., description="Type playbook name to confirm"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    audit_service: ImmutableAuditService = Depends(get_audit_service)
+    audit_service: ImmutableAuditService = Depends(get_audit_service),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 PERMANENT DELETE (HARD DELETE)
@@ -410,12 +434,18 @@ async def permanent_delete_playbook(
     **Pattern:** ServiceNow Permanent Delete
     """
     # Get soft-deleted playbook
-    playbook = db.query(AutomationPlaybook).filter(
+    query = db.query(AutomationPlaybook).filter(
         and_(
             AutomationPlaybook.id == playbook_id,
             AutomationPlaybook.is_deleted == True
         )
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(AutomationPlaybook.organization_id == org_id)
+
+    playbook = query.first()
 
     if not playbook:
         raise HTTPException(
@@ -445,7 +475,7 @@ async def permanent_delete_playbook(
         "success_rate": playbook.success_rate
     }
 
-    # 🏢 ENTERPRISE: Immutable audit log BEFORE deletion
+    # 🏢 ENTERPRISE: Immutable audit log BEFORE deletion [org_id={org_id}]
     audit_service.log_event(
         event_type="PLAYBOOK_PERMANENTLY_DELETED",
         actor_id=str(current_user.get('user_id')),
@@ -455,7 +485,8 @@ async def permanent_delete_playbook(
         action="HARD_DELETE",
         event_data={
             "evidence_pack": evidence_pack,
-            "warning": "PERMANENT_DELETION_CANNOT_BE_UNDONE"
+            "warning": "PERMANENT_DELETION_CANNOT_BE_UNDONE",
+            "organization_id": org_id
         },
         outcome="SUCCESS",
         risk_level="CRITICAL",

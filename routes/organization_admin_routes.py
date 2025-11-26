@@ -33,6 +33,7 @@ from botocore.exceptions import ClientError
 from database import get_db
 from models import User, Organization, CognitoToken, AuthAuditLog
 from dependencies_cognito import require_org_admin, log_auth_event
+from dependencies import get_organization_filter
 from config import (
     COGNITO_USER_POOL_ID,
     COGNITO_APP_CLIENT_ID,
@@ -127,17 +128,28 @@ class UserResponse(BaseModel):
 # HELPER FUNCTIONS - Cognito Integration
 # ============================================================================
 
-async def check_subscription_user_limit(org: Organization, db: Session) -> bool:
+async def check_subscription_user_limit(org: Organization, db: Session, org_filter: Optional[int] = None) -> bool:
     """
     Check if organization has reached user limit for their subscription tier.
+
+    Args:
+        org: Organization object
+        db: Database session
+        org_filter: Optional organization filter for additional security layer
 
     Returns:
         True if under limit, False if at/over limit
     """
-    current_user_count = db.query(User).filter(
+    query = db.query(User).filter(
         User.organization_id == org.id,
         User.cognito_user_id.isnot(None)  # Only count active Cognito users
-    ).count()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        query = query.filter(User.organization_id == org_filter)
+
+    current_user_count = query.count()
 
     # Subscription tier limits
     tier_limits = {
@@ -280,7 +292,7 @@ async def update_cognito_user_attributes(
         )
 
 
-async def revoke_all_user_tokens(user_id: int, reason: str, db: Session):
+async def revoke_all_user_tokens(user_id: int, reason: str, db: Session, org_filter: Optional[int] = None):
     """
     Revoke all tokens for a user (forces re-login).
 
@@ -288,11 +300,19 @@ async def revoke_all_user_tokens(user_id: int, reason: str, db: Session):
         user_id: Local database user ID
         reason: Revocation reason for audit
         db: Database session
+        org_filter: Optional organization filter for additional security layer
     """
-    tokens = db.query(CognitoToken).filter(
+    query = db.query(CognitoToken).filter(
         CognitoToken.user_id == user_id,
         CognitoToken.is_revoked == False
-    ).all()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        # Join with User table to filter by organization
+        query = query.join(User).filter(User.organization_id == org_filter)
+
+    tokens = query.all()
 
     now = datetime.now()
     for token in tokens:
@@ -313,7 +333,8 @@ async def invite_user(
     request: InviteUserRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Invite new user to organization via AWS Cognito.
@@ -351,22 +372,34 @@ async def invite_user(
         )
 
     # Get organization
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    org_query = db.query(Organization).filter(Organization.id == org_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        org_query = org_query.filter(Organization.id == org_filter)
+
+    org = org_query.first()
     if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise HTTPException(status_code=404, detail="Organization not found [org_id={}]".format(org_filter or org_id))
 
     # Check subscription user limit
-    if not await check_subscription_user_limit(org, db):
+    if not await check_subscription_user_limit(org, db, org_filter):
         raise HTTPException(
             status_code=403,
-            detail=f"User limit reached for {org.subscription_tier} tier. Please upgrade your subscription."
+            detail=f"User limit reached for {org.subscription_tier} tier. Please upgrade your subscription. [org_id={org_filter or org_id}]"
         )
 
     # Check if user already exists
-    existing_user = db.query(User).filter(
+    user_query = db.query(User).filter(
         User.email == request.email.lower(),
         User.organization_id == org_id
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_filter is not None:
+        user_query = user_query.filter(User.organization_id == org_filter)
+
+    existing_user = user_query.first()
     if existing_user:
         raise HTTPException(
             status_code=400,
@@ -397,7 +430,7 @@ async def invite_user(
     db.commit()
     db.refresh(new_user)
 
-    # Log invitation event
+    # Log invitation event [org_id={org_filter}]
     log_auth_event(
         event_type="user_invited",
         success=True,
@@ -409,7 +442,8 @@ async def invite_user(
         metadata={
             "invited_user_email": request.email,
             "invited_user_role": request.role,
-            "invited_user_id": new_user.id
+            "invited_user_id": new_user.id,
+            "org_filter": org_filter  # Banking-level audit trail
         },
         db=db
     )
@@ -421,7 +455,8 @@ async def invite_user(
 async def list_organization_users(
     org_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     List all users in organization.
@@ -447,10 +482,16 @@ async def list_organization_users(
         )
 
     # Query users (RLS automatically filters by organization_id)
-    users = db.query(User).filter(
+    query = db.query(User).filter(
         User.organization_id == org_id,
         User.cognito_user_id.isnot(None)  # Only active Cognito users
-    ).order_by(User.created_at.desc()).all()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        query = query.filter(User.organization_id == org_filter)
+
+    users = query.order_by(User.created_at.desc()).all()
 
     return users
 
@@ -461,7 +502,8 @@ async def remove_user(
     user_id: int,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Remove user from organization.
@@ -498,12 +540,18 @@ async def remove_user(
         )
 
     # Get user to remove
-    user = db.query(User).filter(
+    user_query = db.query(User).filter(
         User.id == user_id,
         User.organization_id == org_id
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        user_query = user_query.filter(User.organization_id == org_filter)
+
+    user = user_query.first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found [org_id={}]".format(org_filter or org_id))
 
     # Prevent self-removal
     if user.id == current_user.get("user_id"):
@@ -520,7 +568,8 @@ async def remove_user(
     await revoke_all_user_tokens(
         user_id=user.id,
         reason=f"User removed by admin {current_user.get('email')}",
-        db=db
+        db=db,
+        org_filter=org_filter
     )
 
     # Mark user as inactive (soft delete)
@@ -528,7 +577,7 @@ async def remove_user(
     user.role = 'disabled'
     db.commit()
 
-    # Log removal event
+    # Log removal event [org_id={org_filter}]
     log_auth_event(
         event_type="user_removed",
         success=True,
@@ -539,7 +588,8 @@ async def remove_user(
         user_agent=req.headers.get("user-agent"),
         metadata={
             "removed_user_email": user.email,
-            "removed_user_id": user.id
+            "removed_user_id": user.id,
+            "org_filter": org_filter  # Banking-level audit trail
         },
         db=db
     )
@@ -554,7 +604,8 @@ async def update_user_role(
     request: UpdateUserRoleRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Update user role and permissions.
@@ -592,12 +643,18 @@ async def update_user_role(
         )
 
     # Get user to update
-    user = db.query(User).filter(
+    user_query = db.query(User).filter(
         User.id == user_id,
         User.organization_id == org_id
-    ).first()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        user_query = user_query.filter(User.organization_id == org_filter)
+
+    user = user_query.first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User not found [org_id={}]".format(org_filter or org_id))
 
     # Prevent self-demotion from admin
     if user.id == current_user.get("user_id"):
@@ -629,10 +686,11 @@ async def update_user_role(
     await revoke_all_user_tokens(
         user_id=user.id,
         reason=f"Role changed from {old_role} to {request.role}",
-        db=db
+        db=db,
+        org_filter=org_filter
     )
 
-    # Log role change
+    # Log role change [org_id={org_filter}]
     log_auth_event(
         event_type="user_role_updated",
         success=True,
@@ -647,7 +705,8 @@ async def update_user_role(
             "old_role": old_role,
             "new_role": request.role,
             "old_admin_status": old_admin_status,
-            "new_admin_status": user.is_org_admin
+            "new_admin_status": user.is_org_admin,
+            "org_filter": org_filter  # Banking-level audit trail
         },
         db=db
     )
@@ -659,7 +718,8 @@ async def update_user_role(
 async def get_subscription_info(
     org_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Get organization subscription information including user limits.
@@ -680,15 +740,27 @@ async def get_subscription_info(
         )
 
     # Get organization
-    org = db.query(Organization).filter(Organization.id == org_id).first()
+    org_query = db.query(Organization).filter(Organization.id == org_id)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation - Additional security layer
+    if org_filter is not None:
+        org_query = org_query.filter(Organization.id == org_filter)
+
+    org = org_query.first()
     if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise HTTPException(status_code=404, detail="Organization not found [org_id={}]".format(org_filter or org_id))
 
     # Count active users
-    active_users = db.query(User).filter(
+    user_count_query = db.query(User).filter(
         User.organization_id == org_id,
         User.cognito_user_id.isnot(None)
-    ).count()
+    )
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_filter is not None:
+        user_count_query = user_count_query.filter(User.organization_id == org_filter)
+
+    active_users = user_count_query.count()
 
     # Subscription tier limits
     tier_limits = {
@@ -721,7 +793,8 @@ async def invite_user_auto_org(
     request: InviteUserRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Invite new user to organization (auto-detect org from JWT token).
@@ -752,13 +825,14 @@ async def invite_user_auto_org(
         )
 
     # Delegate to existing endpoint (reuse all security logic)
-    return await invite_user(org_id, request, req, db, current_user)
+    return await invite_user(org_id, request, req, db, current_user, org_filter)
 
 
 @router.get("/users", response_model=List[UserResponse])
 async def list_organization_users_auto_org(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     List all users in organization (auto-detect org from JWT token).
@@ -786,7 +860,7 @@ async def list_organization_users_auto_org(
         )
 
     # Delegate to existing endpoint
-    return await list_organization_users(org_id, db, current_user)
+    return await list_organization_users(org_id, db, current_user, org_filter)
 
 
 @router.delete("/users/{user_id}")
@@ -794,7 +868,8 @@ async def remove_user_auto_org(
     user_id: int,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Remove user from organization (auto-detect org from JWT token).
@@ -823,7 +898,7 @@ async def remove_user_auto_org(
         )
 
     # Delegate to existing endpoint
-    return await remove_user(org_id, user_id, req, db, current_user)
+    return await remove_user(org_id, user_id, req, db, current_user, org_filter)
 
 
 @router.patch("/users/{user_id}/role", response_model=UserResponse)
@@ -832,7 +907,8 @@ async def update_user_role_auto_org(
     request: UpdateUserRoleRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Update user role and permissions (auto-detect org from JWT token).
@@ -862,13 +938,14 @@ async def update_user_role_auto_org(
         )
 
     # Delegate to existing endpoint
-    return await update_user_role(org_id, user_id, request, req, db, current_user)
+    return await update_user_role(org_id, user_id, request, req, db, current_user, org_filter)
 
 
 @router.get("/subscription-info")
 async def get_subscription_info_auto_org(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
 ):
     """
     Get organization subscription information (auto-detect org from JWT token).
@@ -891,4 +968,4 @@ async def get_subscription_info_auto_org(
         )
 
     # Delegate to existing endpoint
-    return await get_subscription_info(org_id, db, current_user)
+    return await get_subscription_info(org_id, db, current_user, org_filter)

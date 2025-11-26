@@ -21,7 +21,7 @@ import json
 # Created by: OW-kai Engineer (Phase 2 Enterprise Integration)
 from dependencies import get_db
 from models import AutomationPlaybook, PlaybookExecution, WorkflowExecution, Workflow, User
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, get_organization_filter
 from config_workflows import workflow_config
 
 # ⭐ PHASE 1-3: Import enterprise playbook schemas
@@ -90,7 +90,8 @@ async def get_automation_playbooks(
     risk_level: Optional[str] = None,
     include_deleted: bool = False,  # 🏢 ENTERPRISE: Hide soft-deleted playbooks by default
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 GET /api/authorization/automation/playbooks
@@ -113,10 +114,14 @@ async def get_automation_playbooks(
     Enterprise Pattern: ServiceNow CMDB filtering, Jira issue states
     """
     try:
-        logger.info(f"📋 Listing automation playbooks for user {current_user.get('email')} (include_deleted={include_deleted})")
+        logger.info(f"📋 Listing automation playbooks for user {current_user.get('email')} (include_deleted={include_deleted}) [org_id={org_id}]")
 
         # Build database query - REAL DATA, NOT DEMO
         query = db.query(AutomationPlaybook)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AutomationPlaybook.organization_id == org_id)
 
         # 🏢 ENTERPRISE: Smart filtering - hide soft-deleted playbooks by default
         # Pattern: ServiceNow CMDB (hides Retired CIs), Jira (hides Archived issues)
@@ -198,7 +203,8 @@ async def get_automation_playbooks(
 async def create_automation_playbook(
     playbook: PlaybookCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 POST /api/authorization/automation/playbooks
@@ -218,15 +224,17 @@ async def create_automation_playbook(
     Returns: PlaybookResponse with full playbook details
     """
     try:
-        logger.info(f"📝 Creating enterprise playbook by admin {current_user.get('email')}")
+        logger.info(f"📝 Creating enterprise playbook by admin {current_user.get('email')} [org_id={org_id}]")
         logger.info(f"📋 Playbook ID: {playbook.id}, Risk Level: {playbook.risk_level}")
         logger.info(f"⚙️ Trigger Conditions: {playbook.trigger_conditions.dict(exclude_none=True)}")
         logger.info(f"⚡ Actions: {[action.type.value for action in playbook.actions]}")
 
         # 🏢 PHASE 4: Check if ID already exists (enterprise error message)
-        existing = db.query(AutomationPlaybook).filter(
-            AutomationPlaybook.id == playbook.id
-        ).first()
+        query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook.id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AutomationPlaybook.organization_id == org_id)
+        existing = query.first()
 
         if existing:
             raise HTTPException(
@@ -259,7 +267,8 @@ async def create_automation_playbook(
             actions=actions_list,
             execution_count=0,
             success_rate=0.0,
-            created_by=current_user.get('user_id')
+            created_by=current_user.get('user_id'),
+            organization_id=org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
         )
 
         db.add(new_playbook)
@@ -322,7 +331,8 @@ async def create_automation_playbook(
 async def toggle_automation_playbook(
     playbook_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 POST /api/authorization/automation/playbook/{id}/toggle
@@ -333,12 +343,14 @@ async def toggle_automation_playbook(
     Expected response: {status, message, data}
     """
     try:
-        logger.info(f"🔄 Toggling playbook '{playbook_id}' by admin {current_user.get('email')}")
-        
+        logger.info(f"🔄 Toggling playbook '{playbook_id}' by admin {current_user.get('email')} [org_id={org_id}]")
+
         # Find playbook
-        playbook = db.query(AutomationPlaybook).filter(
-            AutomationPlaybook.id == playbook_id
-        ).first()
+        query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AutomationPlaybook.organization_id == org_id)
+        playbook = query.first()
         
         if not playbook:
             raise HTTPException(status_code=404, detail=f"Playbook '{playbook_id}' not found")
@@ -380,7 +392,8 @@ async def execute_automation_playbook(
     execution_data: dict,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 POST /api/authorization/automation/execute-playbook
@@ -395,13 +408,15 @@ async def execute_automation_playbook(
         playbook_id = execution_data.get('playbook_id')
         if not playbook_id:
             raise HTTPException(status_code=400, detail="playbook_id is required")
-        
-        logger.info(f"▶️  Executing playbook '{playbook_id}' by user {current_user.get('email')}")
-        
+
+        logger.info(f"▶️  Executing playbook '{playbook_id}' by user {current_user.get('email')} [org_id={org_id}]")
+
         # Find playbook
-        playbook = db.query(AutomationPlaybook).filter(
-            AutomationPlaybook.id == playbook_id
-        ).first()
+        query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AutomationPlaybook.organization_id == org_id)
+        playbook = query.first()
         
         if not playbook:
             raise HTTPException(status_code=404, detail=f"Playbook '{playbook_id}' not found")
@@ -459,7 +474,8 @@ async def test_automation_playbook(
     playbook_id: str,
     test_request: PlaybookTestRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 POST /api/authorization/automation/playbooks/{playbook_id}/test
@@ -476,12 +492,14 @@ async def test_automation_playbook(
     Returns: Match analysis with detailed condition results
     """
     try:
-        logger.info(f"🧪 Testing playbook '{playbook_id}' with sample data")
+        logger.info(f"🧪 Testing playbook '{playbook_id}' with sample data [org_id={org_id}]")
 
         # Fetch playbook
-        playbook = db.query(AutomationPlaybook).filter(
-            AutomationPlaybook.id == playbook_id
-        ).first()
+        query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AutomationPlaybook.organization_id == org_id)
+        playbook = query.first()
 
         if not playbook:
             raise HTTPException(status_code=404, detail=f"Playbook '{playbook_id}' not found")
@@ -583,7 +601,8 @@ async def test_automation_playbook(
 @router.get("/automation/playbook-templates")
 async def get_playbook_templates(
     category: Optional[str] = None,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 GET /api/authorization/automation/playbook-templates
@@ -602,7 +621,7 @@ async def get_playbook_templates(
     Returns: List of playbook templates with metadata
     """
     try:
-        logger.info(f"📚 Fetching playbook templates (category: {category or 'all'})")
+        logger.info(f"📚 Fetching playbook templates (category: {category or 'all'}) [org_id={org_id}]")
 
         # Enterprise template library (would be in database in production)
         templates = [
@@ -752,7 +771,8 @@ async def get_playbook_templates(
 @router.get("/orchestration/active-workflows")
 async def get_active_workflows(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 GET /api/authorization/orchestration/active-workflows
@@ -763,15 +783,17 @@ async def get_active_workflows(
     Expected response: {status, data}
     """
     try:
-        logger.info(f"📊 Listing active workflows for user {current_user.get('email')}")
-        
+        logger.info(f"📊 Listing active workflows for user {current_user.get('email')} [org_id={org_id}]")
+
         # Query all workflow templates
         from datetime import timedelta
         from sqlalchemy import func
 
-        workflows = db.query(Workflow).filter(
-            Workflow.status == 'active'
-        ).all()
+        query = db.query(Workflow).filter(Workflow.status == 'active')
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+        workflows = query.all()
 
         # Query active workflow executions
         active_executions = db.query(WorkflowExecution).filter(
@@ -849,7 +871,8 @@ async def get_active_workflows(
 async def create_workflow_template(
     workflow_data: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 POST /api/authorization/workflows/create
@@ -860,30 +883,34 @@ async def create_workflow_template(
     Frontend: AgentAuthorizationDashboard.jsx (workflow section)
     """
     try:
-        logger.info(f"📝 Creating workflow template by {current_user.get('email')}")
-        
+        logger.info(f"📝 Creating workflow template by {current_user.get('email')} [org_id={org_id}]")
+
         # Log what we received
         logger.info(f"📦 Received workflow data: {workflow_data}")
-        
+
         # CRITICAL FIX: Frontend nests data inside 'workflow_data' key
         if 'workflow_data' in workflow_data:
             actual_data = workflow_data['workflow_data']
             logger.info(f"✅ Extracted nested workflow_data")
         else:
             actual_data = workflow_data
-        
+
         # Extract fields from actual data
         name = actual_data.get('name', 'Unnamed Workflow')
         description = actual_data.get('description', '')
         workflow_id = actual_data.get('id') or workflow_data.get('workflow_id') or f"wf-{int(datetime.now().timestamp())}"
-        
+
         logger.info(f"📝 Creating workflow: id={workflow_id}, name={name}")
-        
+
         # Check if workflow exists
-        existing = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        query = db.query(Workflow).filter(Workflow.id == workflow_id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+        existing = query.first()
         if existing:
             raise HTTPException(status_code=409, detail=f"Workflow '{workflow_data['id']}' exists")
-        
+
         # Create workflow template
         new_workflow = Workflow(
             id=workflow_id,
@@ -892,7 +919,8 @@ async def create_workflow_template(
             conditions=actual_data.get('conditions'),
             actions=actual_data.get('actions') or actual_data.get('steps'),
             is_active=actual_data.get('status') == 'active',
-            risk_threshold=actual_data.get('risk_threshold', 50)
+            risk_threshold=actual_data.get('risk_threshold', 50),
+            organization_id=org_id  # 🏢 ENTERPRISE: Multi-tenant isolation
         )
         
         db.add(new_workflow)
@@ -922,15 +950,22 @@ async def create_workflow_template(
 @router.get("/workflows")
 async def list_workflow_templates(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 GET /api/authorization/workflows
-    
+
     List all workflow templates
     """
     try:
-        workflows = db.query(Workflow).all()
+        logger.info(f"📋 Listing workflow templates for user {current_user.get('email')} [org_id={org_id}]")
+
+        query = db.query(Workflow)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+        workflows = query.all()
         
         workflows_data = []
         for wf in workflows:
@@ -957,10 +992,15 @@ async def list_workflow_templates(
 # ============================================================================
 
 @router.get("/workflow-config")
-async def get_workflow_config(current_user: dict = Depends(get_current_user)):
+async def get_workflow_config(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+):
     """🏢 ENTERPRISE: Get current workflow configuration"""
     try:
         from datetime import datetime, timezone
+        logger.info(f"📖 Getting workflow config for user {current_user.get('email')} [org_id={org_id}]")
+
         return {
             "workflows": workflow_config,
             "last_modified": datetime.now(timezone.utc).isoformat(),
@@ -976,7 +1016,8 @@ async def get_workflow_config(current_user: dict = Depends(get_current_user)):
 async def update_workflow_config(
     request: WorkflowConfigUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 ENTERPRISE: Update workflow configuration (admin only)
@@ -993,8 +1034,14 @@ async def update_workflow_config(
         workflow_id = request.workflow_id
         updates = request.updates
 
+        logger.info(f"🔧 Updating workflow config '{workflow_id}' by admin {current_user.get('email')} [org_id={org_id}]")
+
         # Check if workflow exists in database (enterprise approach)
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        query = db.query(Workflow).filter(Workflow.id == workflow_id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+        workflow = query.first()
 
         if not workflow:
             # Fallback to in-memory config for legacy workflows
@@ -1067,7 +1114,8 @@ async def execute_workflow(
     workflow_id: str,
     request: WorkflowExecuteRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 ENTERPRISE: Execute workflow orchestration
@@ -1081,10 +1129,14 @@ async def execute_workflow(
     try:
         from datetime import datetime, UTC
 
-        logger.info(f"🔄 ENTERPRISE: Executing workflow {workflow_id} by {current_user.get('email')}")
+        logger.info(f"🔄 ENTERPRISE: Executing workflow {workflow_id} by {current_user.get('email')} [org_id={org_id}]")
 
         # Validate workflow exists
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        query = db.query(Workflow).filter(Workflow.id == workflow_id)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+        workflow = query.first()
 
         if not workflow:
             # Check legacy in-memory config
@@ -1150,7 +1202,8 @@ async def execute_workflow(
 async def get_automation_activity_feed(
     limit: int = 10,
     current_user: dict = Depends(get_current_user),  # ✅ Auth first
-    db: Session = Depends(get_db)                     # ✅ DB second
+    db: Session = Depends(get_db),                     # ✅ DB second
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
     """
     🏢 ENTERPRISE: Get real-time automation activity feed
@@ -1167,19 +1220,37 @@ async def get_automation_activity_feed(
     try:
         from datetime import datetime, UTC, timedelta
 
-        logger.info(f"⚡ Fetching automation activity feed for {current_user.get('email')}")
+        logger.info(f"⚡ Fetching automation activity feed for {current_user.get('email')} [org_id={org_id}]")
 
         # Query recent playbook executions
+        playbook_query = db.query(PlaybookExecution)
+        # 🏢 ENTERPRISE: Multi-tenant isolation for playbook executions
+        if org_id is not None:
+            # Join with AutomationPlaybook to filter by organization_id
+            playbook_query = playbook_query.join(
+                AutomationPlaybook,
+                PlaybookExecution.playbook_id == AutomationPlaybook.id
+            ).filter(AutomationPlaybook.organization_id == org_id)
+
         recent_playbook_executions = (
-            db.query(PlaybookExecution)
+            playbook_query
             .order_by(PlaybookExecution.started_at.desc())  # ✅ Fixed: Model uses 'started_at' not 'created_at'
             .limit(limit)
             .all()
         )
 
         # Query recent workflow executions
+        workflow_query = db.query(WorkflowExecution)
+        # 🏢 ENTERPRISE: Multi-tenant isolation for workflow executions
+        if org_id is not None:
+            # Join with Workflow to filter by organization_id
+            workflow_query = workflow_query.join(
+                Workflow,
+                WorkflowExecution.workflow_id == Workflow.id
+            ).filter(Workflow.organization_id == org_id)
+
         recent_workflow_executions = (
-            db.query(WorkflowExecution)
+            workflow_query
             .order_by(WorkflowExecution.started_at.desc())
             .limit(limit)
             .all()

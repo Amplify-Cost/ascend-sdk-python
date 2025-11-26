@@ -21,7 +21,7 @@ import logging
 
 # Import dependencies
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, get_organization_filter
 from dependencies_api_keys import get_current_user_or_api_key  # ENTERPRISE: Dual auth support
 from models import User
 from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyPermission, ApiKeyRateLimit
@@ -164,7 +164,8 @@ def log_audit_event(
 async def generate_api_key(
     request: GenerateKeyRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)
+    current_user: dict = Depends(get_current_user_or_api_key),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Generate a new API key for the current user
@@ -198,6 +199,11 @@ async def generate_api_key(
             is_active=True,
             expires_at=expires_at
         )
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            api_key.organization_id = org_id
+
         db.add(api_key)
         db.flush()  # Get ID without committing
 
@@ -249,7 +255,7 @@ async def generate_api_key(
             }
         )
 
-        logger.info(f"✅ API key generated for user {current_user['email']}: {key_prefix}")
+        logger.info(f"✅ API key generated for user {current_user['email']}: {key_prefix} [org_id={org_id}]")
 
         # 8. Return full key (shown ONCE)
         return ApiKeyResponse(
@@ -283,7 +289,8 @@ async def list_api_keys(
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)
+    current_user: dict = Depends(get_current_user_or_api_key),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     List all API keys for the current user (masked)
@@ -300,6 +307,10 @@ async def list_api_keys(
         # Build query
         query = db.query(ApiKey).filter(ApiKey.user_id == current_user["user_id"])
 
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(ApiKey.organization_id == org_id)
+
         if not include_revoked:
             query = query.filter(ApiKey.is_active == True)
 
@@ -315,7 +326,7 @@ async def list_api_keys(
         # Convert to dict (masks full key)
         keys_data = [key.to_dict() for key in keys]
 
-        logger.info(f"✅ Listed {len(keys_data)} API keys for user {current_user['email']}")
+        logger.info(f"✅ Listed {len(keys_data)} API keys for user {current_user['email']} [org_id={org_id}]")
 
         return ApiKeyListResponse(
             success=True,
@@ -344,7 +355,8 @@ async def revoke_api_key(
     key_id: int,
     reason: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)
+    current_user: dict = Depends(get_current_user_or_api_key),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Revoke an API key (soft delete)
@@ -359,10 +371,16 @@ async def revoke_api_key(
     """
     try:
         # 1. Find key
-        api_key = db.query(ApiKey).filter(
+        query = db.query(ApiKey).filter(
             ApiKey.id == key_id,
             ApiKey.user_id == current_user["user_id"]
-        ).first()
+        )
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(ApiKey.organization_id == org_id)
+
+        api_key = query.first()
 
         if not api_key:
             raise HTTPException(
@@ -398,7 +416,7 @@ async def revoke_api_key(
             }
         )
 
-        logger.info(f"✅ API key revoked: {api_key.key_prefix}")
+        logger.info(f"✅ API key revoked: {api_key.key_prefix} [org_id={org_id}]")
 
         return {
             "success": True,
@@ -427,7 +445,8 @@ async def get_api_key_usage(
     key_id: int,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)
+    current_user: dict = Depends(get_current_user_or_api_key),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get usage statistics for an API key
@@ -441,10 +460,16 @@ async def get_api_key_usage(
     """
     try:
         # 1. Verify ownership
-        api_key = db.query(ApiKey).filter(
+        query = db.query(ApiKey).filter(
             ApiKey.id == key_id,
             ApiKey.user_id == current_user["user_id"]
-        ).first()
+        )
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(ApiKey.organization_id == org_id)
+
+        api_key = query.first()
 
         if not api_key:
             raise HTTPException(
@@ -468,7 +493,7 @@ async def get_api_key_usage(
         else:
             success_rate = 0
 
-        logger.info(f"✅ Retrieved usage for API key: {api_key.key_prefix}")
+        logger.info(f"✅ Retrieved usage for API key: {api_key.key_prefix} [org_id={org_id}]")
 
         return {
             "success": True,

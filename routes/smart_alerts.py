@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc
 from database import get_db
 from models import SmartRule, AgentAction, User, AuditLog
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
 from datetime import datetime, UTC, timedelta
 import json
 import asyncio
@@ -24,13 +24,15 @@ class AlertEngine:
     """Enterprise-grade alert processing engine"""
     
     @staticmethod
-    async def evaluate_rules(metrics_data: Dict[str, Any], db: Session):
+    async def evaluate_rules(metrics_data: Dict[str, Any], db: Session, org_id: Optional[int] = None):
         """Evaluate all active smart rules against real-time metrics"""
         try:
             # Get all active smart rules
-            active_rules = db.query(SmartRule).filter(
-                SmartRule.is_active == True
-            ).all()
+            query = db.query(SmartRule).filter(SmartRule.is_active == True)
+            # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
+            if org_id is not None:
+                query = query.filter(SmartRule.organization_id == org_id)
+            active_rules = query.all()
             
             triggered_alerts = []
             
@@ -183,15 +185,19 @@ class AlertEngine:
 @router.get("/active")
 async def get_active_alerts(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
 
     """Get all currently active alerts"""
     try:
         logger.info(f"🚨 Active alerts requested by: {current_user.get('email')}")
-        
-        # Filter alerts based on user role (if needed)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation - filter alerts by organization
+        # Filter alerts based on user role and organization
         user_alerts = list(active_alerts.values())
+        if org_id is not None:
+            user_alerts = [a for a in user_alerts if a.get('organization_id') == org_id]
         
         # Add alert statistics
         stats = {

@@ -20,7 +20,7 @@ import json
 import logging
 
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, get_organization_filter
 from models import Workflow
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,7 @@ class WorkflowConfigCreateRequest(BaseModel):
 async def get_workflow_config(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     active_only: bool = Query(default=True, description="Filter for active workflows only")
 ):
     """
@@ -99,13 +100,17 @@ async def get_workflow_config(
         # Query database for workflows
         query = db.query(Workflow)
 
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+
         if active_only:
             query = query.filter(Workflow.is_active == True)
 
         workflows = query.all()
 
         if not workflows:
-            logger.warning("⚠️  No workflows found in database. Database may need seeding.")
+            logger.warning(f"⚠️  No workflows found in database. Database may need seeding. [org_id={org_id}]")
             return {
                 "workflows": {},
                 "last_modified": datetime.now(UTC).isoformat(),
@@ -151,7 +156,7 @@ async def get_workflow_config(
             default=datetime.now(UTC)
         )
 
-        logger.info(f"✅ ENTERPRISE: Loaded {len(workflows)} workflow configs from database")
+        logger.info(f"✅ ENTERPRISE: Loaded {len(workflows)} workflow configs from database [org_id={org_id}]")
 
         return {
             "workflows": workflow_data,
@@ -164,7 +169,7 @@ async def get_workflow_config(
         }
 
     except Exception as e:
-        logger.error(f"❌ Failed to get workflow config: {str(e)}", exc_info=True)
+        logger.error(f"❌ Failed to get workflow config: {str(e)} [org_id={org_id}]", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get workflow configuration: {str(e)}")
 
 
@@ -176,7 +181,8 @@ async def get_workflow_config(
 async def update_workflow_config(
     request: WorkflowConfigUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Update workflow configuration in database (admin only)
@@ -215,10 +221,16 @@ async def update_workflow_config(
         updates = request.updates
 
         # Query workflow from database
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        query = db.query(Workflow).filter(Workflow.id == workflow_id)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+
+        workflow = query.first()
 
         if not workflow:
-            logger.error(f"❌ Workflow '{workflow_id}' not found in database")
+            logger.error(f"❌ Workflow '{workflow_id}' not found in database [org_id={org_id}]")
             raise HTTPException(
                 status_code=404,
                 detail=f"Workflow '{workflow_id}' not found in database. Available workflows: Check /api/authorization/workflow-config"
@@ -256,7 +268,7 @@ async def update_workflow_config(
 
             logger.info(
                 f"✅ ENTERPRISE: Workflow {workflow_id} updated in database "
-                f"by {workflow.modified_by}: {updated_fields}"
+                f"by {workflow.modified_by}: {updated_fields} [org_id={org_id}]"
             )
 
             # Parse approvers for response
@@ -285,13 +297,13 @@ async def update_workflow_config(
 
         except Exception as db_error:
             db.rollback()
-            logger.error(f"❌ Database commit failed: {str(db_error)}", exc_info=True)
+            logger.error(f"❌ Database commit failed: {str(db_error)} [org_id={org_id}]", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Database update failed: {str(db_error)}")
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to update workflow config: {str(e)}", exc_info=True)
+        logger.error(f"❌ Failed to update workflow config: {str(e)} [org_id={org_id}]", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to update workflow configuration: {str(e)}"
@@ -306,7 +318,8 @@ async def update_workflow_config(
 async def create_workflow_config(
     request: WorkflowConfigCreateRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Create new workflow configuration (admin only)
@@ -316,7 +329,13 @@ async def create_workflow_config(
     """
     try:
         # Check if workflow ID already exists
-        existing = db.query(Workflow).filter(Workflow.id == request.id).first()
+        query = db.query(Workflow).filter(Workflow.id == request.id)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+
+        existing = query.first()
         if existing:
             raise HTTPException(
                 status_code=400,
@@ -344,11 +363,15 @@ async def create_workflow_config(
             updated_at=datetime.now(UTC)
         )
 
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            workflow.organization_id = org_id
+
         db.add(workflow)
         db.commit()
         db.refresh(workflow)
 
-        logger.info(f"✅ ENTERPRISE: New workflow '{request.id}' created by {current_user.get('email')}")
+        logger.info(f"✅ ENTERPRISE: New workflow '{request.id}' created by {current_user.get('email')} [org_id={org_id}]")
 
         return {
             "message": "✅ Workflow configuration created successfully",
@@ -362,7 +385,7 @@ async def create_workflow_config(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Failed to create workflow: {str(e)}", exc_info=True)
+        logger.error(f"❌ Failed to create workflow: {str(e)} [org_id={org_id}]", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create workflow: {str(e)}")
 
 
@@ -374,7 +397,8 @@ async def create_workflow_config(
 async def delete_workflow_config(
     workflow_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Soft-delete workflow configuration (admin only)
@@ -383,7 +407,13 @@ async def delete_workflow_config(
     Preserves audit trail.
     """
     try:
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        query = db.query(Workflow).filter(Workflow.id == workflow_id)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+
+        workflow = query.first()
 
         if not workflow:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
@@ -396,7 +426,7 @@ async def delete_workflow_config(
 
         db.commit()
 
-        logger.info(f"✅ ENTERPRISE: Workflow '{workflow_id}' deactivated by {current_user.get('email')}")
+        logger.info(f"✅ ENTERPRISE: Workflow '{workflow_id}' deactivated by {current_user.get('email')} [org_id={org_id}]")
 
         return {
             "message": f"✅ Workflow '{workflow_id}' deactivated successfully",
@@ -409,7 +439,7 @@ async def delete_workflow_config(
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Failed to delete workflow: {str(e)}", exc_info=True)
+        logger.error(f"❌ Failed to delete workflow: {str(e)} [org_id={org_id}]", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete workflow: {str(e)}")
 
 
@@ -421,7 +451,8 @@ async def delete_workflow_config(
 async def get_single_workflow_config(
     workflow_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Get specific workflow configuration
@@ -429,7 +460,13 @@ async def get_single_workflow_config(
     Returns detailed configuration for a single workflow.
     """
     try:
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        query = db.query(Workflow).filter(Workflow.id == workflow_id)
+
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(Workflow.organization_id == org_id)
+
+        workflow = query.first()
 
         if not workflow:
             raise HTTPException(status_code=404, detail=f"Workflow '{workflow_id}' not found")
@@ -460,5 +497,5 @@ async def get_single_workflow_config(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get workflow: {str(e)}", exc_info=True)
+        logger.error(f"❌ Failed to get workflow: {str(e)} [org_id={org_id}]", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get workflow: {str(e)}")

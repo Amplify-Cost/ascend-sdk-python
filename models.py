@@ -960,3 +960,38 @@ class CognitoToken(Base):
 
     def __repr__(self):
         return f"<CognitoToken(jti={self.token_jti}, type={self.token_type}, revoked={self.is_revoked})>"
+
+
+class SupportTicket(Base):
+    """
+    Support ticket tracking for user issues and requests.
+
+    Enables:
+    - Customer support tracking
+    - Issue resolution workflow
+    - Multi-tenant data isolation
+    - Audit trail for compliance
+
+    Engineer: Donald King (OW-AI Enterprise)
+    """
+    __tablename__ = "support_tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    status = Column(String(50), nullable=False, default="open", index=True)  # open, in_progress, resolved, closed
+    priority = Column(String(50), nullable=False, default="medium")  # low, medium, high, critical
+    category = Column(String(100), nullable=True)  # technical, billing, feature_request, bug_report
+    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+    timestamp = Column(Integer, nullable=False)  # Unix timestamp
+    created_at = Column(DateTime, nullable=False, default=datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.now(UTC))
+    resolved_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id])
+    assignee = relationship("User", foreign_keys=[assigned_to])
+
+    def __repr__(self):
+        return f"<SupportTicket(id={self.id}, user_id={self.user_id}, status={self.status}, org_id={self.organization_id})>"
