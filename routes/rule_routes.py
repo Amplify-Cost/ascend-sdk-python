@@ -281,35 +281,16 @@ def seed_rules(
     org_id: int = Depends(get_organization_filter),
     _=Depends(require_csrf)
 ):
-    """Seed demo rules - 🏢 ENTERPRISE: Multi-tenant isolated"""
-    # 🏢 ENTERPRISE: Admin-only operation
-    if user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
-
-    demo_rules = [
-        Rule(
-            description="Block suspicious outbound requests",
-            condition="if outbound to unknown domains",
-            action="alert admin",
-            risk_level="High",
-            recommendation="Restrict outbound network activity",
-            justification="Prevent exfiltration attempts",
-            organization_id=org_id  # 🏢 ENTERPRISE: Tenant isolation
-        ),
-        Rule(
-            description="Flag excessive login attempts",
-            condition="if login attempts > 5 in 1hr",
-            action="lock account",
-            risk_level="Medium",
-            recommendation="Monitor and lock",
-            justification="Potential brute-force attack",
-            organization_id=org_id  # 🏢 ENTERPRISE: Tenant isolation
-        )
-    ]
-    db.add_all(demo_rules)
-    db.commit()
-    logger.info(f"Demo rules seeded by {user['email']} [org_id={org_id}]")
-    return {"message": "✅ Demo rules seeded"}
+    """
+    🏢 ENTERPRISE: Seed endpoint DISABLED for production
+    Banking-level security: Demo data seeding is not allowed in production environments.
+    Create rules through the standard API endpoints instead.
+    """
+    logger.warning(f"⚠️ ENTERPRISE: Demo seed endpoint called by {user['email']} [org_id={org_id}] - DISABLED")
+    raise HTTPException(
+        status_code=403,
+        detail="🏢 ENTERPRISE: Demo data seeding is disabled for production. Please create rules through the standard API."
+    )
 
 @router.post("/generate-smart-rule")
 async def generate_smart_rule_endpoint(
@@ -325,7 +306,7 @@ async def generate_smart_rule_endpoint(
 
     try:
         data = await request.json()
-        agent_id = data.get("agent_id", "demo-agent")
+        agent_id = data.get("agent_id", "system-agent")
         action_type = data.get("action_type", "suspicious_activity")
         description = data.get("description", "Analyze security patterns")
 

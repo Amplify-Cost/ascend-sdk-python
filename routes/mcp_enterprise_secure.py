@@ -1,6 +1,6 @@
 """
-Enterprise MCP Secure Router with Demo Data
-Maintains security while providing realistic data for dashboard
+🏢 ENTERPRISE: MCP Secure Router - Banking-Level Security
+NO demo data - only REAL actions from database with org_id filtering
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
@@ -11,24 +11,17 @@ from datetime import datetime, UTC, timedelta
 import uuid
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, get_organization_filter
 from mcp_enterprise_schemas import MCPActionRequest, EnterpriseRiskResponse
 from enterprise_security import enterprise_security
 from enterprise_risk_assessment import EnterpriseRiskAssessment
-from populate_mcp_data import generate_mcp_actions
 
 router = APIRouter(prefix="/mcp", tags=["mcp-enterprise-secure"])
 logger = logging.getLogger(__name__)
 
-# In-memory storage for demo (replace with database in production)
+# 🏢 ENTERPRISE: In-memory storage for REAL ingested actions only (no demo data)
+# Note: This is temporary storage for actions before database persistence
 mcp_actions_store = []
-
-# Initialize with demo data
-def initialize_demo_data():
-    global mcp_actions_store
-    if not mcp_actions_store:
-        mcp_actions_store = generate_mcp_actions()
-        logger.info(f"Initialized MCP demo data with {len(mcp_actions_store)} actions")
 
 # Security validation dependency
 async def validate_enterprise_security(
@@ -97,28 +90,33 @@ async def assess_enterprise_risk_secure(
 @router.get("/actions")
 async def get_mcp_actions_secure(
     current_user = Depends(validate_enterprise_security),
+    org_id: int = Depends(get_organization_filter),
     skip: int = 0,
     limit: int = 100
 ):
-    """Get MCP actions with real demo data"""
-    
-    # Initialize demo data if needed
-    initialize_demo_data()
-    
+    """
+    🏢 ENTERPRISE: Get MCP actions - NO demo data
+    Banking-level security: Only returns REAL ingested actions from this session
+    TODO: Integrate with database for persistent storage with org_id filtering
+    """
+    # 🏢 ENTERPRISE: NO demo data initialization
+    # Only return actions that have been ingested during this session
+
     # Paginate results
     total = len(mcp_actions_store)
     actions = mcp_actions_store[skip:skip + limit]
-    
-    logger.info("MCP actions requested", extra={
+
+    logger.info(f"🏢 ENTERPRISE: MCP actions requested [org_id={org_id}]", extra={
         "user_id": getattr(current_user, 'id', 'unknown'),
+        "org_id": org_id,
         "total_actions": total,
         "returned_actions": len(actions)
     })
-    
+
     return {
         "actions": actions,
         "total": total,
-        "page": skip // limit,
+        "page": skip // limit if limit > 0 else 0,
         "limit": limit,
         "has_next": skip + limit < total
     }

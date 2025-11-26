@@ -583,26 +583,29 @@ async def get_unified_governance_stats(
         
     except Exception as e:
         logger.error(f"❌ Error fetching unified governance stats: {str(e)}")
-        
-        # 🏢 ENTERPRISE: Fallback to demo data if database unavailable
-        demo_stats = {
-            "total_actions": 127,
-            "pending_actions": 8,
-            "agent_actions": 89,
-            "mcp_actions": 38,
-            "high_risk_actions": 12,
-            "approved_today": 15,
-            "emergency_actions": 2,
-            "governance_health": "demo_mode",
-            "last_updated": datetime.now(UTC).isoformat(),
-            "user_info": {
-                "email": current_user.get("email") if current_user else "demo@company.com",
-                "role": current_user.get("role") if current_user else "manager",
-                "max_risk_approval": 75
-            }
+
+        # 🏢 ENTERPRISE: NO demo data - return empty stats on error
+        # Banking-level security: Only return REAL data from database
+        return {
+            "success": False,
+            "stats": {
+                "total_actions": 0,
+                "pending_actions": 0,
+                "agent_actions": 0,
+                "mcp_actions": 0,
+                "high_risk_actions": 0,
+                "approved_today": 0,
+                "emergency_actions": 0,
+                "governance_health": "error",
+                "last_updated": datetime.now(UTC).isoformat(),
+                "user_info": {
+                    "email": current_user.get("email") if current_user else "unknown",
+                    "role": current_user.get("role") if current_user else "unknown",
+                    "max_risk_approval": 0
+                }
+            },
+            "error": str(e)
         }
-        
-        return {"success": True, "stats": demo_stats, "demo_mode": True}
 
 # 🏢 ENTERPRISE: Unified pending actions
 @router.get("/unified-actions")
@@ -759,52 +762,16 @@ def _old_get_unified_pending_actions_DEPRECATED(
         
     except Exception as e:
         logger.error(f"❌ Error fetching unified pending actions: {str(e)}")
-        
-        # 🏢 ENTERPRISE: Fallback to enhanced demo data
-        demo_actions = [
-            {
-                "id": 501,
-                "action_type": "mcp_server_action",
-                "mcp_data": {
-                    "server": "claude-desktop",
-                    "namespace": "filesystem",
-                    "verb": "read_file",
-                    "resource": "/home/user/sensitive_data.csv",
-                    "params": {"encoding": "utf8", "max_size": "10MB"}
-                },
-                "ai_risk_score": 75,
-                "description": "MCP: Read sensitive file via Claude Desktop",
-                "workflow_stage": "level_2",
-                "current_approval_level": 1,
-                "required_approval_level": 2,
-                "is_emergency": False,
-                "authorization_status": "pending_approval",
-                "execution_status": "pending_approval",
-                "contextual_risk_factors": ["Sensitive data access", "External MCP server"],
-                "time_remaining": "1:45:00",
-                "requested_at": (datetime.now(UTC) - timedelta(minutes=15)).isoformat(),
-                "user_email": "developer@company.com"
-            },
-            {
-                "id": 502,
-                "action_type": "security_scan",
-                "agent_id": "Agent-7432",
-                "ai_risk_score": 45,
-                "description": "Security scan of production database",
-                "workflow_stage": "level_1",
-                "current_approval_level": 1,
-                "required_approval_level": 1,
-                "is_emergency": False,
-                "authorization_status": "pending_approval",
-                "execution_status": "pending_approval",
-                "contextual_risk_factors": ["Production environment"],
-                "time_remaining": "3:15:00",
-                "requested_at": (datetime.now(UTC) - timedelta(minutes=8)).isoformat(),
-                "user_email": "security@company.com"
-            }
-        ]
 
-        return {"success": True, "actions": demo_actions, "demo_mode": True}
+        # 🏢 ENTERPRISE: NO demo data - return empty list on error
+        # Banking-level security: Only return REAL data from database
+        return {
+            "success": False,
+            "actions": [],
+            "total": 0,
+            "has_more": False,
+            "error": str(e)
+        }
 
 # 🔗 ENTERPRISE: URL Alias for frontend compatibility
 # Supports both /unified-actions and /unified/actions
@@ -2016,28 +1983,9 @@ async def get_policy_engine_metrics(
             }
             policy_performance.append(perf)
 
-        # Add demo policies only if no real policies exist
-        if not policy_performance:
-            policy_performance = [
-                {
-                    "id": "demo-1",
-                    "name": "Financial Transaction Controls",
-                    "evaluations": 0,
-                    "success_rate": 100.0,
-                    "avg_response_time": 0.2,
-                    "last_evaluation": datetime.now(UTC).isoformat(),
-                    "status": "active"
-                },
-                {
-                    "id": "demo-2",
-                    "name": "Data Access Management",
-                    "evaluations": 0,
-                    "success_rate": 100.0,
-                    "avg_response_time": 0.2,
-                    "last_evaluation": datetime.now(UTC).isoformat(),
-                    "status": "active"
-                }
-            ]
+        # 🏢 ENTERPRISE: NO demo data - return empty list for new organizations
+        # Banking-level security: Only return REAL policies from database
+        # (policy_performance will be empty list if no real policies exist)
 
         # Build comprehensive metrics response
         metrics = {

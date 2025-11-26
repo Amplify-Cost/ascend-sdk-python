@@ -365,115 +365,11 @@ def list_agent_actions(
                     return simple_actions
             except Exception as simple_error:
                 logger.warning(f"Simple query also failed: {simple_error}")
-            
-            # Enterprise-grade fallback: Return demo data that showcases platform capabilities
-            logger.info("Using enterprise demonstration data")
-            
-            from datetime import datetime, timezone
-            current_time = datetime.now(timezone.utc)
-            
-            return [
-                {
-                    "id": 1001,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "enterprise-security-scanner-prod",
-                    "action_type": "critical_vulnerability_scan",
-                    "description": "Enterprise vulnerability assessment of production infrastructure identifying critical security gaps requiring immediate attention",
-                    "tool_name": "enterprise-security-suite",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0007",
-                    "mitre_technique": "T1190",
-                    "nist_control": "RA-5",
-                    "nist_description": "Vulnerability Scanning - Enterprise continuous monitoring",
-                    "recommendation": "CRITICAL: Immediate remediation required for 3 high-severity vulnerabilities",
-                    "summary": "Enterprise security scan completed: 3 critical vulnerabilities discovered in production systems requiring immediate executive attention and remediation",
-                    "status": "pending_approval",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None
-                },
-                {
-                    "id": 1002,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "compliance-audit-agent-enterprise",
-                    "action_type": "sox_compliance_validation",
-                    "description": "Automated SOX compliance audit of financial systems and access controls per enterprise governance requirements",
-                    "tool_name": "enterprise-compliance-auditor",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0005",
-                    "mitre_technique": "T1078",
-                    "nist_control": "AU-6",
-                    "nist_description": "Audit Review, Analysis, and Reporting - Enterprise compliance monitoring",
-                    "recommendation": "Review identified access control violations and update enterprise policies",
-                    "summary": "SOX compliance audit identified 5 access control policy violations requiring management review and corrective action",
-                    "status": "approved",
-                    "approved": True,
-                    "reviewed_by": "security-team@enterprise.com",
-                    "reviewed_at": current_time.isoformat()
-                },
-                {
-                    "id": 1003,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "threat-intelligence-correlator",
-                    "action_type": "advanced_threat_correlation",
-                    "description": "Machine learning-powered threat intelligence correlation across enterprise security stack identifying potential APT activity",
-                    "tool_name": "enterprise-threat-intelligence",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0011",
-                    "mitre_technique": "T1071",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring - Enterprise threat detection",
-                    "recommendation": "URGENT: Potential APT activity detected - initiate incident response procedures",
-                    "summary": "Advanced threat correlation analysis detected indicators consistent with nation-state APT tactics requiring immediate security team escalation",
-                    "status": "escalated",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None
-                },
-                {
-                    "id": 1004,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "data-loss-prevention-agent",
-                    "action_type": "sensitive_data_discovery",
-                    "description": "Enterprise data classification and loss prevention scan identifying sensitive data repositories and access patterns",
-                    "tool_name": "enterprise-dlp-scanner",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0009",
-                    "mitre_technique": "T1005",
-                    "nist_control": "SC-28",
-                    "nist_description": "Protection of Information at Rest - Enterprise data protection",
-                    "recommendation": "Implement additional encryption for newly discovered sensitive data repositories",
-                    "summary": "Data discovery scan identified 12 new repositories containing PII/PHI requiring enhanced protection measures",
-                    "status": "approved",
-                    "approved": True,
-                    "reviewed_by": "data-protection-office@enterprise.com",
-                    "reviewed_at": current_time.isoformat()
-                },
-                {
-                    "id": 1005,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "privileged-access-monitor",
-                    "action_type": "privileged_account_analysis",
-                    "description": "Quarterly privileged access review and anomaly detection for administrative accounts across enterprise infrastructure",
-                    "tool_name": "enterprise-pam-system",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "low",
-                    "mitre_tactic": "TA0004",
-                    "mitre_technique": "T1078.003",
-                    "nist_control": "AC-2",
-                    "nist_description": "Account Management - Enterprise privileged access governance",
-                    "recommendation": "Standard quarterly review completed - no anomalies detected",
-                    "summary": "Privileged access review completed for 247 administrative accounts - all access patterns within normal parameters",
-                    "status": "approved",
-                    "approved": True,
-                    "reviewed_by": "identity-governance@enterprise.com", 
-                    "reviewed_at": current_time.isoformat()
-                }
-            ]
+
+            # 🏢 ENTERPRISE: NO demo data - return empty list for organizations without actions
+            # Banking-level security: Only return REAL data from database
+            logger.info(f"🏢 ENTERPRISE: No agent actions found for org_id={org_id} - returning empty list (no demo data)")
+            return []
             
     except Exception as e:
         logger.error(f"Critical error in list_agent_actions: {str(e)}")
@@ -923,26 +819,9 @@ def get_audit_trail(
             return logs
         except Exception as db_error:
             logger.warning(f"Audit trail query failed: {db_error}")
-            # Return enterprise-grade audit demonstration data
-            current_time = datetime.now(timezone.utc)
-            return [
-                {
-                    "id": 5001,
-                    "action_id": 1001,
-                    "decision": "approved",
-                    "reviewed_by": "security-manager@enterprise.com",
-                    "timestamp": current_time.isoformat(),
-                    "notes": "Critical vulnerability scan approved for production environment"
-                },
-                {
-                    "id": 5002,
-                    "action_id": 1003,
-                    "decision": "escalated",
-                    "reviewed_by": "incident-commander@enterprise.com",
-                    "timestamp": current_time.isoformat(),
-                    "notes": "APT indicators detected - escalated to threat intelligence team"
-                }
-            ]
+            # 🏢 ENTERPRISE: NO demo data - return empty list on error
+            # Banking-level security: Only return REAL audit data from database
+            return []
     except Exception as e:
         logger.error(f"Failed to get audit trail: {str(e)}")
         raise HTTPException(

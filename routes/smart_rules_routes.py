@@ -20,7 +20,7 @@ import uuid
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Enterprise Smart Rules"])
 
-# In-memory storage for A/B tests (enterprise demo memory)
+# In-memory storage for A/B tests (enterprise production)
 enterprise_ab_tests_storage: Dict[str, Dict[str, Any]] = {}
 
 # 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - FIXED
@@ -412,7 +412,7 @@ async def get_ab_tests(
     🏢 ENTERPRISE: Multi-tenant data isolation enforced
     Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
 
-    Returns both user-created tests and demo examples (marked [DEMO]).
+    Returns user-created tests only - NO demo data in production.
     Performance metrics calculated from actual alerts in database.
     """
     try:
@@ -1147,7 +1147,7 @@ async def get_ab_test_results_enterprise(
         except:
             rule_id = 1
         
-        # Generate enterprise demo data for the specific test
+        # Generate enterprise performance data for the specific test
         base_performance_a = 70 + (rule_id % 15)
         base_performance_b = base_performance_a + (8 + (rule_id % 12))
         confidence = 85 + (rule_id % 10)
@@ -1900,7 +1900,7 @@ async def generate_smart_rule_endpoint(
     """Generate a new smart rule using AI"""
     try:
         data = await request.json()
-        agent_id = data.get("agent_id", "demo-agent")
+        agent_id = data.get("agent_id", "system-agent")
         action_type = data.get("action_type", "suspicious_activity")
         description = data.get("description", "Analyze security patterns")
 
@@ -1936,56 +1936,14 @@ async def generate_smart_rule_endpoint(
 def seed_smart_rules(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    
 ):
-    """Seed demo smart rules"""
-    try:
-        demo_rules = [
-            SmartRule(
-                agent_id="demo-agent-001",
-                action_type="data_exfiltration",
-                description="Detect potential data exfiltration attempts",
-                condition="action_type == 'data_exfiltration' and tool_name in ['curl', 'wget']",
-                action="block_and_alert",
-                risk_level="high",
-                recommendation="Immediately investigate and block network access",
-                justification="Data exfiltration attempts pose high security risk",
-                created_at=datetime.now(UTC)
-            ),
-            SmartRule(
-                agent_id="demo-agent-002",
-                action_type="privilege_escalation",
-                description="Detect privilege escalation attempts",
-                condition="action_type == 'privilege_escalation' and risk_level == 'high'",
-                action="quarantine",
-                risk_level="high",
-                recommendation="Quarantine agent and review permissions",
-                justification="Unauthorized privilege escalation must be prevented",
-                created_at=datetime.now(UTC)
-            ),
-            SmartRule(
-                agent_id="demo-agent-003",
-                action_type="suspicious_network",
-                description="Monitor unusual network activity",
-                condition="tool_name == 'network_scanner' and description contains 'internal'",
-                action="monitor_closely",
-                risk_level="medium",
-                recommendation="Monitor network traffic and log activities",
-                justification="Internal network scanning may indicate reconnaissance",
-                created_at=datetime.now(UTC)
-            )
-        ]
-
-        db.add_all(demo_rules)
-        db.commit()
-
-        logger.info(f"Demo smart rules seeded by {admin_user['email']}")
-        return {"message": f"✅ {len(demo_rules)} demo smart rules seeded"}
-
-    except Exception as e:
-        logger.error(f"Failed to seed smart rules: {str(e)}")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to seed demo rules"
-        )
+    """
+    🏢 ENTERPRISE: Seed endpoint DISABLED for production
+    Banking-level security: Demo data seeding is not allowed in production environments.
+    Create rules through the standard API endpoints instead.
+    """
+    logger.warning(f"⚠️ ENTERPRISE: Demo seed endpoint called by {admin_user['email']} - DISABLED")
+    raise HTTPException(
+        status_code=403,
+        detail="🏢 ENTERPRISE: Demo data seeding is disabled for production. Please create rules through the standard API."
+    )

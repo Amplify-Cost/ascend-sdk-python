@@ -871,7 +871,7 @@ async def get_user_analytics(
         logger.error(f"❌ Error fetching analytics: {e}")
         db.rollback()  # Rollback failed transaction
         logger.info("🔄 Transaction rolled back, retrying analytics query...")
-        return get_demo_analytics()
+        return get_empty_analytics()
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -1046,18 +1046,18 @@ async def log_audit_action(db: Session, user_email: str, action: str, target: st
     except Exception as e:
         logger.error(f"❌ Error logging audit action: {e}")
 
-def get_demo_audit_logs() -> List[Dict]:
+def get_empty_audit_logs() -> List[Dict]:
     """
-    🏢 ENTERPRISE: Empty audit logs fallback - NO hardcoded demo values
+    🏢 ENTERPRISE: Empty audit logs fallback - Banking-level security
 
     Returns empty list when no audit logs exist to prevent cross-tenant data leakage.
     Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
     """
     return []
 
-def get_demo_analytics() -> Dict[str, Any]:
+def get_empty_analytics() -> Dict[str, Any]:
     """
-    🏢 ENTERPRISE: Empty analytics fallback - NO hardcoded demo values
+    🏢 ENTERPRISE: Empty analytics fallback - Banking-level security
 
     Returns zeros when real data unavailable to prevent cross-tenant data leakage.
     Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
@@ -1270,7 +1270,7 @@ async def get_enterprise_reports_library(
         # Generate reports from your existing analytics if no stored reports
         if not stored_reports:
             analytics_data = await get_user_analytics(db, current_user)
-            stored_reports = await generate_demo_reports_from_analytics(analytics_data, current_user["email"])
+            stored_reports = await generate_reports_from_analytics(analytics_data, current_user["email"])
             logger.info("🔄 Generated reports from existing analytics data")
         
         return {
@@ -1791,8 +1791,8 @@ async def store_enterprise_report(db: Session, report_id: str, title: str,
         logger.error(f"❌ Error storing report: {e}")
         db.rollback()
 
-async def generate_demo_reports_from_analytics(analytics_data: dict, author: str) -> list:
-    """Generate demo reports using your real analytics data"""
+async def generate_reports_from_analytics(analytics_data: dict, author: str) -> list:
+    """🏢 ENTERPRISE: Generate reports from REAL analytics data - Banking-level security"""
     
     base_reports = [
         {
