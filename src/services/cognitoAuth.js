@@ -36,9 +36,67 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const COGNITO_REGION = import.meta.env.VITE_COGNITO_REGION || 'us-east-2';
 
-// ENTERPRISE: Production organization slug (single-tenant configuration)
-// For multi-tenant deployments, use environment variable override
+// ENTERPRISE: Default organization slug (fallback for single-tenant mode)
+// For multi-tenant deployments, organization is detected from URL path
 const DEFAULT_ORG_SLUG = import.meta.env.VITE_ORG_SLUG || 'owkai-internal';
+
+/**
+ * ENTERPRISE: Multi-Tenant Organization Detection
+ *
+ * Detects organization from multiple sources in priority order:
+ * 1. URL path: /org/acme-corp/login → "acme-corp"
+ * 2. URL hash: #org=acme-corp → "acme-corp"
+ * 3. Session storage: Previously detected org
+ * 4. Default: Falls back to DEFAULT_ORG_SLUG
+ *
+ * Security: No subdomain detection (prevents subdomain spoofing attacks)
+ */
+export function detectOrganizationFromURL() {
+  // Priority 1: Path-based routing /org/{slug}
+  const pathMatch = window.location.pathname.match(/^\/org\/([a-z0-9-]+)/i);
+  if (pathMatch) {
+    const slug = pathMatch[1].toLowerCase();
+    console.log('🏢 [MULTI-TENANT] Detected org from URL path:', slug);
+    sessionStorage.setItem('org_slug', slug);
+    return slug;
+  }
+
+  // Priority 2: Hash parameter #org=slug
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  const hashOrg = hashParams.get('org');
+  if (hashOrg) {
+    const slug = hashOrg.toLowerCase();
+    console.log('🏢 [MULTI-TENANT] Detected org from URL hash:', slug);
+    sessionStorage.setItem('org_slug', slug);
+    return slug;
+  }
+
+  // Priority 3: Previously detected org in session
+  const sessionOrg = sessionStorage.getItem('org_slug');
+  if (sessionOrg) {
+    console.log('🏢 [MULTI-TENANT] Using cached org from session:', sessionOrg);
+    return sessionOrg;
+  }
+
+  // Priority 4: Default organization
+  console.log('🏢 [MULTI-TENANT] Using default org:', DEFAULT_ORG_SLUG);
+  return DEFAULT_ORG_SLUG;
+}
+
+/**
+ * Get the current organization slug (for API calls)
+ */
+export function getCurrentOrgSlug() {
+  return sessionStorage.getItem('org_slug') || detectOrganizationFromURL();
+}
+
+/**
+ * Set organization slug (for programmatic routing)
+ */
+export function setCurrentOrgSlug(slug) {
+  sessionStorage.setItem('org_slug', slug);
+  console.log('🏢 [MULTI-TENANT] Org slug set to:', slug);
+}
 
 /**
  * Get Cognito pool configuration from backend by organization slug
@@ -89,16 +147,40 @@ export async function getPoolConfigByEmail(email) {
 }
 
 /**
- * Detect organization from environment configuration
+ * Detect organization from email or URL context
  *
- * ENTERPRISE: Single-tenant production uses DEFAULT_ORG_SLUG.
- * Multi-tenant can override via VITE_ORG_SLUG environment variable.
+ * ENTERPRISE MULTI-TENANT: Detection priority:
+ * 1. URL path detection (/org/acme-corp)
+ * 2. Session storage (previously detected)
+ * 3. Email domain lookup (via backend API)
+ * 4. Default organization
  *
- * Security: No client-side subdomain parsing to prevent subdomain spoofing.
+ * Security: Uses backend API for email domain validation, preventing spoofing.
  */
 export async function detectOrganizationFromEmail(email) {
-  // Enterprise: Use configured organization slug
-  // This prevents subdomain-based attacks and ensures proper tenant isolation
+  // Priority 1: Check URL-based detection first
+  const urlOrg = detectOrganizationFromURL();
+  if (urlOrg && urlOrg !== DEFAULT_ORG_SLUG) {
+    console.log('🏢 [MULTI-TENANT] Using URL-detected org:', urlOrg);
+    return urlOrg;
+  }
+
+  // Priority 2: Try email domain lookup via backend
+  if (email && email.includes('@')) {
+    try {
+      const poolConfig = await getPoolConfigByEmail(email);
+      if (poolConfig && poolConfig.organization_slug) {
+        console.log('🏢 [MULTI-TENANT] Detected org from email:', poolConfig.organization_slug);
+        setCurrentOrgSlug(poolConfig.organization_slug);
+        return poolConfig.organization_slug;
+      }
+    } catch (error) {
+      console.warn('🏢 [MULTI-TENANT] Email domain lookup failed, using default:', error.message);
+    }
+  }
+
+  // Priority 3: Fall back to default
+  console.log('🏢 [MULTI-TENANT] Using default org:', DEFAULT_ORG_SLUG);
   return DEFAULT_ORG_SLUG;
 }
 
@@ -689,6 +771,9 @@ export default {
   getPoolConfigBySlug,
   getPoolConfigByEmail,
   detectOrganizationFromEmail,
+  detectOrganizationFromURL,
+  getCurrentOrgSlug,
+  setCurrentOrgSlug,
   getStoredTokens,
   getStoredPoolConfig,
   isAuthenticated,

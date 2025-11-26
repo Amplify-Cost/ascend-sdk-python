@@ -25,6 +25,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import MFAVerification from './MFAVerification';
 import MFASetupChallenge from './MFASetupChallenge'; // 🏦 ENTERPRISE: Handle MFA_SETUP challenge
+import { detectOrganizationFromURL, getPoolConfigBySlug } from '../services/cognitoAuth';
 
 const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
   // Form state
@@ -39,8 +40,40 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
   const [accountLocked, setAccountLocked] = useState(false);
   const [lockoutTimer, setLockoutTimer] = useState(0);
 
+  // Multi-tenant state
+  const [organizationInfo, setOrganizationInfo] = useState(null);
+  const [orgLoading, setOrgLoading] = useState(true);
+
   // Auth context
   const { login, mfaChallenge, setMfaChallenge } = useAuth();
+
+  // ENTERPRISE: Detect organization on mount
+  useEffect(() => {
+    const detectOrganization = async () => {
+      try {
+        setOrgLoading(true);
+        const orgSlug = detectOrganizationFromURL();
+        console.log('🏢 [LOGIN] Detected org slug:', orgSlug);
+
+        // Fetch organization info for display
+        const poolConfig = await getPoolConfigBySlug(orgSlug);
+        setOrganizationInfo({
+          slug: poolConfig.organization_slug,
+          name: poolConfig.organization_name,
+          mfaRequired: poolConfig.mfa_configuration === 'ON'
+        });
+        console.log('🏢 [LOGIN] Organization:', poolConfig.organization_name);
+      } catch (err) {
+        console.warn('🏢 [LOGIN] Could not fetch org info:', err.message);
+        // Continue without org info - will use default
+        setOrganizationInfo(null);
+      } finally {
+        setOrgLoading(false);
+      }
+    };
+
+    detectOrganization();
+  }, []);
 
   // Lockout timer countdown
   useEffect(() => {
@@ -227,8 +260,20 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 px-4">
       <div className="max-w-md w-full">
-        {/* Enterprise Branding */}
+        {/* Enterprise Branding with Organization Context */}
         <div className="text-center mb-8">
+          {/* Organization Name (if detected) */}
+          {organizationInfo && !orgLoading && (
+            <div className="mb-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-800/50 rounded-full">
+                <svg className="w-5 h-5 text-blue-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clipRule="evenodd" />
+                </svg>
+                <span className="text-blue-100 font-medium">{organizationInfo.name}</span>
+              </div>
+            </div>
+          )}
+
           <h1 className="text-4xl font-bold text-white mb-2">OW-KAI Enterprise</h1>
           <p className="text-blue-200">Secure Authentication Portal</p>
           <div className="mt-2 flex items-center justify-center gap-2 text-xs text-blue-300">
@@ -245,6 +290,16 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
             <span>•</span>
             <span>GDPR</span>
           </div>
+
+          {/* MFA Required Indicator */}
+          {organizationInfo?.mfaRequired && (
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-green-600/30 rounded-full text-xs text-green-300">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              MFA Required
+            </div>
+          )}
         </div>
 
         {/* Login Form */}
