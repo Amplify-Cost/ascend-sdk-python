@@ -8,7 +8,7 @@ from database import get_db
 from models import AgentAction, User, AuditLog  # Added AuditLog for enhanced analytics
 from datetime import datetime, timedelta, UTC
 from collections import defaultdict, Counter
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin, get_organization_filter
 from services.pending_actions_service import pending_service
 from services.cloudwatch_service import get_cloudwatch_service  # Phase 2: CloudWatch integration
 from services.ml_prediction_service import get_prediction_engine  # Phase 3: ML predictions
@@ -21,6 +21,10 @@ import os
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 🏢 ENTERPRISE: Multi-Tenant Data Isolation
+# All routes MUST filter by organization_id to ensure tenant isolation
+# Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
 # Phase 2: CloudWatch configuration
 CLOUDWATCH_ENABLED = os.getenv("CLOUDWATCH_ENABLED", "true").lower() == "true"
 ECS_CLUSTER_NAME = os.getenv("ECS_CLUSTER_NAME", "owkai-pilot")
@@ -32,28 +36,31 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
 @router.get("/trends")
 def get_trend_data(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)  
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """✅ ENTERPRISE: Real-time analytics with actual database queries"""
+    """✅ ENTERPRISE: Real-time analytics with actual database queries - filtered by organization"""
     try:
-        logger.info(f"🔄 Enterprise analytics requested by: {current_user.get('email')}")
-        
+        logger.info(f"🔄 Enterprise analytics requested by: {current_user.get('email')} for org_id={org_id}")
+
         from datetime import datetime, timedelta, UTC
         from sqlalchemy import func, and_
-        
+
         now = datetime.now(UTC)
         seven_days_ago = now - timedelta(days=7)
-        
+
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ✅ REAL: High-risk actions by day (last 7 days)
         try:
             daily_actions = db.execute(text("""
                 SELECT DATE(timestamp) as date, COUNT(*) as count
                 FROM agent_actions
                 WHERE timestamp >= :start_date
+                  AND organization_id = :org_id
                   AND risk_level IN ('high', 'critical')
                 GROUP BY DATE(timestamp)
                 ORDER BY DATE(timestamp)
-            """), {"start_date": seven_days_ago}).fetchall()
+            """), {"start_date": seven_days_ago, "org_id": org_id}).fetchall()
             
             high_risk_by_day = [
                 {"date": str(row[0]), "count": row[1]} 
@@ -66,16 +73,17 @@ def get_trend_data(
             logger.warning(f"Daily actions query failed: {e}")
             high_risk_by_day = [{"date": "2025-07-24", "count": 0}]
         
-        # ✅ REAL: Top agents (by action count)
+        # ✅ REAL: Top agents (by action count) - filtered by organization
         try:
             top_agents_query = db.execute(text("""
                 SELECT agent_id, COUNT(*) as count
                 FROM agent_actions
                 WHERE timestamp >= :start_date
+                  AND organization_id = :org_id
                 GROUP BY agent_id
                 ORDER BY count DESC
                 LIMIT 10
-            """), {"start_date": seven_days_ago}).fetchall()
+            """), {"start_date": seven_days_ago, "org_id": org_id}).fetchall()
             
             top_agents = [
                 {"agent": row[0], "count": row[1]} 
@@ -87,17 +95,18 @@ def get_trend_data(
             logger.warning(f"Top agents query failed: {e}")
             top_agents = [{"agent": "No agents", "count": 0}]
         
-        # ✅ REAL: Top tools (by usage count)
+        # ✅ REAL: Top tools (by usage count) - filtered by organization
         try:
             top_tools_query = db.execute(text("""
                 SELECT tool_name, COUNT(*) as count
                 FROM agent_actions
                 WHERE timestamp >= :start_date
+                  AND organization_id = :org_id
                   AND tool_name IS NOT NULL
                 GROUP BY tool_name
                 ORDER BY count DESC
                 LIMIT 10
-            """), {"start_date": seven_days_ago}).fetchall()
+            """), {"start_date": seven_days_ago, "org_id": org_id}).fetchall()
             
             top_tools = [
                 {"tool": row[0], "count": row[1]} 
@@ -109,9 +118,11 @@ def get_trend_data(
             logger.warning(f"Top tools query failed: {e}")
             top_tools = [{"tool": "No tools", "count": 0}]
         
-        # ✅ REAL: Latest enriched actions
+        # ✅ REAL: Latest enriched actions - filtered by organization
         try:
-            actions = db.query(AgentAction).order_by(
+            actions = db.query(AgentAction).filter(
+                AgentAction.organization_id == org_id  # 🏢 ENTERPRISE: Tenant isolation
+            ).order_by(
                 AgentAction.timestamp.desc()
             ).limit(20).all()
             
@@ -132,8 +143,8 @@ def get_trend_data(
             logger.warning(f"Enriched actions query failed: {e}")
             enriched_actions = []
         
-        # Get pending approval count
-        pending_count = pending_service.get_pending_count(db)
+        # Get pending approval count - filtered by organization
+        pending_count = pending_service.get_pending_count(db, org_id=org_id)
         
         result = {
             "high_risk_actions_by_day": high_risk_by_day,
@@ -160,14 +171,17 @@ def get_trend_data(
 @router.get("/debug")
 def debug_enriched_actions(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Original debug endpoint - PRESERVED for enterprise compatibility"""
+    """Original debug endpoint - PRESERVED for enterprise compatibility - filtered by organization"""
     try:
-        logger.info(f"🔄 Debug analytics requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
-        
+        logger.info(f"🔄 Debug analytics requested by: {current_user.get('email')} for org_id={org_id}")
+
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         actions = (
             db.query(AgentAction)
+            .filter(AgentAction.organization_id == org_id)
             .order_by(AgentAction.timestamp.desc())
             .limit(5)
             .all()
@@ -192,28 +206,32 @@ def debug_enriched_actions(
 @router.get("/realtime/metrics")
 def get_realtime_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)  # 🎯 FIX: Removed extra space
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Real-time enterprise metrics with role-based data access"""
+    """Real-time enterprise metrics with role-based data access - filtered by organization"""
     try:
-        logger.info(f"📊 Real-time metrics requested by: {current_user.get('email')}")  # 🎯 FIX: .email -> .get('email')
-        
+        logger.info(f"📊 Real-time metrics requested by: {current_user.get('email')} for org_id={org_id}")
+
         # Get current time for real-time calculations
         now = datetime.now(UTC)
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
-        
+
         # ===== PHASE 1: REAL DATABASE QUERIES (NO FALLBACKS) =====
+        # 🏢 ENTERPRISE: All queries filter by organization_id for tenant isolation
 
         # Real-time active sessions from recent agent actions
         # Note: Using agent actions as proxy for sessions since AuditLog doesn't have timestamp
         active_sessions = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
+            AgentAction.organization_id == org_id,  # 🏢 Tenant isolation
             AgentAction.timestamp >= hour_ago
         ).scalar() or 0
 
         # Recent high-risk actions
         recent_high_risk = db.query(func.count(AgentAction.id)).filter(
             and_(
+                AgentAction.organization_id == org_id,  # 🏢 Tenant isolation
                 AgentAction.timestamp >= hour_ago,
                 AgentAction.risk_level.in_(['high', 'critical'])
             )
@@ -221,16 +239,19 @@ def get_realtime_metrics(
 
         # Active agents in last hour
         active_agents = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
+            AgentAction.organization_id == org_id,  # 🏢 Tenant isolation
             AgentAction.timestamp >= hour_ago
         ).scalar() or 0
 
         # Total actions in last hour
         total_actions = db.query(func.count(AgentAction.id)).filter(
+            AgentAction.organization_id == org_id,  # 🏢 Tenant isolation
             AgentAction.timestamp >= hour_ago
         ).scalar() or 0
 
         # Total actions today
         actions_today = db.query(func.count(AgentAction.id)).filter(
+            AgentAction.organization_id == org_id,  # 🏢 Tenant isolation
             AgentAction.timestamp >= day_ago
         ).scalar() or 0
 

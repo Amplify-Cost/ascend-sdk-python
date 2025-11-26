@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status, UploadFi
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
 from schemas import AgentActionOut, AgentActionCreate
 from datetime import datetime, UTC, timezone
 from llm_utils import generate_summary, generate_smart_rule
@@ -14,11 +14,17 @@ import json
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Agent Actions"])
 
+# 🏢 ENTERPRISE: Multi-Tenant Data Isolation
+# All routes MUST filter by organization_id to ensure tenant isolation
+# Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
 @router.post("/agent-action", response_model=AgentActionOut)
 async def create_agent_action(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),  _=Depends(require_csrf)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """Submit a new agent action for security review - Enterprise-grade with graceful fallback"""
     try:
@@ -101,8 +107,10 @@ async def create_agent_action(
         try:
             # ENTERPRISE FIX: Create AgentAction with valid fields only
             # Note: AgentAction model uses user_id (not created_by)
+            # 🏢 CRITICAL: organization_id is REQUIRED for multi-tenant isolation
             action = AgentAction(
                 user_id=current_user.get("user_id", 1),  # User who created this action
+                organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                 agent_id=data["agent_id"],
                 action_type=data["action_type"],
                 description=data["description"],
@@ -267,8 +275,10 @@ async def create_agent_action(
                         logger.info(f"Alert already exists for action {action.id}: alert_id={alert_id} (skipping duplicate)")
                     else:
                         # ENTERPRISE FIX: Alert model only has 'timestamp', not 'created_at'
+                        # 🏢 CRITICAL: organization_id is REQUIRED for multi-tenant isolation
                         alert = Alert(
                             agent_action_id=action.id,
+                            organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                             alert_type="High Risk Agent Action",
                             severity="high",
                             message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
@@ -312,16 +322,18 @@ async def create_agent_action(
 def list_agent_actions(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     limit: int = 100,
     skip: int = 0
 ):
-    """List agent actions with pagination - Enterprise-grade with bulletproof fallback"""
+    """List agent actions with pagination - Enterprise-grade with tenant isolation"""
     try:
-        # Bulletproof database query with multiple fallback layers
+        # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
-            # First attempt: Try the full query
+            # First attempt: Try the full query with org filter
             actions = (
                 db.query(AgentAction)
+                .filter(AgentAction.organization_id == org_id)  # CRITICAL: Tenant isolation
                 .order_by(AgentAction.timestamp.desc())
                 .offset(skip)
                 .limit(min(limit, 100))
@@ -341,9 +353,9 @@ def list_agent_actions(
         except Exception as db_error:
             logger.warning(f"Database query failed: {db_error}")
             
-            # Second attempt: Try simpler query
+            # Second attempt: Try simpler query with org filter
             try:
-                simple_actions = db.query(AgentAction).limit(10).all()
+                simple_actions = db.query(AgentAction).filter(AgentAction.organization_id == org_id).limit(10).all()
                 if simple_actions:
                     return simple_actions
             except Exception as simple_error:
@@ -467,15 +479,16 @@ def list_agent_actions(
 def get_agent_activity(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     risk: str = None
 ):
-    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with bulletproof fallback"""
+    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with tenant isolation"""
     try:
-        # Bulletproof activity query with enterprise filtering
+        # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
-            print("🔍 DEBUG: Starting agent-activity query", flush=True)
-            logger.info("🔍 DEPLOYMENT DEBUG: Starting agent-activity query")
-            query = db.query(AgentAction).order_by(AgentAction.timestamp.desc())
+            print(f"🔍 DEBUG: Starting agent-activity query for org_id={org_id}", flush=True)
+            logger.info(f"🔍 DEPLOYMENT DEBUG: Starting agent-activity query for org_id={org_id}")
+            query = db.query(AgentAction).filter(AgentAction.organization_id == org_id).order_by(AgentAction.timestamp.desc())
 
             if risk and risk != "all":
                 query = query.filter(AgentAction.risk_level == risk)
@@ -581,15 +594,22 @@ async def approve_agent_action(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Approve an agent action (admin only) - Enterprise audit trail preserved
 
     FIX #2: Now stores approval comments in extra_data field for compliance
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be approved
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only approve their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not action:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -649,15 +669,22 @@ async def reject_agent_action(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Reject an agent action (admin only) - Enterprise audit trail preserved
 
     FIX #2: Now stores rejection reason in extra_data field for compliance
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be rejected
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only reject their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not action:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -720,7 +747,8 @@ async def reject_agent_action(
 async def get_agent_action_by_id(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     FIX #1: Get individual agent action by ID for deep linking and detailed reports.
@@ -731,9 +759,14 @@ async def get_agent_action_by_id(
     - Deep linking: https://pilot.owkai.app/action/736
 
     Returns: Full action details with NIST/MITRE/CVSS mappings
+    🏢 ENTERPRISE: Only returns action if it belongs to user's organization
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only see their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
 
         if not action:
             raise HTTPException(
@@ -816,7 +849,8 @@ async def get_deployed_models(
 async def get_action_status(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     FIX #4: Agent polling endpoint for autonomous workflow.
@@ -826,9 +860,14 @@ async def get_action_status(
     - If rejected: Agent logs denial reason and aborts
 
     Returns: Minimal status info optimized for polling (sub-100ms)
+    🏢 ENTERPRISE: Only returns status if action belongs to user's organization
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only poll their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
 
         if not action:
             raise HTTPException(
@@ -867,11 +906,19 @@ async def get_action_status(
 def mark_false_positive(
     action_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
-    """Mark an agent action as false positive (admin only) - Enterprise audit trail preserved"""
+    """Mark an agent action as false positive (admin only) - Enterprise audit trail preserved
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be marked
+    """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only mark their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not action:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -914,13 +961,18 @@ def mark_false_positive(
 @router.get("/audit-trail")
 def get_audit_trail(
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get audit trail (admin only) - Enterprise compliance feature preserved"""
+    """Get audit trail (admin only) - Enterprise compliance feature preserved
+    🏢 ENTERPRISE: Only returns audit logs for user's organization
+    """
     try:
         try:
+            # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
             logs = (
                 db.query(LogAuditTrail)
+                .filter(LogAuditTrail.organization_id == org_id)  # CRITICAL: Tenant isolation
                 .order_by(LogAuditTrail.timestamp.desc())
                 .limit(100)
                 .all()
@@ -963,11 +1015,18 @@ def get_audit_trail(
 def toggle_false_positive(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Toggle false positive flag on an agent action - Enterprise audit trail"""
+    """Toggle false positive flag on an agent action - Enterprise audit trail
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be toggled
+    """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only toggle their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
 
         if not action:
             raise HTTPException(status_code=404, detail=f"Agent action {action_id} not found")
@@ -1057,9 +1116,12 @@ async def submit_support_request(
 async def upload_agent_actions_json(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Upload agent actions from JSON file - Enterprise bulk import"""
+    """Upload agent actions from JSON file - Enterprise bulk import
+    🏢 ENTERPRISE: All imported actions are scoped to user's organization
+    """
     try:
         # Validate file type
         if not file.filename.endswith('.json'):
@@ -1085,7 +1147,7 @@ async def upload_agent_actions_json(
 
         for idx, action_data in enumerate(actions_data):
             try:
-                # Create agent action
+                # Create agent action - scoped to user's organization
                 action = AgentAction(
                     agent_id=action_data.get("agent_id", "imported"),
                     action_type=action_data.get("action_type", "imported_action"),
@@ -1094,6 +1156,7 @@ async def upload_agent_actions_json(
                     risk_level=action_data.get("risk_level"),
                     status=action_data.get("status", "imported"),
                     user_id=current_user.get("user_id"),
+                    organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                     timestamp=datetime.now(UTC),
                     created_at=datetime.now(UTC),
                     summary=action_data.get("summary"),

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, Alert, Log
 from schemas import AgentActionOut, AlertOut
-from dependencies import get_current_user
+from dependencies import get_current_user, get_organization_filter
 from datetime import datetime
 from typing import List
 import logging
@@ -11,22 +11,30 @@ import logging
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Main"])
 
+# 🏢 ENTERPRISE: Multi-Tenant Data Isolation
+# All routes MUST filter by organization_id to ensure tenant isolation
+# Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
 # ✅ REMOVED DUPLICATE ENDPOINTS - These are now in agent_routes.py and alert_routes.py
 
 @router.get("/logs")
 def get_logs(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     limit: int = 50
 ):
-    """Get application logs"""
+    """Get application logs - filtered by organization"""
     try:
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         logs = (
             db.query(Log)
+            .filter(Log.organization_id == org_id)
             .order_by(Log.timestamp.desc())
             .limit(min(limit, 100))
             .all()
         )
+        logger.info(f"📋 Logs retrieved for org_id={org_id}: {len(logs)} records")
         return logs
     except Exception as e:
         logger.error(f"Failed to get logs: {str(e)}")
@@ -35,28 +43,45 @@ def get_logs(
 @router.get("/security-findings")
 def get_security_findings(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get security findings summary"""
+    """Get security findings summary - filtered by organization"""
     try:
-        # Get total counts
-        total_actions = db.query(AgentAction).count()
-        total_alerts = db.query(Alert).count()
-        
-        # Get risk distribution
-        high_risk = db.query(AgentAction).filter(AgentAction.risk_level == "high").count()
-        medium_risk = db.query(AgentAction).filter(AgentAction.risk_level == "medium").count()
-        low_risk = db.query(AgentAction).filter(AgentAction.risk_level == "low").count()
-        
-        # Get recent high-risk actions
+        # 🏢 ENTERPRISE: All queries filter by organization_id for tenant isolation
+
+        # Get total counts for this organization
+        total_actions = db.query(AgentAction).filter(AgentAction.organization_id == org_id).count()
+        total_alerts = db.query(Alert).filter(Alert.organization_id == org_id).count()
+
+        # Get risk distribution for this organization
+        high_risk = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.risk_level == "high"
+        ).count()
+        medium_risk = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.risk_level == "medium"
+        ).count()
+        low_risk = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.risk_level == "low"
+        ).count()
+
+        # Get recent high-risk actions for this organization
         recent_alerts = (
             db.query(AgentAction)
-            .filter(AgentAction.risk_level == "high")
+            .filter(
+                AgentAction.organization_id == org_id,
+                AgentAction.risk_level == "high"
+            )
             .order_by(AgentAction.timestamp.desc())
             .limit(5)
             .all()
         )
-        
+
+        logger.info(f"🔍 Security findings for org_id={org_id}: {total_actions} actions, {total_alerts} alerts")
+
         return {
             "total_actions": total_actions,
             "total_alerts": total_alerts,
@@ -84,17 +109,19 @@ def get_security_findings(
 @router.post("/debug/seed-test-data")
 def seed_test_data(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Seed test data for development (remove in production)"""
+    """Seed test data for development (remove in production) - organization-scoped"""
     try:
         from models import AgentAction, Alert
         from datetime import datetime, UTC
-        
-        # Create test agent actions
+
+        # 🏢 ENTERPRISE: Create test data scoped to user's organization
         test_actions = [
             AgentAction(
                 user_id=current_user["user_id"],
+                organization_id=org_id,  # CRITICAL: Scope to organization
                 agent_id="test-agent-001",
                 action_type="data_access",
                 description="Agent accessed sensitive customer data",
@@ -111,6 +138,7 @@ def seed_test_data(
             ),
             AgentAction(
                 user_id=current_user["user_id"],
+                organization_id=org_id,  # CRITICAL: Scope to organization
                 agent_id="test-agent-002",
                 action_type="network_scan",
                 description="Agent performed network discovery scan",
@@ -127,6 +155,7 @@ def seed_test_data(
             ),
             AgentAction(
                 user_id=current_user["user_id"],
+                organization_id=org_id,  # CRITICAL: Scope to organization
                 agent_id="test-agent-003",
                 action_type="file_operation",
                 description="Agent performed standard file operations",
@@ -142,15 +171,16 @@ def seed_test_data(
                 status="approved"
             )
         ]
-        
+
         db.add_all(test_actions)
         db.commit()
-        
+
         # Create corresponding alerts for high-risk actions
         for action in test_actions:
             if action.risk_level == "high":
                 alert = Alert(
                     agent_action_id=action.id,
+                    organization_id=org_id,  # CRITICAL: Scope to organization
                     alert_type="High Risk Activity",
                     severity="high",
                     message=f"High-risk activity detected: {action.description}",
@@ -158,12 +188,12 @@ def seed_test_data(
                     timestamp=action.timestamp
                 )
                 db.add(alert)
-        
+
         db.commit()
-        
-        logger.info(f"Test data seeded by {current_user['email']}")
-        return {"message": f"✅ {len(test_actions)} test actions created"}
-    
+
+        logger.info(f"✅ Test data seeded by {current_user['email']} for org_id={org_id}")
+        return {"message": f"✅ {len(test_actions)} test actions created for organization {org_id}"}
+
     except Exception as e:
         logger.error(f"Failed to seed test data: {str(e)}")
         db.rollback()

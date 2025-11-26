@@ -51,32 +51,52 @@ class PendingActionsService:
     # Business rule: Only these statuses need human review
     REQUIRES_APPROVAL_STATUSES = ["pending_approval"]
     
-    def get_pending_count(self, db: Session) -> int:
+    def get_pending_count(self, db: Session, org_id: int = None) -> int:
         """
         Get count of actions requiring human approval
-        
+
+        Args:
+            db: Database session
+            org_id: Organization ID for multi-tenant filtering (optional for backward compatibility)
+
         Returns:
             int: Count of actions in Authorization Center
         """
-        count = db.query(AgentAction).filter(
+        query = db.query(AgentAction).filter(
             AgentAction.status.in_(self.REQUIRES_APPROVAL_STATUSES)
-        ).count()
-        
-        logger.debug(f"Pending approval count: {count}")
+        )
+
+        # 🏢 ENTERPRISE: Filter by organization_id if provided
+        if org_id is not None:
+            query = query.filter(AgentAction.organization_id == org_id)
+
+        count = query.count()
+
+        logger.debug(f"Pending approval count: {count} (org_id={org_id})")
         return count
-    
-    def get_pending_actions(self, db: Session) -> List[AgentAction]:
+
+    def get_pending_actions(self, db: Session, org_id: int = None) -> List[AgentAction]:
         """
         Get all actions requiring human approval
-        
+
+        Args:
+            db: Database session
+            org_id: Organization ID for multi-tenant filtering (optional for backward compatibility)
+
         Returns:
             List[AgentAction]: Actions for Authorization Center
         """
-        actions = db.query(AgentAction).filter(
+        query = db.query(AgentAction).filter(
             AgentAction.status.in_(self.REQUIRES_APPROVAL_STATUSES)
-        ).all()
-        
-        logger.debug(f"Retrieved {len(actions)} pending approval actions")
+        )
+
+        # 🏢 ENTERPRISE: Filter by organization_id if provided
+        if org_id is not None:
+            query = query.filter(AgentAction.organization_id == org_id)
+
+        actions = query.all()
+
+        logger.debug(f"Retrieved {len(actions)} pending approval actions (org_id={org_id})")
         return actions
     
     def explain_status(self, status: str) -> str:

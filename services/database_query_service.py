@@ -51,7 +51,7 @@ class DatabaseQueryService:
     """
 
     @staticmethod
-    def execute_dashboard_metrics(db: Session) -> Dict[str, int]:
+    def execute_dashboard_metrics(db: Session, org_id: int = None) -> Dict[str, int]:
         """
         Execute all dashboard metrics with parameterized queries.
 
@@ -59,6 +59,7 @@ class DatabaseQueryService:
 
         Args:
             db: SQLAlchemy session
+            org_id: Organization ID for multi-tenant filtering (optional for backward compatibility)
 
         Returns:
             Dictionary of metric_name -> count value
@@ -70,6 +71,7 @@ class DatabaseQueryService:
             ✅ All queries use bound parameters (SQL injection safe)
             ✅ Audit logging for compliance
             ✅ Error handling prevents information disclosure
+            🏢 ENTERPRISE: Organization-based tenant isolation
         """
         # Import here to avoid circular dependencies
         try:
@@ -81,31 +83,37 @@ class DatabaseQueryService:
         metrics = {}
         start_time = datetime.now(timezone.utc)
 
+        # 🏢 ENTERPRISE: Build org filter clause for tenant isolation
+        org_filter = " AND organization_id = :org_id" if org_id is not None else ""
+        base_params = {"org_id": org_id} if org_id is not None else {}
+
         # Define metrics with parameterized queries
         # Each query uses :param placeholders for safe parameter binding
         metric_queries = {
             "total_approved": {
-                "query": "SELECT COUNT(*) FROM agent_actions WHERE status = :status",
-                "params": {"status": ActionStatus.APPROVED.value},
+                "query": f"SELECT COUNT(*) FROM agent_actions WHERE status = :status{org_filter}",
+                "params": {**base_params, "status": ActionStatus.APPROVED.value},
                 "description": "Count of approved agent actions"
             },
             "total_executed": {
-                "query": "SELECT COUNT(*) FROM agent_actions WHERE status = :status",
-                "params": {"status": ActionStatus.EXECUTED.value},
+                "query": f"SELECT COUNT(*) FROM agent_actions WHERE status = :status{org_filter}",
+                "params": {**base_params, "status": ActionStatus.EXECUTED.value},
                 "description": "Count of executed agent actions"
             },
             "total_rejected": {
-                "query": "SELECT COUNT(*) FROM agent_actions WHERE status = :status",
-                "params": {"status": ActionStatus.REJECTED.value},
+                "query": f"SELECT COUNT(*) FROM agent_actions WHERE status = :status{org_filter}",
+                "params": {**base_params, "status": ActionStatus.REJECTED.value},
                 "description": "Count of rejected agent actions"
             },
             "high_risk_pending": {
-                "query": """
+                "query": f"""
                     SELECT COUNT(*) FROM agent_actions
                     WHERE status IN (:status1, :status2)
                     AND risk_level IN (:risk1, :risk2)
+                    {org_filter}
                 """,
                 "params": {
+                    **base_params,
                     "status1": ActionStatus.PENDING.value,
                     "status2": ActionStatus.SUBMITTED.value,
                     "risk1": RiskLevel.HIGH.value,
@@ -114,8 +122,8 @@ class DatabaseQueryService:
                 "description": "Count of high-risk pending actions"
             },
             "today_actions": {
-                "query": "SELECT COUNT(*) FROM agent_actions WHERE DATE(created_at) = CURRENT_DATE",
-                "params": {},
+                "query": f"SELECT COUNT(*) FROM agent_actions WHERE DATE(created_at) = CURRENT_DATE{org_filter}",
+                "params": base_params,
                 "description": "Count of actions created today"
             }
         }

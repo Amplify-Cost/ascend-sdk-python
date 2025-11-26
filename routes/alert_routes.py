@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import Alert, AgentAction
 from schemas import AlertOut
-from dependencies import get_current_user, require_csrf
+from dependencies import get_current_user, require_csrf, get_organization_filter
 from datetime import datetime, UTC
 import logging
 import re
@@ -11,14 +11,23 @@ import re
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 🏢 ENTERPRISE: Multi-Tenant Data Isolation
+# All routes MUST filter by organization_id to ensure tenant isolation
+# Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
 # ✅ Enriched /alerts endpoint used by frontend
 @router.get("/")
-def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """Get all alerts with enriched agent action data"""
+def list_alerts(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """Get all alerts with enriched agent action data - filtered by organization"""
     try:
-        # ENTERPRISE FIX: Use LEFT OUTER JOIN to handle NULL agent_actions
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         query = (
             db.query(Alert, AgentAction)
+            .filter(Alert.organization_id == org_id)  # CRITICAL: Tenant isolation
             .outerjoin(AgentAction, Alert.agent_action_id == AgentAction.id)
             .order_by(Alert.timestamp.desc())
             .limit(50)
@@ -72,10 +81,15 @@ def list_alerts(db: Session = Depends(get_db), user: dict = Depends(get_current_
         return []
 
 @router.get("/count")
-def alert_count(db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
-    """Get total count of alerts"""
+def alert_count(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """Get total count of alerts - filtered by organization"""
     try:
-        count = db.query(Alert).count()
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+        count = db.query(Alert).filter(Alert.organization_id == org_id).count()
         return {"count": count}
     except Exception as e:
         logger.error(f"Failed to count alerts: {str(e)}")
@@ -87,9 +101,9 @@ async def update_alert_status(
     request: Request,
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
-
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Update alert status (admin only)"""
+    """Update alert status (admin only) - filtered by organization"""
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Only admin can update alerts")
 
@@ -99,7 +113,11 @@ async def update_alert_status(
         if status not in ["new", "acknowledged", "resolved", "in_review"]:
             raise HTTPException(status_code=400, detail="Invalid status")
 
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only update their org's alerts
+        alert = db.query(Alert).filter(
+            Alert.id == alert_id,
+            Alert.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not alert:
             raise HTTPException(status_code=404, detail="Alert not found")
 
@@ -126,18 +144,19 @@ async def update_alert_status(
 async def create_test_alerts(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     _=Depends(require_csrf)
 ):
-    """Create test alert data (admin only)"""
+    """Create test alert data (admin only) - scoped to organization"""
     if user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Only admin can create test data")
-    
+
     try:
-        # First, get or create some agent actions
-        agent_actions = db.query(AgentAction).limit(5).all()
+        # 🏢 ENTERPRISE: Get agent actions for this organization only
+        agent_actions = db.query(AgentAction).filter(AgentAction.organization_id == org_id).limit(5).all()
         
         if not agent_actions:
-            # Create test agent actions first
+            # 🏢 ENTERPRISE: Create test agent actions scoped to organization
             test_actions = [
                 AgentAction(
                     agent_id="agent-076",
@@ -151,6 +170,7 @@ async def create_test_alerts(
                     mitre_technique="T1041",
                     recommendation="Investigate immediately",
                     status="pending",
+                    organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                     timestamp=datetime.now(UTC)
                 ),
                 AgentAction(
@@ -165,6 +185,7 @@ async def create_test_alerts(
                     mitre_technique="T1078",
                     recommendation="Monitor user account",
                     status="pending",
+                    organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                     timestamp=datetime.now(UTC)
                 )
             ]
@@ -175,12 +196,14 @@ async def create_test_alerts(
             agent_actions = test_actions
         
         # Now create alerts linked to these actions - ✅ FIX: Proper alert creation
+        # 🏢 ENTERPRISE: Alerts scoped to organization
         test_alerts = []
         current_time = datetime.now(UTC)
-        
+
         for i, action in enumerate(agent_actions[:2]):  # Create 2 test alerts
             alert = Alert(
                 agent_action_id=action.id,
+                organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                 alert_type="High Risk Agent Action",
                 severity="high",
                 message=f"Enterprise Alert: Agent {action.agent_id} performed high-risk action: {action.action_type}",  # ✅ FIX: Use action.agent_id

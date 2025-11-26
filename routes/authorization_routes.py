@@ -28,7 +28,7 @@ from enum import Enum
 from database import get_db
 from services.pending_actions_service import pending_service
 from services.database_query_service import DatabaseQueryService
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
 from models_mcp_governance import MCPServer
@@ -485,13 +485,14 @@ class AuthorizationService:
         db: Session,
         risk_filter: Optional[str] = None,
         emergency_only: bool = False,
-        current_user: Dict[str, Any] = None
+        current_user: Dict[str, Any] = None,
+        org_id: int = None
     ) -> Dict[str, Any]:
-        """Get pending actions with enterprise filtering."""
+        """Get pending actions with enterprise filtering - filtered by organization."""
         try:
-            # Build base query with JOINs to assessment tables
+            # 🏢 ENTERPRISE: Base query with organization filter for tenant isolation
             base_query = """
-                SELECT 
+                SELECT
                     aa.id, aa.agent_id, aa.action_type, aa.description, aa.risk_level,
                     COALESCE(ca.base_score * 10, aa.risk_score, 50) as risk_score,
                     aa.target_system, aa.status, aa.created_at, aa.user_id,
@@ -502,11 +503,13 @@ class AuthorizationService:
                 LEFT JOIN nist_control_mappings ncm ON aa.id = ncm.action_id
                 LEFT JOIN mitre_technique_mappings mtm ON aa.id = mtm.action_id
                 WHERE aa.status IN (:pending, :submitted, :pending_approval)
+                  AND aa.organization_id = :org_id
             """
             params = {
                 "pending": ActionStatus.PENDING.value,
                 "submitted": ActionStatus.SUBMITTED.value,
-                "pending_approval": ActionStatus.PENDING_APPROVAL.value
+                "pending_approval": ActionStatus.PENDING_APPROVAL.value,
+                "org_id": org_id  # 🏢 ENTERPRISE: Organization filter for tenant isolation
             }
             
             # Apply filters
@@ -805,10 +808,12 @@ async def get_pending_actions(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get pending actions requiring approval with enhanced filtering."""
-    return AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user)
+    """Get pending actions requiring approval with enhanced filtering - filtered by organization."""
+    # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+    return AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user, org_id=org_id)
 
 
 @router.post("/authorize/{action_id:path}")
@@ -816,9 +821,12 @@ async def authorize_action(
     action_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
+    # 🏢 ENTERPRISE: Verify action belongs to user's organization
+    # This is enforced in AuthorizationService.authorize_action
     """
     🏢 ENTERPRISE: Authorize action with comprehensive audit and execution.
 
@@ -863,18 +871,20 @@ async def authorize_action_with_audit(
 @router.get("/dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get comprehensive approval dashboard with KPIs."""
+    """Get comprehensive approval dashboard with KPIs - filtered by organization."""
     try:
         # ✅ SECURITY FIX: Use DatabaseQueryService with parameterized queries
         # Replaces vulnerable f-string SQL (lines 863-866)
         # See: audit-results/PRE_IMPLEMENTATION_AUDIT.md
         # Created by: OW-kai Engineer (SQL Injection Remediation - Phase 1)
-        metrics = DatabaseQueryService.execute_dashboard_metrics(db)
-        
-        # ✅ ENTERPRISE: Use pending_service for consistent count
-        metrics["total_pending"] = pending_service.get_pending_count(db)
+        # 🏢 ENTERPRISE: Pass org_id for tenant isolation
+        metrics = DatabaseQueryService.execute_dashboard_metrics(db, org_id=org_id)
+
+        # ✅ ENTERPRISE: Use pending_service for consistent count - filtered by org
+        metrics["total_pending"] = pending_service.get_pending_count(db, org_id=org_id)
         
         # Recent activity
         try:
