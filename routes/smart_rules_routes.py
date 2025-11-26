@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from models import SmartRule
 from schemas import SmartRuleOut, SmartRuleOutEnhanced
 from database import get_db
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
 from llm_utils import generate_smart_rule
 from datetime import datetime, timedelta, timezone, UTC 
 import logging
@@ -24,20 +24,30 @@ router = APIRouter(tags=["Enterprise Smart Rules"])
 enterprise_ab_tests_storage: Dict[str, Dict[str, Any]] = {}
 
 # 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - FIXED
-@router.get("", response_model=list[SmartRuleOutEnhanced]) 
+@router.get("", response_model=list[SmartRuleOutEnhanced])
 def list_smart_rules(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """📋 ENTERPRISE: List all smart rules with performance analytics - RAW SQL VERSION"""
     try:
-        # Use raw SQL to query only existing columns
-        result = db.execute(text("""
-            SELECT id, agent_id, action_type, description, condition, action,
-                   risk_level, recommendation, justification, created_at, name
-            FROM smart_rules
-            ORDER BY created_at DESC
-        """)).fetchall()
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+        if org_id is not None:
+            result = db.execute(text("""
+                SELECT id, agent_id, action_type, description, condition, action,
+                       risk_level, recommendation, justification, created_at, name
+                FROM smart_rules
+                WHERE organization_id = :org_id
+                ORDER BY created_at DESC
+            """), {"org_id": org_id}).fetchall()
+        else:
+            result = db.execute(text("""
+                SELECT id, agent_id, action_type, description, condition, action,
+                       risk_level, recommendation, justification, created_at, name
+                FROM smart_rules
+                ORDER BY created_at DESC
+            """)).fetchall()
         
         # Convert raw SQL results to enhanced rules
         enhanced_rules = []

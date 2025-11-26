@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, or_, desc
 from database import get_db
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import json
@@ -56,30 +56,50 @@ class AuditLogRequest(BaseModel):
 @router.get("/users")
 async def get_all_users(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get all users with enterprise data"""
+    """Get all users with enterprise data - filtered by organization"""
     try:
-        logger.info(f"🔄 Enterprise users requested by: {current_user.get('email', 'unknown')}")
-        
-        # Query users with enhanced enterprise fields
-        query = text("""
-            SELECT 
-                id, email, role,
-                COALESCE(first_name, 'Unknown') as first_name,
-                COALESCE(last_name, 'User') as last_name,
-                COALESCE(department, 'Unassigned') as department,
-                COALESCE(access_level, 'Level 1 - Basic') as access_level,
-                COALESCE(mfa_enabled, false) as mfa_enabled,
-                COALESCE(login_attempts, 0) as login_attempts,
-                COALESCE(last_login, created_at) as last_login,
-                COALESCE(status, 'Active') as status,
-                created_at
-            FROM users 
-            ORDER BY created_at DESC
-        """)
-        
-        result = db.execute(query)
+        logger.info(f"🔄 Enterprise users requested by: {current_user.get('email', 'unknown')} for org_id={org_id}")
+
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+        if org_id is not None:
+            query = text("""
+                SELECT
+                    id, email, role,
+                    COALESCE(first_name, 'Unknown') as first_name,
+                    COALESCE(last_name, 'User') as last_name,
+                    COALESCE(department, 'Unassigned') as department,
+                    COALESCE(access_level, 'Level 1 - Basic') as access_level,
+                    COALESCE(mfa_enabled, false) as mfa_enabled,
+                    COALESCE(login_attempts, 0) as login_attempts,
+                    COALESCE(last_login, created_at) as last_login,
+                    COALESCE(status, 'Active') as status,
+                    created_at
+                FROM users
+                WHERE organization_id = :org_id
+                ORDER BY created_at DESC
+            """)
+            result = db.execute(query, {"org_id": org_id}).fetchall()
+        else:
+            query = text("""
+                SELECT
+                    id, email, role,
+                    COALESCE(first_name, 'Unknown') as first_name,
+                    COALESCE(last_name, 'User') as last_name,
+                    COALESCE(department, 'Unassigned') as department,
+                    COALESCE(access_level, 'Level 1 - Basic') as access_level,
+                    COALESCE(mfa_enabled, false) as mfa_enabled,
+                    COALESCE(login_attempts, 0) as login_attempts,
+                    COALESCE(last_login, created_at) as last_login,
+                    COALESCE(status, 'Active') as status,
+                    created_at
+                FROM users
+                ORDER BY created_at DESC
+            """)
+            result = db.execute(query).fetchall()
+
         users = []
         
         for row in result:
