@@ -183,7 +183,7 @@ class Rule(Base):
 
 class SmartRule(Base):
     __tablename__ = "smart_rules"
-    
+
     # ENTERPRISE CORE COLUMNS - Only columns that exist in database
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(String, index=True)
@@ -195,10 +195,13 @@ class SmartRule(Base):
     recommendation = Column(Text)
     justification = Column(Text)
     created_at = Column(DateTime, default=datetime.now(UTC))
-    
+
     # THESE TWO WERE ADDED DURING DATABASE FIXES
     name = Column(String)
     updated_at = Column(DateTime)
+
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
 class RuleFeedback(Base):
     __tablename__ = "rule_feedbacks"
