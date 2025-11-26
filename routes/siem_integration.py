@@ -300,25 +300,19 @@ async def get_threat_intelligence_from_siem(
         logger.info(f"🔄 Threat intelligence requested for agent {intel_request.agent_id} by {current_user.get('email', 'unknown')}")
         
         if not siem_manager.active_connector:
-            # Return demo threat intelligence if no SIEM configured
+            # 🏢 ENTERPRISE: NO demo data - return empty response when SIEM not configured
+            # Compliance: Multi-tenant isolation - no cross-tenant data leakage
             return {
-                "status": "demo_mode",
+                "status": "not_configured",
+                "message": "SIEM integration not configured. Configure SIEM to enable threat intelligence.",
                 "agent_id": intel_request.agent_id,
                 "time_period_hours": intel_request.hours,
-                "total_events": 15,
-                "high_risk_events": 3,
-                "threat_indicators": [
-                    "Agent shows elevated activity patterns",
-                    "Multiple high-risk actions in short timeframe",
-                    "Actions outside normal business hours"
-                ],
-                "recommendations": [
-                    "Consider additional oversight for this agent",
-                    "Review recent action patterns",
-                    "Implement enhanced monitoring"
-                ],
-                "threat_score": 65,
-                "confidence_level": 87
+                "total_events": 0,
+                "high_risk_events": 0,
+                "threat_indicators": [],
+                "recommendations": [],
+                "threat_score": 0,
+                "confidence_level": 0
             }
         
         # Get real threat intelligence from SIEM
@@ -345,30 +339,15 @@ async def query_siem_events(
         logger.info(f"🔄 SIEM query requested by {current_user.get('email', 'unknown')}: {query}")
         
         if not siem_manager.active_connector:
-            # Return demo events if no SIEM configured
+            # 🏢 ENTERPRISE: NO demo data - return empty response when SIEM not configured
+            # Compliance: Multi-tenant isolation - no cross-tenant data leakage
             return {
-                "status": "demo_mode",
+                "status": "not_configured",
+                "message": "SIEM integration not configured. Configure SIEM to query events.",
                 "query": query,
                 "time_range_hours": hours,
-                "events": [
-                    {
-                        "event_id": "demo-001",
-                        "timestamp": (datetime.now(UTC) - timedelta(hours=2)).isoformat(),
-                        "agent_id": "security-scanner-01",
-                        "action_type": "vulnerability_scan",
-                        "risk_score": 75,
-                        "status": "completed"
-                    },
-                    {
-                        "event_id": "demo-002", 
-                        "timestamp": (datetime.now(UTC) - timedelta(hours=4)).isoformat(),
-                        "agent_id": "compliance-agent",
-                        "action_type": "compliance_check",
-                        "risk_score": 55,
-                        "status": "approved"
-                    }
-                ],
-                "total_events": 2
+                "events": [],
+                "total_events": 0
             }
         
         # Query real SIEM

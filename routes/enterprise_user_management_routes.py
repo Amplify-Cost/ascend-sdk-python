@@ -678,30 +678,46 @@ async def get_audit_logs(
     action: Optional[str] = None,
     risk_level: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get audit trail logs"""
+    """
+    Get audit trail logs - filtered by organization
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
+    """
     try:
-        logger.info(f"🔄 Audit logs requested by: {current_user.get('email', 'unknown')}")
-        
-        # Build dynamic query with filters
-        where_conditions = []
-        query_params = {"limit": limit}
-        
+        logger.info(f"🔄 Audit logs requested by: {current_user.get('email', 'unknown')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for audit logs request")
+            return {
+                "logs": [],
+                "total_count": 0,
+                "filters_applied": {}
+            }
+
+        # Build dynamic query with filters - ALWAYS include org_id filter
+        # 🏢 ENTERPRISE: CRITICAL - Always filter by organization_id for tenant isolation
+        where_conditions = ["organization_id = :org_id"]
+        query_params = {"limit": limit, "org_id": org_id}
+
         if user_email:
             where_conditions.append("user_email ILIKE :user_email")
             query_params["user_email"] = f"%{user_email}%"
-        
+
         if action:
             where_conditions.append("action = :action")
             query_params["action"] = action
-        
+
         if risk_level:
             where_conditions.append("risk_level = :risk_level")
             query_params["risk_level"] = risk_level
-        
-        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-        
+
+        where_clause = "WHERE " + " AND ".join(where_conditions)
+
         audit_query = text(f"""
             SELECT user_email, action, target, details, ip_address, risk_level, timestamp
             FROM user_audit_logs
@@ -709,10 +725,10 @@ async def get_audit_logs(
             ORDER BY timestamp DESC
             LIMIT :limit
         """)
-        
+
         result = db.execute(audit_query, query_params)
         logs = []
-        
+
         for row in result:
             logs.append({
                 "user_email": row.user_email,
@@ -723,13 +739,9 @@ async def get_audit_logs(
                 "risk_level": row.risk_level,
                 "timestamp": row.timestamp.isoformat() if row.timestamp else None
             })
-        
-        # If no logs found, return demo data
-        if not logs:
-            logs = get_demo_audit_logs()
-            logger.info("🔄 Using demo audit logs")
-        
-        logger.info(f"✅ Returning {len(logs)} audit logs")
+
+        # 🏢 ENTERPRISE: NO demo data fallback - return empty list for new organizations
+        logger.info(f"✅ Returning {len(logs)} audit logs for org_id={org_id}")
         return {
             "logs": logs,
             "total_count": len(logs),
@@ -739,12 +751,13 @@ async def get_audit_logs(
                 "risk_level": risk_level
             }
         }
-        
+
     except Exception as e:
         logger.error(f"❌ Error fetching audit logs: {e}")
+        # 🏢 ENTERPRISE: Return empty data on error - NO demo data
         return {
-            "logs": get_demo_audit_logs(),
-            "total_count": 50,
+            "logs": [],
+            "total_count": 0,
             "filters_applied": {}
         }
 
@@ -1034,59 +1047,40 @@ async def log_audit_action(db: Session, user_email: str, action: str, target: st
         logger.error(f"❌ Error logging audit action: {e}")
 
 def get_demo_audit_logs() -> List[Dict]:
-    """Demo audit logs"""
-    return [
-        {
-            "user_email": "admin@company.com",
-            "action": "USER_CREATE",
-            "target": "john.doe@company.com",
-            "details": "Created user John Doe in IT Department",
-            "ip_address": "192.168.1.100",
-            "risk_level": "Medium",
-            "timestamp": (datetime.now() - timedelta(hours=2)).isoformat()
-        },
-        {
-            "user_email": "manager@company.com",
-            "action": "ROLE_UPDATE",
-            "target": "jane.smith@company.com",
-            "details": "Updated user role from Level 2 to Level 3",
-            "ip_address": "192.168.1.101",
-            "risk_level": "High",
-            "timestamp": (datetime.now() - timedelta(hours=4)).isoformat()
-        }
-    ]
+    """
+    🏢 ENTERPRISE: Empty audit logs fallback - NO hardcoded demo values
+
+    Returns empty list when no audit logs exist to prevent cross-tenant data leakage.
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
+    """
+    return []
 
 def get_demo_analytics() -> Dict[str, Any]:
-    """Demo analytics data - fallback when real data unavailable"""
+    """
+    🏢 ENTERPRISE: Empty analytics fallback - NO hardcoded demo values
+
+    Returns zeros when real data unavailable to prevent cross-tenant data leakage.
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
+    """
     return {
         "user_statistics": {
-            "total_users": 150,
-            "active_users": 142,
-            "inactive_users": 8,
-            "mfa_enabled": 135,
-            "high_risk_users": 3,
-            "mfa_percentage": 90.0,  # 135/150 = 90%
-            "risk_percentage": 2.0    # 3/150 = 2%
+            "total_users": 0,
+            "active_users": 0,
+            "inactive_users": 0,
+            "mfa_enabled": 0,
+            "high_risk_users": 0,
+            "mfa_percentage": 0.0,
+            "risk_percentage": 0.0
         },
-        "department_distribution": [
-            {"department": "IT", "count": 45},
-            {"department": "Finance", "count": 32},
-            {"department": "HR", "count": 28},
-            {"department": "Operations", "count": 25},
-            {"department": "Unassigned", "count": 20}
-        ],
-        "role_distribution": [
-            {"role": "user", "count": 98},
-            {"role": "manager", "count": 35},
-            {"role": "admin", "count": 17}
-        ],
+        "department_distribution": [],
+        "role_distribution": [],
         "compliance_metrics": {
-            "sox_compliance": 94.5,
-            "hipaa_compliance": 97.2,
-            "pci_compliance": 91.8,
-            "iso27001_compliance": 89.3
+            "sox_compliance": 0.0,
+            "hipaa_compliance": 0.0,
+            "pci_compliance": 0.0,
+            "iso27001_compliance": 0.0
         },
-        "security_score": 92.5
+        "security_score": 0.0
     }
 
 def calculate_compliance_metrics(stats_result) -> Dict[str, float]:

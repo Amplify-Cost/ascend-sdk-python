@@ -267,11 +267,13 @@ async def get_rule_analytics(
             accuracy_improvement = f"{'+' if trends[0] > 0 else ''}{int(trends[0])}%"
             response_improvement = f"{'+' if trends[1] > 0 else ''}{int(trends[1])}%"
         else:
-            accuracy_improvement = "+12%"
-            response_improvement = "-25%"
+            # 🏢 ENTERPRISE: No hardcoded demo values - return zeros for new organizations
+            accuracy_improvement = "+0%"
+            response_improvement = "+0%"
 
         # Calculate FP reduction from rate
-        fp_reduction = f"-{int(false_positive_rate * 0.35)}%" if false_positive_rate > 0 else "-35%"
+        # 🏢 ENTERPRISE: No hardcoded demo values - return 0% for new organizations
+        fp_reduction = f"-{int(false_positive_rate * 0.35)}%" if false_positive_rate > 0 else "+0%"
 
         # ============================================================================
         # QUERY 5: ML Insights from Real Data
@@ -367,13 +369,14 @@ async def get_rule_analytics(
         logger.error(f"❌ Analytics calculation failed: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        # Return minimal fallback
+        # 🏢 ENTERPRISE: Return zeros for error case - NO hardcoded demo values
+        # Compliance: Multi-tenant isolation - no cross-tenant data leakage
         return {
             "total_rules": total_rules if 'total_rules' in locals() else 0,
             "active_rules": total_rules if 'total_rules' in locals() else 0,
-            "avg_performance_score": 88.0,
+            "avg_performance_score": 0.0,
             "total_triggers_24h": 0,
-            "false_positive_rate": 5.0,
+            "false_positive_rate": 0.0,
             "top_performing_rules": [],
             "performance_trends": {
                 "accuracy_improvement": "+0%",
@@ -381,16 +384,16 @@ async def get_rule_analytics(
                 "false_positive_reduction": "+0%"
             },
             "ml_insights": {
-                "pattern_recognition_accuracy": 88,
+                "pattern_recognition_accuracy": 0,
                 "events_analyzed": 0,
                 "new_patterns_identified": 0,
-                "prediction_confidence": 88
+                "prediction_confidence": 0
             },
             "enterprise_metrics": {
                 "cost_savings_monthly": "$0",
                 "incidents_prevented": 0,
                 "automation_rate": "0%",
-                "compliance_score": "94%"
+                "compliance_score": "0%"
             }
         }
 
@@ -554,123 +557,10 @@ async def get_ab_tests(
 
             real_tests.append(test_data)
 
-        # Add demo tests for reference (marked with [DEMO])
-        # Use high IDs to prevent collision with real database IDs
-        demo_tests = [
-            {
-                "id": 999001,
-                "test_id": "demo-enterprise-001",
-                "rule_id": 12,
-                "test_name": "[DEMO] Data Exfiltration Detection Optimization",
-                "description": "Example: Testing AI-enhanced detection vs current rule",
-                "variant_a": "Current rule: file_access > 100 AND time = 'after_hours'",
-                "variant_b": "AI-optimized: ML_pattern_detection + context_analysis",
-                "variant_a_performance": 78,
-                "variant_b_performance": 94,
-                "confidence_level": 95,
-                "status": "completed",
-                "created_by": current_user.get("email", "enterprise-system"),
-                "created_at": "2025-08-16T20:30:00Z",
-                "completed_at": "2025-08-16T22:30:00Z",
-                "progress_percentage": 100,
-                "winner": "variant_b",
-                "statistical_significance": "high",
-                "improvement": "+20.5% accuracy improvement",
-                "sample_size": 2847,
-                "traffic_split": 50,
-                "duration_hours": 48,
-                "enterprise_insights": {
-                    "cost_savings": "$18,500/month in reduced false positives",
-                    "false_positive_reduction": "31% fewer false alerts",
-                    "efficiency_gain": "+16 hours/week saved for security team",
-                    "recommendation": "✅ Deploy Variant B - Significant performance improvement confirmed"
-                },
-                "results": {
-                    "threat_detection_rate": {"variant_a": "78%", "variant_b": "94%"},
-                    "false_positive_rate": {"variant_a": "12%", "variant_b": "3.2%"},
-                    "response_time": {"variant_a": "2.4s", "variant_b": "1.1s"}
-                }
-            },
-            {
-                "id": 999002,
-                "test_id": "demo-enterprise-002",
-                "rule_id": 11,
-                "test_name": "[DEMO] Privilege Escalation Alert Tuning",
-                "description": "Example: Reducing false positives while maintaining detection accuracy",
-                "variant_a": "Current rule: sudo_attempts > 3 AND user_type = 'standard'", 
-                "variant_b": "Enhanced rule: ML_behavior_analysis + time_context + user_history",
-                "variant_a_performance": 71,
-                "variant_b_performance": 89,
-                "confidence_level": 92,
-                "status": "running",
-                "created_by": current_user.get("email", "enterprise-system"),
-                "created_at": "2025-08-16T18:00:00Z",
-                "progress_percentage": 75,
-                "winner": None,
-                "statistical_significance": "medium",
-                "improvement": "+25.4% pending confirmation",
-                "sample_size": 1456,
-                "traffic_split": 50,
-                "duration_hours": 72,
-                "enterprise_insights": {
-                    "cost_savings": "$12,300/month projected savings",
-                    "false_positive_reduction": "42% reduction projected", 
-                    "efficiency_gain": "+12 hours/week projected",
-                    "recommendation": "🔄 Test in progress - Strong positive indicators"
-                },
-                "results": {
-                    "threat_detection_rate": {"variant_a": "71%", "variant_b": "89%"},
-                    "false_positive_rate": {"variant_a": "18%", "variant_b": "7.8%"},
-                    "response_time": {"variant_a": "3.1s", "variant_b": "1.8s"}
-                }
-            },
-            {
-                "id": 999003,
-                "test_id": "demo-enterprise-003",
-                "rule_id": 7,
-                "test_name": "[DEMO] Network Anomaly Detection Enhancement",
-                "description": "Example: AI-powered network pattern analysis vs signature-based detection",
-                "variant_a": "Signature-based: known_attack_patterns AND traffic_volume > threshold",
-                "variant_b": "AI-enhanced: neural_network_analysis + behavioral_baseline + geo_context",
-                "variant_a_performance": 82,
-                "variant_b_performance": 91,
-                "confidence_level": 88,
-                "status": "running",
-                "created_by": current_user.get("email", "enterprise-system"),
-                "created_at": "2025-08-16T21:15:00Z", 
-                "progress_percentage": 35,
-                "winner": None,
-                "statistical_significance": "low",
-                "improvement": "+10.2% early indicator",
-                "sample_size": 634,
-                "traffic_split": 50,
-                "duration_hours": 96,
-                "enterprise_insights": {
-                    "cost_savings": "$8,900/month projected",
-                    "false_positive_reduction": "23% reduction expected",
-                    "efficiency_gain": "+8 hours/week estimated", 
-                    "recommendation": "⏳ Early stage - Monitor for 48 more hours"
-                },
-                "results": {
-                    "threat_detection_rate": {"variant_a": "82%", "variant_b": "91%"},
-                    "false_positive_rate": {"variant_a": "9.2%", "variant_b": "5.1%"},
-                    "response_time": {"variant_a": "1.9s", "variant_b": "1.4s"}
-                }
-            }
-        ]
-
-        # ENTERPRISE: Only show 1 demo test when there are NO real tests (for onboarding)
-        # Once users create real tests, hide all demos
-        if len(real_tests) == 0:
-            # Show only the first demo as an example
-            all_tests = [demo_tests[0]]
-            logger.info(f"✅ ENTERPRISE: No real tests yet - showing 1 demo example for onboarding")
-        else:
-            # User has real tests - show only real data
-            all_tests = real_tests
-            logger.info(f"✅ ENTERPRISE: Returned {len(real_tests)} real tests (no demos - user has real data)")
-
-        return all_tests
+        # 🏢 ENTERPRISE: NO demo data - only return real organization tests
+        # Compliance: Multi-tenant isolation - no cross-tenant data leakage
+        logger.info(f"✅ ENTERPRISE: Returned {len(real_tests)} real tests for org_id={org_id}")
+        return real_tests
 
     except Exception as e:
         logger.error(f"❌ ENTERPRISE: A/B tests retrieval error: {e}")
