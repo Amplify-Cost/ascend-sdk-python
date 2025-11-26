@@ -371,28 +371,46 @@ def get_realtime_metrics(
 @router.get("/predictive/trends")
 def get_predictive_trends(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     ===== PHASE 3: ML-Powered Predictive Analytics =====
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
 
     Provides intelligent forecasting, anomaly detection, and strategic recommendations.
     Works with limited data using pattern recognition and statistical analysis.
     """
     try:
-        logger.info(f"🔮 Predictive analytics requested by: {current_user.get('email')}")
+        logger.info(f"🔮 Predictive analytics requested by: {current_user.get('email')} [org_id={org_id}]")
 
-        # Check how much historical data we have
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for predictive analytics request")
+            return {
+                "status": "no_data",
+                "message": "Organization context required for predictive analytics",
+                "data_collection": {"days_collected": 0, "total_actions": 0},
+                "timestamp": datetime.now(UTC).isoformat()
+            }
+
+        # Check how much historical data we have for THIS ORGANIZATION
         thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
 
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         historical_count = db.execute(text("""
             SELECT COUNT(DISTINCT DATE(timestamp)) as days_with_data
             FROM agent_actions
             WHERE timestamp >= :start_date
-        """), {"start_date": thirty_days_ago}).scalar() or 0
+            AND organization_id = :org_id
+        """), {"start_date": thirty_days_ago, "org_id": org_id}).scalar() or 0
 
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         total_actions = db.query(func.count(AgentAction.id)).filter(
-            AgentAction.timestamp >= thirty_days_ago
+            AgentAction.timestamp >= thirty_days_ago,
+            AgentAction.organization_id == org_id
         ).scalar() or 0
 
         # ===== PHASE 3: SMART PREDICTIONS =====
@@ -524,34 +542,59 @@ def get_predictive_trends(
 @router.get("/executive/dashboard")
 def get_executive_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Executive-level KPI dashboard with real database metrics"""
+    """
+    Executive-level KPI dashboard with real database metrics
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+    """
     try:
-        logger.info(f"📈 Executive dashboard requested by: {current_user.get('email')}")
+        logger.info(f"📈 Executive dashboard requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for executive dashboard request")
+            return {
+                "report_date": datetime.now(UTC).isoformat(),
+                "executive_summary": {
+                    "overall_health": "no_data",
+                    "key_achievements": ["Organization context required"],
+                    "areas_of_focus": ["Configure organization settings"],
+                    "data_quality": "no_organization_context"
+                },
+                "meta": {"mock_data": False, "has_activity": False}
+            }
 
         now = datetime.now(UTC)
         last_week = now - timedelta(days=7)
         last_month = now - timedelta(days=30)
 
-        # ===== REAL DATABASE QUERIES =====
+        # ===== REAL DATABASE QUERIES - FILTERED BY ORGANIZATION =====
+
+        # 🏢 ENTERPRISE: All queries filter by organization_id for tenant isolation
 
         # 1. Platform Health - Based on system performance and action success rates
         total_actions_month = db.query(func.count(AgentAction.id)).filter(
-            AgentAction.timestamp >= last_month
+            AgentAction.timestamp >= last_month,
+            AgentAction.organization_id == org_id
         ).scalar() or 0
 
         successful_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.status == 'completed'
+                AgentAction.status == 'completed',
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
         failed_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.status == 'failed'
+                AgentAction.status == 'failed',
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
@@ -577,24 +620,28 @@ def get_executive_dashboard(
             health_trend = "unknown"
 
         # 2. Security Posture - Based on risk levels
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         critical_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.risk_level == 'critical'
+                AgentAction.risk_level == 'critical',
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
         high_risk_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.risk_level == 'high'
+                AgentAction.risk_level == 'high',
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
         medium_risk_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.risk_level == 'medium'
+                AgentAction.risk_level == 'medium',
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
@@ -616,25 +663,30 @@ def get_executive_dashboard(
             security_trend = "no_data"
 
         # 3. Operational Efficiency - Based on approval rates and processing times
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         pending_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.status == 'pending'
+                AgentAction.status == 'pending',
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
         approved_actions = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.approved == True
+                AgentAction.approved == True,
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
         # Automation rate: approved / total actions requiring approval
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         actions_requiring_approval = db.query(func.count(AgentAction.id)).filter(
             and_(
                 AgentAction.timestamp >= last_month,
-                AgentAction.requires_approval == True
+                AgentAction.requires_approval == True,
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
@@ -649,10 +701,12 @@ def get_executive_dashboard(
         manual_interventions = pending_actions
 
         # 4. Compliance Status - Based on audit logs and governance
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         compliance_actions = db.query(func.count(AuditLog.id)).filter(
             and_(
                 AuditLog.timestamp >= last_month,
-                AuditLog.action.in_(['APPROVE', 'DENY', 'REVIEW'])
+                AuditLog.action.in_(['APPROVE', 'DENY', 'REVIEW']),
+                AuditLog.organization_id == org_id
             )
         ).scalar() or 0
 
@@ -660,7 +714,8 @@ def get_executive_dashboard(
             and_(
                 AgentAction.timestamp >= last_month,
                 AgentAction.risk_level.in_(['high', 'critical']),
-                AgentAction.reviewed_at.is_(None)
+                AgentAction.reviewed_at.is_(None),
+                AgentAction.organization_id == org_id
             )
         ).scalar() or 0
 
@@ -676,20 +731,26 @@ def get_executive_dashboard(
         pending_reviews = pending_actions
 
         # 5. User Growth - Real user counts
-        total_users = db.query(func.count(User.id)).scalar() or 0
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+        total_users = db.query(func.count(User.id)).filter(
+            User.organization_id == org_id
+        ).scalar() or 0
 
         active_users_month = db.query(func.count(func.distinct(User.id))).filter(
-            User.last_login >= last_month
+            User.last_login >= last_month,
+            User.organization_id == org_id
         ).scalar() or 0
 
         users_last_week = db.query(func.count(User.id)).filter(
-            User.created_at >= last_week
+            User.created_at >= last_week,
+            User.organization_id == org_id
         ).scalar() or 0
 
         users_previous_week = db.query(func.count(User.id)).filter(
             and_(
                 User.created_at >= last_week - timedelta(days=7),
-                User.created_at < last_week
+                User.created_at < last_week,
+                User.organization_id == org_id
             )
         ).scalar() or 0
 
@@ -705,14 +766,16 @@ def get_executive_dashboard(
         avg_actions_per_day = round(total_actions_month / 30, 1) if total_actions_month > 0 else 0
 
         # Get peak day usage
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         peak_day_usage = db.execute(text("""
             SELECT COUNT(*) as count
             FROM agent_actions
             WHERE timestamp >= :start_date
+            AND organization_id = :org_id
             GROUP BY DATE(timestamp)
             ORDER BY count DESC
             LIMIT 1
-        """), {"start_date": last_month}).scalar() or 0
+        """), {"start_date": last_month, "org_id": org_id}).scalar() or 0
 
         # Efficiency score based on approval throughput
         if actions_requiring_approval > 0:

@@ -517,80 +517,15 @@ def get_agent_activity(
                 logger.info(f"🔍 DEPLOYMENT DEBUG: Returning {len(actions)} real actions from database")
                 return actions
             else:
-                print("🔍 DEBUG: No actions found - returning demo data", flush=True)
-                logger.warning("🔍 DEPLOYMENT DEBUG: No actions found in database - falling back to demo data")
-                raise Exception("No activity data")
+                # 🏢 ENTERPRISE: No demo data - return empty list for new organizations
+                # This is correct behavior for tenant isolation - new orgs have no activity
+                logger.info(f"🏢 ENTERPRISE: No agent activity found for org_id={org_id} - returning empty list")
+                return []
 
         except Exception as db_error:
-            print(f"🔍 DEBUG: Exception caught: {type(db_error).__name__}: {db_error}", flush=True)
-            logger.error(f"🔍 DEPLOYMENT DEBUG: Activity query failed with error: {db_error}", exc_info=True)
-            logger.warning(f"Activity query failed: {db_error}")
-            
-            # Enterprise-grade activity demonstration data
-            current_time = datetime.now(timezone.utc)
-            
-            sample_activities = [
-                {
-                    "id": 2001,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "incident-response-orchestrator",
-                    "action_type": "automated_incident_response",
-                    "description": "Enterprise SOAR platform automated response to security incident IR-2025-CRIT-001",
-                    "tool_name": "enterprise-soar-platform",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0040",
-                    "mitre_technique": "T1562",
-                    "nist_control": "IR-4",
-                    "nist_description": "Incident Response - Enterprise automated response",
-                    "recommendation": "Incident containment measures deployed - manual verification required",
-                    "summary": "Automated incident response successfully isolated compromised endpoint and initiated threat hunting procedures",
-                    "status": "in_progress",
-                    "approved": True
-                },
-                {
-                    "id": 2002,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "network-segmentation-analyzer",
-                    "action_type": "micro_segmentation_analysis",
-                    "description": "Enterprise network micro-segmentation analysis identifying lateral movement risks and policy violations",
-                    "tool_name": "enterprise-network-analyzer",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0008",
-                    "mitre_technique": "T1021",
-                    "nist_control": "SC-7",
-                    "nist_description": "Boundary Protection - Enterprise network segmentation",
-                    "recommendation": "Implement additional micro-segmentation rules for identified high-risk network paths",
-                    "summary": "Network analysis identified 8 high-risk lateral movement paths requiring additional segmentation controls",
-                    "status": "pending",
-                    "approved": False
-                },
-                {
-                    "id": 2003,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "cloud-security-posture-scanner",
-                    "action_type": "multi_cloud_security_assessment",
-                    "description": "Enterprise multi-cloud security posture assessment across AWS, Azure, and GCP environments",
-                    "tool_name": "enterprise-cspm-scanner",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "low",
-                    "mitre_tactic": "TA0001",
-                    "mitre_technique": "T1078.004",
-                    "nist_control": "RA-3",
-                    "nist_description": "Risk Assessment - Enterprise cloud security",
-                    "recommendation": "Cloud security posture within acceptable parameters - continue monitoring",
-                    "summary": "Multi-cloud security assessment completed - all environments compliant with enterprise security baseline",
-                    "status": "approved",
-                    "approved": True
-                }
-            ]
-            
-            # Apply risk filter to demonstration data
-            if risk and risk != "all":
-                sample_activities = [a for a in sample_activities if a["risk_level"] == risk]
-                
-            return sample_activities
+            # 🏢 ENTERPRISE: Log error but return empty list - no demo data
+            logger.error(f"🏢 ENTERPRISE: Activity query failed for org_id={org_id}: {db_error}")
+            return []
             
     except Exception as e:
         logger.error(f"Critical error in get_agent_activity: {str(e)}")

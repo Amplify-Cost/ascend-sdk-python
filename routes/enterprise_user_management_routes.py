@@ -755,13 +755,31 @@ async def get_audit_logs(
 @router.get("/analytics")
 async def get_user_analytics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get comprehensive user analytics"""
+    """
+    Get comprehensive user analytics
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+    """
     try:
-        logger.info(f"🔄 Analytics requested by: {current_user.get('email', 'unknown')}")
-        
+        logger.info(f"🔄 Analytics requested by: {current_user.get('email', 'unknown')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for user analytics request")
+            return {
+                "user_statistics": {"total_users": 0, "active_users": 0, "inactive_users": 0, "mfa_enabled": 0, "high_risk_users": 0},
+                "department_distribution": [],
+                "role_distribution": [],
+                "compliance_metrics": {},
+                "security_score": 0
+            }
+
         # User statistics - USING ACTUAL DATABASE SCHEMA
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         user_stats_query = text("""
             SELECT
                 COUNT(*) as total_users,
@@ -769,9 +787,10 @@ async def get_user_analytics(
                 COUNT(*) FILTER (WHERE is_active = false) as inactive_users,
                 COUNT(*) FILTER (WHERE role = 'admin') as admin_users
             FROM users
+            WHERE organization_id = :org_id
         """)
 
-        stats_result = db.execute(user_stats_query).fetchone()
+        stats_result = db.execute(user_stats_query, {"org_id": org_id}).fetchone()
 
         # Calculate MFA and risk based on actual user count (industry assumptions)
         if stats_result and stats_result.total_users > 0:
@@ -789,15 +808,17 @@ async def get_user_analytics(
             risk_percentage = 0.0
 
         # Role distribution (department doesn't exist in schema)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         role_query = text("""
             SELECT role, COUNT(*) as count
             FROM users
             WHERE is_active = true
+            AND organization_id = :org_id
             GROUP BY role
             ORDER BY count DESC
         """)
 
-        role_result = db.execute(role_query)
+        role_result = db.execute(role_query, {"org_id": org_id})
         role_stats = [{"role": row.role, "count": row.count} for row in role_result]
 
         # Generate department distribution based on roles
@@ -1197,21 +1218,34 @@ async def generate_enterprise_report(
 @router.get("/reports/library")
 async def get_enterprise_reports_library(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 Get enterprise reports library using existing data"""
+    """
+    🏢 Get enterprise reports library using existing data
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+    """
     try:
-        logger.info(f"🔄 Reports library requested by: {current_user.get('email')}")
-        
+        logger.info(f"🔄 Reports library requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for reports library request")
+            return {"reports": [], "summary": {"total_reports": 0, "compliance_reports": 0, "confidential_reports": 0}}
+
         # Try to get stored reports first
         try:
+            # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
             reports_query = text("""
                 SELECT id, title, type, classification, status, format, file_size,
                        author, department, description, created_at, download_count
-                FROM enterprise_reports 
+                FROM enterprise_reports
+                WHERE organization_id = :org_id
                 ORDER BY created_at DESC
             """)
-            result = db.execute(reports_query)
+            result = db.execute(reports_query, {"org_id": org_id})
             stored_reports = []
             
             for row in result:

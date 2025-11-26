@@ -1735,59 +1735,84 @@ async def monitor_mcp_server_health(
 @api_router.get("/metrics/approval-performance", response_model=Dict[str, Any])
 async def get_approval_performance_metrics(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Enterprise approval performance analytics endpoint
-    
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
     Provides critical metrics for:
     - SOX compliance reporting
-    - SLA performance tracking  
+    - SLA performance tracking
     - Operational efficiency analysis
     - Capacity planning insights
     """
     try:
-#    logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
-        
+        logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for performance metrics request")
+            return {
+                "avg_approval_time_minutes": 0,
+                "sla_compliance_percentage": 0,
+                "total_processed_actions": 0,
+                "approver_performance": [],
+                "bottlenecks": [],
+                "enterprise_analytics": {"sox_compliance_ready": False, "audit_trail_complete": False},
+                "message": "Organization context required for metrics"
+            }
+
         # Calculate average approval time (minutes)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         avg_time_result = db.execute(text("""
             SELECT AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at))/60) as avg_minutes
-            FROM agent_actions 
+            FROM agent_actions
             WHERE reviewed_at IS NOT NULL AND status != 'pending'
-        """)).fetchone()
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
         avg_approval_time = round(avg_time_result[0] if avg_time_result[0] else 0, 2)
-        
+
         # SLA compliance calculation (actions approved within 30 minutes)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         sla_compliance_result = db.execute(text("""
-            SELECT 
-                COUNT(CASE WHEN EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 <= 30 THEN 1 END) * 100.0 / 
+            SELECT
+                COUNT(CASE WHEN EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 <= 30 THEN 1 END) * 100.0 /
                 NULLIF(COUNT(*), 0) as sla_percentage
-            FROM agent_actions 
+            FROM agent_actions
             WHERE reviewed_at IS NOT NULL
-        """)).fetchone()
-        
-        sla_compliance = round(sla_compliance_result[0] if sla_compliance_result[0] else 96.8, 1)
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
+        sla_compliance = round(sla_compliance_result[0] if sla_compliance_result[0] else 0, 1)
+
         # Total processed actions
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         total_processed_result = db.execute(text("""
             SELECT COUNT(*) FROM agent_actions WHERE status != 'pending'
-        """)).fetchone()
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
         total_processed = total_processed_result[0] if total_processed_result else 0
-        
+
         # Approver performance breakdown
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         approver_performance_result = db.execute(text("""
-            SELECT 
+            SELECT
                 reviewed_by,
                 COUNT(*) as total_reviews,
                 AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at))/60) as avg_time_minutes
-            FROM agent_actions 
-            WHERE reviewed_by IS NOT NULL 
+            FROM agent_actions
+            WHERE reviewed_by IS NOT NULL
+            AND organization_id = :org_id
             GROUP BY reviewed_by
             ORDER BY total_reviews DESC
-        """)).fetchall()
-        
+        """), {"org_id": org_id}).fetchall()
+
         approver_performance = [
             {
                 "approver": row[0],
@@ -1796,16 +1821,18 @@ async def get_approval_performance_metrics(
             }
             for row in approver_performance_result
         ]
-        
+
         # Performance bottlenecks (actions taking > 60 minutes)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         bottlenecks_result = db.execute(text("""
             SELECT action_type, COUNT(*) as delayed_count
-            FROM agent_actions 
+            FROM agent_actions
             WHERE EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 > 60
+            AND organization_id = :org_id
             GROUP BY action_type
             ORDER BY delayed_count DESC
-        """)).fetchall()
-        
+        """), {"org_id": org_id}).fetchall()
+
         bottlenecks = [
             {"action_type": row[0], "delayed_count": row[1]}
             for row in bottlenecks_result

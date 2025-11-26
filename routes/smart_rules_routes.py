@@ -85,21 +85,45 @@ def list_smart_rules(
 @router.get("/analytics")
 async def get_rule_analytics(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """📊 ENTERPRISE: Real rule performance analytics calculated from alerts and actions"""
+    """
+    📊 ENTERPRISE: Real rule performance analytics calculated from alerts and actions
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+    """
     try:
+        logger.info(f"📊 Rule analytics requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for rule analytics request")
+            return {
+                "total_rules": 0,
+                "active_rules": 0,
+                "performance_score": 0,
+                "triggers_24h": 0,
+                "false_positive_rate": 0,
+                "top_performing_rules": [],
+                "trends": {"accuracy_improvement": "0%", "response_improvement": "0%"},
+                "message": "Organization context required for analytics"
+            }
+
         # ============================================================================
-        # QUERY 1: Basic Rule Counts
+        # QUERY 1: Basic Rule Counts - FILTERED BY ORGANIZATION
         # ============================================================================
-        result = db.execute(text("SELECT COUNT(*) FROM smart_rules")).fetchone()
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+        result = db.execute(text("SELECT COUNT(*) FROM smart_rules WHERE organization_id = :org_id"), {"org_id": org_id}).fetchone()
         total_rules = result[0] if result else 0
 
-        logger.info(f"📊 Found {total_rules} total smart rules")
+        logger.info(f"📊 Found {total_rules} total smart rules for org_id={org_id}")
 
         # ============================================================================
         # QUERY 2: Calculate Performance from REAL Alerts
         # Match alerts to rules by checking if rule name appears in alert message
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         perf_metrics = db.execute(text("""
             WITH rule_performance AS (
@@ -120,7 +144,9 @@ async def get_rule_analytics(
                     OR a.message LIKE '%' || sr.name || '%'
                 )
                 AND a.timestamp >= NOW() - INTERVAL '24 hours'
+                AND a.organization_id = :org_id
                 WHERE sr.name IS NOT NULL AND sr.name != ''
+                AND sr.organization_id = :org_id
                 GROUP BY sr.id, sr.name
             )
             SELECT
@@ -134,7 +160,7 @@ async def get_rule_analytics(
                     THEN (false_positives::float / triggers * 100)
                     ELSE 0 END) as fp_rate
             FROM rule_performance
-        """)).fetchone()
+        """), {"org_id": org_id}).fetchone()
 
         total_triggers_24h = int(perf_metrics[0] or 0) if perf_metrics else 0
         avg_performance_score = round(float(perf_metrics[1] or 88.0), 1) if perf_metrics else 88.0
@@ -144,6 +170,7 @@ async def get_rule_analytics(
 
         # ============================================================================
         # QUERY 3: Top Performing Rules (highest escalation rate = best detection)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         top_rules = db.execute(text("""
             WITH rule_stats AS (
@@ -162,7 +189,9 @@ async def get_rule_analytics(
                     OR a.message LIKE '%' || sr.name || '%'
                 )
                 AND a.timestamp >= NOW() - INTERVAL '7 days'
+                AND a.organization_id = :org_id
                 WHERE sr.name IS NOT NULL AND sr.name != ''
+                AND sr.organization_id = :org_id
                 GROUP BY sr.id, sr.name, sr.risk_level
             )
             SELECT id, name, performance_score, risk_level
@@ -170,7 +199,7 @@ async def get_rule_analytics(
             WHERE triggers > 0
             ORDER BY performance_score DESC, triggers DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         top_performing_rules = [
             {
@@ -184,6 +213,7 @@ async def get_rule_analytics(
 
         # ============================================================================
         # QUERY 4: Performance Trends (this month vs last month)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         trends = db.execute(text("""
             WITH this_month AS (
@@ -199,6 +229,8 @@ async def get_rule_analytics(
                 )
                 WHERE a.timestamp >= DATE_TRUNC('month', NOW())
                   AND sr.name IS NOT NULL
+                  AND a.organization_id = :org_id
+                  AND sr.organization_id = :org_id
             ),
             last_month AS (
                 SELECT
@@ -214,6 +246,8 @@ async def get_rule_analytics(
                 WHERE a.timestamp >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
                   AND a.timestamp < DATE_TRUNC('month', NOW())
                   AND sr.name IS NOT NULL
+                  AND a.organization_id = :org_id
+                  AND sr.organization_id = :org_id
             )
             SELECT
                 -- Accuracy improvement
@@ -227,7 +261,7 @@ async def get_rule_analytics(
                 tm.total_alerts as current_month_alerts,
                 lm.total_alerts as last_month_alerts
             FROM this_month tm, last_month lm
-        """)).fetchone()
+        """), {"org_id": org_id}).fetchone()
 
         if trends and trends[0] is not None:
             accuracy_improvement = f"{'+' if trends[0] > 0 else ''}{int(trends[0])}%"
@@ -364,17 +398,28 @@ async def get_rule_analytics(
 @router.get("/ab-tests")
 async def get_ab_tests(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get all A/B tests with real performance data from database
+    """
+    Get all A/B tests with real performance data from database
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
 
     Returns both user-created tests and demo examples (marked [DEMO]).
     Performance metrics calculated from actual alerts in database.
     """
     try:
-        logger.info(f"📊 Fetching A/B tests for user: {current_user.get('email')}")
+        logger.info(f"📊 Fetching A/B tests for user: {current_user.get('email')} [org_id={org_id}]")
 
-        # Query all A/B tests from database
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for A/B tests request")
+            return []
+
+        # Query all A/B tests from database - FILTERED BY ORGANIZATION
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         tests_query = db.execute(text("""
             SELECT
                 t.id, t.test_id, t.test_name, t.description,
@@ -392,8 +437,9 @@ async def get_ab_tests(
             FROM ab_tests t
             LEFT JOIN smart_rules ra ON t.variant_a_rule_id = ra.id
             LEFT JOIN smart_rules rb ON t.variant_b_rule_id = rb.id
+            WHERE t.organization_id = :org_id
             ORDER BY t.created_at DESC
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         real_tests = []
         for test in tests_query:
@@ -1288,14 +1334,28 @@ async def setup_ab_testing_table_smart_rules(
 @router.get("/suggestions")
 async def get_ml_rule_suggestions(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """💡 ENTERPRISE: Machine learning analysis of security patterns to suggest new rules"""
+    """
+    💡 ENTERPRISE: Machine learning analysis of security patterns to suggest new rules
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+    """
     try:
+        logger.info(f"💡 ML suggestions requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for ML suggestions request")
+            return []
+
         suggestions = []
 
         # ============================================================================
         # QUERY 1: Gap Analysis - High-volume alert types without dedicated rules
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         gap_analysis = db.execute(text("""
             SELECT
@@ -1314,17 +1374,19 @@ async def get_ml_rule_suggestions(
                 AVG(EXTRACT(EPOCH FROM (a.acknowledged_at - a.timestamp))/60) as avg_response_time
             FROM alerts a
             WHERE a.timestamp >= NOW() - INTERVAL '30 days'
-              -- Exclude alert types that already have smart rules
+              AND a.organization_id = :org_id
+              -- Exclude alert types that already have smart rules for this organization
               AND a.alert_type NOT IN (
                   SELECT DISTINCT LOWER(REPLACE(name, ' ', '_'))
                   FROM smart_rules
                   WHERE name IS NOT NULL AND name != ''
+                  AND organization_id = :org_id
               )
             GROUP BY a.alert_type
             HAVING COUNT(*) >= 10  -- Minimum 10 occurrences for pattern validity
             ORDER BY occurrence_count DESC, escalation_rate DESC
             LIMIT 10
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Gap analysis found {len(gap_analysis)} alert patterns without rules")
 
@@ -1382,6 +1444,7 @@ async def get_ml_rule_suggestions(
 
         # ============================================================================
         # QUERY 2: Temporal Patterns - Peak hours requiring enhanced monitoring
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         temporal_patterns = db.execute(text("""
             WITH hourly_stats AS (
@@ -1394,6 +1457,7 @@ async def get_ml_rule_suggestions(
                         NULLIF(COUNT(*), 0) * 100 as escalation_rate
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
+                AND organization_id = :org_id
                 GROUP BY EXTRACT(HOUR FROM timestamp)
             ),
             avg_hourly AS (
@@ -1408,7 +1472,7 @@ async def get_ml_rule_suggestions(
             WHERE hs.alert_count > ah.avg_count * 1.5  -- 50% above average
             ORDER BY hs.alert_count DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Temporal analysis found {len(temporal_patterns)} peak hour patterns")
 
@@ -1443,6 +1507,7 @@ async def get_ml_rule_suggestions(
 
         # ============================================================================
         # QUERY 3: Agent Behavior Patterns - Agents generating high FP rates
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         agent_patterns = db.execute(text("""
             SELECT
@@ -1456,6 +1521,7 @@ async def get_ml_rule_suggestions(
             FROM alerts a
             WHERE a.timestamp >= NOW() - INTERVAL '30 days'
               AND a.agent_id IS NOT NULL
+              AND a.organization_id = :org_id
             GROUP BY a.agent_id
             HAVING COUNT(*) >= 15
                AND COUNT(CASE WHEN a.escalated_at IS NULL AND a.acknowledged_at IS NOT NULL
@@ -1463,7 +1529,7 @@ async def get_ml_rule_suggestions(
                          THEN 1 END)::float / NULLIF(COUNT(*), 0) * 100 > 20  -- >20% FP rate
             ORDER BY fp_rate DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Agent analysis found {len(agent_patterns)} agents needing tuning")
 
@@ -1496,6 +1562,7 @@ async def get_ml_rule_suggestions(
 
         # ============================================================================
         # QUERY 4: Repetitive Manual Actions - Automation opportunities
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         # ============================================================================
         manual_patterns = db.execute(text("""
             SELECT
@@ -1506,13 +1573,14 @@ async def get_ml_rule_suggestions(
             FROM agent_actions aa
             WHERE aa.created_at >= NOW() - INTERVAL '30 days'
               AND aa.status IN ('approved', 'rejected')
+              AND aa.organization_id = :org_id
             GROUP BY aa.action_type
             HAVING COUNT(*) >= 10
                AND COUNT(CASE WHEN aa.status = 'approved' THEN 1 END)::float /
                    NULLIF(COUNT(*), 0) * 100 > 80  -- >80% approval rate
             ORDER BY occurrence_count DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Found {len(manual_patterns)} automation opportunities")
 
