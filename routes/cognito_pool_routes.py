@@ -328,48 +328,41 @@ async def get_pool_config_by_email(
 
                 return config
 
-        # Strategy 2: Check if email domain matches organization
+        # Strategy 2: Check if email domain matches organization via email_domains column
         # This is a fallback for new users not yet in database
         email_domain = email.split('@')[-1].lower()
 
-        # Check for common organization email patterns
-        # Example: admin@owkai.com -> owai-internal
-        # This mapping should be configured per deployment
-        domain_to_slug_mapping = {
-            'owkai.com': 'owai-internal',
-            'owkai.app': 'owai-internal',
-            # Add more mappings as needed
-        }
+        # ENTERPRISE: Dynamic email domain lookup via database
+        # Uses PostgreSQL ARRAY contains operator for efficient lookup
+        from sqlalchemy import any_
 
-        if email_domain in domain_to_slug_mapping:
-            org_slug = domain_to_slug_mapping[email_domain]
-            org = db.query(Organization).filter(
-                Organization.slug == org_slug
-            ).first()
+        org = db.query(Organization).filter(
+            email_domain == any_(Organization.email_domains)
+        ).first()
 
-            if org:
-                logger.info(f"✅ Found organization from email domain mapping: {org.slug}")
+        if org:
+            logger.info(f"✅ Found organization from email domain database lookup: {org.slug}")
 
-                if not org.cognito_user_pool_id or org.cognito_pool_status != 'active':
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Your organization's authentication is not configured. "
-                               "Please contact your administrator."
-                    )
+            if not org.cognito_user_pool_id or org.cognito_pool_status != 'active':
+                raise HTTPException(
+                    status_code=400,
+                    detail="Your organization's authentication is not configured. "
+                           "Please contact your administrator."
+                )
 
-                config = {
-                    "user_pool_id": org.cognito_user_pool_id,
-                    "app_client_id": org.cognito_app_client_id,
-                    "region": org.cognito_region or 'us-east-2',
-                    "domain": org.cognito_domain,
-                    "organization_id": org.id,
-                    "organization_name": org.name,
-                    "organization_slug": org.slug,
-                    "mfa_configuration": org.cognito_mfa_configuration or 'OPTIONAL',
-                    "advanced_security": org.cognito_advanced_security or False
-                }
+            config = {
+                "user_pool_id": org.cognito_user_pool_id,
+                "app_client_id": org.cognito_app_client_id,
+                "region": org.cognito_region or 'us-east-2',
+                "domain": org.cognito_domain,
+                "organization_id": org.id,
+                "organization_name": org.name,
+                "organization_slug": org.slug,
+                "mfa_configuration": org.cognito_mfa_configuration or 'OPTIONAL',
+                "advanced_security": org.cognito_advanced_security or False
+            }
 
-                return config
+            return config
 
         # Not found
         logger.warning(f"⚠️  Could not determine organization for email domain: {email_domain}")

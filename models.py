@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, func, JSON, Float
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime, UTC, timedelta
@@ -845,6 +846,11 @@ class Organization(Base):
     cognito_mfa_configuration = Column(String(50), nullable=True, default='OPTIONAL')  # OFF, OPTIONAL, ON
     cognito_password_policy = Column(JSONB, nullable=True)
     cognito_advanced_security = Column(Boolean, nullable=True, default=False)
+
+    # PHASE 4: Multi-Tenant Email Domain Mapping
+    # Maps email domains to organizations for automatic org detection
+    # Example: ['acme.com', 'acme.net'] -> Acme Corp organization
+    email_domains = Column(postgresql.ARRAY(String(255)), nullable=True)
 
     # Relationships
     users = relationship("User", back_populates="organization")
