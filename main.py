@@ -879,14 +879,33 @@ async def get_ai_insights(
         raise HTTPException(status_code=500, detail=f"Failed to generate AI insights: {str(e)}")
 
 @app.get("/api/alerts/performance-metrics")
-async def get_ai_performance_metrics(current_user: dict = Depends(get_current_user)):
-    """📊 ENTERPRISE: AI alert management performance analytics with real data"""
+async def get_ai_performance_metrics(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """📊 ENTERPRISE: AI alert management performance analytics with real data
+    🏢 ENTERPRISE: All queries filter by organization_id for multi-tenant isolation
+    """
     try:
         db: Session = next(get_db())
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for performance-metrics request by {current_user.get('email')}")
+            return {
+                "alert_processing": {"total_processed": 0, "high_severity": 0, "medium_severity": 0, "false_positive_rate": 0, "avg_mttr": 0, "accuracy": 0},
+                "ai_response": {"total_responses": 0, "approved": 0, "auto_approved": 0, "automation_rate": 0, "accuracy": 0},
+                "threat_detection": {"patterns_identified": 0, "real_threats": 0, "correlation_rate": 0, "intel_matches": 0},
+                "operational_efficiency": {"time_saved_minutes": 0, "cost_savings": 0, "escalation_rate": 0, "sla_compliance": 0},
+                "monthly_comparison": {"current_alerts": 0, "previous_alerts": 0, "volume_change": 0, "mttr_change": 0}
+            }
+
+        logger.info(f"📊 Performance metrics requested by: {current_user.get('email')} [org_id={org_id}]")
 
         try:
             # ============================================================================
             # QUERY 1: Comprehensive Alert Processing Metrics (30 days)
+            # 🏢 ENTERPRISE: Filter by organization_id
             # ============================================================================
             alert_processing = db.execute(text("""
                 SELECT
@@ -911,10 +930,12 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                         as processing_accuracy
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+                AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
             # ============================================================================
             # QUERY 2: AI Response Metrics (30 days)
+            # 🏢 ENTERPRISE: Filter by organization_id
             # ============================================================================
             ai_response = db.execute(text("""
                 SELECT
@@ -929,10 +950,12 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                         NULLIF(COUNT(*), 0)::float * 100 as response_accuracy
                 FROM agent_actions
                 WHERE created_at >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+                AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
             # ============================================================================
             # QUERY 3: Threat Detection Patterns (30 days)
+            # 🏢 ENTERPRISE: Filter by organization_id
             # ============================================================================
             threat_detection = db.execute(text("""
                 SELECT
@@ -947,14 +970,16 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                     -- Threat intel matches: high severity with MITRE mappings
                     COUNT(CASE WHEN severity IN ('high', 'critical')
                                AND agent_action_id IN (
-                                   SELECT id FROM agent_actions WHERE mitre_tactic IS NOT NULL
+                                   SELECT id FROM agent_actions WHERE mitre_tactic IS NOT NULL AND organization_id = :org_id
                                ) THEN 1 END) as intel_matches
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+                AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
             # ============================================================================
             # QUERY 4: Operational Efficiency (30 days)
+            # 🏢 ENTERPRISE: Filter by organization_id
             # ============================================================================
             operational = db.execute(text("""
                 SELECT
@@ -980,10 +1005,12 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                         as sla_compliance
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+                AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
             # ============================================================================
             # QUERY 5: Monthly Comparison (this month vs last month)
+            # 🏢 ENTERPRISE: Filter by organization_id
             # ============================================================================
             monthly_comparison = db.execute(text("""
                 WITH this_month AS (
@@ -993,6 +1020,7 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                             FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
                     FROM alerts
                     WHERE timestamp >= DATE_TRUNC('month', NOW())
+                    AND organization_id = :org_id
                 ),
                 last_month AS (
                     SELECT
@@ -1002,6 +1030,7 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                     FROM alerts
                     WHERE timestamp >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
                       AND timestamp < DATE_TRUNC('month', NOW())
+                      AND organization_id = :org_id
                 )
                 SELECT
                     tm.alert_count as current_month_alerts,
@@ -1017,7 +1046,7 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                          THEN ((tm.avg_mttr - lm.avg_mttr) / lm.avg_mttr * 100)
                          ELSE 0 END as mttr_change_pct
                 FROM this_month tm, last_month lm
-            """)).fetchone()
+            """), {"org_id": org_id}).fetchone()
 
             # ============================================================================
             # Parse Results with Safe Defaults
@@ -3769,26 +3798,42 @@ metrics_storage = {
 # MOVED: ai-insights endpoint moved before router registration
 
 @app.post("/api/alerts/correlate")
-async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get_current_user)):
-    """🔗 ENTERPRISE: AI-powered alert correlation engine"""
+async def correlate_alerts_ai(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """🔗 ENTERPRISE: AI-powered alert correlation engine
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
+    """
     try:
         data = await request.json()
         alert_ids = data.get("alert_ids", [])
-        
+
         if not alert_ids:
             raise HTTPException(status_code=400, detail="No alert IDs provided for correlation")
-        
+
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for alert correlation by {current_user.get('email')}")
+            raise HTTPException(status_code=403, detail="Organization context required")
+
         db: Session = next(get_db())
-        
+
         try:
-            # Get alert details for correlation
-            placeholders = ','.join(['%s'] * len(alert_ids))
+            # Get alert details for correlation - 🏢 ENTERPRISE: Filter by org_id
+            placeholders = ','.join([':id' + str(i) for i in range(len(alert_ids))])
+            params = {"org_id": org_id}
+            for i, aid in enumerate(alert_ids):
+                params[f'id{i}'] = aid
+
             correlation_query = db.execute(text(f"""
                 SELECT id, alert_type, severity, agent_id, tool_name, timestamp, message
-                FROM alerts 
+                FROM alerts
                 WHERE id IN ({placeholders})
+                AND organization_id = :org_id
                 ORDER BY timestamp DESC
-            """), alert_ids).fetchall()
+            """), params).fetchall()
             
             alert_details = []
             for row in correlation_query:
