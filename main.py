@@ -516,14 +516,40 @@ async def get_threat_intelligence(current_user: dict = Depends(get_current_user)
 @app.get("/api/alerts/ai-insights")
 async def get_ai_insights(
     current_user: dict = Depends(get_current_user),  # ✅ Auth first
-    db: Session = Depends(get_db)                     # ✅ DB second (Phase 2 enterprise)
+    db: Session = Depends(get_db),                    # ✅ DB second (Phase 2 enterprise)
+    org_id: int = Depends(get_organization_filter)    # 🏢 ENTERPRISE: Multi-tenant isolation
 ):
-    """🤖 ENTERPRISE: AI-powered alert insights with real data analysis"""
+    """🤖 ENTERPRISE: AI-powered alert insights with real data analysis
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
+    """
     try:
         # === PHASE 2: ENTERPRISE ERROR HANDLING ===
         # FastAPI dependency injection manages db session lifecycle
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for AI insights request by {current_user.get('email')}")
+            return {
+                "threat_summary": {
+                    "total_alerts": 0,
+                    "active_alerts": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                    "detection_rate": 0,
+                    "false_positive_rate": 0
+                },
+                "recommendations": [],
+                "patterns": [],
+                "meta": {"mock_data": False, "has_activity": False, "error": "Organization context required"}
+            }
+
+        logger.info(f"🤖 AI insights requested by: {current_user.get('email')} [org_id={org_id}]")
+
         try:
             # === PHASE 1A: REAL DATA QUERIES ===
+            # 🏢 ENTERPRISE: All queries filter by organization_id for tenant isolation
 
             # Query 1: Comprehensive alert metrics (30 days)
             alert_stats = db.execute(text("""
@@ -543,7 +569,8 @@ async def get_ai_insights(
                         as escalation_rate
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+                AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
             # Query 2: Temporal pattern detection (peak hour)
             hourly_pattern = db.execute(text("""
@@ -552,10 +579,11 @@ async def get_ai_insights(
                     COUNT(*) as alert_count
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
+                AND organization_id = :org_id
                 GROUP BY EXTRACT(HOUR FROM timestamp)
                 ORDER BY alert_count DESC
                 LIMIT 1
-            """)).fetchone()
+            """), {"org_id": org_id}).fetchone()
 
             # Query 3: Agent behavior profiling
             agent_stats = db.execute(text("""
@@ -568,10 +596,11 @@ async def get_ai_insights(
                 FROM alerts
                 WHERE agent_id IS NOT NULL
                   AND timestamp >= NOW() - INTERVAL '30 days'
+                  AND organization_id = :org_id
                 GROUP BY agent_id
                 ORDER BY alert_count DESC
                 LIMIT 5
-            """)).fetchall()
+            """), {"org_id": org_id}).fetchall()
 
             # Query 4: Automation opportunity detection
             automation_candidates = db.execute(text("""
@@ -582,12 +611,13 @@ async def get_ai_insights(
                 FROM alerts
                 WHERE acknowledged_at IS NOT NULL
                   AND timestamp >= NOW() - INTERVAL '30 days'
+                  AND organization_id = :org_id
                 GROUP BY alert_type
                 HAVING COUNT(*) >= 5
                   AND COUNT(CASE WHEN escalated_at IS NULL THEN 1 END) = COUNT(*)
                 ORDER BY occurrence_count DESC
                 LIMIT 3
-            """)).fetchall()
+            """), {"org_id": org_id}).fetchall()
 
             # Query 5: Weekly trend comparison
             weekly_comparison = db.execute(text("""
@@ -597,17 +627,19 @@ async def get_ai_insights(
                              AND timestamp < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as last_week
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '14 days'
-            """)).fetchone()
+                AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
             # Query 6: Alert type patterns for pattern detection
             alert_patterns = db.execute(text("""
                 SELECT alert_type, severity, COUNT(*) as count
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
+                AND organization_id = :org_id
                 GROUP BY alert_type, severity
                 ORDER BY count DESC
                 LIMIT 3
-            """)).fetchall()
+            """), {"org_id": org_id}).fetchall()
 
         except Exception as db_error:
             logger.warning(f"AI insights query failed: {db_error}")
