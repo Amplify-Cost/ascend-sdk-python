@@ -9,7 +9,7 @@ from services.immutable_audit_service import ImmutableAuditService
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
-from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin
+from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin, get_organization_filter
 from models import User, AgentAction, EnterprisePolicy  # REMOVED AuditLog - replaced with ImmutableAuditService
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, UTC
@@ -69,7 +69,8 @@ async def create_unified_action(
     action_data: Dict[str, Any],
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Complete unified endpoint with full enterprise flow
@@ -162,7 +163,9 @@ async def create_unified_action(
                 cvss_score=enrichment.get("cvss_score"),
                 cvss_severity=enrichment.get("cvss_severity"),
                 cvss_vector=enrichment.get("cvss_vector"),
-                risk_score=enrichment.get("cvss_score") * 10 if enrichment.get("cvss_score") else None
+                risk_score=enrichment.get("cvss_score") * 10 if enrichment.get("cvss_score") else None,
+                # 🏢 ENTERPRISE: Multi-tenant isolation
+                organization_id=org_id
             )
 
             db.add(action)
@@ -336,7 +339,9 @@ async def create_unified_action(
                 risk_level=enrichment["risk_level"],
                 request_id=f"unified-{int(time.time())}",  # 🏢 FIX: Add required field
                 session_id=action_data.get("context", {}).get("session_id", f"session-{int(time.time())}"),  # 🏢 FIX
-                client_id=f"unified-{current_user.get('user_id', 1)}"  # 🏢 FIX: Add required field
+                client_id=f"unified-{current_user.get('user_id', 1)}",  # 🏢 FIX: Add required field
+                # 🏢 ENTERPRISE: Multi-tenant isolation
+                organization_id=org_id
             )
             db.add(mcp_action)
             db.commit()
@@ -477,58 +482,83 @@ async def create_unified_action(
 @router.get("/unified-stats")
 async def get_unified_governance_stats(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Get unified governance statistics for agents and MCP servers
     Uses your existing AgentAction model with enhanced MCP support
     """
     try:
-        logger.info(f"🏢 Fetching unified governance stats for user {current_user.get('email', 'unknown')}")
-        
+        logger.info(f"🏢 Fetching unified governance stats for user {current_user.get('email', 'unknown')} [org_id={org_id}]")
+
         # Get total actions from your existing AgentAction table
-        total_actions = db.query(AgentAction).count()
-        
+        query = db.query(AgentAction)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AgentAction.organization_id == org_id)
+        total_actions = query.count()
+
         # 🔥 ENTERPRISE FIX: Count pending workflows, not agent_actions
         # Since we're using workflow orchestration, count workflow_executions
         from models import WorkflowExecution
-        
+
         # Count actual pending actions from AgentAction table
-        pending_actions = db.query(AgentAction).filter(
+        pending_query = db.query(AgentAction).filter(
             AgentAction.status.in_(["pending", "pending_approval"])
-        ).count()
-        
+        )
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            pending_query = pending_query.filter(AgentAction.organization_id == org_id)
+        pending_actions = pending_query.count()
+
           # Use workflow count for dashboard
-        
+
         # 🔌 NEW: Identify MCP actions by checking for MCP-specific data
-        mcp_actions = db.query(AgentAction).filter(
+        mcp_query = db.query(AgentAction).filter(
             or_(
                 AgentAction.action_type == "mcp_server_action",
                 AgentAction.description.ilike("%mcp%"),
                 func.lower(AgentAction.description).like("%mcp%")
             )
-        ).count()
-        
+        )
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            mcp_query = mcp_query.filter(AgentAction.organization_id == org_id)
+        mcp_actions = mcp_query.count()
+
         # Agent actions (all non-MCP actions)
         agent_actions = total_actions - mcp_actions
-        
+
         # High risk actions (using your existing risk_level)
-        high_risk_actions = db.query(AgentAction).filter(
+        high_risk_query = db.query(AgentAction).filter(
             AgentAction.risk_level == "high"
-        ).count()
+        )
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            high_risk_query = high_risk_query.filter(AgentAction.organization_id == org_id)
+        high_risk_actions = high_risk_query.count()
         
         # Get approval metrics from your existing data
-        approved_today = db.query(AgentAction).filter(
+        approved_query = db.query(AgentAction).filter(
             and_(
                 AgentAction.approved == True,
                 func.date(AgentAction.timestamp) == func.date(func.now())
             )
-        ).count()
-        
+        )
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            approved_query = approved_query.filter(AgentAction.organization_id == org_id)
+        approved_today = approved_query.count()
+
         # Emergency actions
-        emergency_actions = db.query(AgentAction).filter(
+        emergency_query = db.query(AgentAction).filter(
             AgentAction.risk_level == "high"
-        ).count()
+        )
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            emergency_query = emergency_query.filter(AgentAction.organization_id == org_id)
+        emergency_actions = emergency_query.count()
         
         # 🏢 ENTERPRISE: Enhanced stats response
         stats = {
@@ -582,7 +612,8 @@ async def get_unified_pending_actions(
     risk_threshold: Optional[int] = None,
     action_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Get unified pending actions using EnterpriseUnifiedLoader
@@ -591,10 +622,10 @@ async def get_unified_pending_actions(
     try:
         from services.enterprise_unified_loader import enterprise_unified_loader
 
-        logger.info(f"🏢 Fetching unified pending actions for user {current_user.get('email', 'unknown')}")
+        logger.info(f"🏢 Fetching unified pending actions for user {current_user.get('email', 'unknown')} [org_id={org_id}]")
 
         # Use enterprise loader (handles pending_stage_X, active, etc.)
-        result = enterprise_unified_loader.load_all_pending_actions(db)
+        result = enterprise_unified_loader.load_all_pending_actions(db, org_id=org_id)
 
         # Apply filters if provided
         actions = result.get("actions", [])
@@ -784,7 +815,8 @@ async def get_unified_actions_alias(
     risk_threshold: Optional[int] = None,
     action_type: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🔗 ENTERPRISE: URL Alias for /unified-actions endpoint
@@ -797,7 +829,8 @@ async def get_unified_actions_alias(
         risk_threshold=risk_threshold,
         action_type=action_type,
         db=db,
-        current_user=current_user
+        current_user=current_user,
+        org_id=org_id
     )
 
 # 🔌 ENTERPRISE: MCP-specific governance endpoint (NOW USES UNIFIED POLICY ENGINE)
@@ -806,7 +839,8 @@ async def evaluate_mcp_action(
     action_data: Dict[str, Any],
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Evaluate MCP server action using UNIFIED policy engine
@@ -838,10 +872,18 @@ async def evaluate_mcp_action(
                 id_suffix = action_id.replace("mcp-", "")
                 if id_suffix.isdigit():
                     numeric_id = int(id_suffix)
-                    mcp_action = db.query(MCPServerAction).filter(MCPServerAction.id == numeric_id).first()
+                    query = db.query(MCPServerAction).filter(MCPServerAction.id == numeric_id)
+                    # 🏢 ENTERPRISE: Multi-tenant isolation
+                    if org_id is not None:
+                        query = query.filter(MCPServerAction.organization_id == org_id)
+                    mcp_action = query.first()
             elif isinstance(action_id, int) or (isinstance(action_id, str) and action_id.isdigit()):
                 numeric_id = int(action_id)
-                mcp_action = db.query(MCPServerAction).filter(MCPServerAction.id == numeric_id).first()
+                query = db.query(MCPServerAction).filter(MCPServerAction.id == numeric_id)
+                # 🏢 ENTERPRISE: Multi-tenant isolation
+                if org_id is not None:
+                    query = query.filter(MCPServerAction.organization_id == org_id)
+                mcp_action = query.first()
         except (ValueError, TypeError):
             pass  # Not a numeric ID, will create new action below
 
@@ -885,7 +927,9 @@ async def evaluate_mcp_action(
                 status="pending",
                 request_id=f"sim-{int(time.time())}",  # ENTERPRISE FIX: Set required field
                 session_id=action_data.get("context", {}).get("session_id", f"session-{int(time.time())}"),  # ENTERPRISE FIX
-                client_id=f"simulator-{current_user.get('user_id', 7)}"  # ENTERPRISE FIX
+                client_id=f"simulator-{current_user.get('user_id', 7)}",  # ENTERPRISE FIX
+                # 🏢 ENTERPRISE: Multi-tenant isolation
+                organization_id=org_id
             )
 
             db.add(mcp_action)
@@ -998,7 +1042,8 @@ async def evaluate_mcp_action(
 @router.get("/health")
 async def governance_health_check(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Health check for unified governance system
@@ -1034,24 +1079,53 @@ async def governance_health_check(
 @router.get("/admin/unified-report")
 async def get_unified_admin_report(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Admin-only unified governance report
     Uses your existing admin role requirements
     """
     try:
-        logger.info(f"🏢 Admin {current_user.get('email', 'unknown')} accessing unified governance report")
-        
+        logger.info(f"🏢 Admin {current_user.get('email', 'unknown')} accessing unified governance report [org_id={org_id}]")
+
         # Get comprehensive stats using your existing tables
-        total_actions = db.query(AgentAction).count()
-        pending_actions = db.query(AgentAction).filter(AgentAction.status == "pending_approval").count()
-        approved_actions = db.query(AgentAction).filter(AgentAction.approved == True).count()
-        denied_actions = db.query(AgentAction).filter(AgentAction.approved == False).count()
-        
+        query = db.query(AgentAction)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(AgentAction.organization_id == org_id)
+        total_actions = query.count()
+
+        pending_query = db.query(AgentAction).filter(AgentAction.status == "pending_approval")
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            pending_query = pending_query.filter(AgentAction.organization_id == org_id)
+        pending_actions = pending_query.count()
+        approved_query = db.query(AgentAction).filter(AgentAction.approved == True)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            approved_query = approved_query.filter(AgentAction.organization_id == org_id)
+        approved_actions = approved_query.count()
+
+        denied_query = db.query(AgentAction).filter(AgentAction.approved == False)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            denied_query = denied_query.filter(AgentAction.organization_id == org_id)
+        denied_actions = denied_query.count()
+
         # Get audit trail summary
-        audit_count = db.query(AuditLog).count()
-        recent_audits = db.query(AuditLog).order_by(desc(AuditLog.timestamp)).limit(10).all()
+        from models import AuditLog
+        audit_query = db.query(AuditLog)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            audit_query = audit_query.filter(AuditLog.organization_id == org_id)
+        audit_count = audit_query.count()
+
+        recent_audit_query = db.query(AuditLog).order_by(desc(AuditLog.timestamp)).limit(10)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            recent_audit_query = recent_audit_query.filter(AuditLog.organization_id == org_id)
+        recent_audits = recent_audit_query.all()
         
         admin_report = {
             "report_type": "unified_governance_admin",
@@ -1135,7 +1209,8 @@ def extract_mcp_data_from_action(action: AgentAction) -> Dict[str, Any]:
 async def create_governance_policy(
     policy_data: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Enterprise Policy Creation - Uses EnterprisePolicy table"""
     try:
@@ -1165,7 +1240,9 @@ async def create_governance_policy(
             conditions=policy_data.get("conditions", {}),
             priority=policy_data.get("priority", 100),
             status="active",
-            created_by=current_user.get("email", "system")
+            created_by=current_user.get("email", "system"),
+            # 🏢 ENTERPRISE: Multi-tenant isolation
+            organization_id=org_id
         )
 
         db.add(new_policy)
@@ -1192,7 +1269,8 @@ async def create_governance_policy(
 @router.get("/policies")
 async def get_policies(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Get all governance policies
@@ -1200,11 +1278,15 @@ async def get_policies(
     """
     try:
         # 🔧 ENTERPRISE FIX: Query correct model (EnterprisePolicy, not AgentAction)
-        policies = db.query(EnterprisePolicy).filter(
+        query = db.query(EnterprisePolicy).filter(
             EnterprisePolicy.status == "active"
-        ).order_by(desc(EnterprisePolicy.created_at)).all()
+        )
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(EnterprisePolicy.organization_id == org_id)
+        policies = query.order_by(desc(EnterprisePolicy.created_at)).all()
 
-        logger.info(f"✅ Retrieved {len(policies)} active policies for user {current_user.get('email', 'unknown')}")
+        logger.info(f"✅ Retrieved {len(policies)} active policies for user {current_user.get('email', 'unknown')} [org_id={org_id}]")
 
         return {
             "success": True,
@@ -1239,25 +1321,30 @@ async def update_governance_policy(
     policy_id: str,
     policy_data: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Update existing governance policy
     Required by frontend Policy Management tab
     """
     try:
-        logger.info(f"Updating policy {policy_id} by user {current_user.get('email', 'unknown')}")
-        
+        logger.info(f"Updating policy {policy_id} by user {current_user.get('email', 'unknown')} [org_id={org_id}]")
+
         # Import here to avoid circular imports
         from uuid import UUID
-        
+
         # Find the policy
         try:
             policy_uuid = UUID(policy_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid policy ID format")
-        
-        policy = db.query(MCPPolicy).filter(MCPPolicy.id == policy_uuid).first()
+
+        query = db.query(MCPPolicy).filter(MCPPolicy.id == policy_uuid)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(MCPPolicy.organization_id == org_id)
+        policy = query.first()
         if not policy:
             raise HTTPException(status_code=404, detail="Policy not found")
         
@@ -1318,25 +1405,30 @@ async def update_governance_policy(
 async def delete_governance_policy(
     policy_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Delete governance policy
     Required by frontend Policy Management tab - Admin only
     """
     try:
-        logger.info(f"Deleting policy {policy_id} by admin user {current_user.get('email', 'unknown')}")
-        
+        logger.info(f"Deleting policy {policy_id} by admin user {current_user.get('email', 'unknown')} [org_id={org_id}]")
+
         # Import here to avoid circular imports
         from uuid import UUID
-        
+
         # Find the policy
         try:
             policy_uuid = UUID(policy_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid policy ID format")
-        
-        policy = db.query(MCPPolicy).filter(MCPPolicy.id == policy_uuid).first()
+
+        query = db.query(MCPPolicy).filter(MCPPolicy.id == policy_uuid)
+        # 🏢 ENTERPRISE: Multi-tenant isolation
+        if org_id is not None:
+            query = query.filter(MCPPolicy.organization_id == org_id)
+        policy = query.first()
         if not policy:
             raise HTTPException(status_code=404, detail="Policy not found")
         
@@ -1397,7 +1489,8 @@ async def check_policy_conflicts(
     policy_id: int,
     policy_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Check for conflicts when creating or updating a policy
@@ -1452,7 +1545,8 @@ async def check_policy_conflicts(
 @router.get("/policies/conflicts/analyze")
 async def analyze_all_policy_conflicts(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: System-wide policy conflict analysis
@@ -1491,7 +1585,8 @@ async def export_policies(
     format: str = "json",
     filter_status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Export policies to JSON/YAML/Cedar format
@@ -1542,7 +1637,8 @@ async def export_policies(
 async def import_policies(
     import_request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Import policies from JSON/YAML format
@@ -1610,7 +1706,8 @@ async def import_policies(
 @router.get("/policies/import/template")
 async def get_import_template(
     format: str = "json",
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Get import template with example policies
@@ -1648,7 +1745,8 @@ async def get_import_template(
 async def create_policy_backup(
     backup_request: Dict[str, Any] = {},
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Create full backup of all policies
@@ -1693,7 +1791,8 @@ async def create_policy_backup(
 async def bulk_update_policy_status(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Bulk enable/disable policies
@@ -1729,7 +1828,8 @@ async def bulk_update_policy_status(
 async def bulk_delete_policies(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Bulk delete policies (admin only)
@@ -1765,7 +1865,8 @@ async def bulk_delete_policies(
 async def bulk_update_policy_priority(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Bulk update policy priorities
@@ -1800,7 +1901,8 @@ async def bulk_update_policy_priority(
 async def evaluate_policy_realtime(
     test_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Real-time policy evaluation for testing
@@ -1885,7 +1987,8 @@ async def evaluate_policy_realtime(
 @router.get("/policies/engine-metrics")
 async def get_policy_engine_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1: Get policy engine performance metrics (REAL DATA)
@@ -1971,7 +2074,8 @@ async def get_policy_engine_metrics(
 async def deploy_policy(
     policy_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Deploy policy to production
@@ -2031,7 +2135,8 @@ async def deploy_policy(
 async def evaluate_action_with_policies(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Evaluate action against all active policies
@@ -2192,7 +2297,8 @@ async def evaluate_action_with_policies(
 @router.get("/authorization/policies/engine-metrics")
 async def get_authorization_policy_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Get authorization-specific policy metrics
@@ -2201,7 +2307,8 @@ async def get_authorization_policy_metrics(
     try:
         # This endpoint provides the same metrics as the main engine-metrics
         # but formatted specifically for authorization center display
-        metrics_response = await get_policy_engine_metrics(db, current_user)
+        # 🏢 ENTERPRISE: Pass org_id for multi-tenant isolation
+        metrics_response = await get_policy_engine_metrics(db, current_user, org_id)
         
         if metrics_response["success"]:
             # Reformat for authorization center
@@ -2281,7 +2388,8 @@ async def get_authorization_policy_metrics(
 async def compile_policy(
     policy_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Compile natural language policy to Cedar-style structured rules
@@ -2342,7 +2450,8 @@ async def compile_policy(
 async def enforce_policy(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Evaluate an action against active policies - REAL ENFORCEMENT
@@ -2464,7 +2573,8 @@ async def enforce_policy(
 
 @router.get("/policies/enforcement-stats")
 async def get_enforcement_stats(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get policy engine performance metrics
@@ -2483,7 +2593,8 @@ async def get_enforcement_stats(
 async def pre_execute_check(
     action_request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Pre-execution policy check - CRITICAL INTERCEPTION POINT
@@ -2491,8 +2602,9 @@ async def pre_execute_check(
     """
     try:
         # This is the middleware interception point
-        enforcement_result = await enforce_policy(action_request, db, current_user)
-        
+        # 🏢 ENTERPRISE: Pass org_id for multi-tenant isolation
+        enforcement_result = await enforce_policy(action_request, db, current_user, org_id)
+
         if not enforcement_result.get("allowed"):
             return {
                 "success": False,
@@ -2536,7 +2648,8 @@ from services.enterprise_policy_templates import (
 
 @router.get("/policies/templates")
 async def get_policy_templates(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get all available enterprise policy templates (Wiz-style)
@@ -2555,7 +2668,8 @@ async def get_policy_templates(
 @router.get("/policies/templates/{template_id}")
 async def get_policy_template_detail(
     template_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get detailed information about a specific template
@@ -2580,7 +2694,8 @@ async def get_policy_template_detail(
 async def create_policy_from_template(
     request_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Create a policy from a pre-built template
@@ -2637,7 +2752,8 @@ async def create_policy_from_template(
 async def build_custom_policy(
     policy_spec: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Build a custom policy using the structured builder
@@ -2744,7 +2860,8 @@ async def build_custom_policy(
 
 @router.get("/policies/resources/types")
 async def get_resource_types(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Get valid resource types for custom policies"""
     return {
@@ -2754,7 +2871,8 @@ async def get_resource_types(
 
 @router.get("/policies/actions/types")
 async def get_action_types(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Get valid action types for custom policies"""
     return {
@@ -2766,16 +2884,20 @@ async def get_action_types(
 @router.get("/dashboard/pending-approvals")
 async def get_pending_approvals(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Get workflows pending approval for current user"""
     from models import WorkflowExecution
-    
+
     user_role = current_user.get("role", "user")
-    
+
     query = db.query(WorkflowExecution).filter(
         WorkflowExecution.current_stage.in_(["pending_stage_1", "pending_stage_2", "pending_stage_3"])
     )
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(WorkflowExecution.organization_id == org_id)
     
     if user_role == "security":
         query = query.filter(WorkflowExecution.current_stage == "pending_stage_1")
@@ -2789,7 +2911,11 @@ async def get_pending_approvals(
         # 🔥 ENTERPRISE: Calculate actual risk score using CVSS + NIST + MITRE
         risk_score = 75  # Default fallback
         if wf.action_id:
-            agent_action = db.query(AgentAction).filter(AgentAction.id == wf.action_id).first()
+            action_query = db.query(AgentAction).filter(AgentAction.id == wf.action_id)
+            # 🏢 ENTERPRISE: Multi-tenant isolation
+            if org_id is not None:
+                action_query = action_query.filter(AgentAction.organization_id == org_id)
+            agent_action = action_query.first()
             if agent_action:
                 # Check if risk already calculated and stored
                 stored_risk = getattr(agent_action, 'enterprise_risk_score', None)
@@ -2851,14 +2977,19 @@ async def approve_workflow(
     workflow_execution_id: int,
     approval_data: Dict[str, Any],
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Approve or deny a workflow execution"""
     from models import WorkflowExecution, AgentAction
-    
-    workflow = db.query(WorkflowExecution).filter(
+
+    query = db.query(WorkflowExecution).filter(
         WorkflowExecution.id == workflow_execution_id
-    ).first()
+    )
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    if org_id is not None:
+        query = query.filter(WorkflowExecution.organization_id == org_id)
+    workflow = query.first()
     
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -2976,7 +3107,8 @@ async def approve_workflow(
 @router.get("/pending-actions")
 async def get_unified_pending_actions(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Unified pending actions from BOTH agent_actions + mcp_server_actions
@@ -2993,8 +3125,8 @@ async def get_unified_pending_actions(
     try:
         from services.enterprise_unified_loader import enterprise_unified_loader
 
-        logger.info(f"🔄 Loading unified pending actions for user: {current_user.get('email', 'unknown')}")
-        result = enterprise_unified_loader.load_all_pending_actions(db)
+        logger.info(f"🔄 Loading unified pending actions for user: {current_user.get('email', 'unknown')} [org_id={org_id}]")
+        result = enterprise_unified_loader.load_all_pending_actions(db, org_id=org_id)
 
         logger.info(f"✅ Unified pending actions: {result['counts']}")
         return result
