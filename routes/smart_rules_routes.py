@@ -152,19 +152,21 @@ async def get_rule_analytics(
             SELECT
                 SUM(triggers) as total_triggers_24h,
                 -- Performance score: (true_positives / triggers) * 100
+                -- 🏢 ENTERPRISE: No hardcoded fallbacks - use NULL for no data
                 AVG(CASE WHEN triggers > 0
                     THEN (true_positives::float / triggers * 100)
-                    ELSE 90 END) as avg_performance,
+                    ELSE NULL END) as avg_performance,
                 -- False positive rate: (false_positives / triggers) * 100
                 AVG(CASE WHEN triggers > 0
                     THEN (false_positives::float / triggers * 100)
-                    ELSE 0 END) as fp_rate
+                    ELSE NULL END) as fp_rate
             FROM rule_performance
         """), {"org_id": org_id}).fetchone()
 
         total_triggers_24h = int(perf_metrics[0] or 0) if perf_metrics else 0
-        avg_performance_score = round(float(perf_metrics[1] or 88.0), 1) if perf_metrics else 88.0
-        false_positive_rate = round(float(perf_metrics[2] or 5.0), 1) if perf_metrics else 5.0
+        # 🏢 ENTERPRISE: No hardcoded demo values - show 0 when no data exists
+        avg_performance_score = round(float(perf_metrics[1]), 1) if perf_metrics and perf_metrics[1] is not None else 0.0
+        false_positive_rate = round(float(perf_metrics[2]), 1) if perf_metrics and perf_metrics[2] is not None else 0.0
 
         logger.info(f"📊 Performance: {total_triggers_24h} triggers, {avg_performance_score}% avg score, {false_positive_rate}% FP rate")
 

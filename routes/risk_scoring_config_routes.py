@@ -47,10 +47,50 @@ def get_active_config(
         active_config = query.first()
 
         if not active_config:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No active configuration found"
-            )
+            # 🏢 ENTERPRISE: Return factory default configuration instead of 404
+            # This ensures the Risk Configuration tab always loads with sensible defaults
+            logger.info(f"No active config found for org_id={org_id}, returning factory default")
+            return {
+                "id": 0,  # Synthetic ID indicating factory default
+                "config_version": "1.0.0-default",
+                "algorithm_version": "2.0.0",
+                "environment_weights": {
+                    "production": 150,
+                    "staging": 120,
+                    "development": 80
+                },
+                "action_weights": {
+                    "database_write": 90,
+                    "database_delete": 100,
+                    "system_command": 85,
+                    "file_access": 70,
+                    "network_request": 60
+                },
+                "resource_multipliers": {
+                    "pii_data": 1.3,
+                    "financial": 1.4,
+                    "health_records": 1.5,
+                    "credentials": 1.6
+                },
+                "pii_weights": {
+                    "contains_ssn": 150,
+                    "contains_email": 110,
+                    "contains_phone": 120,
+                    "contains_address": 115
+                },
+                "component_percentages": {
+                    "cvss_weight": 40,
+                    "policy_weight": 30,
+                    "context_weight": 30
+                },
+                "description": "Factory default configuration - customize as needed",
+                "is_active": False,
+                "is_default": True,
+                "created_at": datetime.now(UTC),
+                "created_by": "system",
+                "activated_at": None,
+                "activated_by": None
+            }
 
         logger.info(f"Active config v{active_config.config_version} retrieved by {admin_user['email']} [org_id={org_id}]")
         return active_config
