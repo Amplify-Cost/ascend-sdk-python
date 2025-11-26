@@ -348,42 +348,37 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
         // Handle different possible response formats from your OpenAI backend
         let processedBrief;
         
-        if (data.brief || data.summary) {
-          // If backend returns the brief directly
+        if (data.brief || data.summary || data.executive_summary) {
+          // 🏢 ENTERPRISE: Use ONLY real data from backend - NO hardcoded fallbacks
           processedBrief = {
-            summary: data.brief || data.summary || data.content,
+            summary: data.brief || data.summary || data.executive_summary || data.content,
             key_metrics: data.key_metrics || data.metrics || data.statistics || {
-              threats_detected: data.threats_detected || 23,
-              threats_prevented: data.threats_prevented || 21,
-              cost_savings: data.cost_savings || "$125,000",
-              system_accuracy: data.accuracy || data.system_accuracy || "94.2%"
+              // 🏢 ENTERPRISE: Show real counts from backend or 0 if not available
+              threats_detected: data.threats_detected ?? data.alert_count ?? 0,
+              threats_prevented: data.threats_prevented ?? 0,
+              cost_savings: data.cost_savings || "$0",
+              system_accuracy: data.accuracy || data.system_accuracy || data.confidence_level ? `${data.confidence_level}%` : "N/A"
             },
-            recommendations: data.recommendations || data.actions || [
-              "Review high-priority alerts for potential threats",
-              "Consider implementing additional monitoring controls",
-              "Update incident response procedures based on recent patterns"
-            ],
-            risk_assessment: data.risk_assessment || data.risk_level || "ELEVATED",
-            next_review: data.next_review || new Date(Date.now() + 24*60*60*1000).toISOString()
+            recommendations: data.recommendations || data.actions || [],
+            risk_assessment: data.risk_assessment || data.risk_level || "NO_DATA",
+            next_review: data.next_review || new Date(Date.now() + 24*60*60*1000).toISOString(),
+            alert_count: data.alert_count || 0,
+            high_priority_count: data.high_priority_count || 0
           };
         } else {
-          // If backend returns raw OpenAI response, try to extract useful data
+          // 🏢 ENTERPRISE: No hardcoded demo data - show real data only
           processedBrief = {
-            summary: typeof data === 'string' ? data : (data.message || "Executive brief generated successfully"),
+            summary: typeof data === 'string' ? data : (data.message || "Executive brief generated - awaiting data"),
             key_metrics: {
-              threats_detected: 23,
-              threats_prevented: 21,
-              cost_savings: "$125,000",
-              system_accuracy: "94.2%"
+              threats_detected: data.alert_count || 0,
+              threats_prevented: data.high_priority_count || 0,
+              cost_savings: "$0",
+              system_accuracy: data.confidence_level ? `${data.confidence_level}%` : "N/A"
             },
-            recommendations: [
-              "Based on current AI analysis, monitor high-risk patterns",
-              "Consider increasing security controls for critical systems",
-              "Review and update threat response procedures"
-            ],
-            risk_assessment: "ELEVATED",
+            recommendations: [],
+            risk_assessment: "NO_DATA",
             next_review: new Date(Date.now() + 24*60*60*1000).toISOString(),
-            raw_response: data // Include original response for debugging
+            raw_response: data
           };
         }
         
