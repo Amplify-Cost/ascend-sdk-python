@@ -1157,20 +1157,27 @@ Sample Size: ${test.sample_size}
             )}
           </div>
 
-          {/* ML Insights */}
+          {/* ML Insights - 🏢 SEC-009: Show real data or empty state */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">🔮 Machine Learning Insights</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-gradient-to-r from-purple-100 to-purple-200 rounded-lg">
-                <div className="text-lg font-bold text-purple-800">87%</div>
+                <div className="text-lg font-bold text-purple-800">
+                  {mlInsights?.pattern_recognition_accuracy || 'N/A'}
+                  {mlInsights?.pattern_recognition_accuracy ? '%' : ''}
+                </div>
                 <div className="text-sm text-purple-700">Pattern Recognition Accuracy</div>
               </div>
               <div className="p-4 bg-gradient-to-r from-green-100 to-green-200 rounded-lg">
-                <div className="text-lg font-bold text-green-800">1,247</div>
+                <div className="text-lg font-bold text-green-800">
+                  {mlInsights?.events_analyzed?.toLocaleString() || '0'}
+                </div>
                 <div className="text-sm text-green-700">Security Events Analyzed</div>
               </div>
               <div className="p-4 bg-gradient-to-r from-orange-100 to-orange-200 rounded-lg">
-                <div className="text-lg font-bold text-orange-800">23</div>
+                <div className="text-lg font-bold text-orange-800">
+                  {mlInsights?.threat_patterns_identified || '0'}
+                </div>
                 <div className="text-sm text-orange-700">New Threat Patterns Identified</div>
               </div>
             </div>

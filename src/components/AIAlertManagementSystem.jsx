@@ -1737,7 +1737,9 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
               
               <div className="text-center p-4 bg-purple-50 rounded-lg">
                 <div className="text-2xl font-bold text-purple-600">
-                  {performanceMetrics.trend_analysis?.roi_percentage || performanceMetrics.roi_percentage || 340}%
+                  {/* SEC-009: Real data only */}
+                  {performanceMetrics.trend_analysis?.roi_percentage || performanceMetrics.roi_percentage || 'N/A'}
+                  {(performanceMetrics.trend_analysis?.roi_percentage || performanceMetrics.roi_percentage) ? '%' : ''}
                 </div>
                 <div className="text-sm text-purple-700">ROI Achievement</div>
                 <div className="text-xs text-purple-600 mt-1">annual target</div>
@@ -1745,32 +1747,33 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
             </div>
           </div>
 
-          {/* 24-Hour Activity Summary */}
+          {/* 24-Hour Activity Summary - 🏢 SEC-009: Real data only */}
           <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6">
             <h3 className="text-lg font-semibold text-indigo-900 mb-4">📊 24-Hour Activity Summary</h3>
-            
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div className="text-center">
                 <div className="text-2xl font-bold text-indigo-600">
-                  {(performanceMetrics.ai_performance?.alerts_processed_24h || performanceMetrics.alerts_processed_24h || 1247).toLocaleString()}
+                  {(performanceMetrics.ai_performance?.alerts_processed_24h || performanceMetrics.alerts_processed_24h || 0).toLocaleString()}
                 </div>
                 <div className="text-indigo-700">Alerts Processed</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-indigo-600">
-                  {performanceMetrics.ai_performance?.threats_prevented || performanceMetrics.threats_prevented || 23}
+                  {performanceMetrics.ai_performance?.threats_prevented || performanceMetrics.threats_prevented || 0}
                 </div>
                 <div className="text-indigo-700">Threats Prevented</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-indigo-600">
-                  {performanceMetrics.ai_performance?.cost_savings || performanceMetrics.cost_savings || '$125,000'}
+                  {performanceMetrics.ai_performance?.cost_savings || performanceMetrics.cost_savings || '$0'}
                 </div>
                 <div className="text-indigo-700">Cost Savings</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-indigo-600">
-                  {performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate || '94.2'}%
+                  {performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate || 'N/A'}
+                  {(performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate) ? '%' : ''}
                 </div>
                 <div className="text-indigo-700">System Accuracy</div>
               </div>
