@@ -463,6 +463,9 @@ class Workflow(Base):
     modified_by = Column(String(255), nullable=True)  # Last user to modify
     last_modified = Column(DateTime, nullable=True)  # Last modification time
 
+    # SEC-017: ENTERPRISE Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     # Audit timestamps
     created_at = Column(DateTime, default=datetime.now(UTC), index=True)
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
@@ -495,9 +498,17 @@ class WorkflowStep(Base):
     conditions = Column(JSON)
     created_at = Column(DateTime, default=datetime.now(UTC))    
 class EnterprisePolicy(Base):
+    """
+    Enterprise Policy Model for MCP Governance
+
+    SEC-015: Added organization_id for multi-tenant isolation
+    Banking-Level: SOC 2 CC6.1, NIST AC-3, PCI-DSS 7.1
+    """
     __tablename__ = "enterprise_policies"
 
     id = Column(Integer, primary_key=True, index=True)
+    # SEC-015: ENTERPRISE Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     policy_name = Column(String, nullable=False)
     description = Column(Text)
     effect = Column(String, nullable=False)

@@ -2620,10 +2620,12 @@ async def get_policy_template_detail(
 async def create_policy_from_template(
     request_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)  # SEC-015: Multi-tenant isolation
 ):
     """
     Create a policy from a pre-built template
+    SEC-015: Enterprise multi-tenant isolation (Banking-Level: SOC 2 CC6.1)
     """
     try:
         template_id = request_data.get("template_id")
@@ -2640,7 +2642,9 @@ async def create_policy_from_template(
             template_config.update(customizations)
 
         # Create policy in CORRECT table (EnterprisePolicy)
+        # SEC-015: ENTERPRISE Multi-tenant isolation
         new_policy = EnterprisePolicy(
+            organization_id=org_id,  # SEC-015: Required for multi-tenant isolation
             policy_name=template_config['name'],
             description=template_config['description'],
             effect=template_config['effect'],

@@ -189,7 +189,10 @@ async def generate_api_key(
             expires_at = datetime.now(UTC) + timedelta(days=request.expires_in_days)
 
         # 3. Create API key record
+        # SEC-018: ENTERPRISE Multi-tenant isolation (Banking-Level: SOC 2 CC6.1)
+        # organization_id is NOT NULL in database - must be set in constructor
         api_key = ApiKey(
+            organization_id=org_id,  # SEC-018: Required for multi-tenant isolation
             user_id=current_user["user_id"],
             key_hash=key_hash,
             key_prefix=key_prefix,
@@ -199,10 +202,6 @@ async def generate_api_key(
             is_active=True,
             expires_at=expires_at
         )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            api_key.organization_id = org_id
 
         db.add(api_key)
         db.flush()  # Get ID without committing
