@@ -10,7 +10,13 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ARG CACHE_BUST=20251118_mcp_approval_fix
+# 🏢 ENTERPRISE: Deployment verification - prevents stale code
+ARG COMMIT_SHA=unknown
+ARG BUILD_DATE=unknown
+ENV COMMIT_SHA=${COMMIT_SHA}
+ENV BUILD_DATE=${BUILD_DATE}
+
+ARG CACHE_BUST=20251126_sec009_deployment_verification
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .

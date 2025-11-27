@@ -2924,6 +2924,24 @@ async def root():
         "enterprise_ready": True
     }
 
+# 🏢 ENTERPRISE: Git commit SHA for deployment verification
+# This is set during Docker build via ARG/ENV
+import os
+DEPLOYMENT_COMMIT_SHA = os.environ.get("COMMIT_SHA", "unknown")
+DEPLOYMENT_BUILD_DATE = os.environ.get("BUILD_DATE", "unknown")
+
+@app.get("/api/deployment-info")
+async def deployment_info():
+    """🏢 ENTERPRISE: Returns deployment info for verification
+    Used by CI/CD to verify the correct code version is running
+    """
+    return {
+        "commit_sha": DEPLOYMENT_COMMIT_SHA,
+        "build_date": DEPLOYMENT_BUILD_DATE,
+        "status": "healthy",
+        "enterprise_grade": True
+    }
+
 @app.get("/health")
 async def health_check():
     """Detailed health check"""
