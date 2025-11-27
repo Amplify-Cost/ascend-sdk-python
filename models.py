@@ -58,6 +58,9 @@ class Alert(Base):
     escalated_by = Column(String, nullable=True)
     escalated_at = Column(DateTime, nullable=True)
 
+    # SEC-021: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+
     # A/B Test Tracking (for real metrics)
     ab_test_id = Column(String(100), nullable=True, index=True)  # UUID of A/B test
     evaluated_by_variant = Column(String(20), nullable=True, index=True)  # 'variant_a' or 'variant_b'
