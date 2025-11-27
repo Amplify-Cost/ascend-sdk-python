@@ -596,20 +596,44 @@ async def get_current_user_cognito(
         db.execute(text(f"SET LOCAL app.current_organization_id = {organization_id}"))
 
         # Step 6: Get or create user in local database
+        # SEC-014 ENTERPRISE FIX: Auto-link existing users by email fallback
+        # Banking-Level: SOC 2 CC6.1, NIST IA-5, PCI-DSS 8.2.3
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
 
         if not user:
-            # Create user record for Cognito user
-            user = User(
-                email=email,
-                cognito_user_id=cognito_user_id,
-                organization_id=organization_id,
-                role=token_payload["role"],
-                is_org_admin=token_payload["is_org_admin"],
-                is_active=True
-            )
-            db.add(user)
-            db.flush()
+            # SEC-014: Check if user exists by email (for existing users being linked to Cognito)
+            user = db.query(User).filter(
+                User.email == email,
+                User.organization_id == organization_id
+            ).first()
+
+            if user:
+                # SEC-014: Auto-link existing user to new Cognito identity
+                # This handles: user recreation in Cognito, user pool migrations, identity recovery
+                logger.info(f"🔗 SEC-014: Auto-linking existing user to Cognito: {email} (user_id={user.id})")
+                user.cognito_user_id = cognito_user_id
+                # Update role if changed in Cognito
+                if user.role != token_payload["role"]:
+                    logger.info(f"📝 SEC-014: Updating role for {email}: {user.role} → {token_payload['role']}")
+                    user.role = token_payload["role"]
+                if hasattr(user, 'is_org_admin'):
+                    user.is_org_admin = token_payload["is_org_admin"]
+                db.flush()
+                logger.info(f"✅ SEC-014: User auto-linked: ID={user.id}, Email={email}, CognitoID={cognito_user_id}")
+            else:
+                # Create new user record for Cognito user
+                logger.info(f"📝 Creating new user from Cognito: {email}")
+                user = User(
+                    email=email,
+                    cognito_user_id=cognito_user_id,
+                    organization_id=organization_id,
+                    role=token_payload["role"],
+                    is_org_admin=token_payload["is_org_admin"],
+                    is_active=True
+                )
+                db.add(user)
+                db.flush()
+                logger.info(f"✅ New user created: ID={user.id}, Email={email}")
 
         # Step 7: Update last login
         user.last_login = datetime.now()
