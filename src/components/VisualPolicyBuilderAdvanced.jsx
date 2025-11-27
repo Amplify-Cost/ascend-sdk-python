@@ -45,11 +45,19 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
     { value: 'api:external:*', label: 'External APIs', icon: '🌐' }
   ];
 
+  // SEC-019: Enterprise condition options for policy enforcement
+  // Banking-Level: NIST AC-3, PCI-DSS 7.1 - Fine-grained access control
   const conditionOptions = [
     { key: 'environment', label: 'Environment', values: ['production', 'staging', 'development'] },
     { key: 'time_window', label: 'Time Window', values: ['business_hours', 'after_hours', 'weekends'] },
     { key: 'user_role', label: 'User Role', values: ['admin', 'developer', 'analyst', 'viewer'] },
-    { key: 'approval_required', label: 'Requires Approval', values: ['true', 'false'] }
+    { key: 'approval_required', label: 'Requires Approval', values: ['true', 'false'] },
+    // SEC-019: Risk-based conditions for enterprise workflows
+    { key: 'risk_score_min', label: 'Min Risk Score', values: ['0', '30', '50', '70', '90'] },
+    { key: 'risk_score_max', label: 'Max Risk Score', values: ['29', '49', '69', '89', '100'] },
+    { key: 'action_category', label: 'Action Category', values: ['read', 'write', 'delete', 'execute', 'admin'] },
+    { key: 'data_sensitivity', label: 'Data Sensitivity', values: ['public', 'internal', 'confidential', 'restricted', 'pii'] },
+    { key: 'approver_email', label: 'Approver Email', values: ['admin@acmecorp.test', 'security@acmecorp.test', 'manager@acmecorp.test'] }
   ];
 
   const toggleAction = (action) => {
