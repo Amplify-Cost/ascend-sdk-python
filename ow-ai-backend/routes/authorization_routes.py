@@ -28,7 +28,8 @@ from enum import Enum
 from database import get_db
 from services.pending_actions_service import pending_service
 from services.database_query_service import DatabaseQueryService
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
+from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth  # SEC-020: SDK API key authentication
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
 from models_mcp_governance import MCPServer
@@ -485,13 +486,14 @@ class AuthorizationService:
         db: Session,
         risk_filter: Optional[str] = None,
         emergency_only: bool = False,
-        current_user: Dict[str, Any] = None
+        current_user: Dict[str, Any] = None,
+        org_id: int = None
     ) -> Dict[str, Any]:
-        """Get pending actions with enterprise filtering."""
+        """Get pending actions with enterprise filtering - filtered by organization."""
         try:
-            # Build base query with JOINs to assessment tables
+            # 🏢 ENTERPRISE: Base query with organization filter for tenant isolation
             base_query = """
-                SELECT 
+                SELECT
                     aa.id, aa.agent_id, aa.action_type, aa.description, aa.risk_level,
                     COALESCE(ca.base_score * 10, aa.risk_score, 50) as risk_score,
                     aa.target_system, aa.status, aa.created_at, aa.user_id,
@@ -502,11 +504,13 @@ class AuthorizationService:
                 LEFT JOIN nist_control_mappings ncm ON aa.id = ncm.action_id
                 LEFT JOIN mitre_technique_mappings mtm ON aa.id = mtm.action_id
                 WHERE aa.status IN (:pending, :submitted, :pending_approval)
+                  AND aa.organization_id = :org_id
             """
             params = {
                 "pending": ActionStatus.PENDING.value,
                 "submitted": ActionStatus.SUBMITTED.value,
-                "pending_approval": ActionStatus.PENDING_APPROVAL.value
+                "pending_approval": ActionStatus.PENDING_APPROVAL.value,
+                "org_id": org_id  # 🏢 ENTERPRISE: Organization filter for tenant isolation
             }
             
             # Apply filters
@@ -805,10 +809,12 @@ async def get_pending_actions(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get pending actions requiring approval with enhanced filtering."""
-    return AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user)
+    """Get pending actions requiring approval with enhanced filtering - filtered by organization."""
+    # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
+    return AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user, org_id=org_id)
 
 
 @router.post("/authorize/{action_id:path}")
@@ -816,9 +822,12 @@ async def authorize_action(
     action_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
+    # 🏢 ENTERPRISE: Verify action belongs to user's organization
+    # This is enforced in AuthorizationService.authorize_action
     """
     🏢 ENTERPRISE: Authorize action with comprehensive audit and execution.
 
@@ -863,18 +872,20 @@ async def authorize_action_with_audit(
 @router.get("/dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get comprehensive approval dashboard with KPIs."""
+    """Get comprehensive approval dashboard with KPIs - filtered by organization."""
     try:
         # ✅ SECURITY FIX: Use DatabaseQueryService with parameterized queries
         # Replaces vulnerable f-string SQL (lines 863-866)
         # See: audit-results/PRE_IMPLEMENTATION_AUDIT.md
         # Created by: OW-kai Engineer (SQL Injection Remediation - Phase 1)
-        metrics = DatabaseQueryService.execute_dashboard_metrics(db)
-        
-        # ✅ ENTERPRISE: Use pending_service for consistent count
-        metrics["total_pending"] = pending_service.get_pending_count(db)
+        # 🏢 ENTERPRISE: Pass org_id for tenant isolation
+        metrics = DatabaseQueryService.execute_dashboard_metrics(db, org_id=org_id)
+
+        # ✅ ENTERPRISE: Use pending_service for consistent count - filtered by org
+        metrics["total_pending"] = pending_service.get_pending_count(db, org_id=org_id)
         
         # Recent activity
         try:
@@ -1725,59 +1736,84 @@ async def monitor_mcp_server_health(
 @api_router.get("/metrics/approval-performance", response_model=Dict[str, Any])
 async def get_approval_performance_metrics(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Enterprise approval performance analytics endpoint
-    
+
+    🏢 ENTERPRISE: Multi-tenant data isolation enforced
+    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
     Provides critical metrics for:
     - SOX compliance reporting
-    - SLA performance tracking  
+    - SLA performance tracking
     - Operational efficiency analysis
     - Capacity planning insights
     """
     try:
-#    logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')}")
-        
+        logger.info(f"🏢 ENTERPRISE: Performance metrics requested by {current_user.get('email')} [org_id={org_id}]")
+
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for performance metrics request")
+            return {
+                "avg_approval_time_minutes": 0,
+                "sla_compliance_percentage": 0,
+                "total_processed_actions": 0,
+                "approver_performance": [],
+                "bottlenecks": [],
+                "enterprise_analytics": {"sox_compliance_ready": False, "audit_trail_complete": False},
+                "message": "Organization context required for metrics"
+            }
+
         # Calculate average approval time (minutes)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         avg_time_result = db.execute(text("""
             SELECT AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at))/60) as avg_minutes
-            FROM agent_actions 
+            FROM agent_actions
             WHERE reviewed_at IS NOT NULL AND status != 'pending'
-        """)).fetchone()
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
         avg_approval_time = round(avg_time_result[0] if avg_time_result[0] else 0, 2)
-        
+
         # SLA compliance calculation (actions approved within 30 minutes)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         sla_compliance_result = db.execute(text("""
-            SELECT 
-                COUNT(CASE WHEN EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 <= 30 THEN 1 END) * 100.0 / 
+            SELECT
+                COUNT(CASE WHEN EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 <= 30 THEN 1 END) * 100.0 /
                 NULLIF(COUNT(*), 0) as sla_percentage
-            FROM agent_actions 
+            FROM agent_actions
             WHERE reviewed_at IS NOT NULL
-        """)).fetchone()
-        
-        sla_compliance = round(sla_compliance_result[0] if sla_compliance_result[0] else 96.8, 1)
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
+        sla_compliance = round(sla_compliance_result[0] if sla_compliance_result[0] else 0, 1)
+
         # Total processed actions
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         total_processed_result = db.execute(text("""
             SELECT COUNT(*) FROM agent_actions WHERE status != 'pending'
-        """)).fetchone()
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
         total_processed = total_processed_result[0] if total_processed_result else 0
-        
+
         # Approver performance breakdown
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         approver_performance_result = db.execute(text("""
-            SELECT 
+            SELECT
                 reviewed_by,
                 COUNT(*) as total_reviews,
                 AVG(EXTRACT(EPOCH FROM (reviewed_at - created_at))/60) as avg_time_minutes
-            FROM agent_actions 
-            WHERE reviewed_by IS NOT NULL 
+            FROM agent_actions
+            WHERE reviewed_by IS NOT NULL
+            AND organization_id = :org_id
             GROUP BY reviewed_by
             ORDER BY total_reviews DESC
-        """)).fetchall()
-        
+        """), {"org_id": org_id}).fetchall()
+
         approver_performance = [
             {
                 "approver": row[0],
@@ -1786,16 +1822,18 @@ async def get_approval_performance_metrics(
             }
             for row in approver_performance_result
         ]
-        
+
         # Performance bottlenecks (actions taking > 60 minutes)
+        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         bottlenecks_result = db.execute(text("""
             SELECT action_type, COUNT(*) as delayed_count
-            FROM agent_actions 
+            FROM agent_actions
             WHERE EXTRACT(EPOCH FROM (reviewed_at - created_at))/60 > 60
+            AND organization_id = :org_id
             GROUP BY action_type
             ORDER BY delayed_count DESC
-        """)).fetchall()
-        
+        """), {"org_id": org_id}).fetchall()
+
         bottlenecks = [
             {"action_type": row[0], "delayed_count": row[1]}
             for row in bottlenecks_result
@@ -2141,7 +2179,8 @@ async def debug_list_policies(
 async def create_agent_action_api(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support both JWT and API key
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Multi-tenant isolation
 ):
     """
     Create agent action via API (for external agents/simulators)
@@ -2152,7 +2191,9 @@ async def create_agent_action_api(
     3. Authorization determination (auto-approve vs require approval)
     4. Alert generation (if risk exceeds thresholds)
 
-    NO CSRF required - uses Bearer token authentication only
+    NO CSRF required - uses Bearer token or API key authentication
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
+    SEC-020: organization_id set automatically from authenticated user for multi-tenant isolation
     Endpoint: POST /api/authorization/agent-action
     """
     try:
@@ -2228,6 +2269,7 @@ async def create_agent_action_api(
         # STEP 4: CREATE AGENT ACTION
         # ===================================================================
         # ARCH-004 PHASE 1: Use enrichment values instead of client data
+        # SEC-020: Include organization_id for multi-tenant data isolation
         action = AgentAction(
             agent_id=data["agent_id"],
             action_type=data["action_type"],
@@ -2237,6 +2279,7 @@ async def create_agent_action_api(
             risk_score=float(risk_score),
             status=status,
             user_id=current_user.get("user_id"),
+            organization_id=org_id,  # SEC-020: CRITICAL for multi-tenant isolation
             timestamp=datetime.now(UTC),
             target_system=data.get("target_system"),
             # ARCH-004: Use server-calculated enrichment values (security fix)
@@ -2305,6 +2348,7 @@ async def create_agent_action_api(
                 message=f"{data['agent_id']}: {data['description']}",
                 agent_id=data['agent_id'],
                 agent_action_id=action.id,
+                organization_id=org_id,  # SEC-020: Multi-tenant isolation for alerts
                 status="new",
                 timestamp=datetime.now(UTC)
             )

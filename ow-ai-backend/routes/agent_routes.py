@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Request, HTTPException, status, UploadFi
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
+from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth  # SEC-020: SDK API key authentication
 from schemas import AgentActionOut, AgentActionCreate
 from datetime import datetime, UTC, timezone
 from llm_utils import generate_summary, generate_smart_rule
@@ -14,11 +15,17 @@ import json
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Agent Actions"])
 
+# 🏢 ENTERPRISE: Multi-Tenant Data Isolation
+# All routes MUST filter by organization_id to ensure tenant isolation
+# Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
+
 @router.post("/agent-action", response_model=AgentActionOut)
 async def create_agent_action(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),  _=Depends(require_csrf)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """Submit a new agent action for security review - Enterprise-grade with graceful fallback"""
     try:
@@ -101,8 +108,10 @@ async def create_agent_action(
         try:
             # ENTERPRISE FIX: Create AgentAction with valid fields only
             # Note: AgentAction model uses user_id (not created_by)
+            # 🏢 CRITICAL: organization_id is REQUIRED for multi-tenant isolation
             action = AgentAction(
                 user_id=current_user.get("user_id", 1),  # User who created this action
+                organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                 agent_id=data["agent_id"],
                 action_type=data["action_type"],
                 description=data["description"],
@@ -267,8 +276,10 @@ async def create_agent_action(
                         logger.info(f"Alert already exists for action {action.id}: alert_id={alert_id} (skipping duplicate)")
                     else:
                         # ENTERPRISE FIX: Alert model only has 'timestamp', not 'created_at'
+                        # 🏢 CRITICAL: organization_id is REQUIRED for multi-tenant isolation
                         alert = Alert(
                             agent_action_id=action.id,
+                            organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                             alert_type="High Risk Agent Action",
                             severity="high",
                             message=f"Enterprise Alert: Agent {data['agent_id']} performed high-risk action: {data['action_type']}",
@@ -312,16 +323,20 @@ async def create_agent_action(
 def list_agent_actions(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     limit: int = 100,
     skip: int = 0
 ):
-    """List agent actions with pagination - Enterprise-grade with bulletproof fallback"""
+    """List agent actions with pagination - Enterprise-grade with tenant isolation"""
     try:
-        # Bulletproof database query with multiple fallback layers
+        # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
-            # First attempt: Try the full query
+            # First attempt: Try the full query with org filter
+            query = db.query(AgentAction)
+            if org_id is not None:
+                query = query.filter(AgentAction.organization_id == org_id)  # CRITICAL: Tenant isolation
             actions = (
-                db.query(AgentAction)
+                query
                 .order_by(AgentAction.timestamp.desc())
                 .offset(skip)
                 .limit(min(limit, 100))
@@ -341,122 +356,21 @@ def list_agent_actions(
         except Exception as db_error:
             logger.warning(f"Database query failed: {db_error}")
             
-            # Second attempt: Try simpler query
+            # Second attempt: Try simpler query with org filter
             try:
-                simple_actions = db.query(AgentAction).limit(10).all()
+                query = db.query(AgentAction)
+                if org_id is not None:
+                    query = query.filter(AgentAction.organization_id == org_id)
+                simple_actions = query.limit(10).all()
                 if simple_actions:
                     return simple_actions
             except Exception as simple_error:
                 logger.warning(f"Simple query also failed: {simple_error}")
-            
-            # Enterprise-grade fallback: Return demo data that showcases platform capabilities
-            logger.info("Using enterprise demonstration data")
-            
-            from datetime import datetime, timezone
-            current_time = datetime.now(timezone.utc)
-            
-            return [
-                {
-                    "id": 1001,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "enterprise-security-scanner-prod",
-                    "action_type": "critical_vulnerability_scan",
-                    "description": "Enterprise vulnerability assessment of production infrastructure identifying critical security gaps requiring immediate attention",
-                    "tool_name": "enterprise-security-suite",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0007",
-                    "mitre_technique": "T1190",
-                    "nist_control": "RA-5",
-                    "nist_description": "Vulnerability Scanning - Enterprise continuous monitoring",
-                    "recommendation": "CRITICAL: Immediate remediation required for 3 high-severity vulnerabilities",
-                    "summary": "Enterprise security scan completed: 3 critical vulnerabilities discovered in production systems requiring immediate executive attention and remediation",
-                    "status": "pending_approval",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None
-                },
-                {
-                    "id": 1002,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "compliance-audit-agent-enterprise",
-                    "action_type": "sox_compliance_validation",
-                    "description": "Automated SOX compliance audit of financial systems and access controls per enterprise governance requirements",
-                    "tool_name": "enterprise-compliance-auditor",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0005",
-                    "mitre_technique": "T1078",
-                    "nist_control": "AU-6",
-                    "nist_description": "Audit Review, Analysis, and Reporting - Enterprise compliance monitoring",
-                    "recommendation": "Review identified access control violations and update enterprise policies",
-                    "summary": "SOX compliance audit identified 5 access control policy violations requiring management review and corrective action",
-                    "status": "approved",
-                    "approved": True,
-                    "reviewed_by": "security-team@enterprise.com",
-                    "reviewed_at": current_time.isoformat()
-                },
-                {
-                    "id": 1003,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "threat-intelligence-correlator",
-                    "action_type": "advanced_threat_correlation",
-                    "description": "Machine learning-powered threat intelligence correlation across enterprise security stack identifying potential APT activity",
-                    "tool_name": "enterprise-threat-intelligence",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0011",
-                    "mitre_technique": "T1071",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring - Enterprise threat detection",
-                    "recommendation": "URGENT: Potential APT activity detected - initiate incident response procedures",
-                    "summary": "Advanced threat correlation analysis detected indicators consistent with nation-state APT tactics requiring immediate security team escalation",
-                    "status": "escalated",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None
-                },
-                {
-                    "id": 1004,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "data-loss-prevention-agent",
-                    "action_type": "sensitive_data_discovery",
-                    "description": "Enterprise data classification and loss prevention scan identifying sensitive data repositories and access patterns",
-                    "tool_name": "enterprise-dlp-scanner",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0009",
-                    "mitre_technique": "T1005",
-                    "nist_control": "SC-28",
-                    "nist_description": "Protection of Information at Rest - Enterprise data protection",
-                    "recommendation": "Implement additional encryption for newly discovered sensitive data repositories",
-                    "summary": "Data discovery scan identified 12 new repositories containing PII/PHI requiring enhanced protection measures",
-                    "status": "approved",
-                    "approved": True,
-                    "reviewed_by": "data-protection-office@enterprise.com",
-                    "reviewed_at": current_time.isoformat()
-                },
-                {
-                    "id": 1005,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "privileged-access-monitor",
-                    "action_type": "privileged_account_analysis",
-                    "description": "Quarterly privileged access review and anomaly detection for administrative accounts across enterprise infrastructure",
-                    "tool_name": "enterprise-pam-system",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "low",
-                    "mitre_tactic": "TA0004",
-                    "mitre_technique": "T1078.003",
-                    "nist_control": "AC-2",
-                    "nist_description": "Account Management - Enterprise privileged access governance",
-                    "recommendation": "Standard quarterly review completed - no anomalies detected",
-                    "summary": "Privileged access review completed for 247 administrative accounts - all access patterns within normal parameters",
-                    "status": "approved",
-                    "approved": True,
-                    "reviewed_by": "identity-governance@enterprise.com", 
-                    "reviewed_at": current_time.isoformat()
-                }
-            ]
+
+            # 🏢 ENTERPRISE: NO demo data - return empty list for new organizations
+            # Banking-level security: Only return REAL data from database
+            logger.info(f"🏢 ENTERPRISE: No agent actions found for org_id={org_id} - returning empty list (no demo data)")
+            return []
             
     except Exception as e:
         logger.error(f"Critical error in list_agent_actions: {str(e)}")
@@ -466,16 +380,22 @@ def list_agent_actions(
 @router.get("/agent-activity", response_model=List[AgentActionOut])
 def get_agent_activity(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support SDK API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth),  # SEC-020: Dual-auth org filter
     risk: str = None
 ):
-    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with bulletproof fallback"""
+    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with tenant isolation
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
+    """
     try:
-        # Bulletproof activity query with enterprise filtering
+        # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
-            print("🔍 DEBUG: Starting agent-activity query", flush=True)
-            logger.info("🔍 DEPLOYMENT DEBUG: Starting agent-activity query")
-            query = db.query(AgentAction).order_by(AgentAction.timestamp.desc())
+            print(f"🔍 DEBUG: Starting agent-activity query for org_id={org_id}", flush=True)
+            logger.info(f"🔍 DEPLOYMENT DEBUG: Starting agent-activity query for org_id={org_id}")
+            query = db.query(AgentAction)
+            if org_id is not None:
+                query = query.filter(AgentAction.organization_id == org_id)
+            query = query.order_by(AgentAction.timestamp.desc())
 
             if risk and risk != "all":
                 query = query.filter(AgentAction.risk_level == risk)
@@ -496,80 +416,15 @@ def get_agent_activity(
                 logger.info(f"🔍 DEPLOYMENT DEBUG: Returning {len(actions)} real actions from database")
                 return actions
             else:
-                print("🔍 DEBUG: No actions found - returning demo data", flush=True)
-                logger.warning("🔍 DEPLOYMENT DEBUG: No actions found in database - falling back to demo data")
-                raise Exception("No activity data")
+                # 🏢 ENTERPRISE: No demo data - return empty list for new organizations
+                # This is correct behavior for tenant isolation - new orgs have no activity
+                logger.info(f"🏢 ENTERPRISE: No agent activity found for org_id={org_id} - returning empty list")
+                return []
 
         except Exception as db_error:
-            print(f"🔍 DEBUG: Exception caught: {type(db_error).__name__}: {db_error}", flush=True)
-            logger.error(f"🔍 DEPLOYMENT DEBUG: Activity query failed with error: {db_error}", exc_info=True)
-            logger.warning(f"Activity query failed: {db_error}")
-            
-            # Enterprise-grade activity demonstration data
-            current_time = datetime.now(timezone.utc)
-            
-            sample_activities = [
-                {
-                    "id": 2001,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "incident-response-orchestrator",
-                    "action_type": "automated_incident_response",
-                    "description": "Enterprise SOAR platform automated response to security incident IR-2025-CRIT-001",
-                    "tool_name": "enterprise-soar-platform",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0040",
-                    "mitre_technique": "T1562",
-                    "nist_control": "IR-4",
-                    "nist_description": "Incident Response - Enterprise automated response",
-                    "recommendation": "Incident containment measures deployed - manual verification required",
-                    "summary": "Automated incident response successfully isolated compromised endpoint and initiated threat hunting procedures",
-                    "status": "in_progress",
-                    "approved": True
-                },
-                {
-                    "id": 2002,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "network-segmentation-analyzer",
-                    "action_type": "micro_segmentation_analysis",
-                    "description": "Enterprise network micro-segmentation analysis identifying lateral movement risks and policy violations",
-                    "tool_name": "enterprise-network-analyzer",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0008",
-                    "mitre_technique": "T1021",
-                    "nist_control": "SC-7",
-                    "nist_description": "Boundary Protection - Enterprise network segmentation",
-                    "recommendation": "Implement additional micro-segmentation rules for identified high-risk network paths",
-                    "summary": "Network analysis identified 8 high-risk lateral movement paths requiring additional segmentation controls",
-                    "status": "pending",
-                    "approved": False
-                },
-                {
-                    "id": 2003,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "cloud-security-posture-scanner",
-                    "action_type": "multi_cloud_security_assessment",
-                    "description": "Enterprise multi-cloud security posture assessment across AWS, Azure, and GCP environments",
-                    "tool_name": "enterprise-cspm-scanner",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "low",
-                    "mitre_tactic": "TA0001",
-                    "mitre_technique": "T1078.004",
-                    "nist_control": "RA-3",
-                    "nist_description": "Risk Assessment - Enterprise cloud security",
-                    "recommendation": "Cloud security posture within acceptable parameters - continue monitoring",
-                    "summary": "Multi-cloud security assessment completed - all environments compliant with enterprise security baseline",
-                    "status": "approved",
-                    "approved": True
-                }
-            ]
-            
-            # Apply risk filter to demonstration data
-            if risk and risk != "all":
-                sample_activities = [a for a in sample_activities if a["risk_level"] == risk]
-                
-            return sample_activities
+            # 🏢 ENTERPRISE: Log error but return empty list - no demo data
+            logger.error(f"🏢 ENTERPRISE: Activity query failed for org_id={org_id}: {db_error}")
+            return []
             
     except Exception as e:
         logger.error(f"Critical error in get_agent_activity: {str(e)}")
@@ -581,15 +436,22 @@ async def approve_agent_action(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Approve an agent action (admin only) - Enterprise audit trail preserved
 
     FIX #2: Now stores approval comments in extra_data field for compliance
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be approved
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only approve their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not action:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -649,15 +511,22 @@ async def reject_agent_action(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Reject an agent action (admin only) - Enterprise audit trail preserved
 
     FIX #2: Now stores rejection reason in extra_data field for compliance
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be rejected
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only reject their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not action:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -720,7 +589,8 @@ async def reject_agent_action(
 async def get_agent_action_by_id(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support SDK API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Dual-auth org filter
 ):
     """
     FIX #1: Get individual agent action by ID for deep linking and detailed reports.
@@ -731,9 +601,15 @@ async def get_agent_action_by_id(
     - Deep linking: https://pilot.owkai.app/action/736
 
     Returns: Full action details with NIST/MITRE/CVSS mappings
+    🏢 ENTERPRISE: Only returns action if it belongs to user's organization
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only see their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
 
         if not action:
             raise HTTPException(
@@ -816,7 +692,8 @@ async def get_deployed_models(
 async def get_action_status(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support SDK API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Dual-auth org filter
 ):
     """
     FIX #4: Agent polling endpoint for autonomous workflow.
@@ -826,9 +703,15 @@ async def get_action_status(
     - If rejected: Agent logs denial reason and aborts
 
     Returns: Minimal status info optimized for polling (sub-100ms)
+    🏢 ENTERPRISE: Only returns status if action belongs to user's organization
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only poll their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
 
         if not action:
             raise HTTPException(
@@ -867,11 +750,19 @@ async def get_action_status(
 def mark_false_positive(
     action_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),  _=Depends(require_csrf)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
-    """Mark an agent action as false positive (admin only) - Enterprise audit trail preserved"""
+    """Mark an agent action as false positive (admin only) - Enterprise audit trail preserved
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be marked
+    """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only mark their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
         if not action:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -914,13 +805,18 @@ def mark_false_positive(
 @router.get("/audit-trail")
 def get_audit_trail(
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get audit trail (admin only) - Enterprise compliance feature preserved"""
+    """Get audit trail (admin only) - Enterprise compliance feature preserved
+    🏢 ENTERPRISE: Only returns audit logs for user's organization
+    """
     try:
         try:
+            # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
             logs = (
                 db.query(LogAuditTrail)
+                .filter(LogAuditTrail.organization_id == org_id)  # CRITICAL: Tenant isolation
                 .order_by(LogAuditTrail.timestamp.desc())
                 .limit(100)
                 .all()
@@ -928,26 +824,9 @@ def get_audit_trail(
             return logs
         except Exception as db_error:
             logger.warning(f"Audit trail query failed: {db_error}")
-            # Return enterprise-grade audit demonstration data
-            current_time = datetime.now(timezone.utc)
-            return [
-                {
-                    "id": 5001,
-                    "action_id": 1001,
-                    "decision": "approved",
-                    "reviewed_by": "security-manager@enterprise.com",
-                    "timestamp": current_time.isoformat(),
-                    "notes": "Critical vulnerability scan approved for production environment"
-                },
-                {
-                    "id": 5002,
-                    "action_id": 1003,
-                    "decision": "escalated",
-                    "reviewed_by": "incident-commander@enterprise.com",
-                    "timestamp": current_time.isoformat(),
-                    "notes": "APT indicators detected - escalated to threat intelligence team"
-                }
-            ]
+            # 🏢 ENTERPRISE: NO demo data - return empty list for new organizations
+            logger.info(f"🏢 ENTERPRISE: No audit trail found for org_id={org_id} - returning empty list (no demo data)")
+            return []
     except Exception as e:
         logger.error(f"Failed to get audit trail: {str(e)}")
         raise HTTPException(
@@ -963,11 +842,18 @@ def get_audit_trail(
 def toggle_false_positive(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Toggle false positive flag on an agent action - Enterprise audit trail"""
+    """Toggle false positive flag on an agent action - Enterprise audit trail
+    🏢 ENTERPRISE: Only actions belonging to user's organization can be toggled
+    """
     try:
-        action = db.query(AgentAction).filter(AgentAction.id == action_id).first()
+        # 🏢 ENTERPRISE: Filter by organization_id - users can only toggle their org's actions
+        action = db.query(AgentAction).filter(
+            AgentAction.id == action_id,
+            AgentAction.organization_id == org_id  # CRITICAL: Tenant isolation
+        ).first()
 
         if not action:
             raise HTTPException(status_code=404, detail=f"Agent action {action_id} not found")
@@ -1057,9 +943,12 @@ async def submit_support_request(
 async def upload_agent_actions_json(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Upload agent actions from JSON file - Enterprise bulk import"""
+    """Upload agent actions from JSON file - Enterprise bulk import
+    🏢 ENTERPRISE: All imported actions are scoped to user's organization
+    """
     try:
         # Validate file type
         if not file.filename.endswith('.json'):
@@ -1085,7 +974,7 @@ async def upload_agent_actions_json(
 
         for idx, action_data in enumerate(actions_data):
             try:
-                # Create agent action
+                # Create agent action - scoped to user's organization
                 action = AgentAction(
                     agent_id=action_data.get("agent_id", "imported"),
                     action_type=action_data.get("action_type", "imported_action"),
@@ -1094,6 +983,7 @@ async def upload_agent_actions_json(
                     risk_level=action_data.get("risk_level"),
                     status=action_data.get("status", "imported"),
                     user_id=current_user.get("user_id"),
+                    organization_id=org_id,  # 🏢 ENTERPRISE: Scope to organization
                     timestamp=datetime.now(UTC),
                     created_at=datetime.now(UTC),
                     summary=action_data.get("summary"),
