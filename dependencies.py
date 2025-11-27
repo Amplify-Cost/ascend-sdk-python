@@ -127,6 +127,10 @@ def get_current_user(
 
     SECURITY: organization_id is REQUIRED for multi-tenant data isolation
     """
+    # SEC-024: Debug logging to trace cookie presence
+    logger.debug(f"🔍 SEC-024: Auth check for {request.url.path}")
+    logger.debug(f"🔍 SEC-024: Cookies present: {list(request.cookies.keys())}")
+
     # 1) Cookie session
     cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if cookie_jwt:
@@ -195,6 +199,9 @@ def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     # Neither cookie nor allowed bearer present
+    # SEC-024: Log auth failure details for debugging
+    logger.warning(f"🔐 SEC-024: Auth failed for {request.url.path} - No cookie and no valid bearer")
+    logger.warning(f"🔐 SEC-024: Cookies={list(request.cookies.keys())}, HasBearer={bool(credentials and credentials.credentials)}")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication required",
