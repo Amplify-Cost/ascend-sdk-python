@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
-import { Shield, Plus, X, Code2, Eye } from 'lucide-react';
+import { Shield, Plus, X, Code2, Eye, ChevronDown } from 'lucide-react';
 
+/**
+ * 🏢 SEC-012: Enterprise Policy Builder with Conditions Support
+ * Banking-Level Security: NIST AC-3, PCI-DSS 7.1, SOC 2 CC6.1
+ *
+ * Features:
+ * - Visual condition builder with dropdown selectors
+ * - Full policy data submission (actions, resources, conditions)
+ * - Compliance-ready structured policies
+ */
 export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, getAuthHeaders }) => {
   const [policy, setPolicy] = useState({
     policy_name: '',
@@ -13,6 +22,9 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
   });
   const [showPreview, setShowPreview] = useState(false);
   const [compiledPreview, setCompiledPreview] = useState(null);
+  // 🏢 SEC-012: State for condition selector
+  const [selectedConditionKey, setSelectedConditionKey] = useState('');
+  const [selectedConditionValue, setSelectedConditionValue] = useState('');
 
   const actionOptions = [
     { value: 'read', label: 'Read', icon: '👁️' },
@@ -59,10 +71,30 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
   };
 
   const addCondition = (key, value) => {
+    // 🏢 SEC-012: Prevent duplicate conditions
+    const exists = policy.conditions.some(c => c.key === key && c.value === value);
+    if (exists) {
+      return; // Don't add duplicates
+    }
     setPolicy(prev => ({
       ...prev,
       conditions: [...prev.conditions, { key, value }]
     }));
+  };
+
+  // 🏢 SEC-012: Handler for adding condition from dropdowns
+  const handleAddCondition = () => {
+    if (selectedConditionKey && selectedConditionValue) {
+      addCondition(selectedConditionKey, selectedConditionValue);
+      setSelectedConditionKey('');
+      setSelectedConditionValue('');
+    }
+  };
+
+  // 🏢 SEC-012: Get available values for selected condition key
+  const getConditionValues = () => {
+    const option = conditionOptions.find(c => c.key === selectedConditionKey);
+    return option ? option.values : [];
   };
 
   const removeCondition = (index) => {
@@ -104,7 +136,7 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
   };
 
   const handleSave = async () => {
-    // Validate policy name is provided
+    // 🏢 SEC-012: Enterprise validation
     if (!policy.policy_name || !policy.policy_name.trim()) {
       alert('Please provide a policy name');
       return;
@@ -120,15 +152,31 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
                           policy.effect === 'permit' ? 'Allow' :
                           'Require approval for';
         description = `${effectText} ${policy.actions.join(', ')} operations on ${policy.resources.join(', ')}`;
+
+        // 🏢 SEC-012: Add conditions to description for audit trail
+        if (policy.conditions.length > 0) {
+          const conditionText = policy.conditions.map(c => `${c.key}=${c.value}`).join(', ');
+          description += ` when ${conditionText}`;
+        }
       } else {
         alert('Please either:\n• Fill in the natural language description, OR\n• Select at least one action and one resource');
         return;
       }
     }
 
+    // 🏢 SEC-012: Send COMPLETE policy data for enterprise compliance
+    // Banking-Level: Full structured policy enables NIST AC-3, PCI-DSS 7.1 enforcement
     await onSave({
       policy_name: policy.policy_name,
-      description: description
+      description: description,
+      effect: policy.effect,
+      actions: policy.actions,
+      resources: policy.resources,
+      conditions: policy.conditions.reduce((acc, c) => {
+        acc[c.key] = c.value;
+        return acc;
+      }, {}),
+      risk_level: policy.risk_level
     });
   };
 
@@ -244,19 +292,100 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
         </div>
       </div>
 
-      {/* Conditions */}
-      <div className="mt-6">
-        <label className="block text-sm font-medium mb-3">Conditions (Optional)</label>
+      {/* 🏢 SEC-012: Enterprise Conditions Builder */}
+      <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <label className="block text-sm font-medium mb-3 flex items-center gap-2">
+          <Shield className="h-4 w-4 text-purple-600" />
+          Policy Conditions (Access Control)
+        </label>
+        <p className="text-xs text-gray-500 mb-4">
+          Define when this policy applies. Required for PCI-DSS 7.1 and NIST AC-3 compliance.
+        </p>
+
+        {/* Condition Selector UI */}
+        <div className="flex gap-3 mb-4">
+          {/* Condition Type Dropdown */}
+          <div className="flex-1">
+            <label className="block text-xs text-gray-600 mb-1">Condition Type</label>
+            <select
+              value={selectedConditionKey}
+              onChange={(e) => {
+                setSelectedConditionKey(e.target.value);
+                setSelectedConditionValue(''); // Reset value when key changes
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+            >
+              <option value="">Select condition type...</option>
+              {conditionOptions.map(opt => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Condition Value Dropdown */}
+          <div className="flex-1">
+            <label className="block text-xs text-gray-600 mb-1">Condition Value</label>
+            <select
+              value={selectedConditionValue}
+              onChange={(e) => setSelectedConditionValue(e.target.value)}
+              disabled={!selectedConditionKey}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+            >
+              <option value="">Select value...</option>
+              {getConditionValues().map(val => (
+                <option key={val} value={val}>
+                  {val.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Add Condition Button */}
+          <div className="flex items-end">
+            <button
+              onClick={handleAddCondition}
+              disabled={!selectedConditionKey || !selectedConditionValue}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Active Conditions List */}
         <div className="space-y-2">
-          {policy.conditions.map((condition, idx) => (
-            <div key={idx} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
-              <span className="text-sm font-medium">{condition.key}:</span>
-              <span className="text-sm">{condition.value}</span>
-              <button onClick={() => removeCondition(idx)} className="ml-auto">
-                <X className="h-4 w-4 text-red-600" />
-              </button>
+          {policy.conditions.length === 0 ? (
+            <div className="text-sm text-gray-500 italic py-2">
+              No conditions added. Policy will apply to all matching actions.
             </div>
-          ))}
+          ) : (
+            <>
+              <div className="text-xs text-gray-600 font-medium mb-2">
+                Active Conditions ({policy.conditions.length}):
+              </div>
+              {policy.conditions.map((condition, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-white p-3 rounded-lg border border-purple-200 shadow-sm">
+                  <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded font-medium">
+                    {conditionOptions.find(c => c.key === condition.key)?.label || condition.key}
+                  </span>
+                  <span className="text-gray-500">=</span>
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded font-medium">
+                    {condition.value.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                  <button
+                    onClick={() => removeCondition(idx)}
+                    className="ml-auto p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Remove condition"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 

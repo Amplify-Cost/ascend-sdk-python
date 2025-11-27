@@ -1,14 +1,20 @@
 import React, { useState } from "react";
 import AgentActionSubmitPanel from "./AgentActionSubmitPanel";
 import RiskConfigurationTab from "./risk-config/RiskConfigurationTab";
+import ApiKeyManagement from "./ApiKeyManagement";
 
-const EnterpriseSettings = ({ getAuthHeaders, user }) => {
+/**
+ * 🏢 SEC-013: Enterprise Settings with API Key Management
+ * Banking-Level Security: PCI-DSS 8.3.1, HIPAA 164.312(d), SOC 2 CC6.1
+ */
+const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
   const [activeSettingsTab, setActiveSettingsTab] = useState("general");
   const [acknowledgment, setAcknowledgment] = useState(false);
 
   const settingsTabs = [
     { id: "general", label: "General Settings" },
     { id: "security", label: "Security Settings" },
+    { id: "api-keys", label: "🔑 API Keys" }, // SEC-013: Enterprise API Key Management
     { id: "integrations", label: "Integrations" },
     { id: "risk-config", label: "🎯 Risk Configuration" }, // Enterprise Risk Scoring
     { id: "admin-tools", label: "🔧 Admin Tools" } // Admin-only tab
@@ -317,6 +323,13 @@ const EnterpriseSettings = ({ getAuthHeaders, user }) => {
       <div className="min-h-[400px]">
         {activeSettingsTab === "general" && renderGeneralSettings()}
         {activeSettingsTab === "security" && renderSecuritySettings()}
+        {/* 🏢 SEC-013: Enterprise API Key Management Tab */}
+        {activeSettingsTab === "api-keys" && (
+          <ApiKeyManagement
+            API_BASE_URL={API_BASE_URL || ""}
+            getAuthHeaders={getAuthHeaders}
+          />
+        )}
         {activeSettingsTab === "integrations" && renderIntegrations()}
         {activeSettingsTab === "risk-config" && <RiskConfigurationTab getAuthHeaders={getAuthHeaders} />}
         {activeSettingsTab === "admin-tools" && renderAdminTools()}

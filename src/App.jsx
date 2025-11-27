@@ -442,8 +442,8 @@ const AppContent = () => {
           contentWithTransition(<EnterpriseUserManagement getAuthHeaders={getAuthHeaders} user={user} />) : 
           adminRequiredMessage;
       case "settings":
-        return user?.role === "admin" ? 
-          contentWithTransition(<EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} />) : 
+        return user?.role === "admin" ?
+          contentWithTransition(<EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} API_BASE_URL={API_BASE_URL} />) :
           adminRequiredMessage;
       case 'alerts':
   return <SmartAlertManagement getAuthHeaders={getAuthHeaders} user={user} />;    
