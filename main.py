@@ -641,6 +641,36 @@ async def get_ai_insights(
         fp_rate = alert_stats[5] or 0
         escalation_rate = alert_stats[6] or 0
 
+        # 🏢 SEC-008: ENTERPRISE - Return empty state when organization has NO alerts
+        # This prevents showing computed defaults/placeholder data for orgs without activity
+        if total_alerts == 0:
+            logger.info(f"🏢 SEC-008: No alerts found for org_id={org_id} - returning empty state")
+            return {
+                "threat_summary": {
+                    "total_threats": 0,
+                    "critical_threats": 0,
+                    "automated_responses": 0,
+                    "false_positive_rate": 0,
+                    "avg_response_time": "N/A",
+                    "escalation_rate": "0%"
+                },
+                "predictive_analysis": {
+                    "risk_score": 0,
+                    "trend_direction": "stable",
+                    "predicted_incidents": 0,
+                    "confidence_level": 0
+                },
+                "patterns_detected": [],
+                "recommendations": [],
+                "ai_recommendations": [],
+                "meta": {
+                    "organization_id": org_id,
+                    "has_activity": False,
+                    "message": "No alert activity found for this organization",
+                    "mock_data": False
+                }
+            }
+
         # === GENERATE REAL RECOMMENDATIONS ===
         recommendations = []
 
@@ -1055,28 +1085,65 @@ async def get_ai_performance_metrics(
 
             hours_saved = minutes_saved / 60
 
+            # 🏢 SEC-008: ENTERPRISE - Return empty state when organization has NO alerts
+            if total_processed == 0:
+                logger.info(f"🏢 SEC-008: No alert data found for org_id={org_id} - returning empty performance metrics")
+                return {
+                    "alert_processing": {
+                        "total_processed": 0,
+                        "high_severity_detected": 0,
+                        "medium_severity_detected": 0,
+                        "processing_accuracy": 0,
+                        "false_positive_rate": 0
+                    },
+                    "ai_response_metrics": {
+                        "automated_responses": 0,
+                        "response_accuracy": 0,
+                        "average_response_time": "N/A",
+                        "automation_rate": 0
+                    },
+                    "threat_detection": {
+                        "threat_patterns_identified": 0,
+                        "correlation_success_rate": "0%",
+                        "prediction_accuracy": "0%",
+                        "threat_intelligence_matches": 0,
+                        "real_threats_detected": 0
+                    },
+                    "operational_efficiency": {
+                        "analyst_time_saved": "0 hours",
+                        "cost_savings": "$0",
+                        "sla_compliance": "N/A",
+                        "escalation_rate": "0%"
+                    },
+                    "meta": {
+                        "organization_id": org_id,
+                        "has_activity": False,
+                        "message": "No alert activity found for this organization"
+                    }
+                }
+
         except Exception as db_error:
-            logger.warning(f"⚠️ Performance metrics query failed, using fallback: {db_error}")
-            # Enterprise-grade fallback data
-            total_processed = 45
-            high_severity = 12
-            medium_severity = 20
-            false_positive_rate = 8.5
-            avg_mttr = 4.2
-            processing_accuracy = 91.5
-            total_responses = 38
-            auto_approved = 15
-            automation_rate = 39.5
-            response_accuracy = 81.6
-            patterns = 8
-            real_threats = 9
-            correlation_rate = 94.2
-            intel_matches = 11
-            minutes_saved = 285
-            hours_saved = 4.75
-            cost_savings = 356.25
-            escalation_rate = 22.2
-            sla_compliance = 96.8
+            logger.warning(f"⚠️ SEC-008: Performance metrics query failed: {db_error}")
+            # 🏢 SEC-008: ENTERPRISE - Zero-value fallback (NO demo data)
+            total_processed = 0
+            high_severity = 0
+            medium_severity = 0
+            false_positive_rate = 0
+            avg_mttr = 0
+            processing_accuracy = 0
+            total_responses = 0
+            auto_approved = 0
+            automation_rate = 0
+            response_accuracy = 0
+            patterns = 0
+            real_threats = 0
+            correlation_rate = 0
+            intel_matches = 0
+            minutes_saved = 0
+            hours_saved = 0
+            cost_savings = 0
+            escalation_rate = 0
+            sla_compliance = 0
             monthly_comparison = None
         finally:
             db.close()
