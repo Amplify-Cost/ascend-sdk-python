@@ -726,6 +726,9 @@ class RiskScoringConfig(Base):
     # Primary Key
     id = Column(Integer, primary_key=True, index=True)
 
+    # 🏢 ENTERPRISE: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+
     # Version Management
     config_version = Column(String(20), nullable=False, index=True)
     algorithm_version = Column(String(20), nullable=False, default="2.0.0")
