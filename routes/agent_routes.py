@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
 from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
+from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth  # SEC-020: SDK API key authentication
 from schemas import AgentActionOut, AgentActionCreate
 from datetime import datetime, UTC, timezone
 from llm_utils import generate_summary, generate_smart_rule
@@ -379,11 +380,13 @@ def list_agent_actions(
 @router.get("/agent-activity", response_model=List[AgentActionOut])
 def get_agent_activity(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter),
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support SDK API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth),  # SEC-020: Dual-auth org filter
     risk: str = None
 ):
-    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with tenant isolation"""
+    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with tenant isolation
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
+    """
     try:
         # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
@@ -586,8 +589,8 @@ async def reject_agent_action(
 async def get_agent_action_by_id(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support SDK API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Dual-auth org filter
 ):
     """
     FIX #1: Get individual agent action by ID for deep linking and detailed reports.
@@ -599,6 +602,7 @@ async def get_agent_action_by_id(
 
     Returns: Full action details with NIST/MITRE/CVSS mappings
     🏢 ENTERPRISE: Only returns action if it belongs to user's organization
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
     try:
         # 🏢 ENTERPRISE: Filter by organization_id - users can only see their org's actions
@@ -688,8 +692,8 @@ async def get_deployed_models(
 async def get_action_status(
     action_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support SDK API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Dual-auth org filter
 ):
     """
     FIX #4: Agent polling endpoint for autonomous workflow.
@@ -700,6 +704,7 @@ async def get_action_status(
 
     Returns: Minimal status info optimized for polling (sub-100ms)
     🏢 ENTERPRISE: Only returns status if action belongs to user's organization
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
     try:
         # 🏢 ENTERPRISE: Filter by organization_id - users can only poll their org's actions

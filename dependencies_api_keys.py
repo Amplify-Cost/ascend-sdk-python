@@ -123,13 +123,16 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
                 detail="User not found"
             )
 
-        logger.info(f"✅ API key authenticated: {prefix} (user: {user.email})")
+        # SEC-020: Include organization_id for multi-tenant data isolation
+        organization_id = user.organization_id if hasattr(user, 'organization_id') else api_key.organization_id
+        logger.info(f"✅ API key authenticated: {prefix} (user: {user.email}, org_id={organization_id})")
 
-        # 10. Return user context
+        # 10. Return user context with organization_id for tenant isolation
         return {
             "user_id": user.id,
             "email": user.email,
             "role": user.role,
+            "organization_id": organization_id,  # SEC-020: CRITICAL for multi-tenant isolation
             "api_key_id": api_key.id,
             "api_key_prefix": prefix,
             "auth_method": "api_key"
@@ -407,3 +410,34 @@ async def get_current_api_key(
     request.state.auth_method = "api_key"
 
     return user_context
+
+
+# ========================================
+# SEC-020: Organization Filter for Dual Auth
+# ========================================
+
+def get_organization_filter_dual_auth(current_user: dict = Depends(get_current_user_or_api_key)):
+    """
+    🏢 ENTERPRISE SEC-020: Get organization filter for dual-auth routes.
+
+    This dependency works with BOTH JWT (admin UI) and API key (SDK) authentication.
+    Returns the organization_id for multi-tenant data isolation.
+
+    Usage in routes:
+        @router.get("/data")
+        async def get_data(
+            current_user: dict = Depends(get_current_user_or_api_key),
+            org_id: int = Depends(get_organization_filter_dual_auth),
+            db: Session = Depends(get_db)
+        ):
+            query = db.query(Model).filter(Model.organization_id == org_id)
+            return query.all()
+    """
+    organization_id = current_user.get("organization_id")
+
+    if organization_id is None:
+        logger.warning(f"⚠️ SEC-020: Organization context missing for {current_user.get('email')} - data isolation NOT enforced")
+    else:
+        logger.debug(f"✅ SEC-020: Organization filter: org_id={organization_id} for {current_user.get('email')}")
+
+    return organization_id

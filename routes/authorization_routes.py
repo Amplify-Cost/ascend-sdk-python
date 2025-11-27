@@ -29,6 +29,7 @@ from database import get_db
 from services.pending_actions_service import pending_service
 from services.database_query_service import DatabaseQueryService
 from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
+from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth  # SEC-020: SDK API key authentication
 from models import AgentAction, LogAuditTrail, Alert, SmartRule
 from models import User
 from models_mcp_governance import MCPServer
@@ -2178,7 +2179,8 @@ async def debug_list_policies(
 async def create_agent_action_api(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-020: Support both JWT and API key
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Multi-tenant isolation
 ):
     """
     Create agent action via API (for external agents/simulators)
@@ -2189,7 +2191,9 @@ async def create_agent_action_api(
     3. Authorization determination (auto-approve vs require approval)
     4. Alert generation (if risk exceeds thresholds)
 
-    NO CSRF required - uses Bearer token authentication only
+    NO CSRF required - uses Bearer token or API key authentication
+    SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
+    SEC-020: organization_id set automatically from authenticated user for multi-tenant isolation
     Endpoint: POST /api/authorization/agent-action
     """
     try:
@@ -2265,6 +2269,7 @@ async def create_agent_action_api(
         # STEP 4: CREATE AGENT ACTION
         # ===================================================================
         # ARCH-004 PHASE 1: Use enrichment values instead of client data
+        # SEC-020: Include organization_id for multi-tenant data isolation
         action = AgentAction(
             agent_id=data["agent_id"],
             action_type=data["action_type"],
@@ -2274,6 +2279,7 @@ async def create_agent_action_api(
             risk_score=float(risk_score),
             status=status,
             user_id=current_user.get("user_id"),
+            organization_id=org_id,  # SEC-020: CRITICAL for multi-tenant isolation
             timestamp=datetime.now(UTC),
             target_system=data.get("target_system"),
             # ARCH-004: Use server-calculated enrichment values (security fix)
@@ -2342,6 +2348,7 @@ async def create_agent_action_api(
                 message=f"{data['agent_id']}: {data['description']}",
                 agent_id=data['agent_id'],
                 agent_action_id=action.id,
+                organization_id=org_id,  # SEC-020: Multi-tenant isolation for alerts
                 status="new",
                 timestamp=datetime.now(UTC)
             )
