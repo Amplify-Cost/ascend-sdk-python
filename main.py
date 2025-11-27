@@ -366,45 +366,9 @@ app.add_middleware(
     max_age=600,  # Preflight cache: 10 minutes
 )
 
-# ✅ ADD THIS HERE - Enterprise Demo Storage Systems
-demo_actions_storage = {
-    9001: {
-        "id": 9001,
-        "agent_id": "security-scanner-01",
-        "action_type": "vulnerability_scan",
-        "description": "Production infrastructure vulnerability assessment",
-        "risk_level": "high",
-        "ai_risk_score": 85,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    },
-    9002: {
-        "id": 9002,
-        "agent_id": "compliance-agent",
-        "action_type": "compliance_check",
-        "description": "SOX compliance audit of financial systems",
-        "risk_level": "medium",
-        "ai_risk_score": 65,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    },
-    9003: {
-        "id": 9003,
-        "agent_id": "threat-detector",
-        "action_type": "anomaly_detection",
-        "description": "Advanced threat correlation analysis on network traffic",
-        "risk_level": "high",
-        "ai_risk_score": 90,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    }
-}
+# 🏢 SEC-007: ENTERPRISE PRODUCTION - Demo storage DISABLED for multi-tenant security
+# All demo data has been removed. Production uses database only.
+demo_actions_storage = {}  # Empty - no demo data in production
 
 # Enterprise workflow configuration storage
 # Import workflow config from shared config file
@@ -429,29 +393,45 @@ app.include_router(auth_router)
 # ============================================================================
 
 @app.get("/api/alerts/threat-intelligence")
-async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
-    """📡 ENTERPRISE: Global threat intelligence feed with real-time data"""
+async def get_threat_intelligence(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """📡 ENTERPRISE: Global threat intelligence feed with real-time data
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
+    """
     try:
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for threat-intelligence by {current_user.get('email')}")
+            return {
+                "active_campaigns": [],
+                "ioc_matches": 0,
+                "new_indicators": 0,
+                "threat_actors": []
+            }
+
         db: Session = next(get_db())
-        
+
         try:
-            # Get threat indicators from recent alerts
+            # Get threat indicators from recent alerts - 🏢 ENTERPRISE: Filter by org_id
             recent_threats = db.execute(text("""
                 SELECT alert_type, severity, agent_id, COUNT(*) as frequency
-                FROM alerts 
-                WHERE timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL
+                FROM alerts
+                WHERE (timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL)
+                AND organization_id = :org_id
                 GROUP BY alert_type, severity, agent_id
                 ORDER BY frequency DESC
                 LIMIT 10
-            """)).fetchall()
-            
+            """), {"org_id": org_id}).fetchall()
+
             threat_count = len(recent_threats)
             high_severity_count = len([t for t in recent_threats if t[1] == 'high'])
-            
+
         except Exception as db_error:
             logger.warning(f"Threat intelligence query failed: {db_error}")
-            threat_count = 8
-            high_severity_count = 3
+            threat_count = 0
+            high_severity_count = 0
         finally:
             db.close()
         
@@ -1744,15 +1724,27 @@ async def generate_smart_rule_enterprise(request: Request, current_user: dict = 
         logger.error(f"❌ Smart rule generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate smart rule")
 # ================== YOUR ALERTS ROUTES (PRESERVED) ==================
+# 🏢 SEC-007: ENTERPRISE MULTI-TENANT ISOLATION - Banking Level Security
 @app.get("/api/alerts")
-async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
-    """Enterprise alerts endpoint with database integration and rich fallback data"""
+async def get_alerts_enhanced(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """Enterprise alerts endpoint with database integration
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation (SEC-007)
+    ⚠️ REMOVED: All demo/fallback data - Production only returns real database alerts
+    """
     try:
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for /api/alerts by {current_user.get('email')}")
+            return []  # Return empty - no cross-tenant data leakage
+
         db: Session = next(get_db())
-        
+
         try:
-            # Try to get real alerts from database with agent action join
-            # ARCH-005: Added aa.risk_score for enterprise consistency
+            # 🏢 ENTERPRISE: Query ONLY alerts belonging to this organization
+            # SEC-007: Added organization_id filter for multi-tenant isolation
             alerts_query = db.execute(text("""
                 SELECT a.id, a.alert_type, a.severity, a.message, a.timestamp,
                        aa.agent_id, aa.action_type, aa.tool_name, aa.risk_level,
@@ -1762,9 +1754,10 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                        a.status, a.acknowledged_by, a.acknowledged_at, a.escalated_by, a.escalated_at
                 FROM alerts a
                 LEFT JOIN agent_actions aa ON a.agent_action_id = aa.id
+                WHERE a.organization_id = :org_id
                 ORDER BY a.timestamp DESC
                 LIMIT 50
-            """)).fetchall()
+            """), {"org_id": org_id}).fetchall()
             
             if alerts_query and len(alerts_query) > 0:
                 live_alerts = []
@@ -1793,136 +1786,59 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                         "escalated_at": row[19].isoformat() if row[19] else None
                     })
                 
-                logger.info(f"✅ Returning {len(live_alerts)} live alerts from database")
+                logger.info(f"✅ SEC-007: Returning {len(live_alerts)} alerts for org_id={org_id}")
                 return live_alerts
-                
+
+            # 🏢 ENTERPRISE: No alerts found for this organization - return empty list
+            logger.info(f"ℹ️ SEC-007: No alerts found for organization {org_id}")
+            return []
+
         except Exception as db_error:
             logger.warning(f"Database alerts query failed: {db_error}")
-        
+            return []  # 🏢 ENTERPRISE: Fail closed - no data leakage on error
+
         finally:
             db.close()
-        
-        # Enterprise fallback alerts with rich data for demonstration
-        current_time = datetime.now(UTC)
-        
-        fallback_alerts = [
-            {
-                "id": 3001,
-                "alert_type": "High Risk Agent Action",
-                "severity": "high",
-                "message": "Enterprise security scanner detected critical vulnerability in production database",
-                "timestamp": current_time.isoformat(),
-                "agent_id": "security-scanner-01",
-                "action_type": "vulnerability_scan",
-                "tool_name": "enterprise-scanner",
-                "risk_level": "high",
-                "mitre_tactic": "TA0007",
-                "mitre_technique": "T1190",
-                "nist_control": "RA-5",
-                "nist_description": "Vulnerability Scanning - Enterprise continuous monitoring",
-                "recommendation": "CRITICAL: Immediate remediation required - patch production database",
-                "status": "new"
-            },
-            {
-                "id": 3002,
-                "alert_type": "Compliance Violation",
-                "severity": "medium",
-                "message": "SOX compliance audit identified access control policy violations",
-                "timestamp": (current_time - timedelta(minutes=30)).isoformat(),
-                "agent_id": "compliance-agent",
-                "action_type": "compliance_check",
-                "tool_name": "compliance-auditor",
-                "risk_level": "medium",
-                "mitre_tactic": "TA0005",
-                "mitre_technique": "T1078",
-                "nist_control": "AU-6",
-                "nist_description": "Audit Review and Analysis - Enterprise compliance monitoring",
-                "recommendation": "Review access control violations and update enterprise policies",
-                "status": "new"
-            },
-            {
-                "id": 3003,
-                "alert_type": "Threat Detection",
-                "severity": "high", 
-                "message": "Advanced threat correlation detected potential APT activity in network traffic",
-                "timestamp": (current_time - timedelta(hours=1)).isoformat(),
-                "agent_id": "threat-detector",
-                "action_type": "threat_analysis",
-                "tool_name": "threat-intelligence",
-                "risk_level": "high",
-                "mitre_tactic": "TA0011",
-                "mitre_technique": "T1071",
-                "nist_control": "SI-4",
-                "nist_description": "Information System Monitoring - Enterprise threat detection",
-                "recommendation": "URGENT: Potential APT activity - activate incident response procedures",
-                "status": "new"
-            },
-            {
-                "id": 3004,
-                "alert_type": "Data Loss Prevention",
-                "severity": "medium",
-                "message": "Sensitive data transfer detected outside approved enterprise boundaries",
-                "timestamp": (current_time - timedelta(hours=2)).isoformat(),
-                "agent_id": "dlp-agent",
-                "action_type": "data_exfiltration_check",
-                "tool_name": "enterprise-dlp",
-                "risk_level": "medium",
-                "mitre_tactic": "TA0010",
-                "mitre_technique": "T1041",
-                "nist_control": "SC-7",
-                "nist_description": "Boundary Protection - Enterprise data loss prevention",
-                "recommendation": "Investigate data transfer and verify compliance with enterprise policies",
-                "status": "new"
-            },
-            {
-                "id": 3005,
-                "alert_type": "Privilege Escalation",
-                "severity": "high",
-                "message": "Unauthorized privilege escalation attempt detected in enterprise Active Directory",
-                "timestamp": (current_time - timedelta(hours=3)).isoformat(),
-                "agent_id": "privilege-monitor",
-                "action_type": "privilege_escalation",
-                "tool_name": "enterprise-iam",
-                "risk_level": "high",
-                "mitre_tactic": "TA0004",
-                "mitre_technique": "T1078.002",
-                "nist_control": "AC-2",
-                "nist_description": "Account Management - Enterprise privileged access monitoring",
-                "recommendation": "IMMEDIATE: Investigate privilege escalation and suspend affected accounts",
-                "status": "new"
-            }
-        ]
-        
-        logger.info(f"⚠️ Using enterprise demonstration alerts: {len(fallback_alerts)} alerts")
-        return fallback_alerts
-        
+
     except Exception as e:
         logger.error(f"❌ Enterprise alerts error: {str(e)}")
-        return []
+        return []  # 🏢 ENTERPRISE: Fail closed - banking level security
 
 # ... Rest of your routes (agent-actions, admin fixes, submission, approval/reject, sample data, health check, main) preserved exactly as in your original 790-line file ...
 
 # ================== YOUR AGENT ACTIONS ROUTE (PRESERVED) ==================
+# 🏢 SEC-007: ENTERPRISE MULTI-TENANT ISOLATION - Banking Level Security
 
 @app.get("/api/agent-actions", response_model=None)
 def get_agent_actions_live(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> List[Dict[str, Any]]:
-    """Agent actions with live database integration - FIXED"""
+    """Agent actions with live database integration
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation (SEC-007)
+    ⚠️ REMOVED: All demo/fallback data - Production only returns real database records
+    """
     try:
         from datetime import datetime, timezone
         current_time = datetime.now(timezone.utc)
-        
-        logger.info(f"🔄 Live agent-actions called by: {current_user.get('email', 'unknown')}")
-        
-        # Query real database records with error handling
+
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for /api/agent-actions by {current_user.get('email')}")
+            return []  # Return empty - no cross-tenant data leakage
+
+        logger.info(f"🔄 SEC-007: Agent-actions called by: {current_user.get('email')} for org_id={org_id}")
+
+        # 🏢 ENTERPRISE: Query ONLY agent_actions belonging to this organization
+        # SEC-007: Added organization_id filter for multi-tenant isolation
         result = db.execute(text("""
             SELECT id, agent_id, action_type, description, risk_level, status, approved,
                    reviewed_by, reviewed_at
-            FROM agent_actions 
+            FROM agent_actions
+            WHERE organization_id = :org_id
             ORDER BY id ASC
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
         
         if result and len(result) > 0:
             # Convert database results to enterprise format
@@ -1963,86 +1879,16 @@ def get_agent_actions_live(
                     "risk_score": 85
                 })
             
-            logger.info(f"✅ Returning {len(live_data)} LIVE database records")
+            logger.info(f"✅ SEC-007: Returning {len(live_data)} agent actions for org_id={org_id}")
             return live_data
-        
-        else:
-            logger.info("📊 No database records found - will return fallback data")
-            
-            # Fallback to your original override data
-            logger.warning("⚠️ Using fallback override data")
-            return [
-                {
-                    "id": 1001,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "security-scanner-01",
-                    "action_type": "vulnerability_scan",
-                    "description": "Production infrastructure vulnerability assessment",
-                    "tool_name": "security-scanner",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0007",
-                    "mitre_technique": "T1190",
-                    "nist_control": "RA-5",
-                    "nist_description": "Vulnerability Scanning",
-                    "recommendation": "Remediation required for 3 vulnerabilities",
-                    "summary": "Security scan completed: 3 vulnerabilities discovered",
-                    "status": "pending",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None,
-                    "created_at": current_time.isoformat(),
-                    "risk_score": 85
-                },
-                {
-                    "id": 1002,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "compliance-agent",
-                    "action_type": "compliance_check",
-                    "description": "Automated compliance audit of access controls",
-                    "tool_name": "compliance-auditor",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0005",
-                    "mitre_technique": "T1078",
-                    "nist_control": "AU-6",
-                    "nist_description": "Audit Review and Analysis",
-                    "recommendation": "Review access control violations",
-                    "summary": "Compliance audit identified 2 policy violations",
-                    "status": "pending",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None,
-                    "created_at": current_time.isoformat(),
-                    "risk_score": 65
-                },
-                {
-                    "id": 1003,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "threat-detector",
-                    "action_type": "anomaly_detection",
-                    "description": "Network traffic anomaly detection analysis",
-                    "tool_name": "threat-intelligence",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "low",
-                    "mitre_tactic": "TA0011",
-                    "mitre_technique": "T1071",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring",
-                    "recommendation": "Continue monitoring - no action required",
-                    "summary": "Anomaly detection completed - normal patterns observed",
-                    "status": "pending",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None,
-                    "created_at": current_time.isoformat(),
-                    "risk_score": 25
-                }
-            ]
-            
+
+        # 🏢 ENTERPRISE: No agent actions found for this organization - return empty list
+        logger.info(f"ℹ️ SEC-007: No agent actions found for organization {org_id}")
+        return []
+
     except Exception as e:
         logger.error(f"❌ Agent-actions endpoint error: {str(e)}")
-        return []
+        return []  # 🏢 ENTERPRISE: Fail closed - banking level security
 
 
 # ================== YOUR DATABASE FIX ENDPOINTS (PRESERVED) ==================
@@ -3140,19 +2986,28 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
         raise HTTPException(status_code=500, detail="Failed to submit authorization request")
 
 # Replace your authorization endpoints in main.py with these database-compatible versions
+# 🏢 SEC-007: ENTERPRISE MULTI-TENANT ISOLATION - Banking Level Security
 
 @app.get("/api/authorization/pending-actions")
 async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Get pending actions with assessment data from JOINs"""
+    """🏢 ENTERPRISE: Get pending actions with assessment data from JOINs
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Query with JOINs to get NIST controls, MITRE techniques, and CVSS scores
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for pending-actions by {current_user.get('email')}")
+            return []  # Return empty - no cross-tenant data leakage
+
+        # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
         query = """
-            SELECT 
+            SELECT
                 aa.id,
                 aa.agent_id,
                 aa.action_type,
@@ -3170,56 +3025,33 @@ async def get_pending_actions_persistent(
             LEFT JOIN nist_control_mappings ncm ON aa.id = ncm.action_id
             LEFT JOIN mitre_technique_mappings mtm ON aa.id = mtm.action_id
             WHERE aa.status IN ('pending_approval', 'pending', 'submitted')
+            AND aa.organization_id = :org_id
         """
-        params = {}
-        
+        params = {"org_id": org_id}
+
         if risk_filter:
             query += " AND aa.risk_level = :risk_filter"
             params['risk_filter'] = risk_filter
-        
+
         query += """
-            GROUP BY aa.id, aa.agent_id, aa.action_type, aa.description, 
-                     aa.risk_level, aa.status, aa.tool_name, aa.created_at, 
+            GROUP BY aa.id, aa.agent_id, aa.action_type, aa.description,
+                     aa.risk_level, aa.status, aa.tool_name, aa.created_at,
                      aa.approved, ca.risk_score
-            ORDER BY aa.id DESC 
+            ORDER BY aa.id DESC
             LIMIT 50
         """
-        
+
         result = db.execute(text(query), params).fetchall()
-        
-        # Get pending demo actions (not approved/denied)
-        pending_demo_actions = []
-        for action_id, action in demo_actions_storage.items():
-            if action["status"] == "pending":
-                pending_demo_actions.append({
-                    "id": action["id"],
-                    "agent_id": action["agent_id"],
-                    "action_type": action["action_type"],
-                    "description": action["description"],
-                    "risk_level": action["risk_level"],
-                    "ai_risk_score": action["ai_risk_score"],
-                    "target_system": action["agent_id"].replace("-", "_"),
-                    "workflow_stage": "initial_review",
-                    "current_approval_level": 0,
-                    "required_approval_level": 3 if action["ai_risk_score"] >= 90 else 2 if action["ai_risk_score"] >= 70 else 1,
-                    "requested_at": action["created_at"],
-                    "time_remaining": "2:30:00",
-                    "is_emergency": action["risk_level"] == "high",
-                    "contextual_risk_factors": get_risk_factors(action["action_type"], action["risk_level"]),
-                    "authorization_status": "pending",
-                    "nist_controls": ["AC-2", "SI-4"],
-                    "mitre_techniques": ["T1078", "T1087"]
-                })
-        
-        # Combine real and demo actions
+
+        # 🏢 SEC-007: REMOVED demo_actions_storage - Production uses database only
         all_actions = []
-        
+
         # Add real database actions with assessment data
         for row in result:
-            risk_score = row[9] if row[9] is not None else 50  # From CVSS assessment or default 50
+            risk_score = row[9] if row[9] is not None else 50
             nist_controls = [c for c in (row[10] or []) if c is not None]
             mitre_techniques = [t for t in (row[11] or []) if t is not None]
-            
+
             all_actions.append({
                 "id": row[0],
                 "agent_id": row[1] or "unknown-agent",
@@ -3239,14 +3071,10 @@ async def get_pending_actions_persistent(
                 "nist_controls": nist_controls,
                 "mitre_techniques": mitre_techniques
             })
-        
-        # Add pending demo actions
-        all_actions.extend(pending_demo_actions)
-        
-        logger.info(f"🏢 ENTERPRISE: Returning {len(all_actions)} total actions ({len(result)} real, {len(pending_demo_actions)} demo)")
-        
+
+        logger.info(f"🏢 SEC-007: Returning {len(all_actions)} pending actions for org_id={org_id}")
         return all_actions
-        
+
     except Exception as e:
         logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
         return []
@@ -3254,36 +3082,46 @@ async def get_pending_actions_persistent(
 @app.get("/api/authorization/approval-dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs - Fixed structure"""
+    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Use raw SQL to avoid column issues
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for approval-dashboard by {current_user.get('email')}")
+            return {
+                "user_info": {"email": current_user.get("email"), "role": current_user.get("role")},
+                "pending_summary": {"total_pending": 0, "critical_pending": 0, "emergency_pending": 0},
+                "recent_activity": {"approvals_last_24h": 0}
+            }
+
+        # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
         pending_result = db.execute(text("""
             SELECT id, risk_level, status
-            FROM agent_actions 
+            FROM agent_actions
             WHERE status IN ('pending_approval', 'pending', 'submitted')
-        """)).fetchall()
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchall()
+
         recent_result = db.execute(text("""
             SELECT id, status, approved
-            FROM agent_actions 
+            FROM agent_actions
             WHERE status IN ('approved', 'denied')
-            ORDER BY id DESC 
+            AND organization_id = :org_id
+            ORDER BY id DESC
             LIMIT 10
-        """)).fetchall()
-        
-        # Calculate metrics from raw data
+        """), {"org_id": org_id}).fetchall()
+
+        # Calculate metrics from real data only
         total_pending = len(pending_result)
         critical_pending = len([r for r in pending_result if r[1] == "high"])
         emergency_pending = len([r for r in pending_result if r[1] == "high"])
-        
-        # If no real data, provide enterprise demo metrics
-        if total_pending == 0:
-            total_pending = 3
-            critical_pending = 2
-            emergency_pending = 2
-            logger.info("🔧 ENTERPRISE: Using demo dashboard metrics")
+
+        # 🏢 SEC-007: REMOVED demo fallback - Production shows real data only
+        logger.info(f"🏢 SEC-007: Dashboard for org_id={org_id}: {total_pending} pending")
         
         dashboard_data = {
             "user_info": {
@@ -3462,18 +3300,27 @@ async def authorize_action_with_audit(
 @app.get("/api/authorization/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
+    """🏢 ENTERPRISE: Approval performance metrics
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Use raw SQL to get metrics from existing columns only
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for approval-performance by {current_user.get('email')}")
+            return {"decision_breakdown": {}, "performance_metrics": {}, "risk_analysis": {}, "period_summary": {}}
+
+        # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
         thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
-        
+
         result = db.execute(text("""
             SELECT status, risk_level, approved
-            FROM agent_actions 
-            WHERE created_at >= :thirty_days_ago OR created_at IS NULL
-        """), {'thirty_days_ago': thirty_days_ago}).fetchall()
+            FROM agent_actions
+            WHERE (created_at >= :thirty_days_ago OR created_at IS NULL)
+            AND organization_id = :org_id
+        """), {'thirty_days_ago': thirty_days_ago, 'org_id': org_id}).fetchall()
         
         # Calculate metrics from raw data
         total_requests = len(result)
@@ -3657,24 +3504,32 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
 @app.get("/api/enterprise/audit-trail")
 async def get_audit_trail(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Get complete audit trail of all decisions"""
+    """🏢 ENTERPRISE: Get complete audit trail of all decisions
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Get recent audit trail entries
-        recent_entries = sorted(audit_trail_storage, key=lambda x: x["reviewed_at"], reverse=True)[:limit]
-        
-        # Also get from database if available
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for audit-trail by {current_user.get('email')}")
+            return {"total_entries": 0, "audit_trail": {"recent_decisions": [], "database_decisions": []}}
+
+        # 🏢 SEC-007: REMOVED in-memory audit_trail_storage - Production uses database only
+        db_audit_entries = []
+
         try:
             db: Session = next(get_db())
+            # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
             db_entries = db.execute(text("""
                 SELECT action_id, decision, reviewed_by, timestamp
-                FROM log_audit_trail 
-                ORDER BY timestamp DESC 
+                FROM log_audit_trail
+                WHERE organization_id = :org_id
+                ORDER BY timestamp DESC
                 LIMIT :limit
-            """), {'limit': limit}).fetchall()
-            
-            db_audit_entries = []
+            """), {'limit': limit, 'org_id': org_id}).fetchall()
+
             for row in db_entries:
                 db_audit_entries.append({
                     "action_id": row[0],
@@ -3683,25 +3538,25 @@ async def get_audit_trail(
                     "reviewed_at": row[3].isoformat() if row[3] else "Unknown",
                     "source": "database"
                 })
-            
+
             db.close()
-            
+
         except Exception as db_error:
             logger.warning(f"Could not get database audit entries: {db_error}")
-            db_audit_entries = []
-        
+
+        logger.info(f"🏢 SEC-007: Returning {len(db_audit_entries)} audit entries for org_id={org_id}")
         return {
-            "total_entries": len(recent_entries) + len(db_audit_entries),
-            "memory_entries": len(recent_entries),
+            "total_entries": len(db_audit_entries),
+            "memory_entries": 0,
             "database_entries": len(db_audit_entries),
             "audit_trail": {
-                "recent_decisions": recent_entries,
+                "recent_decisions": [],
                 "database_decisions": db_audit_entries
             },
             "compliance_status": "enterprise_compliant",
             "last_updated": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get audit trail: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve audit trail")
@@ -3709,39 +3564,32 @@ async def get_audit_trail(
 @app.get("/api/enterprise/approved-actions")
 async def get_approved_actions(
     limit: int = 20,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Get all approved actions for executive dashboard"""
+    """🏢 ENTERPRISE: Get all approved actions for executive dashboard
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Get approved demo actions
-        approved_demo = []
-        for action_id, action in demo_actions_storage.items():
-            if action["status"] in ["approved", "denied", "emergency_approved"]:
-                approved_demo.append({
-                    "id": action["id"],
-                    "agent_id": action["agent_id"],
-                    "action_type": action["action_type"],
-                    "description": action["description"],
-                    "status": action["status"],
-                    "reviewed_by": action["reviewed_by"],
-                    "reviewed_at": action["reviewed_at"],
-                    "risk_score": action["ai_risk_score"],
-                    "notes": action.get("notes", ""),
-                    "source": "demo"
-                })
-        
-        # Get approved real actions from database
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for approved-actions by {current_user.get('email')}")
+            return {"total_approved": 0, "approved_actions": []}
+
+        # 🏢 SEC-007: REMOVED demo_actions_storage - Production uses database only
+        approved_real = []
         try:
             db: Session = next(get_db())
+            # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
             real_approved = db.execute(text("""
                 SELECT id, agent_id, action_type, description, status, reviewed_by, reviewed_at
-                FROM agent_actions 
+                FROM agent_actions
                 WHERE status IN ('approved', 'denied', 'emergency_approved')
-                ORDER BY reviewed_at DESC 
+                AND organization_id = :org_id
+                ORDER BY reviewed_at DESC
                 LIMIT :limit
-            """), {'limit': limit}).fetchall()
-            
-            approved_real = []
+            """), {'limit': limit, 'org_id': org_id}).fetchall()
+
             for row in real_approved:
                 approved_real.append({
                     "id": row[0],
@@ -3753,25 +3601,21 @@ async def get_approved_actions(
                     "reviewed_at": row[6].isoformat() if row[6] else "Unknown",
                     "source": "database"
                 })
-            
+
             db.close()
-            
+
         except Exception as db_error:
             logger.warning(f"Could not get approved real actions: {db_error}")
-            approved_real = []
-        
-        # Combine and sort by review date
-        all_approved = approved_demo + approved_real
-        all_approved.sort(key=lambda x: x["reviewed_at"], reverse=True)
-        
+
+        logger.info(f"🏢 SEC-007: Returning {len(approved_real)} approved actions for org_id={org_id}")
         return {
-            "total_approved": len(all_approved),
-            "demo_actions": len(approved_demo),
+            "total_approved": len(approved_real),
+            "demo_actions": 0,
             "database_actions": len(approved_real),
-            "approved_actions": all_approved[:limit],
+            "approved_actions": approved_real,
             "last_updated": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get approved actions: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve approved actions")    
