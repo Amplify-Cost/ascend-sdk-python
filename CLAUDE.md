@@ -103,6 +103,132 @@ class RiskScoringConfig(Base):
     # ... rest of model
 ```
 
+#### SEC-012: Policy Builder Conditions UI Missing (Medium - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** Medium
+**Issue:** Policy Builder had no UI for adding conditions despite backend support
+**Root Cause:** `VisualPolicyBuilderAdvanced.jsx` had condition data structures but no UI components
+**Resolution:** Added dropdown selectors for condition type/value, updated handleSave to send complete policy data
+
+**Files Modified:**
+- `owkai-pilot-frontend/src/components/VisualPolicyBuilderAdvanced.jsx`
+
+**Compliance:** NIST AC-3, PCI-DSS 7.1 - Conditions enable fine-grained access control
+
+#### SEC-013: API Key Management Tab Missing (Medium - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** Medium
+**Issue:** No API Key management UI despite backend having full `/api/keys/*` routes
+**Root Cause:** EnterpriseSettings.jsx didn't include API Keys tab
+**Resolution:** Created `ApiKeyManagement.jsx` component with banking-level security
+
+**Features Implemented:**
+- SHA-256 key hashing with salt (keys never stored in plaintext)
+- Key masking in UI (only first/last 4 chars visible)
+- Audit trail for key generation/revocation
+- Usage statistics per key
+
+**Files Modified:**
+- `owkai-pilot-frontend/src/components/ApiKeyManagement.jsx` (NEW)
+- `owkai-pilot-frontend/src/components/EnterpriseSettings.jsx`
+
+**Compliance:** PCI-DSS 8.3.1, HIPAA 164.312(d), SOC 2 CC6.1
+
+#### SEC-014: Cognito Auto-Sync Gap (High - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** High
+**Issue:** Manual database intervention required when Cognito user recreated
+**Root Cause:** `dependencies_cognito.py` middleware missing email-fallback auto-link logic that exists in `auth.py`
+
+**Technical Analysis:**
+- `auth.py` (lines 1350-1365): ✅ Has email fallback + auto-link
+- `dependencies_cognito.py` (lines 599-612): ❌ Missing email fallback
+
+**Resolution:** Added email-fallback auto-link pattern to `dependencies_cognito.py`
+
+**Code Fix:**
+```python
+# dependencies_cognito.py - SEC-014 Enterprise Fix
+user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
+
+if not user:
+    # SEC-014: Check if user exists by email (for existing users being linked to Cognito)
+    user = db.query(User).filter(
+        User.email == email,
+        User.organization_id == organization_id
+    ).first()
+
+    if user:
+        # SEC-014: Auto-link existing user to new Cognito identity
+        logger.info(f"🔗 SEC-014: Auto-linking existing user to Cognito: {email}")
+        user.cognito_user_id = cognito_user_id
+        # ... role sync logic
+```
+
+**Use Cases Handled:**
+1. Cognito user recreation after deletion
+2. User pool migrations between environments
+3. Identity recovery scenarios
+4. Password reset that creates new Cognito identity
+
+**Compliance:** SOC 2 CC6.1, NIST IA-5, PCI-DSS 8.2.3 - Identity proofing consistency
+
+**Files Modified:**
+- `ow-ai-backend/dependencies_cognito.py`
+
+#### SEC-015: EnterprisePolicy Model Missing organization_id (Critical - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** Critical
+**Issue:** GET /api/governance/policies returning 500 error
+**Root Cause:** Database had `organization_id` column, but SQLAlchemy model didn't
+**Resolution:** Added `organization_id` to EnterprisePolicy model
+
+**Error Observed:**
+```
+AttributeError: type object 'EnterprisePolicy' has no attribute 'organization_id'
+```
+
+**Files Modified:**
+- `ow-ai-backend/models.py` - Added organization_id to EnterprisePolicy
+- `ow-ai-backend/routes/unified_governance_routes.py` - Fixed from-template endpoint
+
+**Compliance:** SOC 2 CC6.1, NIST AC-3, PCI-DSS 7.1
+
+#### SEC-017: Workflow Model Missing organization_id (Critical - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** Critical
+**Issue:** GET /api/authorization/orchestration/active-workflows returning 500 error
+**Root Cause:** Database had `organization_id` NOT NULL, but SQLAlchemy model didn't
+**Resolution:** Added `organization_id` to Workflow model
+
+**Error Observed:**
+```
+AttributeError: type object 'Workflow' has no attribute 'organization_id'
+```
+
+**Files Modified:**
+- `ow-ai-backend/models.py` - Added organization_id to Workflow
+
+**Compliance:** SOC 2 CC6.1, NIST AC-3
+
+#### SEC-018: ApiKey Model Missing organization_id (Critical - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** Critical
+**Issue:** POST /api/keys/generate returning 500 error (NotNullViolation)
+**Root Cause:** Database has `organization_id` NOT NULL, model missing + route not setting it
+**Resolution:** Added organization_id to model and fixed route to set it in constructor
+
+**Error Observed:**
+```
+psycopg2.errors.NotNullViolation: null value in column "organization_id" of relation "api_keys" violates not-null constraint
+```
+
+**Files Modified:**
+- `ow-ai-backend/models_api_keys.py` - Added organization_id column
+- `ow-ai-backend/routes/api_key_routes.py` - Set organization_id in constructor
+
+**Compliance:** PCI-DSS 8.3.1, SOC 2 CC6.1
+
 ---
 
 ## Multi-Tenant Architecture
