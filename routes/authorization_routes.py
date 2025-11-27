@@ -2362,6 +2362,7 @@ async def create_agent_action_api(
         return {
             "id": action.id,
             "agent_id": action.agent_id,
+            "action_type": action.action_type,  # SEC-022: Include action_type for SDK compatibility
             "status": action.status,
             "risk_score": action.risk_score,
             "risk_level": action.risk_level,
