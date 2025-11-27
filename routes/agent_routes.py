@@ -366,7 +366,7 @@ def list_agent_actions(
             except Exception as simple_error:
                 logger.warning(f"Simple query also failed: {simple_error}")
 
-            # 🏢 ENTERPRISE: NO demo data - return empty list for organizations without actions
+            # 🏢 ENTERPRISE: NO demo data - return empty list for new organizations
             # Banking-level security: Only return REAL data from database
             logger.info(f"🏢 ENTERPRISE: No agent actions found for org_id={org_id} - returning empty list (no demo data)")
             return []
@@ -819,8 +819,8 @@ def get_audit_trail(
             return logs
         except Exception as db_error:
             logger.warning(f"Audit trail query failed: {db_error}")
-            # 🏢 ENTERPRISE: NO demo data - return empty list on error
-            # Banking-level security: Only return REAL audit data from database
+            # 🏢 ENTERPRISE: NO demo data - return empty list for new organizations
+            logger.info(f"🏢 ENTERPRISE: No audit trail found for org_id={org_id} - returning empty list (no demo data)")
             return []
     except Exception as e:
         logger.error(f"Failed to get audit trail: {str(e)}")

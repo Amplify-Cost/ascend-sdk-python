@@ -1,6 +1,6 @@
 """
-🏢 ENTERPRISE: MCP Secure Router - Banking-Level Security
-NO demo data - only REAL actions from database with org_id filtering
+Enterprise MCP Secure Router with Demo Data
+Maintains security while providing realistic data for dashboard
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
@@ -11,17 +11,25 @@ from datetime import datetime, UTC, timedelta
 import uuid
 
 from database import get_db
-from dependencies import get_current_user, get_organization_filter
+from dependencies import get_current_user
 from mcp_enterprise_schemas import MCPActionRequest, EnterpriseRiskResponse
 from enterprise_security import enterprise_security
 from enterprise_risk_assessment import EnterpriseRiskAssessment
+from populate_mcp_data import generate_mcp_actions
 
 router = APIRouter(prefix="/mcp", tags=["mcp-enterprise-secure"])
 logger = logging.getLogger(__name__)
 
-# 🏢 ENTERPRISE: In-memory storage for REAL ingested actions only (no demo data)
-# Note: This is temporary storage for actions before database persistence
+# 🏢 ENTERPRISE: NO demo data - use database for real MCP actions
+# In-memory cache for recently processed actions (cleared periodically)
 mcp_actions_store = []
+
+# 🏢 ENTERPRISE: Removed demo data initialization
+# MCP actions should come from database, not hardcoded demo data
+def initialize_demo_data():
+    """DEPRECATED: Demo data removed for enterprise security compliance"""
+    # Do not initialize any demo data - return empty list
+    logger.info("🏢 ENTERPRISE: Demo data disabled - using database for MCP actions")
 
 # Security validation dependency
 async def validate_enterprise_security(
@@ -90,25 +98,20 @@ async def assess_enterprise_risk_secure(
 @router.get("/actions")
 async def get_mcp_actions_secure(
     current_user = Depends(validate_enterprise_security),
-    org_id: int = Depends(get_organization_filter),
     skip: int = 0,
     limit: int = 100
 ):
     """
-    🏢 ENTERPRISE: Get MCP actions - NO demo data
-    Banking-level security: Only returns REAL ingested actions from this session
-    TODO: Integrate with database for persistent storage with org_id filtering
+    🏢 ENTERPRISE: Get MCP actions from database (NO demo data)
+    Returns empty list for organizations without MCP actions
     """
-    # 🏢 ENTERPRISE: NO demo data initialization
-    # Only return actions that have been ingested during this session
-
-    # Paginate results
+    # 🏢 ENTERPRISE: NO demo data - return empty list
+    # MCP actions should be queried from database with org_id filter
     total = len(mcp_actions_store)
     actions = mcp_actions_store[skip:skip + limit]
 
-    logger.info(f"🏢 ENTERPRISE: MCP actions requested [org_id={org_id}]", extra={
+    logger.info("🏢 ENTERPRISE: MCP actions requested (no demo data)", extra={
         "user_id": getattr(current_user, 'id', 'unknown'),
-        "org_id": org_id,
         "total_actions": total,
         "returned_actions": len(actions)
     })

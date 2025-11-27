@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-ARG CACHE_BUST=1
+ARG CACHE_BUST=20251118_mcp_approval_fix
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
