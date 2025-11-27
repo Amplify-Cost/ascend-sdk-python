@@ -105,6 +105,9 @@ class AgentAction(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     reviewed_by = Column(String(255), nullable=True)
     approved_by = Column(String(255), nullable=True)
+
+    # SEC-021: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
     
     # JSON fields
     extra_data = Column(JSONB, nullable=True)
@@ -128,7 +131,14 @@ class AgentAction(Base):
     # ARCH-001: CVSS v3.1 Integration fields
     cvss_score = Column(Float, nullable=True)           # 0.0-10.0 (official NIST base score)
     cvss_severity = Column(String(20), nullable=True)   # NONE|LOW|MEDIUM|HIGH|CRITICAL
-    cvss_vector = Column(String(100), nullable=True)    # CVSS:3.1/AV:N/AC:L/PR:L/...
+    cvss_vector = Column(String(255), nullable=True)    # CVSS:3.1/AV:N/AC:L/PR:L/...
+
+    # SEC-021: Policy evaluation fields (match production)
+    created_by = Column(String(255), nullable=True)
+    policy_evaluated = Column(Boolean, default=False)
+    policy_decision = Column(String(50), nullable=True)
+    policy_risk_score = Column(Integer, nullable=True)
+    risk_fusion_formula = Column(Text, nullable=True)
     
     # Approval levels
     approval_level = Column(Integer, default=1)
