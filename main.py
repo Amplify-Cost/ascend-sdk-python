@@ -1385,6 +1385,21 @@ except ImportError as e:
     print(f"⚠️  Platform admin routes not available: {e}")
     logger.error(f"❌ Failed to import platform_admin_routes: {e}")
 
+# ============================================================================
+# PHASE 1: Enterprise Webhook Integration Routes
+# ============================================================================
+# Banking-level webhook system with HMAC-SHA256 signing
+try:
+    from routes.webhook_routes import router as webhook_router
+    app.include_router(webhook_router, tags=["Enterprise Webhooks"])
+    print("✅ PHASE 1: Enterprise webhook routes included")
+    logger.info("✅ PHASE 1: Enterprise webhook routes registered at /api/webhooks/*")
+    for route in webhook_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise webhook routes not available: {e}")
+    logger.error(f"❌ Failed to import webhook_routes: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete")
 
 
