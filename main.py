@@ -1400,6 +1400,21 @@ except ImportError as e:
     print(f"⚠️  Enterprise webhook routes not available: {e}")
     logger.error(f"❌ Failed to import webhook_routes: {e}")
 
+# ============================================================================
+# PHASE 2: Enterprise Notification Integration Routes
+# ============================================================================
+# Slack/Teams notification system with encrypted webhooks
+try:
+    from routes.notification_routes import router as notification_router
+    app.include_router(notification_router, tags=["Enterprise Notifications"])
+    print("✅ PHASE 2: Enterprise notification routes included")
+    logger.info("✅ PHASE 2: Enterprise notification routes registered at /api/notifications/*")
+    for route in notification_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise notification routes not available: {e}")
+    logger.error(f"❌ Failed to import notification_routes: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete")
 
 
