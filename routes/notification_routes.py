@@ -396,7 +396,7 @@ async def delete_channel(
     if not success:
         raise HTTPException(status_code=404, detail="Channel not found")
 
-    logger.info(f"Deleted notification channel {channel_id} by user {current_user["user_id"]}")
+    logger.info(f"Deleted notification channel {channel_id} by user {current_user['user_id']}")
     return None
 
 
