@@ -48,12 +48,16 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
   const { login, mfaChallenge, setMfaChallenge } = useAuth();
 
   // ENTERPRISE: Detect organization on mount
+  // NOTE: Early detection happens in index.html before React loads
+  // This ensures the org_slug is available in sessionStorage
   useEffect(() => {
     const detectOrganization = async () => {
       try {
         setOrgLoading(true);
+
+        // Get org slug - early detection in index.html should have captured it
         const orgSlug = detectOrganizationFromURL();
-        console.log('🏢 [LOGIN] Detected org slug:', orgSlug);
+        console.log('🏢 [LOGIN] Using org slug:', orgSlug);
 
         // Fetch organization info for display
         const poolConfig = await getPoolConfigBySlug(orgSlug);
@@ -73,6 +77,23 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
     };
 
     detectOrganization();
+
+    // Listen for hash changes (in case user navigates between orgs)
+    const handleHashChange = () => {
+      // Re-run early detection logic for new hash
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const hashOrg = hashParams.get('org');
+      if (hashOrg) {
+        sessionStorage.setItem('org_slug', hashOrg.toLowerCase());
+        console.log('🏢 [LOGIN] Hash changed, new org:', hashOrg);
+        detectOrganization();
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   // Lockout timer countdown
