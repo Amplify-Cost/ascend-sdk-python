@@ -9,7 +9,7 @@ Security: SHA-512 hashed secrets, HMAC-SHA256 signatures, tenant isolation
 Compliance: SOC 2 CC6.1, PCI-DSS 8.3.1, NIST 800-63B
 
 Revision ID: 20251128_webhooks
-Revises: 20251126_tenant_isolation, 20251127_email_audit
+Revises: 20251126_tenant_isolation
 Create Date: 2025-11-28 00:00:00
 
 """
@@ -20,7 +20,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic
 revision: str = '20251128_webhooks'
-down_revision: Union[str, Sequence[str], None] = ('20251126_tenant_isolation', '20251127_email_audit')
+down_revision: Union[str, Sequence[str], None] = '20251126_tenant_isolation'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
