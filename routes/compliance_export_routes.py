@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 import io
 
 from database import get_db
-from dependencies import get_current_user, require_role
+from dependencies import get_current_user
 from models_compliance_export import (
     ComplianceFramework,
     ExportFormat,
