@@ -345,17 +345,30 @@ class ComplianceExportService:
         return records
 
     async def _generate_access_log_data(self, job: ComplianceExportJob) -> List[Dict[str, Any]]:
-        """Generate access log data"""
-        # Query access logs from database
-        return [{
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "user_id": 1,
-            "resource": "/api/data",
-            "action": "read",
-            "ip_address": "192.168.1.100",
-            "success": True,
-            "framework_reference": job.framework.value,
-        }]
+        """Generate access log data from AuditLog table"""
+        from models import AuditLog
+
+        query = self.db.query(AuditLog).filter(
+            and_(
+                AuditLog.organization_id == job.organization_id,
+                AuditLog.timestamp >= job.start_date,
+                AuditLog.timestamp <= job.end_date,
+            )
+        ).order_by(AuditLog.timestamp)
+
+        records = []
+        for log in query.all():
+            records.append({
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "user_id": log.user_id,
+                "resource": log.resource_type,
+                "action": log.action,
+                "ip_address": log.ip_address,
+                "success": True,  # Derived from presence of record
+                "framework_reference": job.framework.value,
+            })
+
+        return records
 
     async def _generate_policy_violations_data(self, job: ComplianceExportJob) -> List[Dict[str, Any]]:
         """Generate policy violations data"""
@@ -466,8 +479,31 @@ class ComplianceExportService:
         ]
 
     async def _generate_data_access_data(self, job: ComplianceExportJob) -> List[Dict[str, Any]]:
-        """Generate data access records"""
-        return []  # Would query data access logs
+        """Generate data access records from AuditLog"""
+        from models import AuditLog
+
+        # Filter for data access events
+        query = self.db.query(AuditLog).filter(
+            and_(
+                AuditLog.organization_id == job.organization_id,
+                AuditLog.timestamp >= job.start_date,
+                AuditLog.timestamp <= job.end_date,
+                AuditLog.action.in_(['read', 'view', 'access', 'query', 'export', 'download']),
+            )
+        ).order_by(AuditLog.timestamp)
+
+        records = []
+        for log in query.all():
+            records.append({
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "user_id": log.user_id,
+                "data_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "access_type": log.action,
+                "ip_address": log.ip_address,
+            })
+
+        return records
 
     async def _generate_system_changes_data(self, job: ComplianceExportJob) -> List[Dict[str, Any]]:
         """Generate system changes data"""
