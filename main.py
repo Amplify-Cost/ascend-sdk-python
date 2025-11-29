@@ -1415,6 +1415,21 @@ except ImportError as e:
     print(f"⚠️  Enterprise notification routes not available: {e}")
     logger.error(f"❌ Failed to import notification_routes: {e}")
 
+# ============================================================================
+# PHASE 3: Enterprise ServiceNow Integration Routes
+# ============================================================================
+# ITSM integration with OAuth2, encrypted credentials, ticket sync
+try:
+    from routes.servicenow_routes import router as servicenow_router
+    app.include_router(servicenow_router, tags=["ServiceNow Integration"])
+    print("✅ PHASE 3: Enterprise ServiceNow routes included")
+    logger.info("✅ PHASE 3: Enterprise ServiceNow routes registered at /api/servicenow/*")
+    for route in servicenow_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise ServiceNow routes not available: {e}")
+    logger.error(f"❌ Failed to import servicenow_routes: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete")
 
 
