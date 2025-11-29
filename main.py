@@ -1445,7 +1445,22 @@ except ImportError as e:
     print(f"⚠️  Enterprise Compliance Export routes not available: {e}")
     logger.error(f"❌ Failed to import compliance_export_routes: {e}")
 
-print("🚀 ENTERPRISE: Application startup complete")
+# ============================================================================
+# PHASE 5: Enterprise Integration Suite Routes
+# ============================================================================
+# Unified integration management: registry, health monitoring, data flows, events
+try:
+    from routes.integration_suite_routes import router as integration_suite_router
+    app.include_router(integration_suite_router, tags=["Integration Suite"])
+    print("✅ PHASE 5: Enterprise Integration Suite routes included")
+    logger.info("✅ PHASE 5: Enterprise Integration Suite routes registered at /api/integrations/*")
+    for route in integration_suite_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise Integration Suite routes not available: {e}")
+    logger.error(f"❌ Failed to import integration_suite_routes: {e}")
+
+print("🚀 ENTERPRISE: Application startup complete - All 5 Phases Active")
 
 
 
