@@ -1430,6 +1430,21 @@ except ImportError as e:
     print(f"⚠️  Enterprise ServiceNow routes not available: {e}")
     logger.error(f"❌ Failed to import servicenow_routes: {e}")
 
+# ============================================================================
+# PHASE 4: Enterprise Compliance Export Routes
+# ============================================================================
+# Multi-framework compliance exports (SOX, PCI-DSS, HIPAA, GDPR, SOC2, NIST, ISO)
+try:
+    from routes.compliance_export_routes import router as compliance_export_router
+    app.include_router(compliance_export_router, tags=["Compliance Export"])
+    print("✅ PHASE 4: Enterprise Compliance Export routes included")
+    logger.info("✅ PHASE 4: Enterprise Compliance Export routes registered at /api/compliance-export/*")
+    for route in compliance_export_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise Compliance Export routes not available: {e}")
+    logger.error(f"❌ Failed to import compliance_export_routes: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete")
 
 
