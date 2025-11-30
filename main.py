@@ -1364,9 +1364,9 @@ except ImportError as e:
 # Organization Admin Routes - User management via Cognito
 try:
     from routes.organization_admin_routes import router as org_admin_router
-    app.include_router(org_admin_router, tags=["Organization Admin"])
+    app.include_router(org_admin_router, prefix="/api", tags=["Organization Admin"])
     print("✅ PHASE 2: Organization admin routes included")
-    logger.info("✅ PHASE 2: Organization admin routes registered at /organizations/*")
+    logger.info("✅ PHASE 2: Organization admin routes registered at /api/organizations/*")
     for route in org_admin_router.routes:
         logger.info(f"  → {route.methods} {route.path}")
 except ImportError as e:

@@ -110,6 +110,116 @@ async def list_data_flow_templates(
     }
 
 
+# ============================================
+# SEC-028: Integration Status Summary
+# IMPORTANT: This route MUST be defined BEFORE /{integration_id}
+# to avoid FastAPI matching "status" as an integration_id
+# ============================================
+
+def _map_health_status(health_status: str) -> str:
+    """Map internal health status to frontend display status."""
+    status_map = {
+        "healthy": "active",
+        "connected": "active",
+        "active": "active",
+        "degraded": "syncing",
+        "syncing": "syncing",
+        "pending": "syncing",
+        "unhealthy": "error",
+        "error": "error",
+        "failed": "error",
+        "disconnected": "inactive",
+        "disabled": "inactive",
+        "inactive": "inactive",
+        "unknown": "inactive",
+    }
+    return status_map.get((health_status or "").lower(), "inactive")
+
+
+@router.get("/status", summary="Get integration status summary")
+async def get_integration_status_summary(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    SEC-028: Get summary of all integration statuses for the organization.
+
+    Returns status for each integration type (splunk, qradar, sentinel, etc.)
+    in a format suitable for the Settings UI dashboard.
+
+    Multi-Tenant: Returns only integrations for the current user's organization.
+    Banking-Level Security: No hardcoded data, no fallbacks.
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312, PCI-DSS 7.1
+
+    Authored-By: Ascend Engineer
+    """
+    org_id = get_org_id(current_user)
+    service = IntegrationSuiteService(db)
+
+    # Get all integrations for the organization
+    integrations, _ = await service.list_integrations(
+        organization_id=org_id,
+        skip=0,
+        limit=100,
+    )
+
+    # Build status summary by integration type
+    status_summary = {
+        "splunk": None,
+        "qradar": None,
+        "sentinel": None,
+        "active_directory": None,
+        "sso": None,
+        "servicenow": None,
+        "jira": None,
+        "slack": None,
+        "teams": None,
+        "pagerduty": None,
+        "custom_webhook": None,
+    }
+
+    # Map integration types to summary keys
+    type_mapping = {
+        "splunk": "splunk",
+        "qradar": "qradar",
+        "sentinel": "sentinel",
+        "microsoft_sentinel": "sentinel",
+        "active_directory": "active_directory",
+        "ldap": "active_directory",
+        "okta": "sso",
+        "azure_ad": "sso",
+        "sso": "sso",
+        "servicenow": "servicenow",
+        "jira": "jira",
+        "slack": "slack",
+        "teams": "teams",
+        "microsoft_teams": "teams",
+        "pagerduty": "pagerduty",
+        "webhook": "custom_webhook",
+        "custom_webhook": "custom_webhook",
+    }
+
+    for integration in integrations:
+        int_type = integration.integration_type.lower()
+        summary_key = type_mapping.get(int_type)
+
+        if summary_key:
+            # Only include if this is the first or primary integration of this type
+            if status_summary[summary_key] is None:
+                status_summary[summary_key] = {
+                    "id": integration.id,
+                    "name": integration.display_name or integration.integration_name,
+                    "status": _map_health_status(integration.health_status),
+                    "is_enabled": integration.is_enabled,
+                    "last_sync": integration.last_health_check.isoformat() if integration.last_health_check else None,
+                    "user_count": integration.config.get("user_count") if integration.config else None,
+                    "uptime_percent": integration.uptime_percent_30d,
+                }
+
+    return status_summary
+
+
 @router.post("", summary="Create new integration", response_model=dict)
 async def create_integration(
     request: IntegrationCreateRequest,
@@ -700,111 +810,3 @@ async def test_integration(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
-
-# ============================================
-# SEC-028: Integration Status Summary Endpoint
-# ============================================
-
-@router.get("/status", summary="Get integration status summary")
-async def get_integration_status_summary(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    SEC-028: Get summary of all integration statuses for the organization.
-
-    Returns status for each integration type (splunk, qradar, sentinel, etc.)
-    in a format suitable for the Settings UI dashboard.
-
-    Multi-Tenant: Returns only integrations for the current user's organization.
-    Banking-Level Security: No hardcoded data, no fallbacks.
-
-    Compliance: SOC 2 CC6.1, HIPAA 164.312, PCI-DSS 7.1
-
-    Authored-By: OW-KAI Engineer
-    """
-    org_id = get_org_id(current_user)
-    service = IntegrationSuiteService(db)
-
-    # Get all integrations for the organization
-    integrations, _ = await service.list_integrations(
-        organization_id=org_id,
-        skip=0,
-        limit=100,
-    )
-
-    # Build status summary by integration type
-    status_summary = {
-        "splunk": None,
-        "qradar": None,
-        "sentinel": None,
-        "active_directory": None,
-        "sso": None,
-        "servicenow": None,
-        "jira": None,
-        "slack": None,
-        "teams": None,
-        "pagerduty": None,
-        "custom_webhook": None,
-    }
-
-    # Map integration types to summary keys
-    type_mapping = {
-        "splunk": "splunk",
-        "qradar": "qradar",
-        "sentinel": "sentinel",
-        "microsoft_sentinel": "sentinel",
-        "active_directory": "active_directory",
-        "ldap": "active_directory",
-        "okta": "sso",
-        "azure_ad": "sso",
-        "sso": "sso",
-        "servicenow": "servicenow",
-        "jira": "jira",
-        "slack": "slack",
-        "teams": "teams",
-        "microsoft_teams": "teams",
-        "pagerduty": "pagerduty",
-        "webhook": "custom_webhook",
-        "custom_webhook": "custom_webhook",
-    }
-
-    for integration in integrations:
-        int_type = integration.integration_type.lower()
-        summary_key = type_mapping.get(int_type)
-
-        if summary_key:
-            # Only include if this is the first or primary integration of this type
-            if status_summary[summary_key] is None:
-                status_summary[summary_key] = {
-                    "id": integration.id,
-                    "name": integration.display_name or integration.integration_name,
-                    "status": _map_health_status(integration.health_status),
-                    "is_enabled": integration.is_enabled,
-                    "last_sync": integration.last_health_check.isoformat() if integration.last_health_check else None,
-                    "user_count": integration.config.get("user_count") if integration.config else None,
-                    "uptime_percent": integration.uptime_percent_30d,
-                }
-
-    return status_summary
-
-
-def _map_health_status(health_status: str) -> str:
-    """Map internal health status to frontend display status."""
-    status_map = {
-        "healthy": "active",
-        "connected": "active",
-        "active": "active",
-        "degraded": "syncing",
-        "syncing": "syncing",
-        "pending": "syncing",
-        "unhealthy": "error",
-        "error": "error",
-        "failed": "error",
-        "disconnected": "inactive",
-        "disabled": "inactive",
-        "inactive": "inactive",
-        "unknown": "inactive",
-    }
-    return status_map.get((health_status or "").lower(), "inactive")
