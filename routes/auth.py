@@ -1477,10 +1477,16 @@ async def create_cognito_session(
             value=refresh_token,
             **ENTERPRISE_REFRESH_COOKIE_CONFIG
         )
-        
+
+        # SEC-026: Set CSRF cookie for Cognito sessions
+        # This is CRITICAL for banking-level security - all POST/PUT/DELETE
+        # requests require CSRF token validation to prevent CSRF attacks
+        csrf_token = _set_csrf_cookie(response, request)
+
         logger.info("✅ Secure session cookies set (HttpOnly, Secure, SameSite=Strict)")
-        
-        # Step 9: Return user data
+        logger.info("✅ SEC-026: CSRF cookie set for Cognito session")
+
+        # Step 9: Return user data (include CSRF token for immediate frontend use)
         user_response = {
             "id": user.id,
             "email": user.email,
@@ -1493,11 +1499,14 @@ async def create_cognito_session(
         
         logger.info(f"✅ PHASE 3: Cognito session created successfully for {email}")
         logger.info(f"🔐 Auth Mode: Cognito MFA → Server Session (Banking Level)")
-        
+
+        # SEC-026: Return CSRF token in response for immediate frontend use
+        # This prevents the "No CSRF token available" warning on first POST request
         return {
             "user": user_response,
             "enterprise_validated": True,
-            "auth_mode": "cognito-session"
+            "auth_mode": "cognito-session",
+            "csrf_token": csrf_token  # SEC-026: Frontend can use this immediately
         }
 
     except HTTPException:
