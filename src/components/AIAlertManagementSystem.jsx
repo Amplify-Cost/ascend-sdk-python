@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 
+/**
+ * SEC-028: AI Alert Management System
+ * Banking-Level Security: No hardcoded demo data
+ * All metrics come from backend API or show "N/A"
+ * Authored-By: OW-KAI Engineer
+ */
 const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [alerts, setAlerts] = useState([]);
   const [correlatedGroups, setCorrelatedGroups] = useState([]);
@@ -1614,96 +1620,120 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
             </details>
           </div>
 
-          {/* AI Performance Overview */}
+          {/* SEC-028: AI Performance Overview - No Hardcoded Fallbacks */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">🤖 AI Performance Metrics</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="text-3xl font-bold text-green-600">
-                  {performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate || '94.2'}%
+
+            {!performanceMetrics ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Performance metrics not available</p>
+                <p className="text-sm mt-2">Data will appear once AI processes alerts for your organization</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600">
+                    {performanceMetrics.ai_performance?.accuracy_rate ?? performanceMetrics.accuracy_rate ?? 'N/A'}
+                    {(performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate) && '%'}
+                  </div>
+                  <div className="text-sm text-green-700">Detection Accuracy</div>
+                  <div className="text-xs text-green-600 mt-1">
+                    Industry benchmark: 89%
+                  </div>
                 </div>
-                <div className="text-sm text-green-700">Detection Accuracy</div>
-                <div className="text-xs text-green-600 mt-1">
-                  Industry benchmark: 89%
+
+                <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {performanceMetrics.ai_performance?.false_positive_rate ?? performanceMetrics.false_positive_rate ?? 'N/A'}
+                    {(performanceMetrics.ai_performance?.false_positive_rate || performanceMetrics.false_positive_rate) && '%'}
+                  </div>
+                  <div className="text-sm text-blue-700">False Positive Rate</div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    Target: &lt;8%
+                  </div>
+                </div>
+
+                <div className="text-center p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="text-3xl font-bold text-purple-600">
+                    {performanceMetrics.ai_performance?.avg_processing_time ?? performanceMetrics.avg_processing_time ?? 'N/A'}
+                  </div>
+                  <div className="text-sm text-purple-700">Avg Processing Time</div>
+                  <div className="text-xs text-purple-600 mt-1">
+                    Per alert analysis
+                  </div>
                 </div>
               </div>
-              
-              <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="text-3xl font-bold text-blue-600">
-                  {performanceMetrics.ai_performance?.false_positive_rate || performanceMetrics.false_positive_rate || '5.8'}%
-                </div>
-                <div className="text-sm text-blue-700">False Positive Rate</div>
-                <div className="text-xs text-blue-600 mt-1">
-                  Target: &lt;8%
-                </div>
-              </div>
-              
-              <div className="text-center p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                <div className="text-3xl font-bold text-purple-600">
-                  {performanceMetrics.ai_performance?.avg_processing_time || performanceMetrics.avg_processing_time || '1.3 seconds'}
-                </div>
-                <div className="text-sm text-purple-700">Avg Processing Time</div>
-                <div className="text-xs text-purple-600 mt-1">
-                  Per alert analysis
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* ROI Analysis */}
+          {/* SEC-028: ROI Analysis - No Hardcoded Fallbacks */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">💰 ROI Analysis</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Cost Savings Breakdown</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Annual Savings:</span>
-                    <span className="font-bold text-green-600">
-                      ${(performanceMetrics.roi_details?.annual_savings || performanceMetrics.annual_savings || 450000).toLocaleString()}
-                    </span>
+
+            {!performanceMetrics?.roi_details && !performanceMetrics?.annual_savings ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>ROI analysis not available</p>
+                <p className="text-sm mt-2">Configure your organization's cost parameters to enable ROI tracking</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-4">Cost Savings Breakdown</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Annual Savings:</span>
+                      <span className="font-bold text-green-600">
+                        {performanceMetrics.roi_details?.annual_savings ?? performanceMetrics.annual_savings
+                          ? `$${(performanceMetrics.roi_details?.annual_savings || performanceMetrics.annual_savings).toLocaleString()}`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Implementation Cost:</span>
+                      <span className="font-bold text-gray-900">
+                        {performanceMetrics.roi_details?.implementation_cost ?? performanceMetrics.implementation_cost
+                          ? `$${(performanceMetrics.roi_details?.implementation_cost || performanceMetrics.implementation_cost).toLocaleString()}`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <span className="text-gray-600 font-medium">Net ROI:</span>
+                      <span className="font-bold text-green-600 text-xl">
+                        {performanceMetrics.roi_details?.roi_calculation ?? performanceMetrics.roi_calculation ?? performanceMetrics.trend_analysis?.roi_percentage ?? 'N/A'}
+                        {(performanceMetrics.roi_details?.roi_calculation || performanceMetrics.roi_calculation || performanceMetrics.trend_analysis?.roi_percentage) && '%'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Implementation Cost:</span>
-                    <span className="font-bold text-gray-900">
-                      ${(performanceMetrics.roi_details?.implementation_cost || performanceMetrics.implementation_cost || 132000).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-gray-600 font-medium">Net ROI:</span>
-                    <span className="font-bold text-green-600 text-xl">
-                      {performanceMetrics.roi_details?.roi_calculation || performanceMetrics.roi_calculation || performanceMetrics.trend_analysis?.roi_percentage || 340}%
-                    </span>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-4">Efficiency Gains</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Time Savings (Annual):</span>
+                      <span className="font-bold text-blue-600">
+                        {performanceMetrics.roi_details?.time_savings_hours ?? performanceMetrics.time_savings_hours
+                          ? `${(performanceMetrics.roi_details?.time_savings_hours || performanceMetrics.time_savings_hours).toLocaleString()} hours`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">False Positive Reduction:</span>
+                      <span className="font-bold text-orange-600">
+                        {performanceMetrics.roi_details?.false_positive_reduction ?? performanceMetrics.false_positive_reduction ?? 'N/A'}
+                        {(performanceMetrics.roi_details?.false_positive_reduction || performanceMetrics.false_positive_reduction) && '%'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Threats Prevented (24h):</span>
+                      <span className="font-bold text-red-600">
+                        {performanceMetrics.ai_performance?.threats_prevented ?? performanceMetrics.threats_prevented ?? 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Efficiency Gains</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Time Savings (Annual):</span>
-                    <span className="font-bold text-blue-600">
-                      {(performanceMetrics.roi_details?.time_savings_hours || performanceMetrics.time_savings_hours || 2400).toLocaleString()} hours
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">False Positive Reduction:</span>
-                    <span className="font-bold text-orange-600">
-                      {performanceMetrics.roi_details?.false_positive_reduction || performanceMetrics.false_positive_reduction || 67}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Threats Prevented (24h):</span>
-                    <span className="font-bold text-red-600">
-                      {performanceMetrics.ai_performance?.threats_prevented || performanceMetrics.threats_prevented || 23}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Trend Analysis */}

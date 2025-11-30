@@ -89,7 +89,7 @@ const EnterpriseUserManagement = ({ getAuthHeaders, user }) => {
       }
     } catch (error) {
       console.error("❌ Error loading users:", error);
-      // Fallback to demo data on error
+      // SEC-028: Enterprise - Show empty state on error (no demo data)
       setUsers([]);
     }
   };

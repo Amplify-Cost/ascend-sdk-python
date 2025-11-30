@@ -863,8 +863,9 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    console.error("Error toggling playbook:", err);
-    setMessage("✅ Playbook toggled successfully (demo mode)");
+    console.error("SEC-028: Error toggling playbook:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to toggle playbook: ${err.message || 'Server error'}`);
   }
 };
 
@@ -941,17 +942,20 @@ const fetchWorkflowOrchestrations = async () => {
           body: JSON.stringify({
             playbook_id: playbookId,
             test_action_id: testActionId,
-            execution_context: "enterprise_demo"
+            // SEC-028: Use actual organization context instead of demo
+            execution_context: "enterprise_production"
           })
         });
       } catch (err) {
+        console.error("SEC-028: Playbook execution API error:", err);
       }
     } else {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    console.error("Error executing playbook:", err);
-    setMessage("✅ Playbook executed successfully (demo mode)");
+    console.error("SEC-028: Error executing playbook:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to execute playbook: ${err.message || 'Server error'}`);
   }
 };
 
@@ -1093,24 +1097,27 @@ const fetchWorkflowOrchestrations = async () => {
         await fetch(`${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
           method: "POST",
-          headers: { 
-            ...getAuthHeaders(), 
+          headers: {
+            ...getAuthHeaders(),
             "Content-Type": "application/json",
             "X-API-Version": "v1.0"
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             input_data: inputData,
-            execution_context: "enterprise_demo"
+            // SEC-028: Use actual organization context instead of demo
+            execution_context: "enterprise_production"
           })
         });
       } catch (err) {
+        console.error("SEC-028: Workflow execution API error:", err);
       }
     } else {
       setMessage(`❌ Workflow "${workflowId}" not found`);
     }
   } catch (err) {
-    console.error("Error executing workflow:", err);
-    setMessage(`✅ Workflow executed successfully (demo mode)`);
+    console.error("SEC-028: Error executing workflow:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to execute workflow: ${err.message || 'Server error'}`);
   }
 };
 
@@ -1231,16 +1238,18 @@ const createWorkflow = async (workflowData) => {
         })
       });
     } catch (err) {
+      console.error("SEC-028: Workflow creation API error:", err);
     }
-    
+
     setTimeout(() => {
       fetchWorkflowOrchestrations();
     }, 1000);
-    
+
   } catch (err) {
-    console.error("❌ Error creating workflow:", err);
-    setMessage("✅ Workflow created successfully (demo mode)");
-    
+    console.error("SEC-028: Error creating workflow:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to create workflow: ${err.message || 'Server error'}`);
+
     setShowWorkflowBuilder(false);
     setNewWorkflow({
       name: '',
@@ -2359,11 +2368,12 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               <h4 className="font-semibold text-blue-900 mb-3">📊 Live Action Tracking</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <h5 className="font-medium text-blue-800 mb-2">Demo Actions:</h5>
+                  {/* SEC-028: Renamed from "Demo Actions" to "Session Actions" for enterprise */}
+                  <h5 className="font-medium text-blue-800 mb-2">Session Actions:</h5>
                   <div className="space-y-1 text-blue-700">
-                    <div>Approved: {approvalMetrics.live_metrics.demo_actions.approved}</div>
-                    <div>Denied: {approvalMetrics.live_metrics.demo_actions.denied}</div>
-                    <div>Emergency: {approvalMetrics.live_metrics.demo_actions.emergency}</div>
+                    <div>Approved: {approvalMetrics.live_metrics.demo_actions?.approved ?? 'N/A'}</div>
+                    <div>Denied: {approvalMetrics.live_metrics.demo_actions?.denied ?? 'N/A'}</div>
+                    <div>Emergency: {approvalMetrics.live_metrics.demo_actions?.emergency ?? 'N/A'}</div>
                   </div>
                 </div>
                 <div>
