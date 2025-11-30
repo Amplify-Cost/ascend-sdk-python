@@ -789,18 +789,44 @@ async def test_integration(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Test an integration connection without affecting state.
-    Validates connectivity and authentication.
+    SEC-028: Test an integration connection without affecting state.
+
+    Supports two modes:
+    1. Test existing integration: Provide integration_id
+    2. Test new integration (before save): Provide integration_type, endpoint_url, config
+
+    This allows users to validate connection settings before committing
+    to the database, improving user experience and reducing configuration errors.
+
+    Authored-By: Ascend Engineer
     """
     org_id = get_org_id(current_user)
     service = IntegrationSuiteService(db)
 
     try:
-        result = await service.check_integration_health(
-            request.integration_id,
-            org_id,
-            request.test_type
-        )
+        # SEC-028: Check if testing existing or new integration
+        if request.integration_id is not None:
+            # Mode 1: Test existing integration from database
+            result = await service.check_integration_health(
+                request.integration_id,
+                org_id,
+                request.test_type
+            )
+        else:
+            # Mode 2: Test new integration without database record
+            if not request.integration_type:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Either integration_id or integration_type is required"
+                )
+
+            result = await service.test_new_integration(
+                integration_type=request.integration_type,
+                endpoint_url=request.endpoint_url or "",
+                auth_type=request.auth_type or "none",
+                config=request.config,
+                test_type=request.test_type
+            )
 
         return {
             "status": "tested",

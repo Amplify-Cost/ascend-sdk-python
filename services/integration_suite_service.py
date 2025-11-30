@@ -306,6 +306,78 @@ class IntegrationSuiteService:
         except Exception as e:
             return 0, None, f"Unexpected error: {str(e)}"
 
+    async def test_new_integration(
+        self,
+        integration_type: str,
+        endpoint_url: str,
+        auth_type: str = "none",
+        config: Optional[Dict[str, Any]] = None,
+        test_type: str = "ping"
+    ) -> Dict[str, Any]:
+        """
+        SEC-028: Test a new integration connection before saving.
+        Validates connectivity without requiring database record.
+
+        This enables the UI to test integration settings before committing
+        them to the database, providing a better user experience.
+
+        Authored-By: Ascend Engineer
+        """
+        start_time = datetime.utcnow()
+
+        # Use webhook_url from config if endpoint_url not provided directly
+        test_url = endpoint_url
+        if not test_url and config:
+            test_url = config.get("webhook_url") or config.get("url")
+
+        if not test_url:
+            return {
+                "integration_type": integration_type,
+                "success": False,
+                "check_type": test_type,
+                "checked_at": start_time,
+                "error_message": "No endpoint URL provided for testing",
+                "response_time_ms": 0
+            }
+
+        result = {
+            "integration_type": integration_type,
+            "endpoint_url": test_url,
+            "auth_type": auth_type,
+            "check_type": test_type,
+            "checked_at": start_time,
+        }
+
+        try:
+            # Perform health check without database record
+            response_time_ms, status_code, error = await self._perform_health_check(
+                test_url,
+                auth_type,
+                None,  # No credentials for new integrations yet
+                test_type
+            )
+
+            result["response_time_ms"] = response_time_ms
+            result["status_code"] = status_code
+
+            if error:
+                result["success"] = False
+                result["error_message"] = error
+                result["health_status"] = "unhealthy"
+            else:
+                result["success"] = True
+                result["health_status"] = "healthy"
+                result["message"] = f"Connection successful (HTTP {status_code})"
+
+        except Exception as e:
+            logger.error(f"Integration test failed: {str(e)}")
+            result["success"] = False
+            result["error_message"] = str(e)
+            result["health_status"] = "unhealthy"
+            result["response_time_ms"] = 0
+
+        return result
+
     def _calculate_health_status(self, integration: IntegrationRegistry) -> str:
         """Calculate health status based on recent checks."""
         if integration.consecutive_failures >= 5:

@@ -477,8 +477,25 @@ class IntegrationDashboardResponse(BaseModel):
 
 
 class IntegrationTestRequest(BaseModel):
-    """Request to test an integration connection."""
-    integration_id: int
+    """
+    Request to test an integration connection.
+
+    Supports two modes:
+    1. Test existing integration: provide integration_id
+    2. Test new integration (before save): provide integration_type, endpoint_url, config
+
+    Authored-By: Ascend Engineer
+    """
+    # For testing existing integrations
+    integration_id: Optional[int] = None
+
+    # For testing new integrations (before save)
+    integration_type: Optional[str] = None
+    endpoint_url: Optional[str] = None
+    auth_type: Optional[str] = "none"
+    config: Optional[Dict[str, Any]] = None
+
+    # Test configuration
     test_type: str = "ping"  # ping, auth_test, data_test, full_test
     test_payload: Optional[Dict[str, Any]] = None
 
