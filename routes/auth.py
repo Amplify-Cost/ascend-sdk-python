@@ -1346,51 +1346,88 @@ async def create_cognito_session(
         logger.info(f"✅ User claims validated: {email} (verified)")
 
         # Step 6: Find or create user in database
-        # SEC-025: Enterprise-grade user lookup with cross-org protection
-        # Priority: 1) cognito_user_id match, 2) email+org match, 3) email-only (cross-org check)
+        # SEC-025: Enterprise Multi-Tenant User Resolution
+        #
+        # Banking-Level Security Architecture:
+        # =====================================
+        # 1. Each Cognito User Pool is isolated per organization
+        # 2. Users can exist in multiple organizations (separate records)
+        # 3. Email uniqueness is per-organization, not global
+        # 4. Cognito user_id is the primary identity link
+        #
+        # Resolution Priority:
+        # 1. cognito_user_id match (exact identity)
+        # 2. email + organization_id match (same org, link to Cognito)
+        # 3. No match + email exists elsewhere = BLOCKED (multi-tenant isolation)
+        # 4. No match anywhere = create new user
+        #
+        # Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 7.1
+
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
 
-        if not user:
-            # Check if user exists by email in THIS organization
+        if user:
+            # Case 1: Exact Cognito identity match
+            # Verify organization isolation - user must belong to the authenticating org
+            if user.organization_id != organization.id:
+                logger.error(
+                    f"🚨 SEC-025 VIOLATION: Cognito user {cognito_user_id} belongs to org "
+                    f"{user.organization_id}, but authenticated against org {organization.id}"
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: User not authorized for this organization"
+                )
+
+            # Update last login for existing Cognito-linked user
+            user.last_login = datetime.now(UTC)
+            db.commit()
+            logger.info(f"✅ SEC-025: Cognito user authenticated: ID={user.id}, Email={email}")
+
+        else:
+            # No Cognito link exists - check for email in THIS organization
             user = db.query(User).filter(
                 User.email == email,
                 User.organization_id == organization.id
             ).first()
 
             if user:
-                # Link existing org user to Cognito account
-                logger.info(f"🔗 SEC-025: Linking existing user to Cognito: {email}")
+                # Case 2: Email exists in same org - link to Cognito
+                logger.info(f"🔗 SEC-025: Linking existing org user to Cognito: {email}")
                 user.cognito_user_id = cognito_user_id
                 user.last_login = datetime.now(UTC)
                 db.commit()
-                logger.info(f"✅ User linked to Cognito: ID={user.id}, Email={email}")
+                logger.info(f"✅ User linked to Cognito: ID={user.id}, Email={email}, Org={organization.id}")
+
             else:
-                # SEC-025: Check if email exists in ANY organization (unique constraint protection)
-                existing_user_any_org = db.query(User).filter(User.email == email).first()
+                # Case 3 & 4: Check if email exists in ANY other organization
+                existing_user_other_org = db.query(User).filter(User.email == email).first()
 
-                if existing_user_any_org:
-                    # Email exists in different organization - this is a cross-org login attempt
-                    # For banking-level security: Link to Cognito and update organization
-                    # This handles the case where user was created in wrong org or is switching orgs
-                    logger.warning(
-                        f"⚠️ SEC-025: User {email} exists in org {existing_user_any_org.organization_id}, "
-                        f"attempting Cognito login for org {organization.id}"
+                if existing_user_other_org:
+                    # MULTI-TENANT ISOLATION ENFORCEMENT
+                    # Email exists in different organization - BLOCK access
+                    # This prevents:
+                    # - Cross-tenant data leakage
+                    # - Unauthorized organization access
+                    # - Email collision attacks
+                    #
+                    # Resolution: Admin must create user in correct org's Cognito pool
+                    logger.error(
+                        f"🚨 SEC-025 BLOCKED: Email {email} exists in org "
+                        f"{existing_user_other_org.organization_id}, cannot create in org {organization.id}. "
+                        f"Multi-tenant isolation enforced."
+                    )
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            "This email is already registered with another organization. "
+                            "Please contact your administrator to resolve this conflict. "
+                            "For security reasons, users cannot be shared across organizations."
+                        )
                     )
 
-                    # Update user to new organization and link Cognito
-                    # This is safe because Cognito authentication proves user identity
-                    existing_user_any_org.cognito_user_id = cognito_user_id
-                    existing_user_any_org.organization_id = organization.id
-                    existing_user_any_org.last_login = datetime.now(UTC)
-                    db.commit()
-                    user = existing_user_any_org
-                    logger.info(
-                        f"✅ SEC-025: User migrated to org {organization.id} and linked to Cognito: "
-                        f"ID={user.id}, Email={email}"
-                    )
                 else:
-                    # Create new user from Cognito claims
-                    logger.info(f"📝 Creating new user from Cognito: {email}")
+                    # Case 4: New user - create in this organization
+                    logger.info(f"📝 SEC-025: Creating new user from Cognito: {email}, Org={organization.id}")
 
                     # Extract custom attributes (if any)
                     custom_role = decoded_token.get('custom:role', 'viewer')
@@ -1408,13 +1445,8 @@ async def create_cognito_session(
                     db.add(user)
                     db.commit()
                     db.refresh(user)
-                    logger.info(f"✅ User created: ID={user.id}, Email={email}")
-        else:
-            # Update last login for existing Cognito-linked user
-            user.last_login = datetime.now(UTC)
-            db.commit()
-            logger.info(f"✅ User updated: ID={user.id}, Email={email}")
-        
+                    logger.info(f"✅ SEC-025: User created: ID={user.id}, Email={email}, Org={organization.id}")
+
         # Step 7: Create secure session cookie
         # Using existing enterprise token creation
         session_data = {

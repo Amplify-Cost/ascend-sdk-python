@@ -1,15 +1,35 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, func, JSON, Float
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, func, JSON, Float, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime, UTC, timedelta
 from database import Base
 
+
 class User(Base):
+    """
+    Enterprise User Model with Multi-Tenant Isolation
+
+    SEC-025: Banking-Level Security Architecture
+    ============================================
+    - Email uniqueness is PER-ORGANIZATION (not global)
+    - Same email can exist in multiple organizations as separate users
+    - Each organization has isolated Cognito user pool
+    - Cognito user_id is the primary identity link within an org
+
+    Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 7.1
+    """
     __tablename__ = "users"
 
+    # SEC-025: Composite unique constraint for multi-tenant email isolation
+    __table_args__ = (
+        UniqueConstraint('email', 'organization_id', name='uq_users_email_organization'),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, index=True)
+    # SEC-025: Email is unique per-organization, not globally
+    # Index maintained for fast lookups, uniqueness enforced by composite constraint
+    email = Column(String, index=True, nullable=False)
     password = Column(String)  # Changed from hashed_password to match auth_routes.py
     role = Column(String, default="user")
     is_active = Column(Boolean, default=True)
@@ -33,8 +53,8 @@ class User(Base):
     cognito_user_id = Column(String(255), unique=True, nullable=True, index=True)
     # Note: Using existing last_login and login_attempts columns from production schema
 
-    # PHASE 2: Multi-Tenancy
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    # PHASE 2: Multi-Tenancy - organization_id is part of email uniqueness constraint
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     is_org_admin = Column(Boolean, default=False, nullable=False)
 
     # Relationships
