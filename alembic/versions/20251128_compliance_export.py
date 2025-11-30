@@ -1,13 +1,17 @@
 """OW-kai Enterprise Phase 4: Compliance Export Tables
 
 Revision ID: 20251128_compliance_export
-Revises: 20251128_servicenow_integration
+Revises: 20251128_servicenow
 Create Date: 2025-11-28 20:00:00.000000
 
 Creates tables for enterprise compliance export system:
 - compliance_export_jobs: Tracks export requests and status
 - compliance_export_downloads: Audit trail for downloads
 - compliance_schedules: Scheduled compliance reports
+
+SEC-022: Fixed migration chain - down_revision corrected from
+'20251128_servicenow_integration' to '20251128_servicenow' to match
+the actual revision ID declared in 20251128_servicenow_integration.py
 """
 
 from typing import Sequence, Union
@@ -16,7 +20,8 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '20251128_compliance_export'
-down_revision: Union[str, None] = '20251128_servicenow_integration'
+# SEC-022: Corrected down_revision to match actual ServiceNow revision ID
+down_revision: Union[str, None] = '20251128_servicenow'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
