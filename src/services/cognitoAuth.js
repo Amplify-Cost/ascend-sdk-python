@@ -33,6 +33,9 @@ import {
   GlobalSignOutCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 
+// SEC-027: Import CSRF token storage for immediate use after login
+import { storeCsrfToken } from '../utils/fetchWithAuth';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const COGNITO_REGION = import.meta.env.VITE_COGNITO_REGION || 'us-east-2';
 
@@ -284,6 +287,13 @@ export async function cognitoLogin(email, password, orgSlug = null) {
     console.log('🔐 [BANKING-LEVEL] Auth Mode: Cognito MFA → Server Session (HttpOnly Cookie)');
     console.log('🏢 [BANKING-LEVEL] Multi-tenant isolation enforced:', sessionData.user.organization_id);
 
+    // SEC-027: Store CSRF token from response for immediate use
+    // This ensures POST/PUT/DELETE requests work right after login
+    if (sessionData.csrf_token) {
+      storeCsrfToken(sessionData.csrf_token);
+      console.log('🔐 [SEC-027] CSRF token stored for immediate use');
+    }
+
     // Step 7: Store tokens securely (localStorage for refresh, HttpOnly cookie for access)
     storeTokens(tokens, poolConfig);
 
@@ -366,6 +376,12 @@ export async function respondToMFAChallenge(challengeName, session, mfaCode, poo
 
     const sessionData = await sessionResponse.json();
     console.log('✅ [BANKING-LEVEL MFA] Server session created successfully');
+
+    // SEC-027: Store CSRF token from response for immediate use (MFA Path)
+    if (sessionData.csrf_token) {
+      storeCsrfToken(sessionData.csrf_token);
+      console.log('🔐 [SEC-027 MFA] CSRF token stored for immediate use');
+    }
 
     // Store tokens
     storeTokens(tokens, poolConfig);

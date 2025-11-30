@@ -4,22 +4,63 @@
 // Cookies are sent automatically by browser
 // CSRF protection via double-submit cookie pattern
 // ============================================
+// SEC-027: Enhanced CSRF token handling with sessionStorage fallback
+// Authored-By: OW-KAI Engineer
+// Compliance: PCI-DSS 6.5.9, OWASP ASVS 4.2.2
+// ============================================
 
 import { API_BASE_URL } from "../config/api";
 import logger from "./logger";
 
+// SEC-027: Session storage key for CSRF token fallback
+const CSRF_STORAGE_KEY = 'owai_csrf_token';
+
 /**
- * 🏢 ENTERPRISE: Extract CSRF token from cookies
+ * SEC-027: Store CSRF token from login response
+ * Called after successful Cognito session creation
+ *
+ * @param {string} token - CSRF token from server response
+ */
+export const storeCsrfToken = (token) => {
+  if (token) {
+    try {
+      sessionStorage.setItem(CSRF_STORAGE_KEY, token);
+      logger.debug("🔐 SEC-027: CSRF token stored in session");
+    } catch (error) {
+      logger.warn("⚠️ SEC-027: Failed to store CSRF token:", error);
+    }
+  }
+};
+
+/**
+ * SEC-027: Clear CSRF token on logout
+ */
+export const clearCsrfToken = () => {
+  try {
+    sessionStorage.removeItem(CSRF_STORAGE_KEY);
+    logger.debug("🔐 SEC-027: CSRF token cleared from session");
+  } catch (error) {
+    // Ignore errors during cleanup
+  }
+};
+
+/**
+ * 🏢 ENTERPRISE: Extract CSRF token with fallback chain
  * Implements double-submit cookie pattern for CSRF protection
+ *
+ * SEC-027: Enhanced with sessionStorage fallback for cases where
+ * cookie isn't immediately readable after login redirect.
+ *
+ * Priority:
+ * 1. Cookie (owai_csrf) - Primary source
+ * 2. SessionStorage - Fallback for timing issues
  *
  * @returns {string|null} CSRF token value or null if not found
  */
 const getCsrfToken = () => {
   try {
-    // Parse document.cookie into key-value pairs
+    // Priority 1: Try cookie first (primary source)
     const cookies = document.cookie.split(';').map(c => c.trim());
-
-    // Find the owai_csrf cookie
     const csrfCookie = cookies.find(c => c.startsWith('owai_csrf='));
 
     if (csrfCookie) {
@@ -28,7 +69,14 @@ const getCsrfToken = () => {
       return token;
     }
 
-    logger.debug("⚠️ CSRF cookie not found - may not be authenticated");
+    // Priority 2: Fallback to sessionStorage (SEC-027)
+    const storedToken = sessionStorage.getItem(CSRF_STORAGE_KEY);
+    if (storedToken) {
+      logger.debug("🔐 SEC-027: CSRF token retrieved from session storage (fallback)");
+      return storedToken;
+    }
+
+    logger.debug("⚠️ CSRF token not found - may not be authenticated");
     return null;
   } catch (error) {
     logger.error("❌ Error extracting CSRF token:", error);
@@ -143,6 +191,7 @@ export const getCurrentUser = async () => {
 
 /**
  * Enterprise logout - clears server-side session/cookies
+ * SEC-027: Also clears CSRF token from sessionStorage
  */
 export const logout = async () => {
   logger.debug("🚪 Calling enterprise logout API...");
@@ -154,6 +203,9 @@ export const logout = async () => {
   } catch (error) {
     logger.warn("⚠️ Logout API call failed:", error);
     // Don't throw - allow logout to continue even if API fails
+  } finally {
+    // SEC-027: Always clear CSRF token on logout
+    clearCsrfToken();
   }
 };
 

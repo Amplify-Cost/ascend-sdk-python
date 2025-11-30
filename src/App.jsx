@@ -22,7 +22,7 @@ import EnterpriseSettings from "./components/EnterpriseSettings";
 import EnterpriseSecurityReports from "./components/EnterpriseSecurityReports";
 import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
 import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
-import { fetchWithAuth, logout, getCurrentUser } from "./utils/fetchWithAuth";
+import { fetchWithAuth, logout, getCurrentUser, storeCsrfToken } from "./utils/fetchWithAuth";
 import { useTheme } from "./contexts/ThemeContext";
 import RealTimeAnalyticsDashboard from './components/RealTimeAnalyticsDashboard';
 import SmartAlertManagement from './components/SmartAlertManagement';
@@ -187,6 +187,12 @@ const AppContent = () => {
       const sessionData = await response.json();
 
       logger.debug("✅ Server session created:", sessionData);
+
+      // SEC-027: Store CSRF token from response for immediate use
+      if (sessionData.csrf_token) {
+        storeCsrfToken(sessionData.csrf_token);
+        logger.debug("🔐 SEC-027: CSRF token stored for immediate use");
+      }
 
       // Validate session response
       if (!sessionData.user || !sessionData.enterprise_validated) {
