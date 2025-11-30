@@ -34,6 +34,7 @@ redis>=4.5.0
 schedule==1.2.0
 psutil==5.9.8
 APScheduler==3.10.4  # Automated retention cleanup scheduler
+aiohttp==3.9.1  # SEC-022: Phase 5 Integration Suite async HTTP client
 
 # Database migrations
 alembic==1.13.1
