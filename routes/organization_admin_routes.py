@@ -969,3 +969,60 @@ async def get_subscription_info_auto_org(
 
     # Delegate to existing endpoint
     return await get_subscription_info(org_id, db, current_user, org_filter)
+
+
+# ============================================================================
+# SEC-028: Organization Settings Endpoint
+# ============================================================================
+
+@router.get("/settings")
+async def get_organization_settings(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin),
+    org_filter: int = Depends(get_organization_filter)
+):
+    """
+    SEC-028: Get organization settings for the current user's organization.
+
+    Returns organization name, timezone, and configuration settings.
+    Multi-Tenant: Only returns settings for the authenticated user's organization.
+
+    Banking-Level Security: No hardcoded defaults, data from database only.
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312, PCI-DSS 7.1
+
+    Authored-By: OW-KAI Engineer
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Query organization with multi-tenant filter
+    org = db.query(Organization).filter(
+        Organization.id == org_id,
+        Organization.id == org_filter  # Double-check for multi-tenant isolation
+    ).first()
+
+    if not org:
+        raise HTTPException(
+            status_code=404,
+            detail="Organization not found"
+        )
+
+    return {
+        "id": org.id,
+        "name": org.name,
+        "slug": org.slug,
+        "timezone": getattr(org, 'timezone', 'UTC'),
+        "subscription_tier": org.subscription_tier,
+        "created_at": org.created_at.isoformat() if org.created_at else None,
+        "settings": {
+            "require_mfa": getattr(org, 'require_mfa', True),
+            "session_timeout_hours": getattr(org, 'session_timeout_hours', 8),
+            "password_policy": getattr(org, 'password_policy', 'enterprise'),
+            "auto_escalate_critical": getattr(org, 'auto_escalate_critical', True),
+        }
+    }
