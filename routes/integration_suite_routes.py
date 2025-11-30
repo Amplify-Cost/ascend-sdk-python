@@ -828,10 +828,18 @@ async def test_integration(
                 test_type=request.test_type
             )
 
+        # SEC-028: Enterprise Response Structure
+        # Include top-level success/message for frontend compatibility
+        # while preserving full result details for auditing
         return {
             "status": "tested",
+            "success": result.get("success", False),
+            "message": result.get("message") or result.get("error_message") or "Test completed",
             "test_type": request.test_type,
-            "result": result,
+            "http_method": result.get("http_method", "GET"),
+            "response_time_ms": result.get("response_time_ms", 0),
+            "health_status": result.get("health_status", "unknown"),
+            "result": result,  # Full details for audit logging
         }
 
     except ValueError as e:
