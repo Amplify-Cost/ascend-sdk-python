@@ -532,7 +532,9 @@ INTEGRATION_TYPE_CONFIG = {
         "display_name": "Slack",
         "description": "Slack workspace integration for notifications",
         "required_fields": ["endpoint_url"],
-        "supported_auth": [AuthType.OAUTH2],
+        # SEC-028: Allow NONE for incoming webhooks (URL contains auth token)
+        # and OAUTH2 for Slack Apps with bot tokens
+        "supported_auth": [AuthType.NONE, AuthType.API_KEY, AuthType.OAUTH2],
         "default_retry_config": {"max_retries": 3, "backoff_multiplier": 2, "initial_delay_ms": 1000},
         "health_check_interval_seconds": 600,
     },
