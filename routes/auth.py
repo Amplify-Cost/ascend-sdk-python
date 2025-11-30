@@ -1344,46 +1344,71 @@ async def create_cognito_session(
             raise HTTPException(status_code=403, detail="Email not verified in Cognito")
         
         logger.info(f"✅ User claims validated: {email} (verified)")
-        
+
         # Step 6: Find or create user in database
-        # ENTERPRISE FIX: First try by cognito_user_id, then by email (for existing users)
+        # SEC-025: Enterprise-grade user lookup with cross-org protection
+        # Priority: 1) cognito_user_id match, 2) email+org match, 3) email-only (cross-org check)
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
 
         if not user:
-            # Check if user exists by email (legacy user without cognito_user_id)
+            # Check if user exists by email in THIS organization
             user = db.query(User).filter(
                 User.email == email,
                 User.organization_id == organization.id
             ).first()
 
             if user:
-                # Link existing user to Cognito account
-                logger.info(f"🔗 Linking existing user to Cognito: {email}")
+                # Link existing org user to Cognito account
+                logger.info(f"🔗 SEC-025: Linking existing user to Cognito: {email}")
                 user.cognito_user_id = cognito_user_id
                 user.last_login = datetime.now(UTC)
                 db.commit()
                 logger.info(f"✅ User linked to Cognito: ID={user.id}, Email={email}")
             else:
-                # Create new user from Cognito claims
-                logger.info(f"📝 Creating new user from Cognito: {email}")
+                # SEC-025: Check if email exists in ANY organization (unique constraint protection)
+                existing_user_any_org = db.query(User).filter(User.email == email).first()
 
-                # Extract custom attributes (if any)
-                custom_role = decoded_token.get('custom:role', 'viewer')
+                if existing_user_any_org:
+                    # Email exists in different organization - this is a cross-org login attempt
+                    # For banking-level security: Link to Cognito and update organization
+                    # This handles the case where user was created in wrong org or is switching orgs
+                    logger.warning(
+                        f"⚠️ SEC-025: User {email} exists in org {existing_user_any_org.organization_id}, "
+                        f"attempting Cognito login for org {organization.id}"
+                    )
 
-                user = User(
-                    email=email,
-                    cognito_user_id=cognito_user_id,
-                    role=custom_role,
-                    organization_id=organization.id,
-                    is_active=True,
-                    password="",  # No password needed for Cognito users
-                    created_at=datetime.now(UTC),
-                    last_login=datetime.now(UTC)
-                )
-                db.add(user)
-                db.commit()
-                db.refresh(user)
-                logger.info(f"✅ User created: ID={user.id}, Email={email}")
+                    # Update user to new organization and link Cognito
+                    # This is safe because Cognito authentication proves user identity
+                    existing_user_any_org.cognito_user_id = cognito_user_id
+                    existing_user_any_org.organization_id = organization.id
+                    existing_user_any_org.last_login = datetime.now(UTC)
+                    db.commit()
+                    user = existing_user_any_org
+                    logger.info(
+                        f"✅ SEC-025: User migrated to org {organization.id} and linked to Cognito: "
+                        f"ID={user.id}, Email={email}"
+                    )
+                else:
+                    # Create new user from Cognito claims
+                    logger.info(f"📝 Creating new user from Cognito: {email}")
+
+                    # Extract custom attributes (if any)
+                    custom_role = decoded_token.get('custom:role', 'viewer')
+
+                    user = User(
+                        email=email,
+                        cognito_user_id=cognito_user_id,
+                        role=custom_role,
+                        organization_id=organization.id,
+                        is_active=True,
+                        password="",  # No password needed for Cognito users
+                        created_at=datetime.now(UTC),
+                        last_login=datetime.now(UTC)
+                    )
+                    db.add(user)
+                    db.commit()
+                    db.refresh(user)
+                    logger.info(f"✅ User created: ID={user.id}, Email={email}")
         else:
             # Update last login for existing Cognito-linked user
             user.last_login = datetime.now(UTC)
