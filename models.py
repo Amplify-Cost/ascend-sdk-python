@@ -884,6 +884,8 @@ class Organization(Base):
 
     # Relationships
     users = relationship("User", back_populates="organization")
+    # SEC-023: Phase 4 Compliance Export relationship (required by models_compliance_export.py)
+    compliance_exports = relationship("ComplianceExportJob", back_populates="organization")
 
     def __repr__(self):
         return f"<Organization(id={self.id}, name={self.name}, tier={self.subscription_tier})>"
