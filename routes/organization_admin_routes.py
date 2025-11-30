@@ -33,7 +33,7 @@ from botocore.exceptions import ClientError
 from database import get_db
 from models import User, Organization, CognitoToken, AuthAuditLog
 from dependencies_cognito import require_org_admin, log_auth_event
-from dependencies import get_organization_filter
+from dependencies import get_organization_filter, get_current_user
 from config import (
     COGNITO_USER_POOL_ID,
     COGNITO_APP_CLIENT_ID,
@@ -978,7 +978,7 @@ async def get_subscription_info_auto_org(
 @router.get("/settings")
 async def get_organization_settings(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin),
+    current_user: dict = Depends(get_current_user),
     org_filter: int = Depends(get_organization_filter)
 ):
     """
@@ -987,11 +987,15 @@ async def get_organization_settings(
     Returns organization name, timezone, and configuration settings.
     Multi-Tenant: Only returns settings for the authenticated user's organization.
 
+    Note: Uses session-based auth (get_current_user) not Cognito Bearer token auth
+    to match other frontend-facing endpoints. Any authenticated org member can
+    view basic org settings (name, timezone).
+
     Banking-Level Security: No hardcoded defaults, data from database only.
 
     Compliance: SOC 2 CC6.1, HIPAA 164.312, PCI-DSS 7.1
 
-    Authored-By: OW-KAI Engineer
+    Authored-By: Ascend Engineer
     """
     org_id = current_user.get("organization_id")
     if not org_id:
