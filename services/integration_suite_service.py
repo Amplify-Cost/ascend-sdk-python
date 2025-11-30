@@ -274,30 +274,73 @@ class IntegrationSuiteService:
         endpoint_url: str,
         auth_type: str,
         credentials: Optional[str],
-        check_type: str
+        check_type: str,
+        use_post: bool = False,
+        test_payload: Optional[Dict[str, Any]] = None
     ) -> Tuple[int, Optional[int], Optional[str]]:
-        """Perform HTTP health check on endpoint."""
+        """
+        Perform HTTP health check on endpoint.
+
+        SEC-028: Enhanced to support both GET and POST methods.
+        Webhooks (Slack, Teams, PagerDuty) require POST requests.
+        SIEM integrations typically support GET for health checks.
+
+        Args:
+            endpoint_url: URL to test
+            auth_type: Authentication type
+            credentials: Optional encrypted credentials
+            check_type: Type of check (ping, auth_test, etc.)
+            use_post: If True, use POST method (required for webhooks)
+            test_payload: Optional payload for POST requests
+
+        Authored-By: Ascend Engineer
+        """
         start = datetime.utcnow()
 
         try:
             async with aiohttp.ClientSession() as session:
-                headers = {}
+                headers = {"Content-Type": "application/json"}
                 # Auth handling would go here in production
 
-                async with session.get(
-                    endpoint_url,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    end = datetime.utcnow()
-                    response_time_ms = int((end - start).total_seconds() * 1000)
+                if use_post:
+                    # SEC-028: Use POST for webhook integrations
+                    # Send a minimal test payload that won't trigger actual notifications
+                    payload = test_payload or {
+                        "text": "[Ascend Integration Test] - Connection verified",
+                        "test": True
+                    }
+                    async with session.post(
+                        endpoint_url,
+                        headers=headers,
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        end = datetime.utcnow()
+                        response_time_ms = int((end - start).total_seconds() * 1000)
 
-                    if response.status >= 500:
-                        return response_time_ms, response.status, f"Server error: {response.status}"
-                    elif response.status >= 400:
-                        return response_time_ms, response.status, f"Client error: {response.status}"
+                        if response.status >= 500:
+                            return response_time_ms, response.status, f"Server error: {response.status}"
+                        elif response.status >= 400:
+                            # For webhooks, 400 might mean invalid payload format
+                            return response_time_ms, response.status, f"Webhook rejected request: {response.status}"
 
-                    return response_time_ms, response.status, None
+                        return response_time_ms, response.status, None
+                else:
+                    # GET request for SIEM/API health checks
+                    async with session.get(
+                        endpoint_url,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        end = datetime.utcnow()
+                        response_time_ms = int((end - start).total_seconds() * 1000)
+
+                        if response.status >= 500:
+                            return response_time_ms, response.status, f"Server error: {response.status}"
+                        elif response.status >= 400:
+                            return response_time_ms, response.status, f"Client error: {response.status}"
+
+                        return response_time_ms, response.status, None
 
         except asyncio.TimeoutError:
             return 30000, None, "Connection timeout"
@@ -320,6 +363,11 @@ class IntegrationSuiteService:
 
         This enables the UI to test integration settings before committing
         them to the database, providing a better user experience.
+
+        Integration Type Handling:
+        - Webhooks (slack, teams, pagerduty, webhook): Use POST request
+        - SIEM (splunk, qradar, sentinel): Use GET request
+        - Identity (okta, azure_ad, active_directory): Use GET request
 
         Authored-By: Ascend Engineer
         """
@@ -348,17 +396,26 @@ class IntegrationSuiteService:
             "checked_at": start_time,
         }
 
+        # SEC-028: Determine HTTP method based on integration type
+        # Webhooks require POST, SIEM/Identity can use GET
+        webhook_integrations = ["slack", "teams", "pagerduty", "webhook", "custom"]
+        use_post = integration_type.lower() in webhook_integrations
+
+        logger.info(f"SEC-028: Testing {integration_type} integration (use_post={use_post})")
+
         try:
             # Perform health check without database record
             response_time_ms, status_code, error = await self._perform_health_check(
                 test_url,
                 auth_type,
                 None,  # No credentials for new integrations yet
-                test_type
+                test_type,
+                use_post=use_post
             )
 
             result["response_time_ms"] = response_time_ms
             result["status_code"] = status_code
+            result["http_method"] = "POST" if use_post else "GET"
 
             if error:
                 result["success"] = False
