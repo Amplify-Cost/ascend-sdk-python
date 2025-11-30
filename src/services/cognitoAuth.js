@@ -127,10 +127,14 @@ export async function getPoolConfigBySlug(orgSlug) {
 
 /**
  * Get Cognito pool configuration from backend by email
+ *
+ * SEC-028: Uses PUBLIC endpoint (no auth required) for pre-login email lookup.
+ * This enables multi-tenant routing based on email domain BEFORE authentication.
  */
 export async function getPoolConfigByEmail(email) {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/cognito/pool-config/by-email/${encodeURIComponent(email)}`, {
+    // SEC-028: Use PUBLIC endpoint for pre-login email domain lookup
+    const response = await fetch(`${API_BASE_URL}/api/cognito/pool-config/by-email-domain/${encodeURIComponent(email)}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
