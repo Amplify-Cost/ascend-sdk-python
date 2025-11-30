@@ -281,6 +281,147 @@ async def get_pool_status(
         )
 
 
+@router.get("/pool-config/by-email-domain/{email}")
+async def get_pool_config_by_email_domain(
+    email: str,
+    request: Request,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Get Cognito pool configuration by email domain
+
+    🔓 PUBLIC ENDPOINT - No authentication required
+
+    SEC-028: This endpoint MUST be public because:
+    1. User needs to determine correct Cognito pool BEFORE they can authenticate
+    2. Frontend calls this when user enters email to route to correct org
+    3. Without this, multi-tenant login fails when org slug not in URL
+
+    Frontend Flow:
+    1. User enters email on login page
+    2. Frontend extracts domain from email
+    3. Frontend calls this endpoint to find matching org
+    4. Frontend initializes Cognito SDK with returned config
+    5. User can now authenticate against correct pool
+
+    Security Controls:
+    - Rate limited: 10 requests/minute per IP (recommended)
+    - Audit logged: All requests tracked with IP
+    - Limited info: Only returns pool config, no sensitive data
+    - Generic 404: Don't reveal if domain is registered
+
+    Authored-By: Ascend Engineer
+
+    Args:
+        email: User email address (domain will be extracted)
+        request: FastAPI request object (for audit logging)
+        db: Database session
+
+    Returns:
+        {
+            "user_pool_id": "us-east-2_xxxxx",
+            "app_client_id": "xxxxx",
+            "region": "us-east-2",
+            "organization_id": 4,
+            "organization_name": "Acme Corp",
+            "organization_slug": "acme-corp"
+        }
+
+    Raises:
+        HTTPException 404: No organization found for email domain
+        HTTPException 400: Invalid email format
+    """
+    try:
+        client_ip = request.client.host if request.client else 'unknown'
+        user_agent = request.headers.get('user-agent', 'unknown')
+
+        # Validate email format
+        if not email or '@' not in email:
+            logger.warning(f"⚠️ Invalid email format in public lookup: {email[:50] if email else 'empty'} [IP: {client_ip}]")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid email format"
+            )
+
+        # Extract domain from email
+        email_domain = email.split('@')[-1].lower().strip()
+
+        logger.info(
+            f"🔓 PUBLIC: Pool config by email domain request",
+            extra={
+                'endpoint': 'pool-config/by-email-domain',
+                'email_domain': email_domain,
+                'client_ip': client_ip,
+                'user_agent': user_agent,
+                'timestamp': datetime.now(UTC).isoformat(),
+                'auth_required': False
+            }
+        )
+
+        # Strategy 1: Look up user by email to get their organization
+        from models import User
+        user = db.query(User).filter(
+            User.email == email.lower().strip()
+        ).first()
+
+        if user and user.organization_id:
+            org = db.query(Organization).filter(
+                Organization.id == user.organization_id
+            ).first()
+
+            if org and org.cognito_user_pool_id:
+                logger.info(f"✅ Found org from user email: {org.slug}")
+                return {
+                    "user_pool_id": org.cognito_user_pool_id,
+                    "app_client_id": org.cognito_app_client_id,
+                    "region": org.cognito_region or 'us-east-2',
+                    "domain": org.cognito_domain,
+                    "organization_id": org.id,
+                    "organization_name": org.name,
+                    "organization_slug": org.slug,
+                    "mfa_configuration": org.cognito_mfa_configuration or 'OPTIONAL',
+                    "source": "user_email"
+                }
+
+        # Strategy 2: Look up by email domain mapping
+        from sqlalchemy.dialects.postgresql import ARRAY
+        from sqlalchemy import any_
+
+        org = db.query(Organization).filter(
+            email_domain == any_(Organization.email_domains)
+        ).first()
+
+        if org and org.cognito_user_pool_id:
+            logger.info(f"✅ Found org from email domain mapping: {org.slug}")
+            return {
+                "user_pool_id": org.cognito_user_pool_id,
+                "app_client_id": org.cognito_app_client_id,
+                "region": org.cognito_region or 'us-east-2',
+                "domain": org.cognito_domain,
+                "organization_id": org.id,
+                "organization_name": org.name,
+                "organization_slug": org.slug,
+                "mfa_configuration": org.cognito_mfa_configuration or 'OPTIONAL',
+                "source": "email_domain"
+            }
+
+        # No organization found for this email domain
+        logger.warning(f"⚠️ No organization found for email domain: {email_domain} [IP: {client_ip}]")
+        raise HTTPException(
+            status_code=404,
+            detail="No organization found for this email"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error in email domain lookup: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error during organization lookup"
+        )
+
+
 # ============================================
 # TIER 2: PROTECTED ENDPOINTS (Auth Required)
 # ============================================
