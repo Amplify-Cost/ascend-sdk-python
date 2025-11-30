@@ -2,17 +2,27 @@ import React, { useState, useEffect, useCallback } from "react";
 import AgentActionSubmitPanel from "./AgentActionSubmitPanel";
 import RiskConfigurationTab from "./risk-config/RiskConfigurationTab";
 import ApiKeyManagement from "./ApiKeyManagement";
+import IntegrationManagement from "./IntegrationManagement";
 import fetchWithAuth from "../utils/fetchWithAuth";
 
 /**
- * 🏢 SEC-013: Enterprise Settings with API Key Management
- * 🏢 SEC-028: Enterprise Integration Status (No Hardcoded Data)
+ * Enterprise Settings with Full Integration Management
+ * =====================================================
+ *
+ * SEC-013: API Key Management
+ * SEC-028: Enterprise Integration Status (No Hardcoded Data)
+ * Phase 5: Full Integration Suite Management
+ *
  * Banking-Level Security: PCI-DSS 8.3.1, HIPAA 164.312(d), SOC 2 CC6.1
- * Authored-By: OW-KAI Engineer
+ * Authored-By: Ascend Engineer
  */
 const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
   const [activeSettingsTab, setActiveSettingsTab] = useState("general");
   const [acknowledgment, setAcknowledgment] = useState(false);
+
+  // Phase 5: Integration Management Modal State
+  const [showIntegrationModal, setShowIntegrationModal] = useState(false);
+  const [selectedIntegrationType, setSelectedIntegrationType] = useState(null);
 
   // SEC-028: Dynamic integration status state (no hardcoded defaults)
   const [integrationStatus, setIntegrationStatus] = useState({
@@ -84,8 +94,20 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
     }
   }, [activeSettingsTab, fetchIntegrationStatus, fetchOrgSettings]);
 
+  // Phase 5: Open integration configuration modal
+  const handleConfigureIntegration = (integrationType) => {
+    setSelectedIntegrationType(integrationType);
+    setShowIntegrationModal(true);
+  };
+
+  // Phase 5: Handle integration saved - refresh status
+  const handleIntegrationSaved = () => {
+    fetchIntegrationStatus();
+  };
+
   // SEC-028: Helper to render integration status badge
-  const renderIntegrationStatus = (integration, name, colorScheme) => {
+  // Phase 5: Updated to support CONFIGURE button with modal
+  const renderIntegrationStatus = (integration, name, colorScheme, integrationType) => {
     if (integrationStatus.loading) {
       return (
         <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded animate-pulse">
@@ -105,7 +127,10 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
             <h5 className="font-medium text-gray-800">{name}</h5>
             <p className="text-sm text-gray-600">Not configured for this organization</p>
           </div>
-          <button className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+          <button
+            onClick={() => handleConfigureIntegration(integrationType)}
+            className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+          >
             CONFIGURE
           </button>
         </div>
@@ -134,9 +159,17 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
             {integration.user_count !== undefined && ` • ${integration.user_count.toLocaleString()} users`}
           </p>
         </div>
-        <span className={`px-2 py-1 ${colors.badge} text-xs rounded`}>
-          {integration.status?.toUpperCase() || 'UNKNOWN'}
-        </span>
+        <div className="flex items-center space-x-2">
+          <span className={`px-2 py-1 ${colors.badge} text-xs rounded`}>
+            {integration.status?.toUpperCase() || 'UNKNOWN'}
+          </span>
+          <button
+            onClick={() => handleConfigureIntegration(integrationType)}
+            className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 transition-colors"
+          >
+            MANAGE
+          </button>
+        </div>
       </div>
     );
   };
@@ -290,33 +323,132 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
           )}
         </div>
         <div className="space-y-4">
-          {/* SEC-028: Dynamic Splunk Status */}
-          {renderIntegrationStatus(integrationStatus.splunk, 'Splunk Enterprise', 'green')}
+          {/* Phase 5: Dynamic Splunk Status with CONFIGURE button */}
+          {renderIntegrationStatus(integrationStatus.splunk, 'Splunk Enterprise', 'green', 'splunk')}
 
-          {/* SEC-028: Dynamic QRadar Status */}
-          {renderIntegrationStatus(integrationStatus.qradar, 'IBM QRadar', 'blue')}
+          {/* Phase 5: Dynamic QRadar Status with CONFIGURE button */}
+          {renderIntegrationStatus(integrationStatus.qradar, 'IBM QRadar', 'blue', 'qradar')}
 
-          {/* SEC-028: Dynamic Sentinel Status */}
-          {renderIntegrationStatus(integrationStatus.sentinel, 'Microsoft Sentinel', 'purple')}
+          {/* Phase 5: Dynamic Sentinel Status with CONFIGURE button */}
+          {renderIntegrationStatus(integrationStatus.sentinel, 'Microsoft Sentinel', 'purple', 'sentinel')}
         </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h4 className="text-lg font-semibold mb-4">🏢 Enterprise Systems</h4>
         <div className="space-y-4">
-          {/* SEC-028: Dynamic Active Directory Status (with user count) */}
-          {renderIntegrationStatus(integrationStatus.activeDirectory, 'Active Directory', 'yellow')}
+          {/* Phase 5: Dynamic Active Directory Status with CONFIGURE button */}
+          {renderIntegrationStatus(integrationStatus.activeDirectory, 'Active Directory', 'yellow', 'active_directory')}
 
-          {/* SEC-028: Dynamic SSO Status */}
-          {renderIntegrationStatus(integrationStatus.sso, 'SSO Integration', 'gray')}
+          {/* Phase 5: Dynamic SSO Status with CONFIGURE button */}
+          {renderIntegrationStatus(integrationStatus.sso, 'SSO Integration', 'gray', 'okta')}
         </div>
       </div>
 
-      {/* SEC-028: Multi-Tenant Notice */}
+      {/* Phase 5: Notification Integrations */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <h4 className="text-lg font-semibold mb-4">🔔 Notification Channels</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <button
+            onClick={() => handleConfigureIntegration('slack')}
+            className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded hover:border-blue-400 hover:bg-blue-50 transition-all"
+          >
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">💬</span>
+              <div className="text-left">
+                <h5 className="font-medium text-gray-800">Slack</h5>
+                <p className="text-sm text-gray-600">Send alerts to Slack channels</p>
+              </div>
+            </div>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">ADD</span>
+          </button>
+
+          <button
+            onClick={() => handleConfigureIntegration('teams')}
+            className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded hover:border-blue-400 hover:bg-blue-50 transition-all"
+          >
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">👥</span>
+              <div className="text-left">
+                <h5 className="font-medium text-gray-800">Microsoft Teams</h5>
+                <p className="text-sm text-gray-600">Send alerts to Teams channels</p>
+              </div>
+            </div>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">ADD</span>
+          </button>
+
+          <button
+            onClick={() => handleConfigureIntegration('pagerduty')}
+            className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded hover:border-blue-400 hover:bg-blue-50 transition-all"
+          >
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">🚨</span>
+              <div className="text-left">
+                <h5 className="font-medium text-gray-800">PagerDuty</h5>
+                <p className="text-sm text-gray-600">Incident alerting</p>
+              </div>
+            </div>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">ADD</span>
+          </button>
+
+          <button
+            onClick={() => handleConfigureIntegration('servicenow')}
+            className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded hover:border-blue-400 hover:bg-blue-50 transition-all"
+          >
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">🎫</span>
+              <div className="text-left">
+                <h5 className="font-medium text-gray-800">ServiceNow</h5>
+                <p className="text-sm text-gray-600">ITSM incident creation</p>
+              </div>
+            </div>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">ADD</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Phase 5: Custom Webhooks */}
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-lg font-semibold">🔗 Custom Webhooks</h4>
+          <button
+            onClick={() => handleConfigureIntegration('webhook')}
+            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+          >
+            + Add Webhook
+          </button>
+        </div>
+        <p className="text-sm text-gray-600">
+          Configure custom HTTP endpoints to receive security events and alerts from the platform.
+        </p>
+      </div>
+
+      {/* Phase 5: Manage All Integrations Button */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="font-semibold text-blue-900">Manage All Integrations</h4>
+            <p className="text-sm text-blue-700">
+              View, edit, delete, and test all configured integrations
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setSelectedIntegrationType(null);
+              setShowIntegrationModal(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+          >
+            🔌 Open Integration Manager
+          </button>
+        </div>
+      </div>
+
+      {/* Multi-Tenant Notice */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-700">
           <strong>🏢 Multi-Tenant Note:</strong> Integration status shown is specific to your organization.
-          Contact your administrator to configure additional integrations.
+          All credentials are encrypted with AES-256 and stored securely.
         </p>
       </div>
     </div>
@@ -479,7 +611,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
       <div className="min-h-[400px]">
         {activeSettingsTab === "general" && renderGeneralSettings()}
         {activeSettingsTab === "security" && renderSecuritySettings()}
-        {/* 🏢 SEC-013: Enterprise API Key Management Tab */}
+        {/* SEC-013: Enterprise API Key Management Tab */}
         {activeSettingsTab === "api-keys" && (
           <ApiKeyManagement
             API_BASE_URL={API_BASE_URL || ""}
@@ -490,6 +622,17 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
         {activeSettingsTab === "risk-config" && <RiskConfigurationTab getAuthHeaders={getAuthHeaders} />}
         {activeSettingsTab === "admin-tools" && renderAdminTools()}
       </div>
+
+      {/* Phase 5: Integration Management Modal */}
+      <IntegrationManagement
+        isOpen={showIntegrationModal}
+        onClose={() => {
+          setShowIntegrationModal(false);
+          setSelectedIntegrationType(null);
+        }}
+        initialType={selectedIntegrationType}
+        onIntegrationSaved={handleIntegrationSaved}
+      />
     </div>
   );
 };
