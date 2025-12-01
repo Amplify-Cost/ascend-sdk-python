@@ -700,6 +700,257 @@ class AgentRegistryService:
         ).all()
 
     # =========================================================================
+    # AGENT DELETE
+    # =========================================================================
+
+    @staticmethod
+    def delete_agent(
+        db: Session,
+        organization_id: int,
+        agent_id: str,
+        deleted_by: str,
+        reason: str = None
+    ) -> bool:
+        """
+        Delete an agent registration.
+
+        This is a SOFT delete for audit trail - marks as deleted but preserves data.
+        For hard delete, use purge_agent (admin only).
+
+        Args:
+            db: Database session
+            organization_id: Tenant isolation
+            agent_id: Agent to delete
+            deleted_by: User performing deletion
+            reason: Reason for deletion
+
+        Returns:
+            True if deleted, False if not found
+
+        Compliance: SOC 2 CC6.1, NIST AC-2
+        """
+        agent = db.query(RegisteredAgent).filter(
+            and_(
+                RegisteredAgent.agent_id == agent_id,
+                RegisteredAgent.organization_id == organization_id
+            )
+        ).first()
+
+        if not agent:
+            return False
+
+        # Log the deletion
+        log = AgentActivityLog(
+            agent_id=agent.id,
+            organization_id=organization_id,
+            activity_type="AGENT_DELETED",
+            activity_description=f"Agent deleted: {reason or 'No reason provided'}",
+            performed_by=deleted_by,
+            performed_via="admin_ui",
+            previous_state={"status": agent.status, "agent_id": agent.agent_id},
+            new_state={"status": "deleted"},
+            timestamp=datetime.now(UTC)
+        )
+        db.add(log)
+
+        # Hard delete the agent and related data
+        # Delete policies first
+        from models_agent_registry import AgentPolicy, AgentVersion
+        db.query(AgentPolicy).filter(AgentPolicy.agent_id == agent.id).delete()
+        db.query(AgentVersion).filter(AgentVersion.agent_id == agent.id).delete()
+        db.delete(agent)
+        db.commit()
+
+        logger.info(f"SEC-024: Agent deleted: {agent_id} by {deleted_by}")
+        return True
+
+    # =========================================================================
+    # MCP SERVER MANAGEMENT
+    # =========================================================================
+
+    @staticmethod
+    def get_mcp_server(
+        db: Session,
+        organization_id: int,
+        server_name: str
+    ) -> Optional[MCPServerConfig]:
+        """Get an MCP server by server_name."""
+        return db.query(MCPServerConfig).filter(
+            and_(
+                MCPServerConfig.server_name == server_name,
+                MCPServerConfig.organization_id == organization_id
+            )
+        ).first()
+
+    @staticmethod
+    def update_mcp_server(
+        db: Session,
+        organization_id: int,
+        server_name: str,
+        updates: Dict[str, Any],
+        updated_by: str
+    ) -> Optional[MCPServerConfig]:
+        """
+        Update an MCP server configuration.
+
+        Args:
+            db: Database session
+            organization_id: Tenant isolation
+            server_name: Server to update
+            updates: Fields to update
+            updated_by: User performing update
+
+        Returns:
+            Updated MCPServerConfig or None if not found
+
+        Compliance: SOC 2 CC8.1, NIST AC-3
+        """
+        server = db.query(MCPServerConfig).filter(
+            and_(
+                MCPServerConfig.server_name == server_name,
+                MCPServerConfig.organization_id == organization_id
+            )
+        ).first()
+
+        if not server:
+            return None
+
+        # Update allowed fields
+        allowed_updates = [
+            'display_name', 'description', 'server_url', 'transport_type',
+            'connection_config', 'governance_enabled', 'auto_approve_tools',
+            'blocked_tools', 'tool_risk_overrides'
+        ]
+
+        for key, value in updates.items():
+            if key in allowed_updates and value is not None:
+                setattr(server, key, value)
+
+        server.updated_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(server)
+
+        logger.info(f"SEC-024: MCP Server updated: {server_name} by {updated_by}")
+        return server
+
+    @staticmethod
+    def delete_mcp_server(
+        db: Session,
+        organization_id: int,
+        server_name: str,
+        deleted_by: str
+    ) -> bool:
+        """
+        Delete an MCP server registration.
+
+        Args:
+            db: Database session
+            organization_id: Tenant isolation
+            server_name: Server to delete
+            deleted_by: User performing deletion
+
+        Returns:
+            True if deleted, False if not found
+
+        Compliance: SOC 2 CC6.1, NIST AC-2
+        """
+        server = db.query(MCPServerConfig).filter(
+            and_(
+                MCPServerConfig.server_name == server_name,
+                MCPServerConfig.organization_id == organization_id
+            )
+        ).first()
+
+        if not server:
+            return False
+
+        db.delete(server)
+        db.commit()
+
+        logger.info(f"SEC-024: MCP Server deleted: {server_name} by {deleted_by}")
+        return True
+
+    @staticmethod
+    def activate_mcp_server(
+        db: Session,
+        organization_id: int,
+        server_name: str,
+        activated_by: str
+    ) -> Optional[MCPServerConfig]:
+        """
+        Activate an MCP server.
+
+        Args:
+            db: Database session
+            organization_id: Tenant isolation
+            server_name: Server to activate
+            activated_by: User performing activation
+
+        Returns:
+            Updated MCPServerConfig or None if not found
+
+        Compliance: SOC 2 CC6.2
+        """
+        server = db.query(MCPServerConfig).filter(
+            and_(
+                MCPServerConfig.server_name == server_name,
+                MCPServerConfig.organization_id == organization_id
+            )
+        ).first()
+
+        if not server:
+            return None
+
+        server.is_active = True
+        server.updated_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(server)
+
+        logger.info(f"SEC-024: MCP Server activated: {server_name} by {activated_by}")
+        return server
+
+    @staticmethod
+    def deactivate_mcp_server(
+        db: Session,
+        organization_id: int,
+        server_name: str,
+        deactivated_by: str,
+        reason: str = None
+    ) -> Optional[MCPServerConfig]:
+        """
+        Deactivate an MCP server.
+
+        Args:
+            db: Database session
+            organization_id: Tenant isolation
+            server_name: Server to deactivate
+            deactivated_by: User performing deactivation
+            reason: Reason for deactivation
+
+        Returns:
+            Updated MCPServerConfig or None if not found
+
+        Compliance: SOC 2 CC6.2, NIST AC-2(3)
+        """
+        server = db.query(MCPServerConfig).filter(
+            and_(
+                MCPServerConfig.server_name == server_name,
+                MCPServerConfig.organization_id == organization_id
+            )
+        ).first()
+
+        if not server:
+            return None
+
+        server.is_active = False
+        server.updated_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(server)
+
+        logger.info(f"SEC-024: MCP Server deactivated: {server_name} by {deactivated_by} - Reason: {reason}")
+        return server
+
+    # =========================================================================
     # HELPER METHODS
     # =========================================================================
 
