@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "owkai-sdk"
+version = "1.0.0"
+description = "OW-AI Enterprise Authorization SDK for AI Agent Governance"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "OW-AI Enterprise", email = "sdk@owkai.app"}
+]
+maintainers = [
+    {name = "OW-AI Enterprise", email = "sdk@owkai.app"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed"
+]
+keywords = [
+    "ai",
+    "authorization",
+    "governance",
+    "enterprise",
+    "security",
+    "compliance",
+    "soc2",
+    "hipaa",
+    "pci-dss"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "requests>=2.25.0",
+    "python-dotenv>=0.19.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "pytest-cov>=4.0.0",
+    "mypy>=1.0.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0"
+]
+async = [
+    "aiohttp>=3.8.0"
+]
+
+[project.urls]
+Homepage = "https://owkai.app"
+Documentation = "https://docs.owkai.app/sdk/python"
+Repository = "https://github.com/owkai/owkai-sdk-python"
+Changelog = "https://github.com/owkai/owkai-sdk-python/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["owkai_sdk*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
