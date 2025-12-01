@@ -218,6 +218,7 @@ const AgentRegistryManagement = () => {
     if (!reason) return;
 
     try {
+      setActionLoading(agentId);
       await fetchWithAuth(`/api/registry/agents/${agentId}/suspend?reason=${encodeURIComponent(reason)}`, {
         method: "POST"
       });
@@ -225,6 +226,37 @@ const AgentRegistryManagement = () => {
     } catch (error) {
       console.error("Failed to suspend agent:", error);
       alert("Failed to suspend agent: " + (error.message || "Unknown error"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Delete agent - requires confirmation
+  const handleDeleteAgent = async (agentId, displayName) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the agent "${displayName}"?\n\nThis action cannot be undone and will remove:\n- All agent policies\n- All version history\n- All associated audit records\n\nType DELETE to confirm.`
+    );
+    if (!confirmed) return;
+
+    const reason = prompt("Enter reason for deletion (required for audit trail):");
+    if (!reason) {
+      alert("Deletion cancelled - reason is required for audit compliance.");
+      return;
+    }
+
+    try {
+      setActionLoading(agentId);
+      await fetchWithAuth(`/api/registry/agents/${agentId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ reason })
+      });
+      fetchAgents();
+      alert("Agent deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete agent:", error);
+      alert("Failed to delete agent: " + (error.message || "Unknown error"));
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -682,6 +714,16 @@ const AgentRegistryManagement = () => {
                               {actionLoading === agent.agent_id ? "..." : "Reactivate"}
                             </button>
                           )}
+
+                          {/* Delete Agent - always available */}
+                          <button
+                            onClick={() => handleDeleteAgent(agent.agent_id, agent.display_name)}
+                            disabled={actionLoading === agent.agent_id}
+                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors disabled:opacity-50"
+                            title="Delete agent permanently - requires confirmation and audit reason"
+                          >
+                            {actionLoading === agent.agent_id ? "..." : "Delete"}
+                          </button>
                         </div>
                       </td>
                     </tr>
