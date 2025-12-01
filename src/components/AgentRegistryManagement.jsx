@@ -34,8 +34,11 @@ const AgentRegistryManagement = () => {
   const [showAgentDetailsModal, setShowAgentDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMcpRegisterModal, setShowMcpRegisterModal] = useState(false);
+  const [showMcpEditModal, setShowMcpEditModal] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
-  const [actionLoading, setActionLoading] = useState(null); // Track which agent is being acted upon
+  const [selectedMcpServer, setSelectedMcpServer] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null); // Track which agent/server is being acted upon
+  const [mcpEditForm, setMcpEditForm] = useState(null);
 
   // Form states - Enterprise Agent Configuration
   const [registerForm, setRegisterForm] = useState({
@@ -361,6 +364,112 @@ const AgentRegistryManagement = () => {
     }
   };
 
+  // Edit MCP Server - open modal with current data
+  const handleEditMcpServer = (server) => {
+    setMcpEditForm({
+      id: server.id,
+      server_name: server.server_name,
+      display_name: server.display_name,
+      description: server.description || "",
+      server_url: server.server_url || "",
+      transport_type: server.transport_type || "stdio",
+      governance_enabled: server.governance_enabled ?? true,
+      auto_approve_tools: (server.auto_approve_tools || []).join(", "),
+      blocked_tools: (server.blocked_tools || []).join(", "),
+      tool_risk_overrides: server.tool_risk_overrides ? JSON.stringify(server.tool_risk_overrides) : ""
+    });
+    setShowMcpEditModal(true);
+  };
+
+  // Save edited MCP Server
+  const handleSaveMcpEdit = async (e) => {
+    e.preventDefault();
+    if (!mcpEditForm) return;
+
+    try {
+      const payload = {
+        display_name: mcpEditForm.display_name,
+        description: mcpEditForm.description,
+        server_url: mcpEditForm.server_url || null,
+        transport_type: mcpEditForm.transport_type,
+        governance_enabled: mcpEditForm.governance_enabled,
+        auto_approve_tools: mcpEditForm.auto_approve_tools.split(",").map(t => t.trim()).filter(Boolean),
+        blocked_tools: mcpEditForm.blocked_tools.split(",").map(t => t.trim()).filter(Boolean),
+        tool_risk_overrides: mcpEditForm.tool_risk_overrides ? JSON.parse(mcpEditForm.tool_risk_overrides || "{}") : {}
+      };
+
+      await fetchWithAuth(`/api/registry/mcp-servers/${mcpEditForm.server_name}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+
+      setShowMcpEditModal(false);
+      setMcpEditForm(null);
+      fetchMcpServers();
+      alert("MCP Server updated successfully");
+    } catch (error) {
+      console.error("Failed to update MCP server:", error);
+      alert("Failed to update MCP server: " + (error.message || "Unknown error"));
+    }
+  };
+
+  // Activate MCP Server
+  const handleActivateMcpServer = async (serverName) => {
+    try {
+      setActionLoading(serverName);
+      await fetchWithAuth(`/api/registry/mcp-servers/${serverName}/activate`, {
+        method: "POST"
+      });
+      fetchMcpServers();
+    } catch (error) {
+      console.error("Failed to activate MCP server:", error);
+      alert("Failed to activate MCP server: " + (error.message || "Unknown error"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Deactivate MCP Server
+  const handleDeactivateMcpServer = async (serverName) => {
+    const reason = prompt("Enter reason for deactivating this MCP server:");
+    if (!reason) return;
+
+    try {
+      setActionLoading(serverName);
+      await fetchWithAuth(`/api/registry/mcp-servers/${serverName}/deactivate?reason=${encodeURIComponent(reason)}`, {
+        method: "POST"
+      });
+      fetchMcpServers();
+    } catch (error) {
+      console.error("Failed to deactivate MCP server:", error);
+      alert("Failed to deactivate MCP server: " + (error.message || "Unknown error"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Delete MCP Server
+  const handleDeleteMcpServer = async (serverName, displayName) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the MCP server "${displayName}"?\n\nThis action cannot be undone and will remove all associated governance rules.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setActionLoading(serverName);
+      await fetchWithAuth(`/api/registry/mcp-servers/${serverName}`, {
+        method: "DELETE"
+      });
+      fetchMcpServers();
+      alert("MCP Server deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete MCP server:", error);
+      alert("Failed to delete MCP server: " + (error.message || "Unknown error"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Get status badge color
   const getStatusColor = (status) => {
     switch (status) {
@@ -612,6 +721,7 @@ const AgentRegistryManagement = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Governance</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tools</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -620,10 +730,15 @@ const AgentRegistryManagement = () => {
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-900 dark:text-white">{server.display_name}</div>
                         <div className="text-sm text-gray-500 font-mono">{server.server_name}</div>
+                        {server.server_url && (
+                          <div className="text-xs text-gray-400 truncate max-w-xs" title={server.server_url}>
+                            {server.server_url}
+                          </div>
+                        )}
                       </td>
-                      <td className="px-6 py-4 text-gray-500 dark:text-gray-400">{server.transport_type}</td>
+                      <td className="px-6 py-4 text-gray-500 dark:text-gray-400 uppercase text-xs">{server.transport_type}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${server.governance_enabled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}`}>
+                        <span className={`px-2 py-1 text-xs rounded-full ${server.governance_enabled ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400"}`}>
                           {server.governance_enabled ? "Enabled" : "Disabled"}
                         </span>
                       </td>
@@ -631,9 +746,52 @@ const AgentRegistryManagement = () => {
                         {(server.discovered_tools || []).length} tools
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${server.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                        <span className={`px-2 py-1 text-xs rounded-full ${server.is_active ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"}`}>
                           {server.is_active ? "Active" : "Inactive"}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <div className="flex justify-end space-x-2">
+                          {/* Edit MCP Server */}
+                          <button
+                            onClick={() => handleEditMcpServer(server)}
+                            className="px-3 py-1 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-md transition-colors"
+                            title="Edit MCP server configuration"
+                          >
+                            Edit
+                          </button>
+
+                          {/* Activate/Deactivate */}
+                          {server.is_active ? (
+                            <button
+                              onClick={() => handleDeactivateMcpServer(server.server_name)}
+                              disabled={actionLoading === server.server_name}
+                              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition-colors disabled:opacity-50"
+                              title="Deactivate MCP server - requires reason"
+                            >
+                              {actionLoading === server.server_name ? "..." : "Deactivate"}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleActivateMcpServer(server.server_name)}
+                              disabled={actionLoading === server.server_name}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
+                              title="Activate MCP server"
+                            >
+                              {actionLoading === server.server_name ? "..." : "Activate"}
+                            </button>
+                          )}
+
+                          {/* Delete MCP Server */}
+                          <button
+                            onClick={() => handleDeleteMcpServer(server.server_name, server.display_name)}
+                            disabled={actionLoading === server.server_name}
+                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors disabled:opacity-50"
+                            title="Delete MCP server permanently"
+                          >
+                            {actionLoading === server.server_name ? "..." : "Delete"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1556,6 +1714,159 @@ if result.can_proceed:
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
                 >
                   Register MCP Server
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit MCP Server Modal - Enterprise Configuration */}
+      {showMcpEditModal && mcpEditForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Edit MCP Server</h3>
+              <p className="text-sm text-gray-500 font-mono mt-1">{mcpEditForm.server_name}</p>
+            </div>
+            <form onSubmit={handleSaveMcpEdit} className="p-6 space-y-4">
+              {/* Basic Configuration */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={mcpEditForm.display_name}
+                    onChange={(e) => setMcpEditForm({ ...mcpEditForm, display_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Transport Type
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={mcpEditForm.transport_type}
+                    onChange={(e) => setMcpEditForm({ ...mcpEditForm, transport_type: e.target.value })}
+                  >
+                    <option value="stdio">STDIO (Local process)</option>
+                    <option value="http">HTTP/HTTPS</option>
+                    <option value="websocket">WebSocket</option>
+                    <option value="sse">Server-Sent Events (SSE)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={mcpEditForm.description}
+                  onChange={(e) => setMcpEditForm({ ...mcpEditForm, description: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Server URL
+                </label>
+                <input
+                  type="text"
+                  placeholder="http://localhost:3000 or npx -y @mcp/server"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                  value={mcpEditForm.server_url}
+                  onChange={(e) => setMcpEditForm({ ...mcpEditForm, server_url: e.target.value })}
+                />
+              </div>
+
+              {/* Governance Configuration */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Governance Settings</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="edit_governance_enabled"
+                      checked={mcpEditForm.governance_enabled}
+                      onChange={(e) => setMcpEditForm({ ...mcpEditForm, governance_enabled: e.target.checked })}
+                      className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="edit_governance_enabled" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      Enable governance for this server
+                    </label>
+                  </div>
+
+                  {mcpEditForm.governance_enabled && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Auto-Approve Tools
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="read_file, list_directory, get_status"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          value={mcpEditForm.auto_approve_tools}
+                          onChange={(e) => setMcpEditForm({ ...mcpEditForm, auto_approve_tools: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of tools to auto-approve</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Blocked Tools
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="delete_file, execute_command, drop_table"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          value={mcpEditForm.blocked_tools}
+                          onChange={(e) => setMcpEditForm({ ...mcpEditForm, blocked_tools: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of tools to always block</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Tool Risk Overrides (JSON)
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder='{"write_file": 70, "send_email": 60}'
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
+                          value={mcpEditForm.tool_risk_overrides}
+                          onChange={(e) => setMcpEditForm({ ...mcpEditForm, tool_risk_overrides: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Override default risk scores for specific tools</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMcpEditModal(false);
+                    setMcpEditForm(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>
