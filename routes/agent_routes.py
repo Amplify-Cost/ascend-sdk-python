@@ -746,6 +746,151 @@ async def get_action_status(
         logger.error(f"Status check failed for action {action_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ========== SEC-022: SDK AGENT ACTION SUBMISSION ENDPOINT ==========
+# Added: 2025-12-01 - Enterprise SDK integration for autonomous agents
+# Purpose: Allow SDK-based agents to submit actions via API key (no CSRF required)
+# Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
+
+@router.post("/sdk/agent-action")
+async def create_agent_action_via_sdk(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-022: API key auth
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-022: Dual-auth org filter
+):
+    """
+    SEC-022: Submit agent action via SDK (API key authentication)
+
+    This endpoint allows external agents and SDK integrations to submit
+    actions for authorization WITHOUT requiring browser-based CSRF tokens.
+
+    Authentication: API key via X-API-Key header
+    Authorization: Multi-tenant isolation via organization_id
+
+    Use Cases:
+    - LangChain agents submitting tool calls for approval
+    - AWS Lambda functions requesting permission
+    - MCP servers integrating with OW-AI governance
+    - Custom AI agents in enterprise applications
+
+    Request Body:
+    {
+        "agent_id": "financial-advisor-001",
+        "action_type": "transaction",
+        "description": "Executing stock purchase order",
+        "risk_score": 72,
+        "resource": "trading_system",
+        "metadata": {...}
+    }
+
+    Returns:
+    {
+        "id": 123,
+        "status": "pending",
+        "requires_approval": true,
+        "risk_score": 72,
+        "poll_url": "/api/agent-action/status/123"
+    }
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
+    """
+    try:
+        data = await request.json()
+
+        # Validate required fields
+        required_fields = ["agent_id", "action_type", "description"]
+        missing_fields = [field for field in required_fields if not data.get(field)]
+        if missing_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Missing required fields: {', '.join(missing_fields)}"
+            )
+
+        # Extract risk score (default to 50 if not provided)
+        risk_score = data.get("risk_score", 50)
+        if not isinstance(risk_score, (int, float)):
+            risk_score = 50
+        risk_score = max(0, min(100, int(risk_score)))
+
+        # Determine risk level from score
+        if risk_score < 30:
+            risk_level = "low"
+            requires_approval = False  # Auto-approve low risk
+        elif risk_score < 60:
+            risk_level = "medium"
+            requires_approval = True
+        elif risk_score < 80:
+            risk_level = "high"
+            requires_approval = True
+        else:
+            risk_level = "critical"
+            requires_approval = True
+
+        # Generate summary
+        try:
+            summary = generate_summary(
+                agent_id=data["agent_id"],
+                action_type=data["action_type"],
+                description=data["description"]
+            )
+        except Exception as e:
+            logger.warning(f"OpenAI summary generation failed: {e}")
+            summary = f"SDK Agent '{data['agent_id']}' requesting '{data['action_type']}' - requires review"
+
+        # Create the agent action
+        action = AgentAction(
+            agent_id=data["agent_id"],
+            tool_name=data.get("tool_name", f"sdk_{data['action_type']}"),
+            action_type=data["action_type"],
+            description=data["description"],
+            risk_score=risk_score,
+            risk_level=risk_level,
+            status="approved" if not requires_approval else "pending",
+            approved=not requires_approval,
+            requires_approval=requires_approval,
+            summary=summary,
+            target_system=data.get("resource", "unknown"),
+            extra_data=data.get("metadata", {}),
+            organization_id=org_id,
+            timestamp=datetime.now(UTC),
+            created_at=datetime.now(UTC)
+        )
+
+        db.add(action)
+        db.commit()
+        db.refresh(action)
+
+        # Log SDK action creation
+        auth_method = current_user.get("auth_method", "api_key")
+        logger.info(f"SEC-022: SDK agent action created - ID: {action.id}, Agent: {data['agent_id']}, "
+                    f"Risk: {risk_score}, Status: {action.status}, Auth: {auth_method}")
+
+        return {
+            "id": action.id,
+            "action_id": action.id,
+            "agent_id": action.agent_id,
+            "action_type": action.action_type,
+            "status": action.status,
+            "risk_score": action.risk_score,
+            "risk_level": action.risk_level,
+            "requires_approval": action.requires_approval,
+            "approved": action.approved,
+            "poll_url": f"/api/agent-action/status/{action.id}",
+            "enterprise_grade": True,
+            "sdk_integration": True
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-022: SDK agent action creation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create agent action: {str(e)}"
+        )
+
+
 @router.post("/agent-action/{action_id}/false-positive")
 def mark_false_positive(
     action_id: int,
