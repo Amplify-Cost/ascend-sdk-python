@@ -24,6 +24,7 @@
 
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
+import { getStoredTokens } from '../services/cognitoAuth';
 
 const SecuritySettings = ({ user, onClose }) => {
   const [activeTab, setActiveTab] = useState('mfa');
@@ -38,6 +39,10 @@ const SecuritySettings = ({ user, onClose }) => {
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [setupStep, setSetupStep] = useState(1);
+
+  // SEC-037: MFA Disable state
+  const [showMfaDisable, setShowMfaDisable] = useState(false);
+  const [disableCode, setDisableCode] = useState('');
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -152,10 +157,29 @@ const SecuritySettings = ({ user, onClose }) => {
   };
 
   /**
-   * Disable MFA
+   * SEC-037: Show MFA disable dialog
+   */
+  const promptDisableMfa = () => {
+    setShowMfaDisable(true);
+    setDisableCode('');
+    setError('');
+  };
+
+  /**
+   * SEC-037: Cancel MFA disable
+   */
+  const cancelDisableMfa = () => {
+    setShowMfaDisable(false);
+    setDisableCode('');
+    setError('');
+  };
+
+  /**
+   * SEC-037: Disable MFA with verification code
    */
   const disableMfa = async () => {
-    if (!confirm('Are you sure you want to disable MFA? This will make your account less secure.')) {
+    if (!disableCode || disableCode.length !== 6) {
+      setError('Please enter your 6-digit authenticator code');
       return;
     }
 
@@ -163,10 +187,25 @@ const SecuritySettings = ({ user, onClose }) => {
       setIsLoading(true);
       setError('');
 
+      // SEC-037: Get Cognito access token from stored tokens
+      const tokens = getStoredTokens();
+      if (!tokens?.accessToken) {
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      console.log('SEC-037: Disabling MFA with Cognito token');
+
       const response = await fetch(
-        `${API_BASE_URL}/api/auth/mfa/disable?verification_code=000000`,
+        `${API_BASE_URL}/api/auth/mfa/disable`,
         {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cognito_access_token: tokens.accessToken,
+            verification_code: disableCode
+          }),
           credentials: 'include'
         }
       );
@@ -176,11 +215,13 @@ const SecuritySettings = ({ user, onClose }) => {
         throw new Error(data.detail || 'Failed to disable MFA');
       }
 
+      setShowMfaDisable(false);
+      setDisableCode('');
       setSuccess('MFA disabled. We recommend re-enabling it for better security.');
       fetchMfaStatus();
 
     } catch (err) {
-      console.error('MFA disable error:', err);
+      console.error('SEC-037: MFA disable error:', err);
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -300,7 +341,7 @@ const SecuritySettings = ({ user, onClose }) => {
 
             {mfaStatus.mfa_enabled && mfaStatus.can_disable_mfa && (
               <button
-                onClick={disableMfa}
+                onClick={promptDisableMfa}
                 disabled={isLoading}
                 className="w-full border border-red-300 text-red-600 py-3 px-4 rounded-lg font-semibold hover:bg-red-50 disabled:bg-gray-100 transition-all"
               >
@@ -379,6 +420,66 @@ const SecuritySettings = ({ user, onClose }) => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* SEC-037: MFA Disable Modal */}
+      {showMfaDisable && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Disable MFA</h3>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-red-700">
+                <strong>Warning:</strong> Disabling MFA will make your account less secure.
+                Only proceed if absolutely necessary.
+              </p>
+            </div>
+
+            <p className="text-gray-600 mb-4">
+              Enter the 6-digit code from your authenticator app to confirm:
+            </p>
+
+            <input
+              type="text"
+              value={disableCode}
+              onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              maxLength={6}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest font-mono mb-4"
+              autoFocus
+            />
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={cancelDisableMfa}
+                disabled={isLoading}
+                className="flex-1 border border-gray-300 py-2 px-4 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={disableMfa}
+                disabled={disableCode.length !== 6 || isLoading}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 disabled:bg-gray-400"
+              >
+                {isLoading ? 'Disabling...' : 'Disable MFA'}
+              </button>
+            </div>
           </div>
         </div>
       )}
