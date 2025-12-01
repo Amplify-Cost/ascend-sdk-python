@@ -253,6 +253,27 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# SEC-004: Enable secure logging with automatic sensitive data masking
+try:
+    from security.secrets import setup_secure_logging, validate_jwt_secret
+    setup_secure_logging()
+    print("✅ SEC-004: Secure logging filter enabled - API keys and secrets will be masked")
+except ImportError as e:
+    print(f"⚠️  SEC-004: Secure logging not available: {e}")
+
+# SEC-003: Validate JWT secret entropy at startup
+try:
+    from config import JWT_SECRET_KEY
+    if JWT_SECRET_KEY and 'validate_jwt_secret' in dir():
+        validation_result = validate_jwt_secret(JWT_SECRET_KEY)
+        if validation_result.get("valid"):
+            print(f"✅ SEC-003: JWT secret entropy validated ({validation_result.get('effective_entropy_bits')} bits)")
+        else:
+            print(f"⛔ SEC-003 WARNING: JWT secret has insufficient entropy")
+except Exception as jwt_validation_error:
+    print(f"⚠️  SEC-003: JWT validation skipped: {jwt_validation_error}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup

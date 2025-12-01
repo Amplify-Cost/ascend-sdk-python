@@ -186,23 +186,49 @@ class DatabaseService:
             raise
     
     @staticmethod
-    def get_action_by_id(db: Session, action_id: int) -> Optional[Any]:
-        """Retrieve action by ID with proper error handling."""
+    def get_action_by_id(db: Session, action_id: int, org_id: int = None) -> Optional[Any]:
+        """
+        AUTHZ-007: Retrieve action by ID with organization ownership validation.
+
+        Banking-Level Security:
+        - IDOR protection via organization_id filter
+        - Prevents cross-tenant data access
+
+        Args:
+            db: Database session
+            action_id: Action ID to retrieve
+            org_id: Organization ID for IDOR validation (REQUIRED for security)
+
+        Returns:
+            Action row if found and owned by organization
+
+        Raises:
+            ActionNotFoundError: If action not found or doesn't belong to org
+        """
         try:
-            result = DatabaseService.safe_execute(
-                db, 
-                "SELECT * FROM agent_actions WHERE id = :action_id", 
-                {"action_id": action_id}
-            ).fetchone()
-            
+            # AUTHZ-007: Include organization filter for IDOR prevention
+            if org_id is not None:
+                result = DatabaseService.safe_execute(
+                    db,
+                    "SELECT * FROM agent_actions WHERE id = :action_id AND organization_id = :org_id",
+                    {"action_id": action_id, "org_id": org_id}
+                ).fetchone()
+            else:
+                # Fallback without org filter (for backward compatibility - should be deprecated)
+                result = DatabaseService.safe_execute(
+                    db,
+                    "SELECT * FROM agent_actions WHERE id = :action_id",
+                    {"action_id": action_id}
+                ).fetchone()
+
             if not result:
-                raise ActionNotFoundError(f"Action {action_id} not found")
-            
+                raise ActionNotFoundError(f"Action {action_id} not found or access denied")
+
             return result
         except ActionNotFoundError:
             raise
         except Exception as e:
-#    logger.error(f"Failed to retrieve action {action_id}: {str(e)}")
+            logger.error(f"AUTHZ-007: Failed to retrieve action {action_id}: {str(e)}")
             raise
 
 
@@ -625,17 +651,27 @@ class AuthorizationService:
         admin_user: Dict[str, Any],
         db: Session,
         client_ip: str,
-        execute_immediately: bool = True
+        execute_immediately: bool = True,
+        org_id: int = None  # AUTHZ-007: Required for IDOR prevention
     ) -> Dict[str, Any]:
-        """Authorize action with comprehensive audit and execution."""
+        """
+        AUTHZ-007: Authorize action with IDOR protection.
+
+        Banking-Level Security:
+        - Validates action belongs to admin's organization
+        - Prevents cross-tenant action manipulation
+        - Complete audit trail for compliance
+
+        Compliance: SOC 2 CC6.1, NIST AC-3, PCI-DSS 7.1
+        """
         action_id = AuthorizationService.parse_action_id(action_id)
         authorization_id = str(uuid.uuid4())
-        
+
         try:
-#    logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
-            
-            # Get action details
-            action_row = DatabaseService.get_action_by_id(db, action_id)
+            logger.info(f"AUTHZ-007: Starting enterprise authorization {authorization_id} for action {action_id}")
+
+            # AUTHZ-007: Get action with organization validation
+            action_row = DatabaseService.get_action_by_id(db, action_id, org_id)
             
             # Validate current status
             current_status = action_row[6] if len(action_row) > 6 else ActionStatus.PENDING.value
@@ -852,8 +888,9 @@ async def authorize_action(
 
     client_ip = request.client.host if request.client else "enterprise_system"
 
+    # AUTHZ-007: Pass org_id for IDOR prevention - action must belong to user's organization
     return await AuthorizationService.authorize_action(
-        action_id, body, admin_user, db, client_ip, execute_immediately=True
+        action_id, body, admin_user, db, client_ip, execute_immediately=True, org_id=org_id
     )
 
 
@@ -862,11 +899,13 @@ async def authorize_action_with_audit(
     action_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)  # AUTHZ-007: IDOR protection
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
     """Authorize action with comprehensive audit - compatibility endpoint."""
-    return await authorize_action(action_id, request, db, admin_user)
+    # AUTHZ-007: Pass org_id for tenant isolation
+    return await authorize_action(action_id, request, db, admin_user, org_id)
 
 
 @router.get("/dashboard")
@@ -1264,11 +1303,13 @@ async def authorize_action_api(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin)
+    admin_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)  # AUTHZ-007: IDOR protection
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
     """API version of authorization for Authorization Center frontend compatibility."""
-    return await authorize_action(action_id, request, db, admin_user)
+    # AUTHZ-007: Pass org_id for tenant isolation
+    return await authorize_action(action_id, request, db, admin_user, org_id)
 
 
 @api_router.get("/execution-history")
