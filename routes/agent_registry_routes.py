@@ -19,8 +19,16 @@ Endpoints:
 - POST   /api/registry/agents/{id}/evaluate    - Evaluate policies
 
 MCP Server Management:
-- POST   /api/registry/mcp-servers         - Register MCP server
-- GET    /api/registry/mcp-servers         - List MCP servers
+- POST   /api/registry/mcp-servers                      - Register MCP server
+- GET    /api/registry/mcp-servers                      - List MCP servers
+- GET    /api/registry/mcp-servers/{server_name}        - Get MCP server
+- PUT    /api/registry/mcp-servers/{server_name}        - Update MCP server
+- DELETE /api/registry/mcp-servers/{server_name}        - Delete MCP server
+- POST   /api/registry/mcp-servers/{server_name}/activate    - Activate MCP server
+- POST   /api/registry/mcp-servers/{server_name}/deactivate  - Deactivate MCP server
+
+Agent Management:
+- DELETE /api/registry/agents/{id}         - Delete agent (with audit trail)
 
 Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-53 AC-2
 """
@@ -132,6 +140,29 @@ class MCPServerRequest(BaseModel):
     auto_approve_tools: Optional[List[str]] = Field(default_factory=list)
     blocked_tools: Optional[List[str]] = Field(default_factory=list)
     tool_risk_overrides: Optional[Dict[str, int]] = Field(default_factory=dict)
+
+
+class MCPServerUpdateRequest(BaseModel):
+    """Request schema for updating an MCP server."""
+    display_name: Optional[str] = Field(None, max_length=255)
+    description: Optional[str] = None
+    server_url: Optional[str] = None
+    transport_type: Optional[str] = None
+    connection_config: Optional[Dict[str, Any]] = None
+    governance_enabled: Optional[bool] = None
+    auto_approve_tools: Optional[List[str]] = None
+    blocked_tools: Optional[List[str]] = None
+    tool_risk_overrides: Optional[Dict[str, int]] = None
+
+
+class AgentDeleteRequest(BaseModel):
+    """Request schema for deleting an agent."""
+    reason: Optional[str] = Field(None, max_length=500, description="Reason for deletion (audit trail)")
+
+
+class MCPServerDeactivateRequest(BaseModel):
+    """Request schema for deactivating an MCP server."""
+    reason: Optional[str] = Field(None, max_length=500, description="Reason for deactivation")
 
 
 # ============================================================================
@@ -766,3 +797,319 @@ async def list_mcp_servers(
             for s in servers
         ]
     }
+
+
+@router.get("/mcp-servers/{server_name}")
+async def get_mcp_server(
+    server_name: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user_or_api_key),
+    org_id: int = Depends(get_organization_filter_dual_auth)
+):
+    """
+    Get detailed information about an MCP server.
+
+    Compliance: Multi-tenant isolation enforced
+    """
+    server = agent_registry_service.get_mcp_server(db, org_id, server_name)
+
+    if not server:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"MCP server not found: {server_name}"
+        )
+
+    return {
+        "success": True,
+        "server": {
+            "id": server.id,
+            "server_name": server.server_name,
+            "display_name": server.display_name,
+            "description": server.description,
+            "server_url": server.server_url,
+            "transport_type": server.transport_type,
+            "connection_config": server.connection_config,
+            "governance_enabled": server.governance_enabled,
+            "is_active": server.is_active,
+            "health_status": server.health_status,
+            "discovered_tools": server.discovered_tools,
+            "discovered_prompts": server.discovered_prompts,
+            "discovered_resources": server.discovered_resources,
+            "auto_approve_tools": server.auto_approve_tools,
+            "blocked_tools": server.blocked_tools,
+            "tool_risk_overrides": server.tool_risk_overrides,
+            "created_at": server.created_at.isoformat() if server.created_at else None,
+            "created_by": server.created_by,
+            "updated_at": server.updated_at.isoformat() if server.updated_at else None
+        }
+    }
+
+
+@router.put("/mcp-servers/{server_name}")
+async def update_mcp_server(
+    server_name: str,
+    request: MCPServerUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    Update an MCP server configuration.
+
+    Compliance: SOC 2 CC8.1 (change management)
+    """
+    try:
+        updated_by = current_user.get("email", "unknown")
+
+        # Filter out None values
+        updates = {k: v for k, v in request.model_dump().items() if v is not None}
+
+        if not updates:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No updates provided"
+            )
+
+        server = agent_registry_service.update_mcp_server(
+            db=db,
+            organization_id=org_id,
+            server_name=server_name,
+            updates=updates,
+            updated_by=updated_by
+        )
+
+        if not server:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"MCP server not found: {server_name}"
+            )
+
+        return {
+            "success": True,
+            "message": f"MCP server updated: {server_name}",
+            "server": {
+                "id": server.id,
+                "server_name": server.server_name,
+                "display_name": server.display_name,
+                "is_active": server.is_active,
+                "governance_enabled": server.governance_enabled,
+                "updated_at": server.updated_at.isoformat() if server.updated_at else None
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"MCP server update failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.delete("/mcp-servers/{server_name}")
+async def delete_mcp_server(
+    server_name: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    Delete an MCP server registration.
+
+    Requires admin privileges.
+
+    Compliance: SOC 2 CC6.2, NIST AC-2
+    """
+    try:
+        deleted_by = current_user.get("email", "admin")
+
+        deleted = agent_registry_service.delete_mcp_server(
+            db=db,
+            organization_id=org_id,
+            server_name=server_name,
+            deleted_by=deleted_by
+        )
+
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"MCP server not found: {server_name}"
+            )
+
+        return {
+            "success": True,
+            "message": f"MCP server deleted: {server_name}",
+            "deleted_by": deleted_by
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"MCP server deletion failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/mcp-servers/{server_name}/activate")
+async def activate_mcp_server(
+    server_name: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    Activate an MCP server.
+
+    Requires admin privileges.
+
+    Compliance: SOC 2 CC6.2
+    """
+    try:
+        activated_by = current_user.get("email", "admin")
+
+        server = agent_registry_service.activate_mcp_server(
+            db=db,
+            organization_id=org_id,
+            server_name=server_name,
+            activated_by=activated_by
+        )
+
+        if not server:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"MCP server not found: {server_name}"
+            )
+
+        return {
+            "success": True,
+            "message": f"MCP server activated: {server_name}",
+            "server": {
+                "id": server.id,
+                "server_name": server.server_name,
+                "is_active": server.is_active
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"MCP server activation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/mcp-servers/{server_name}/deactivate")
+async def deactivate_mcp_server(
+    server_name: str,
+    request: MCPServerDeactivateRequest = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    Deactivate an MCP server.
+
+    Use for maintenance or security incidents.
+    Requires admin privileges.
+
+    Compliance: SOC 2 CC6.2, NIST AC-2(3)
+    """
+    try:
+        deactivated_by = current_user.get("email", "admin")
+        reason = request.reason if request else None
+
+        server = agent_registry_service.deactivate_mcp_server(
+            db=db,
+            organization_id=org_id,
+            server_name=server_name,
+            deactivated_by=deactivated_by,
+            reason=reason
+        )
+
+        if not server:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"MCP server not found: {server_name}"
+            )
+
+        return {
+            "success": True,
+            "message": f"MCP server deactivated: {server_name}",
+            "server": {
+                "id": server.id,
+                "server_name": server.server_name,
+                "is_active": server.is_active
+            },
+            "reason": reason
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"MCP server deactivation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+# ============================================================================
+# AGENT DELETE ENDPOINT
+# ============================================================================
+
+@router.delete("/agents/{agent_id}")
+async def delete_agent(
+    agent_id: str,
+    request: AgentDeleteRequest = None,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    Delete an agent registration.
+
+    This permanently removes the agent and all associated policies.
+    An audit trail entry is created for compliance.
+
+    Requires admin privileges.
+
+    Compliance: SOC 2 CC6.2, NIST AC-2
+    """
+    try:
+        deleted_by = current_user.get("email", "admin")
+        reason = request.reason if request else None
+
+        deleted = agent_registry_service.delete_agent(
+            db=db,
+            organization_id=org_id,
+            agent_id=agent_id,
+            deleted_by=deleted_by,
+            reason=reason
+        )
+
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Agent not found: {agent_id}"
+            )
+
+        return {
+            "success": True,
+            "message": f"Agent deleted: {agent_id}",
+            "deleted_by": deleted_by,
+            "reason": reason
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Agent deletion failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
