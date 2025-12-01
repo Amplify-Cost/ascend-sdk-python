@@ -858,13 +858,47 @@ async def create_agent_action_via_sdk(
         )
 
         db.add(action)
+        db.flush()  # Get action.id before alert creation
+
+        # SEC-023: Generate alerts for high-risk SDK actions
+        # Compliance: SOC 2 CC7.2, PCI-DSS 12.10, NIST 800-53 IR-6
+        alert_id = None
+        if risk_level in ("high", "critical"):
+            try:
+                # Check for existing alert (idempotency)
+                existing_alert = db.query(Alert).filter(
+                    Alert.agent_action_id == action.id
+                ).first()
+
+                if existing_alert:
+                    alert_id = existing_alert.id
+                    logger.info(f"SEC-023: Alert already exists for SDK action {action.id}: alert_id={alert_id}")
+                else:
+                    # Create enterprise alert for high-risk SDK action
+                    severity = "critical" if risk_level == "critical" else "high"
+                    alert = Alert(
+                        agent_action_id=action.id,
+                        organization_id=org_id,
+                        alert_type=f"{severity.title()} Risk SDK Agent Action",
+                        severity=severity,
+                        message=f"Enterprise Alert: SDK Agent '{data['agent_id']}' requesting {risk_level}-risk action: {data['action_type']} - {data['description'][:100]}",
+                        timestamp=datetime.now(UTC)
+                    )
+                    db.add(alert)
+                    db.flush()
+                    alert_id = alert.id
+                    logger.info(f"SEC-023: Alert created for SDK action {action.id}: alert_id={alert_id}, severity={severity}")
+            except Exception as alert_error:
+                logger.warning(f"SEC-023: Alert creation failed for SDK action {action.id}: {alert_error}")
+                # Continue without alert - core action still valid
+
         db.commit()
         db.refresh(action)
 
         # Log SDK action creation
         auth_method = current_user.get("auth_method", "api_key")
         logger.info(f"SEC-022: SDK agent action created - ID: {action.id}, Agent: {data['agent_id']}, "
-                    f"Risk: {risk_score}, Status: {action.status}, Auth: {auth_method}")
+                    f"Risk: {risk_score}, Status: {action.status}, Auth: {auth_method}, Alert: {alert_id}")
 
         return {
             "id": action.id,
@@ -876,6 +910,8 @@ async def create_agent_action_via_sdk(
             "risk_level": action.risk_level,
             "requires_approval": action.requires_approval,
             "approved": action.approved,
+            "alert_generated": alert_id is not None,
+            "alert_id": alert_id,
             "poll_url": f"/api/agent-action/status/{action.id}",
             "enterprise_grade": True,
             "sdk_integration": True
