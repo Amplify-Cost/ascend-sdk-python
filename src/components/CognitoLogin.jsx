@@ -25,6 +25,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import MFAVerification from './MFAVerification';
 import MFASetupChallenge from './MFASetupChallenge'; // 🏦 ENTERPRISE: Handle MFA_SETUP challenge
+import NewPasswordRequired from './NewPasswordRequired'; // SEC-030: Handle NEW_REDACTED-CREDENTIAL_REQUIRED challenge
 import { detectOrganizationFromURL, getPoolConfigBySlug } from '../services/cognitoAuth';
 
 const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
@@ -251,6 +252,21 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
 
   // If MFA challenge is active, route to appropriate component
   if (mfaChallenge) {
+    // SEC-030: Handle NEW_REDACTED-CREDENTIAL_REQUIRED challenge separately
+    // This occurs when user logs in with a temporary password
+    if (mfaChallenge.challengeName === 'NEW_REDACTED-CREDENTIAL_REQUIRED') {
+      return (
+        <NewPasswordRequired
+          session={mfaChallenge.session}
+          poolConfig={mfaChallenge.poolConfig}
+          username={email}
+          challengeParameters={mfaChallenge.challengeParameters}
+          onPasswordChanged={handleMFAVerified}
+          onCancel={handleMFACancel}
+        />
+      );
+    }
+
     // 🏦 ENTERPRISE: MFA_SETUP challenge requires different flow
     // MFA_SETUP = First-time setup with QR code
     // SMS_MFA / SOFTWARE_TOKEN_MFA = Verification for existing MFA
