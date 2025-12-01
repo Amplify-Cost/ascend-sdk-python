@@ -2173,23 +2173,32 @@ async def verify_totp_mfa(
         )
 
 
+class MFADisableRequest(BaseModel):
+    """SEC-037: Request model for MFA disable with Cognito token"""
+    cognito_access_token: Optional[str] = None
+    verification_code: str
+
+
 @router.post("/mfa/disable")
 @limiter.limit("3/hour")
 async def disable_mfa(
     request: Request,
     response: Response,
-    verification_code: str,
+    mfa_request: MFADisableRequest,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    🔐 PHASE 4: Disable MFA (requires current TOTP code)
+    🔐 SEC-037: PHASE 4: Disable MFA (requires current TOTP code)
 
     Banking-Level Security:
     - Requires current MFA code to disable
     - Rate limited (3 per hour)
     - Audit logged
     - Only allowed if org policy is OPTIONAL
+
+    SEC-037 FIX: Accepts Cognito access token in request body OR header
+    since the session cookie contains our server JWT, not Cognito token.
 
     Compliance: SOC 2, NIST 800-63B
     """
@@ -2211,20 +2220,37 @@ async def disable_mfa(
                 detail="MFA is required by your organization and cannot be disabled"
             )
 
-        # Get access token from cookie
-        access_token = request.cookies.get(SESSION_COOKIE_NAME)
-        if not access_token:
+        # SEC-037: Get Cognito access token from multiple sources
+        # Priority: 1. Request body, 2. X-Cognito-Token header
+        cognito_access_token = None
+        if mfa_request and mfa_request.cognito_access_token:
+            cognito_access_token = mfa_request.cognito_access_token
+            logger.info(f"SEC-037: Using Cognito token from request body")
+        if not cognito_access_token:
+            cognito_access_token = request.headers.get("X-Cognito-Token")
+            if cognito_access_token:
+                logger.info(f"SEC-037: Using Cognito token from X-Cognito-Token header")
+
+        if not cognito_access_token:
             raise HTTPException(
                 status_code=401,
-                detail="Access token required"
+                detail="Cognito access token required. Pass via request body or X-Cognito-Token header."
             )
 
         # Verify the current MFA code before disabling
         # (This ensures the user has access to their authenticator)
         try:
-            # Disable MFA
+            # SEC-037: First verify the TOTP code is valid
+            verification_code = mfa_request.verification_code
+            cognito_client.verify_software_token(
+                AccessToken=cognito_access_token,
+                UserCode=verification_code
+            )
+            logger.info(f"SEC-037: MFA code verified for {email}")
+
+            # Now disable MFA
             cognito_client.set_user_mfa_preference(
-                AccessToken=access_token,
+                AccessToken=cognito_access_token,
                 SoftwareTokenMfaSettings={
                     'Enabled': False,
                     'PreferredMfa': False
