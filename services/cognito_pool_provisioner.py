@@ -53,6 +53,48 @@ class CognitoPoolProvisioner:
         self.cognito_client = boto3.client('cognito-idp', region_name=region)
         logger.info(f"🔐 Cognito provisioner initialized (region: {region})")
 
+    def _generate_temp_password(self) -> str:
+        """
+        Generate secure temporary password for Cognito user.
+
+        Banking-Level Security:
+        - 16 characters minimum
+        - Uppercase, lowercase, numbers, symbols
+        - Cryptographically secure random generation
+        - Meets enterprise password policies
+
+        Returns:
+            str: Secure temporary password
+        """
+        import secrets
+        import string
+
+        uppercase = string.ascii_uppercase
+        lowercase = string.ascii_lowercase
+        digits = string.digits
+        symbols = "!@#$%^&*"
+
+        # Ensure at least 2 of each character type
+        password = [
+            secrets.choice(uppercase),
+            secrets.choice(uppercase),
+            secrets.choice(lowercase),
+            secrets.choice(lowercase),
+            secrets.choice(digits),
+            secrets.choice(digits),
+            secrets.choice(symbols),
+            secrets.choice(symbols),
+        ]
+
+        # Fill remaining 8 characters
+        all_chars = uppercase + lowercase + digits + symbols
+        password.extend(secrets.choice(all_chars) for _ in range(8))
+
+        # Shuffle for randomness
+        secrets.SystemRandom().shuffle(password)
+
+        return "".join(password)
+
     async def create_organization_pool(
         self,
         organization_id: int,
@@ -313,10 +355,19 @@ class CognitoPoolProvisioner:
 
             logger.info(f"👤 Creating initial admin user: {admin_email}...")
 
+            # Generate temporary password for Cognito user
+            import secrets
+            import string
+            temp_password = self._generate_temp_password()
+            audit_details['temp_password_generated'] = True
+
+            cognito_user_id = None  # Will be set after user creation
+
             try:
-                self.cognito_client.admin_create_user(
+                create_user_response = self.cognito_client.admin_create_user(
                     UserPoolId=user_pool_id,
                     Username=admin_email,
+                    TemporaryPassword=temp_password,  # Set explicit temp password
                     UserAttributes=[
                         {'Name': 'email', 'Value': admin_email},
                         {'Name': 'email_verified', 'Value': 'true'},
@@ -325,15 +376,48 @@ class CognitoPoolProvisioner:
                         {'Name': 'custom:role', 'Value': 'admin'},
                         {'Name': 'custom:is_org_admin', 'Value': 'true'}
                     ],
-                    DesiredDeliveryMediums=['EMAIL'],
-                    MessageAction='SUPPRESS'  # Don't send email yet (testing)
+                    MessageAction='SUPPRESS'  # We send custom email via SES
                 )
 
+                # ENTERPRISE FIX: Extract Cognito user ID (sub) for session bridge
+                # The 'sub' is the unique identifier that links Cognito to our database
+                user_attributes = create_user_response.get('User', {}).get('Attributes', [])
+                for attr in user_attributes:
+                    if attr['Name'] == 'sub':
+                        cognito_user_id = attr['Value']
+                        break
+
+                # If sub not in attributes, get username (which is the sub for GUID usernames)
+                if not cognito_user_id:
+                    cognito_user_id = create_user_response.get('User', {}).get('Username')
+
+                # Store temp password in result for email sending
+                audit_details['temp_password'] = temp_password
+                audit_details['cognito_user_id'] = cognito_user_id
+
                 logger.info(f"✅ Admin user created: {admin_email}")
+                logger.info(f"   Cognito User ID: {cognito_user_id}")
                 audit_details['admin_user'] = admin_email
 
             except self.cognito_client.exceptions.UsernameExistsException:
                 logger.warn(f"⚠️ Admin user already exists: {admin_email}")
+                # Try to get existing user's sub
+                try:
+                    existing_user = self.cognito_client.admin_get_user(
+                        UserPoolId=user_pool_id,
+                        Username=admin_email
+                    )
+                    for attr in existing_user.get('UserAttributes', []):
+                        if attr['Name'] == 'sub':
+                            cognito_user_id = attr['Value']
+                            break
+                    if not cognito_user_id:
+                        cognito_user_id = existing_user.get('Username')
+                    logger.info(f"   Found existing Cognito User ID: {cognito_user_id}")
+                    audit_details['cognito_user_id'] = cognito_user_id
+                except Exception as e:
+                    logger.warn(f"⚠️ Could not get existing user sub: {e}")
+
                 audit_details['admin_user'] = admin_email
                 audit_details['admin_note'] = 'User already existed'
 
@@ -388,7 +472,10 @@ class CognitoPoolProvisioner:
                 'region': self.region,
                 'pool_arn': pool_arn,
                 'status': 'success',
-                'duration_ms': duration_ms
+                'duration_ms': duration_ms,
+                'temp_password': audit_details.get('temp_password'),  # For email sending
+                'admin_email': admin_email,
+                'cognito_user_id': cognito_user_id  # ENTERPRISE: For session bridge linking
             }
 
         except Exception as e:
@@ -437,9 +524,17 @@ class CognitoPoolProvisioner:
         Create audit log entry for pool provisioning
 
         Enterprise requirement for SOC 2, HIPAA compliance.
+
+        SEC-036: Fixed dict serialization - details must be JSON string, not raw dict.
         """
+        import json
 
         try:
+            # SEC-036: Serialize dict to JSON string for database storage
+            # PostgreSQL JSONB columns can accept raw dicts, but TEXT/VARCHAR cannot
+            # Using JSON string ensures compatibility with any column type
+            details_json = json.dumps(details) if isinstance(details, dict) else details
+
             db.execute(
                 text("""
                     INSERT INTO cognito_pool_audit (
@@ -457,7 +552,7 @@ class CognitoPoolProvisioner:
                     'action': action,
                     'pool_id': user_pool_id,
                     'status': status,
-                    'details': details,
+                    'details': details_json,  # SEC-036: Use serialized JSON
                     'error': error_message,
                     'performed_by': 'CognitoPoolProvisioner',
                     'duration': duration_ms
@@ -465,10 +560,10 @@ class CognitoPoolProvisioner:
             )
             db.commit()
 
-            logger.debug(f"📝 Audit log created: {action} - {status}")
+            logger.debug(f"📝 SEC-036: Audit log created: {action} - {status}")
 
         except Exception as e:
-            logger.error(f"❌ Failed to create audit log: {e}")
+            logger.error(f"❌ SEC-036: Failed to create audit log: {e}")
             # Don't raise - audit log failure shouldn't block provisioning
 
     async def get_organization_pool_config(

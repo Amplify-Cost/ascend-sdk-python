@@ -11,9 +11,14 @@ import json
 import bcrypt
 from pydantic import BaseModel
 import logging
+import boto3
+from botocore.exceptions import ClientError
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+# SEC-034: Initialize Cognito client for user invitation
+cognito_client = boto3.client('cognito-idp', region_name='us-east-2')
 
 router = APIRouter(prefix="/api/enterprise-users", tags=["enterprise-user-management"])
 
@@ -150,21 +155,29 @@ async def create_user(
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_admin),
-    
+
 ):
-    """Create new enterprise user"""
+    """
+    Create new enterprise user with Cognito integration
+
+    SEC-034: Banking-level user provisioning - creates user in BOTH:
+    1. AWS Cognito (for authentication)
+    2. Local database (for authorization and data)
+
+    Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 8.1
+    """
     try:
-        logger.info(f"🔄 Creating user: {user_data.email} by {current_user.get('email', 'unknown')}")
-        
+        logger.info(f"🔄 SEC-034: Creating user: {user_data.email} by {current_user.get('email', 'unknown')}")
+
         # Check if user already exists
         existing_user = db.execute(
             text("SELECT id FROM users WHERE email = :email"),
             {"email": user_data.email}
         ).fetchone()
-        
+
         if existing_user:
             raise HTTPException(status_code=400, detail="User already exists")
-        
+
         # PHASE 1 FIX: Generate secure random temporary password (not predictable)
         temp_password = generate_secure_temp_password(length=16)
         password_hash = hash_password(temp_password)
@@ -173,13 +186,79 @@ async def create_user(
         # Get the current user's organization_id
         current_user_org_id = current_user.get('organization_id', 1)  # Default to OW-AI Internal
 
-        # Database schema: id, email, password, role, is_active, created_at, organization_id,
-        #                 last_login, approval_level, is_emergency_approver, max_risk_approval
+        # SEC-034: Get organization's Cognito pool configuration
+        from models import Organization
+        org = db.query(Organization).filter(Organization.id == current_user_org_id).first()
+
+        cognito_user_id = None
+        cognito_created = False
+
+        if org and org.cognito_user_pool_id:
+            # SEC-034: Create user in Cognito first
+            try:
+                logger.info(f"🔐 SEC-034: Creating Cognito user in pool {org.cognito_user_pool_id}")
+
+                create_cognito_response = cognito_client.admin_create_user(
+                    UserPoolId=org.cognito_user_pool_id,
+                    Username=user_data.email,
+                    TemporaryPassword=temp_password,
+                    UserAttributes=[
+                        {'Name': 'email', 'Value': user_data.email},
+                        {'Name': 'email_verified', 'Value': 'true'},
+                        {'Name': 'custom:organization_id', 'Value': str(current_user_org_id)},
+                        {'Name': 'custom:organization_slug', 'Value': org.slug or ''},
+                        {'Name': 'custom:role', 'Value': user_data.role},
+                        {'Name': 'custom:is_org_admin', 'Value': 'false'}
+                    ],
+                    MessageAction='SUPPRESS'  # We send custom email via SES
+                )
+
+                # Extract Cognito user ID (sub) for database linking
+                user_attributes = create_cognito_response.get('User', {}).get('Attributes', [])
+                for attr in user_attributes:
+                    if attr['Name'] == 'sub':
+                        cognito_user_id = attr['Value']
+                        break
+
+                # Fallback to Username if sub not in attributes
+                if not cognito_user_id:
+                    cognito_user_id = create_cognito_response.get('User', {}).get('Username')
+
+                cognito_created = True
+                logger.info(f"✅ SEC-034: Cognito user created: {cognito_user_id}")
+
+            except cognito_client.exceptions.UsernameExistsException:
+                # User already exists in Cognito - try to get their sub
+                logger.warning(f"⚠️ SEC-034: User already exists in Cognito: {user_data.email}")
+                try:
+                    existing_cognito_user = cognito_client.admin_get_user(
+                        UserPoolId=org.cognito_user_pool_id,
+                        Username=user_data.email
+                    )
+                    for attr in existing_cognito_user.get('UserAttributes', []):
+                        if attr['Name'] == 'sub':
+                            cognito_user_id = attr['Value']
+                            break
+                    if not cognito_user_id:
+                        cognito_user_id = existing_cognito_user.get('Username')
+                    cognito_created = True
+                    logger.info(f"✅ SEC-034: Found existing Cognito user: {cognito_user_id}")
+                except Exception as e:
+                    logger.warning(f"⚠️ SEC-034: Could not get existing Cognito user: {e}")
+
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', '')
+                logger.error(f"❌ SEC-034: Cognito error ({error_code}): {e}")
+                # Continue with local user creation - Cognito can be linked later
+        else:
+            logger.warning(f"⚠️ SEC-034: Organization {current_user_org_id} has no Cognito pool - creating local user only")
+
+        # SEC-034: Create database user with Cognito link
         insert_query = text("""
             INSERT INTO users (
-                email, password, role, is_active, organization_id, created_at
+                email, password, role, is_active, organization_id, cognito_user_id, created_at
             ) VALUES (
-                :email, :password, :role, true, :organization_id, CURRENT_TIMESTAMP
+                :email, :password, :role, true, :organization_id, :cognito_user_id, CURRENT_TIMESTAMP
             ) RETURNING id, email, created_at
         """)
 
@@ -187,31 +266,36 @@ async def create_user(
             "email": user_data.email,
             "password": password_hash,
             "role": user_data.role,
-            "organization_id": current_user_org_id
+            "organization_id": current_user_org_id,
+            "cognito_user_id": cognito_user_id
         })
-        
+
         new_user = result.fetchone()
         db.commit()
-        
+
         # Log audit trail
         await log_audit_action(
-            db, current_user["email"], "USER_CREATE", 
-            user_data.email, f"Created user {user_data.first_name} {user_data.last_name}",
+            db, current_user["email"], "USER_CREATE",
+            user_data.email, f"SEC-034: Created user {user_data.first_name} {user_data.last_name} (Cognito: {cognito_created})",
             str(request.client.host), "Medium"
         )
-        
-        logger.info(f"✅ User created: {new_user.email}")
+
+        logger.info(f"✅ SEC-034: User created: {new_user.email} (Cognito linked: {cognito_created})")
         return {
             "message": "✅ User created successfully",
             "user_id": new_user.id,
             "email": new_user.email,
             "temporary_password": temp_password,
-            "created_at": new_user.created_at.isoformat()
+            "created_at": new_user.created_at.isoformat(),
+            "cognito_linked": cognito_created,
+            "cognito_user_id": cognito_user_id
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Error creating user: {e}")
+        logger.error(f"❌ SEC-034: Error creating user: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
 @router.put("/users/{user_id}")

@@ -318,6 +318,21 @@ async def get_current_user_or_api_key(
             logger.debug(f"JWT cookie authentication failed: {e}")
             pass  # Try next method
 
+    # SEC-033: Check X-API-Key header FIRST (preferred for SDK)
+    x_api_key = request.headers.get("X-API-Key")
+    if x_api_key:
+        try:
+            user_context = await verify_api_key(x_api_key, db)
+            logger.debug(f"✅ SEC-033: Authenticated via X-API-Key: {user_context.get('email')}")
+
+            # Store in request state for middleware access
+            request.state.api_key_id = user_context.get("api_key_id")
+            request.state.auth_method = "x_api_key"
+
+            return user_context
+        except HTTPException:
+            pass  # X-API-Key failed, try other methods
+
     # Check Authorization header for JWT or API key
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):

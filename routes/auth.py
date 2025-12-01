@@ -1939,17 +1939,26 @@ async def get_mfa_status(
         )
 
 
+class MFASetupRequest(BaseModel):
+    """SEC-035: Request model for MFA setup with Cognito token"""
+    cognito_access_token: Optional[str] = None
+
+
 @router.post("/mfa/setup-totp")
 async def setup_totp_mfa(
     request: Request,
+    mfa_request: Optional[MFASetupRequest] = None,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    🔐 PHASE 4: Initiate TOTP MFA setup
+    🔐 SEC-035: PHASE 4: Initiate TOTP MFA setup
 
-    Returns secret code for authenticator app setup.
+    Returns secret code and QR code URL for authenticator app setup.
     User must verify with /mfa/verify-totp to complete setup.
+
+    SEC-035 FIX: Accepts Cognito access token in request body OR header
+    since the session cookie contains our server JWT, not Cognito token.
 
     Compliance: NIST 800-63B AAL2, PCI-DSS 8.3
     """
@@ -1958,7 +1967,7 @@ async def setup_totp_mfa(
         email = current_user.get("email")
         org_id = current_user.get("organization_id")
 
-        logger.info(f"🔐 PHASE 4: TOTP setup initiated for {email}")
+        logger.info(f"🔐 SEC-035: TOTP setup initiated for {email}")
 
         # Get organization
         org = db.query(Organization).filter(Organization.id == org_id).first()
@@ -1975,26 +1984,54 @@ async def setup_totp_mfa(
                 detail="MFA is not enabled for this organization"
             )
 
-        # Get access token from cookie for Cognito API
-        access_token = request.cookies.get(SESSION_COOKIE_NAME)
-        if not access_token:
+        # SEC-035: Get Cognito access token from multiple sources
+        # Priority: 1. Request body, 2. X-Cognito-Token header, 3. Cookie (legacy)
+        cognito_access_token = None
+
+        # 1. Check request body
+        if mfa_request and mfa_request.cognito_access_token:
+            cognito_access_token = mfa_request.cognito_access_token
+            logger.debug("🔐 SEC-035: Using Cognito token from request body")
+
+        # 2. Check X-Cognito-Token header
+        if not cognito_access_token:
+            cognito_access_token = request.headers.get("X-Cognito-Token")
+            if cognito_access_token:
+                logger.debug("🔐 SEC-035: Using Cognito token from header")
+
+        # 3. Fallback to cookie (for backward compatibility)
+        if not cognito_access_token:
+            cognito_access_token = request.cookies.get(SESSION_COOKIE_NAME)
+            if cognito_access_token:
+                logger.debug("🔐 SEC-035: Using token from cookie (may not be Cognito token)")
+
+        if not cognito_access_token:
             raise HTTPException(
                 status_code=401,
-                detail="Access token required for MFA setup"
+                detail="Cognito access token required for MFA setup. Pass it in the request body as 'cognito_access_token' or in the 'X-Cognito-Token' header."
             )
 
         # Associate software token via Cognito
         try:
+            logger.info(f"🔐 SEC-035: Calling Cognito associate_software_token...")
             response = cognito_client.associate_software_token(
-                AccessToken=access_token
+                AccessToken=cognito_access_token
             )
 
             secret_code = response.get('SecretCode')
             session = response.get('Session')
 
-            logger.info(f"✅ TOTP secret generated for {email}")
+            if not secret_code:
+                logger.error("❌ SEC-035: Cognito returned no secret code")
+                raise HTTPException(
+                    status_code=500,
+                    detail="MFA setup failed - no secret code returned"
+                )
+
+            logger.info(f"✅ SEC-035: TOTP secret generated for {email}")
 
             # Generate OTP auth URL for QR code
+            # Format: otpauth://totp/ISSUER:ACCOUNT?secret=SECRET&issuer=ISSUER
             otp_auth_url = f"otpauth://totp/OW-KAI:{email}?secret={secret_code}&issuer=OW-KAI"
 
             return {
@@ -2002,6 +2039,7 @@ async def setup_totp_mfa(
                 "secret_code": secret_code,
                 "otp_auth_url": otp_auth_url,
                 "session": session,
+                "qr_code_data": otp_auth_url,  # SEC-035: Explicit field for QR code
                 "instructions": [
                     "1. Open your authenticator app (Google Authenticator, Authy, etc.)",
                     "2. Scan the QR code or enter the secret code manually",
@@ -2009,19 +2047,31 @@ async def setup_totp_mfa(
                 ]
             }
 
-        except cognito_client.exceptions.NotAuthorizedException:
+        except cognito_client.exceptions.NotAuthorizedException as e:
+            logger.error(f"❌ SEC-035: Cognito NotAuthorizedException: {e}")
             raise HTTPException(
                 status_code=401,
-                detail="Session expired. Please log in again."
+                detail="Cognito session expired or invalid. Please log in again to get a fresh Cognito access token."
+            )
+
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', '')
+            error_message = e.response.get('Error', {}).get('Message', str(e))
+            logger.error(f"❌ SEC-035: Cognito ClientError ({error_code}): {error_message}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"MFA setup failed: {error_message}"
             )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ TOTP setup error: {e}")
+        logger.error(f"❌ SEC-035: TOTP setup error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
-            detail="MFA setup failed"
+            detail=f"MFA setup failed: {str(e)}"
         )
 
 
