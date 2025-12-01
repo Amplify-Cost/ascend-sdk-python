@@ -29,6 +29,8 @@ import SmartAlertManagement from './components/SmartAlertManagement';
 import Profile from './components/Profile';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorBoundaryTest from './components/ErrorBoundaryTest';
+// SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
+import AgentRegistryManagement from './components/AgentRegistryManagement';
 import { API_BASE_URL } from './config/api';
 import logger from './utils/logger.js';
 
@@ -461,6 +463,11 @@ const AppContent = () => {
             <ErrorBoundaryTest />
           </ErrorBoundary>
         );
+      // SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
+      case "agent-registry":
+        return user?.role === "admin" ?
+          contentWithTransition(<AgentRegistryManagement getAuthHeaders={getAuthHeaders} user={user} />) :
+          adminRequiredMessage;
       default:
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${

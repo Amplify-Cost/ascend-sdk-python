@@ -23,6 +23,8 @@ const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
     Moon: "🌙",
     // 🚀 NEW: Real-Time Analytics icon
     Radar: "📡",
+    // SEC-024: Agent Registry icon
+    Robot: "🤖",
   };
 
   return (
@@ -120,11 +122,20 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         description: "Role-based access control and user management",
         adminOnly: true
       },
-      { 
-        label: "Settings", 
-        icon: <SafeIcon iconName="Settings" size={18} ariaLabel="Settings gear" />, 
+      {
+        label: "Settings",
+        icon: <SafeIcon iconName="Settings" size={18} ariaLabel="Settings gear" />,
         tab: "settings",
         description: "Enterprise platform configuration",
+        adminOnly: true
+      },
+      // SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
+      {
+        label: "🤖 Agent Registry",
+        icon: <SafeIcon iconName="Robot" size={18} ariaLabel="Agent robot" />,
+        tab: "agent-registry",
+        badge: "Enterprise",
+        description: "Enterprise AI agent registration, MCP server governance, and SDK integration",
         adminOnly: true
       }
     );
