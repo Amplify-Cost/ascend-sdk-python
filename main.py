@@ -1492,6 +1492,15 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Include agent router for enterprise enrichment (REQUIRED for /api/agent-activity)
 app.include_router(agent_router, prefix="/api", tags=["agent-activity"])
+
+# Enterprise Agent Registry - Agent Configuration & Governance
+try:
+    from routes.agent_registry_routes import router as agent_registry_router
+    app.include_router(agent_registry_router, prefix="/api", tags=["Agent Registry"])
+    logger.info("✅ Agent Registry routes loaded - /api/registry/*")
+except ImportError as e:
+    logger.warning(f"Agent Registry routes not loaded: {e}")
+
 # Unchanged commented-out includes
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
