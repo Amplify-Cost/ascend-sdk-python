@@ -35,18 +35,29 @@ const AgentRegistryManagement = () => {
   const [showMcpRegisterModal, setShowMcpRegisterModal] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
 
-  // Form states
+  // Form states - Enterprise Agent Configuration
   const [registerForm, setRegisterForm] = useState({
     agent_id: "",
     display_name: "",
     description: "",
     agent_type: "supervised",
+    // Risk Configuration
     default_risk_score: 50,
     auto_approve_below: 30,
     max_risk_threshold: 80,
     requires_mfa_above: 70,
+    // Permissions & Restrictions (Enterprise)
     allowed_action_types: [],
+    allowed_resources: "",      // Comma-separated patterns
+    blocked_resources: "",      // Comma-separated patterns
+    // Notifications (Enterprise)
     alert_on_high_risk: true,
+    alert_recipients: "",       // Comma-separated emails
+    webhook_url: "",            // Webhook for external integrations
+    // MCP Integration
+    is_mcp_server: false,
+    mcp_server_url: "",
+    // Metadata
     tags: ""
   });
 
@@ -111,12 +122,33 @@ const AgentRegistryManagement = () => {
     }
   }, [activeTab, fetchMcpServers]);
 
-  // Register new agent
+  // Register new agent - Enterprise payload builder
   const handleRegisterAgent = async (e) => {
     e.preventDefault();
     try {
+      // Build enterprise-grade payload
       const payload = {
-        ...registerForm,
+        agent_id: registerForm.agent_id,
+        display_name: registerForm.display_name,
+        description: registerForm.description,
+        agent_type: registerForm.agent_type,
+        // Risk Configuration
+        default_risk_score: registerForm.default_risk_score,
+        auto_approve_below: registerForm.auto_approve_below,
+        max_risk_threshold: registerForm.max_risk_threshold,
+        requires_mfa_above: registerForm.requires_mfa_above,
+        // Permissions (convert comma-separated to arrays)
+        allowed_action_types: registerForm.allowed_action_types,
+        allowed_resources: registerForm.allowed_resources.split(",").map(r => r.trim()).filter(Boolean),
+        blocked_resources: registerForm.blocked_resources.split(",").map(r => r.trim()).filter(Boolean),
+        // Notifications
+        alert_on_high_risk: registerForm.alert_on_high_risk,
+        alert_recipients: registerForm.alert_recipients.split(",").map(e => e.trim()).filter(Boolean),
+        webhook_url: registerForm.webhook_url || null,
+        // MCP Integration
+        is_mcp_server: registerForm.is_mcp_server,
+        mcp_server_url: registerForm.mcp_server_url || null,
+        // Metadata
         tags: registerForm.tags.split(",").map(t => t.trim()).filter(Boolean)
       };
 
@@ -126,6 +158,7 @@ const AgentRegistryManagement = () => {
       });
 
       setShowRegisterModal(false);
+      // Reset form to defaults
       setRegisterForm({
         agent_id: "",
         display_name: "",
@@ -136,7 +169,13 @@ const AgentRegistryManagement = () => {
         max_risk_threshold: 80,
         requires_mfa_above: 70,
         allowed_action_types: [],
+        allowed_resources: "",
+        blocked_resources: "",
         alert_on_high_risk: true,
+        alert_recipients: "",
+        webhook_url: "",
+        is_mcp_server: false,
+        mcp_server_url: "",
         tags: ""
       });
       fetchAgents();
@@ -674,17 +713,139 @@ if result.can_proceed:
                 </div>
               </div>
 
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="alert_on_high_risk"
-                  checked={registerForm.alert_on_high_risk}
-                  onChange={(e) => setRegisterForm({ ...registerForm, alert_on_high_risk: e.target.checked })}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                />
-                <label htmlFor="alert_on_high_risk" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                  Generate alerts for high-risk actions
-                </label>
+              {/* Allowed Action Types - Multi-select */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Allowed Action Types</h4>
+                <p className="text-xs text-gray-500 mb-2">Select which actions this agent is permitted to perform</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {actionTypes.map((action) => (
+                    <label key={action.value} className="flex items-center space-x-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={registerForm.allowed_action_types.includes(action.value)}
+                        onChange={(e) => {
+                          const newTypes = e.target.checked
+                            ? [...registerForm.allowed_action_types, action.value]
+                            : registerForm.allowed_action_types.filter(t => t !== action.value);
+                          setRegisterForm({ ...registerForm, allowed_action_types: newTypes });
+                        }}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      />
+                      <span className="text-gray-700 dark:text-gray-300">{action.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Resource Restrictions */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Resource Restrictions</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Allowed Resources
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="/data/*, /reports/*, /public/*"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={registerForm.allowed_resources}
+                      onChange={(e) => setRegisterForm({ ...registerForm, allowed_resources: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Comma-separated glob patterns</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Blocked Resources
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="/secrets/*, /prod/*, /admin/*"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={registerForm.blocked_resources}
+                      onChange={(e) => setRegisterForm({ ...registerForm, blocked_resources: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Agent cannot access these resources</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notifications & Alerts */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Notifications & Webhooks</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="alert_on_high_risk"
+                      checked={registerForm.alert_on_high_risk}
+                      onChange={(e) => setRegisterForm({ ...registerForm, alert_on_high_risk: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="alert_on_high_risk" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      Generate alerts for high-risk actions
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Alert Recipients (Email)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="security@company.com, admin@company.com"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={registerForm.alert_recipients}
+                      onChange={(e) => setRegisterForm({ ...registerForm, alert_recipients: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Comma-separated email addresses for alert notifications</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Webhook URL (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://your-service.com/webhooks/agent-alerts"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={registerForm.webhook_url}
+                      onChange={(e) => setRegisterForm({ ...registerForm, webhook_url: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Send agent events to external systems (Slack, PagerDuty, etc.)</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* MCP Server Integration */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">MCP Server Integration</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="is_mcp_server"
+                      checked={registerForm.is_mcp_server}
+                      onChange={(e) => setRegisterForm({ ...registerForm, is_mcp_server: e.target.checked })}
+                      className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="is_mcp_server" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      This agent connects to an MCP server
+                    </label>
+                  </div>
+                  {registerForm.is_mcp_server && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        MCP Server URL
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="http://localhost:3000 or stdio://mcp-server"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        value={registerForm.mcp_server_url}
+                        onChange={(e) => setRegisterForm({ ...registerForm, mcp_server_url: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
