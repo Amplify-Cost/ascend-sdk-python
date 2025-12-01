@@ -135,7 +135,7 @@ class AgentRegistryService:
 
                 # Metadata
                 tags=agent_data.get("tags", []),
-                metadata=agent_data.get("metadata", {})
+                agent_metadata=agent_data.get("metadata", {})
             )
 
             db.add(agent)
@@ -289,7 +289,7 @@ class AgentRegistryService:
                 "allowed_action_types", "allowed_resources", "blocked_resources",
                 "is_mcp_server", "mcp_server_url", "mcp_capabilities",
                 "alert_on_high_risk", "alert_recipients", "webhook_url",
-                "tags", "metadata", "version_notes"
+                "tags", "agent_metadata", "version_notes"
             }
 
             for field, value in updates.items():
@@ -725,7 +725,7 @@ class AgentRegistryService:
             "mcp_capabilities": agent.mcp_capabilities,
             "alert_on_high_risk": agent.alert_on_high_risk,
             "tags": agent.tags,
-            "metadata": agent.metadata
+            "metadata": agent.agent_metadata
         }
 
     @staticmethod

@@ -81,7 +81,7 @@ def upgrade():
 
         # Metadata
         sa.Column('tags', postgresql.JSONB(), nullable=True, default=[]),
-        sa.Column('metadata', postgresql.JSONB(), nullable=True, default={}),
+        sa.Column('agent_metadata', postgresql.JSONB(), nullable=True, default={}),
 
         sa.PrimaryKeyConstraint('id')
     )

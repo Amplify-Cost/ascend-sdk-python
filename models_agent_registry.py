@@ -116,7 +116,7 @@ class RegisteredAgent(Base):
 
     # Metadata
     tags = Column(JSONB, default=list)                  # ["finance", "customer-facing"]
-    metadata = Column(JSONB, default=dict)              # Custom key-value pairs
+    agent_metadata = Column(JSONB, default=dict)        # Custom key-value pairs (renamed from 'metadata' - reserved in SQLAlchemy)
 
     # Relationships
     organization = relationship("Organization", backref="registered_agents")

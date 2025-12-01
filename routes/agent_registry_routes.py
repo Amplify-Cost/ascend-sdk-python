@@ -308,7 +308,7 @@ async def get_agent(
             },
 
             "tags": agent.tags,
-            "metadata": agent.metadata,
+            "metadata": agent.agent_metadata,
 
             "audit": {
                 "created_at": agent.created_at.isoformat() if agent.created_at else None,
