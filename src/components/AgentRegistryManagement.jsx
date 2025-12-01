@@ -32,8 +32,10 @@ const AgentRegistryManagement = () => {
   // Modal states
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showAgentDetailsModal, setShowAgentDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showMcpRegisterModal, setShowMcpRegisterModal] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null); // Track which agent is being acted upon
 
   // Form states - Enterprise Agent Configuration
   const [registerForm, setRegisterForm] = useState({
@@ -61,12 +63,21 @@ const AgentRegistryManagement = () => {
     tags: ""
   });
 
+  // Edit form state (populated when editing)
+  const [editForm, setEditForm] = useState(null);
+
+  // MCP Server registration form - Enterprise configuration
   const [mcpForm, setMcpForm] = useState({
     server_name: "",
     display_name: "",
     description: "",
+    server_url: "",
     transport_type: "stdio",
-    governance_enabled: true
+    governance_enabled: true,
+    // Governance Settings
+    auto_approve_tools: "",      // Comma-separated tool names
+    blocked_tools: "",           // Comma-separated tool names
+    tool_risk_overrides: ""      // JSON string for tool-specific risk overrides
   });
 
   // Action types for multi-select
@@ -225,13 +236,110 @@ const AgentRegistryManagement = () => {
     }
   };
 
-  // Register MCP server
+  // Edit agent - open modal with current data
+  const handleEditAgent = async (agentId) => {
+    try {
+      const response = await fetchWithAuth(`/api/registry/agents/${agentId}`);
+      const agent = response.agent;
+
+      // Populate edit form with current agent data
+      setEditForm({
+        agent_id: agent.agent_id,
+        display_name: agent.display_name,
+        description: agent.description || "",
+        agent_type: agent.agent_type,
+        // Risk Configuration
+        default_risk_score: agent.risk_config?.default_risk_score || 50,
+        auto_approve_below: agent.risk_config?.auto_approve_below || 30,
+        max_risk_threshold: agent.risk_config?.max_risk_threshold || 80,
+        requires_mfa_above: agent.risk_config?.requires_mfa_above || 70,
+        // Permissions
+        allowed_action_types: agent.allowed_action_types || [],
+        allowed_resources: (agent.allowed_resources || []).join(", "),
+        blocked_resources: (agent.blocked_resources || []).join(", "),
+        // Notifications
+        alert_on_high_risk: agent.alert_on_high_risk ?? true,
+        alert_recipients: (agent.alert_recipients || []).join(", "),
+        webhook_url: agent.webhook_url || "",
+        // MCP Integration
+        is_mcp_server: agent.is_mcp_server || false,
+        mcp_server_url: agent.mcp_server_url || "",
+        // Metadata
+        tags: (agent.tags || []).join(", ")
+      });
+      setShowEditModal(true);
+    } catch (error) {
+      console.error("Failed to fetch agent for editing:", error);
+      alert("Failed to load agent data: " + (error.message || "Unknown error"));
+    }
+  };
+
+  // Save edited agent
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm) return;
+
+    try {
+      const payload = {
+        display_name: editForm.display_name,
+        description: editForm.description,
+        agent_type: editForm.agent_type,
+        // Risk Configuration
+        default_risk_score: editForm.default_risk_score,
+        auto_approve_below: editForm.auto_approve_below,
+        max_risk_threshold: editForm.max_risk_threshold,
+        requires_mfa_above: editForm.requires_mfa_above,
+        // Permissions
+        allowed_action_types: editForm.allowed_action_types,
+        allowed_resources: editForm.allowed_resources.split(",").map(r => r.trim()).filter(Boolean),
+        blocked_resources: editForm.blocked_resources.split(",").map(r => r.trim()).filter(Boolean),
+        // Notifications
+        alert_on_high_risk: editForm.alert_on_high_risk,
+        alert_recipients: editForm.alert_recipients.split(",").map(e => e.trim()).filter(Boolean),
+        webhook_url: editForm.webhook_url || null,
+        // MCP Integration
+        is_mcp_server: editForm.is_mcp_server,
+        mcp_server_url: editForm.mcp_server_url || null,
+        // Metadata
+        tags: editForm.tags.split(",").map(t => t.trim()).filter(Boolean)
+      };
+
+      await fetchWithAuth(`/api/registry/agents/${editForm.agent_id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+
+      setShowEditModal(false);
+      setEditForm(null);
+      fetchAgents();
+      alert("Agent updated successfully");
+    } catch (error) {
+      console.error("Failed to update agent:", error);
+      alert("Failed to update agent: " + (error.message || "Unknown error"));
+    }
+  };
+
+  // Register MCP server - Enterprise configuration
   const handleRegisterMcpServer = async (e) => {
     e.preventDefault();
     try {
+      // Build enterprise MCP server payload
+      const payload = {
+        server_name: mcpForm.server_name,
+        display_name: mcpForm.display_name,
+        description: mcpForm.description,
+        server_url: mcpForm.server_url || null,
+        transport_type: mcpForm.transport_type,
+        governance_enabled: mcpForm.governance_enabled,
+        // Governance Settings
+        auto_approve_tools: mcpForm.auto_approve_tools.split(",").map(t => t.trim()).filter(Boolean),
+        blocked_tools: mcpForm.blocked_tools.split(",").map(t => t.trim()).filter(Boolean),
+        tool_risk_overrides: mcpForm.tool_risk_overrides ? JSON.parse(mcpForm.tool_risk_overrides || "{}") : {}
+      };
+
       await fetchWithAuth("/api/registry/mcp-servers", {
         method: "POST",
-        body: JSON.stringify(mcpForm)
+        body: JSON.stringify(payload)
       });
 
       setShowMcpRegisterModal(false);
@@ -239,8 +347,12 @@ const AgentRegistryManagement = () => {
         server_name: "",
         display_name: "",
         description: "",
+        server_url: "",
         transport_type: "stdio",
-        governance_enabled: true
+        governance_enabled: true,
+        auto_approve_tools: "",
+        blocked_tools: "",
+        tool_risk_overrides: ""
       });
       fetchMcpServers();
     } catch (error) {
@@ -406,37 +518,62 @@ const AgentRegistryManagement = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         v{agent.version}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm space-x-2">
-                        <button
-                          onClick={() => handleViewAgent(agent.agent_id)}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
-                        >
-                          View
-                        </button>
-                        {agent.status === "draft" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                        <div className="flex justify-end space-x-2">
+                          {/* View Details */}
                           <button
-                            onClick={() => handleActivateAgent(agent.agent_id)}
-                            className="text-green-600 hover:text-green-800 dark:text-green-400"
+                            onClick={() => handleViewAgent(agent.agent_id)}
+                            className="px-3 py-1 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-md transition-colors"
+                            title="View agent details"
                           >
-                            Activate
+                            View
                           </button>
-                        )}
-                        {agent.status === "active" && (
+
+                          {/* Edit Agent */}
                           <button
-                            onClick={() => handleSuspendAgent(agent.agent_id)}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400"
+                            onClick={() => handleEditAgent(agent.agent_id)}
+                            className="px-3 py-1 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 rounded-md transition-colors"
+                            title="Edit agent configuration"
                           >
-                            Suspend
+                            Edit
                           </button>
-                        )}
-                        {agent.status === "suspended" && (
-                          <button
-                            onClick={() => handleActivateAgent(agent.agent_id)}
-                            className="text-green-600 hover:text-green-800 dark:text-green-400"
-                          >
-                            Reactivate
-                          </button>
-                        )}
+
+                          {/* Activate - for draft status */}
+                          {agent.status === "draft" && (
+                            <button
+                              onClick={() => handleActivateAgent(agent.agent_id)}
+                              disabled={actionLoading === agent.agent_id}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
+                              title="Activate this agent for production use"
+                            >
+                              {actionLoading === agent.agent_id ? "..." : "Activate"}
+                            </button>
+                          )}
+
+                          {/* Suspend - for active status */}
+                          {agent.status === "active" && (
+                            <button
+                              onClick={() => handleSuspendAgent(agent.agent_id)}
+                              disabled={actionLoading === agent.agent_id}
+                              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors disabled:opacity-50"
+                              title="Suspend agent - requires reason for audit trail"
+                            >
+                              {actionLoading === agent.agent_id ? "..." : "Suspend"}
+                            </button>
+                          )}
+
+                          {/* Reactivate - for suspended status */}
+                          {agent.status === "suspended" && (
+                            <button
+                              onClick={() => handleActivateAgent(agent.agent_id)}
+                              disabled={actionLoading === agent.agent_id}
+                              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
+                              title="Reactivate suspended agent"
+                            >
+                              {actionLoading === agent.agent_id ? "..." : "Reactivate"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -950,7 +1087,16 @@ if result.can_proceed:
                 </div>
               )}
             </div>
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+              <button
+                onClick={() => {
+                  setShowAgentDetailsModal(false);
+                  handleEditAgent(selectedAgent.agent_id);
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              >
+                Edit Agent
+              </button>
               <button
                 onClick={() => setShowAgentDetailsModal(false)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg"
@@ -962,66 +1108,441 @@ if result.can_proceed:
         </div>
       )}
 
-      {/* MCP Server Register Modal */}
+      {/* Edit Agent Modal - Enterprise Configuration */}
+      {showEditModal && editForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Agent Configuration</h3>
+              <p className="text-sm text-gray-500 font-mono mt-1">{editForm.agent_id}</p>
+            </div>
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+              {/* Basic Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={editForm.display_name}
+                    onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Agent Type
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={editForm.agent_type}
+                    onChange={(e) => setEditForm({ ...editForm, agent_type: e.target.value })}
+                  >
+                    <option value="supervised">Supervised</option>
+                    <option value="autonomous">Autonomous</option>
+                    <option value="advisory">Advisory</option>
+                    <option value="mcp_server">MCP Server</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Description
+                </label>
+                <textarea
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                />
+              </div>
+
+              {/* Risk Configuration */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Risk Configuration</h4>
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Default Risk
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={editForm.default_risk_score}
+                      onChange={(e) => setEditForm({ ...editForm, default_risk_score: parseInt(e.target.value) || 50 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Auto-Approve Below
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={editForm.auto_approve_below}
+                      onChange={(e) => setEditForm({ ...editForm, auto_approve_below: parseInt(e.target.value) || 30 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Max Threshold
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={editForm.max_risk_threshold}
+                      onChange={(e) => setEditForm({ ...editForm, max_risk_threshold: parseInt(e.target.value) || 80 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      MFA Above
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={editForm.requires_mfa_above}
+                      onChange={(e) => setEditForm({ ...editForm, requires_mfa_above: parseInt(e.target.value) || 70 })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Allowed Action Types */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Allowed Action Types</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {actionTypes.map((action) => (
+                    <label key={action.value} className="flex items-center space-x-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editForm.allowed_action_types.includes(action.value)}
+                        onChange={(e) => {
+                          const newTypes = e.target.checked
+                            ? [...editForm.allowed_action_types, action.value]
+                            : editForm.allowed_action_types.filter(t => t !== action.value);
+                          setEditForm({ ...editForm, allowed_action_types: newTypes });
+                        }}
+                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                      />
+                      <span className="text-gray-700 dark:text-gray-300">{action.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Resource Restrictions */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Resource Restrictions</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Allowed Resources
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="/data/*, /reports/*"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={editForm.allowed_resources}
+                      onChange={(e) => setEditForm({ ...editForm, allowed_resources: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Blocked Resources
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="/secrets/*, /prod/*"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={editForm.blocked_resources}
+                      onChange={(e) => setEditForm({ ...editForm, blocked_resources: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Notifications */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Notifications & Webhooks</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="edit_alert_on_high_risk"
+                      checked={editForm.alert_on_high_risk}
+                      onChange={(e) => setEditForm({ ...editForm, alert_on_high_risk: e.target.checked })}
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="edit_alert_on_high_risk" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      Generate alerts for high-risk actions
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Alert Recipients
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="security@company.com"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        value={editForm.alert_recipients}
+                        onChange={(e) => setEditForm({ ...editForm, alert_recipients: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Webhook URL
+                      </label>
+                      <input
+                        type="url"
+                        placeholder="https://your-service.com/webhooks"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        value={editForm.webhook_url}
+                        onChange={(e) => setEditForm({ ...editForm, webhook_url: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* MCP Integration */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">MCP Server Integration</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="edit_is_mcp_server"
+                      checked={editForm.is_mcp_server}
+                      onChange={(e) => setEditForm({ ...editForm, is_mcp_server: e.target.checked })}
+                      className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="edit_is_mcp_server" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      This agent connects to an MCP server
+                    </label>
+                  </div>
+                  {editForm.is_mcp_server && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        MCP Server URL
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="http://localhost:3000"
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        value={editForm.mcp_server_url}
+                        onChange={(e) => setEditForm({ ...editForm, mcp_server_url: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tags */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Tags (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  placeholder="finance, customer-facing"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={editForm.tags}
+                  onChange={(e) => setEditForm({ ...editForm, tags: e.target.value })}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditForm(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MCP Server Register Modal - Enterprise Configuration */}
       {showMcpRegisterModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Register MCP Server</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Configure Model Context Protocol server with enterprise governance
+              </p>
             </div>
             <form onSubmit={handleRegisterMcpServer} className="p-6 space-y-4">
+              {/* Basic Configuration */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Server Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., file-operations"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={mcpForm.server_name}
+                    onChange={(e) => setMcpForm({ ...mcpForm, server_name: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Unique identifier for this server</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., File Operations Server"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    value={mcpForm.display_name}
+                    onChange={(e) => setMcpForm({ ...mcpForm, display_name: e.target.value })}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Server Name *
+                  Description
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., file-operations"
+                <textarea
+                  rows={2}
+                  placeholder="Describe what this MCP server provides..."
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  value={mcpForm.server_name}
-                  onChange={(e) => setMcpForm({ ...mcpForm, server_name: e.target.value })}
+                  value={mcpForm.description}
+                  onChange={(e) => setMcpForm({ ...mcpForm, description: e.target.value })}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Display Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., File Operations Server"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  value={mcpForm.display_name}
-                  onChange={(e) => setMcpForm({ ...mcpForm, display_name: e.target.value })}
-                />
+
+              {/* Connection Configuration */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Connection Configuration</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Transport Type
+                    </label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={mcpForm.transport_type}
+                      onChange={(e) => setMcpForm({ ...mcpForm, transport_type: e.target.value })}
+                    >
+                      <option value="stdio">STDIO (Local process)</option>
+                      <option value="http">HTTP/HTTPS</option>
+                      <option value="websocket">WebSocket</option>
+                      <option value="sse">Server-Sent Events (SSE)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Server URL
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="http://localhost:3000 or npx -y @mcp/server"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      value={mcpForm.server_url}
+                      onChange={(e) => setMcpForm({ ...mcpForm, server_url: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">URL or command to start the server</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Transport Type
-                </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  value={mcpForm.transport_type}
-                  onChange={(e) => setMcpForm({ ...mcpForm, transport_type: e.target.value })}
-                >
-                  <option value="stdio">STDIO</option>
-                  <option value="http">HTTP</option>
-                  <option value="websocket">WebSocket</option>
-                </select>
+
+              {/* Governance Configuration */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Governance Settings</h4>
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="governance_enabled"
+                      checked={mcpForm.governance_enabled}
+                      onChange={(e) => setMcpForm({ ...mcpForm, governance_enabled: e.target.checked })}
+                      className="h-4 w-4 text-purple-600 border-gray-300 rounded"
+                    />
+                    <label htmlFor="governance_enabled" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      Enable governance for this server (recommended for enterprise)
+                    </label>
+                  </div>
+
+                  {mcpForm.governance_enabled && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Auto-Approve Tools
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="read_file, list_directory, get_status"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          value={mcpForm.auto_approve_tools}
+                          onChange={(e) => setMcpForm({ ...mcpForm, auto_approve_tools: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of tools to auto-approve (low-risk operations)</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Blocked Tools
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="delete_file, execute_command, drop_table"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          value={mcpForm.blocked_tools}
+                          onChange={(e) => setMcpForm({ ...mcpForm, blocked_tools: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Comma-separated list of tools to always block (critical security)</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Tool Risk Overrides (JSON)
+                        </label>
+                        <textarea
+                          rows={2}
+                          placeholder='{"write_file": 70, "send_email": 60}'
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm font-mono"
+                          value={mcpForm.tool_risk_overrides}
+                          onChange={(e) => setMcpForm({ ...mcpForm, tool_risk_overrides: e.target.value })}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Override default risk scores for specific tools</p>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="governance_enabled"
-                  checked={mcpForm.governance_enabled}
-                  onChange={(e) => setMcpForm({ ...mcpForm, governance_enabled: e.target.checked })}
-                  className="h-4 w-4 text-purple-600 border-gray-300 rounded"
-                />
-                <label htmlFor="governance_enabled" className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                  Enable governance for this server
-                </label>
-              </div>
+
               <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   type="button"
@@ -1034,7 +1555,7 @@ if result.can_proceed:
                   type="submit"
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
                 >
-                  Register Server
+                  Register MCP Server
                 </button>
               </div>
             </form>

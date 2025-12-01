@@ -229,6 +229,76 @@ psycopg2.errors.NotNullViolation: null value in column "organization_id" of rela
 
 **Compliance:** PCI-DSS 8.3.1, SOC 2 CC6.1
 
+#### SEC-020: SDK API Key Authentication for Agent Actions (Critical - RESOLVED)
+**Date:** 2025-11-26
+**Severity:** Critical
+**Issue:** SDK E2E tests failing with `[AUTH_001] Authentication required` - API key auth not supported
+**Root Cause:** `/api/authorization/agent-action` and related endpoints used `get_current_user` which only supports JWT, not API keys
+
+**Resolution:**
+1. Created `get_current_user_or_api_key` dual-auth dependency
+2. Created `get_organization_filter_dual_auth` for multi-tenant isolation with API key auth
+3. Updated `verify_api_key` to include `organization_id` in return context
+4. Updated all SDK-accessible endpoints to use dual-auth dependencies
+
+**Files Modified:**
+- `ow-ai-backend/dependencies_api_keys.py` - Added organization_id to verify_api_key return, created get_organization_filter_dual_auth
+- `ow-ai-backend/routes/authorization_routes.py` - Updated create_agent_action_api to use dual-auth + org filter
+- `ow-ai-backend/routes/agent_routes.py` - Updated get_agent_activity, get_action_status, get_agent_action_by_id to use dual-auth
+
+**Endpoints Updated:**
+- `POST /api/authorization/agent-action` - Create agent action (SDK primary endpoint)
+- `GET /api/agent-activity` - List recent agent activity
+- `GET /api/agent-action/{action_id}` - Get action details
+- `GET /api/agent-action/status/{action_id}` - Poll action status
+
+**Security:**
+- API keys validated via SHA-256 hash with salt
+- Organization isolation enforced via `organization_id` from API key's user
+- Dual authentication: Bearer JWT (admin UI) OR API key (SDK)
+
+**Compliance:** SOC 2 CC6.1, NIST IA-5, PCI-DSS 8.3.1
+
+#### SEC-021: Enterprise Multi-Tenant URL Routing (Critical - RESOLVED)
+**Date:** 2025-11-28
+**Severity:** Critical
+**Issue:** Multi-tenant login failing - URL hash org detection not working
+**Root Cause:** React modifies/clears URL hash during mounting, causing org slug to be lost before detection
+
+**Resolution:**
+1. Added early detection script in `index.html` that runs **BEFORE React loads**
+2. Script captures org slug from URL (path, hash, or query parameter)
+3. Stores in sessionStorage immediately for React to use
+4. Updated CognitoLogin.jsx to read from sessionStorage
+
+**Supported URL Formats:**
+- Path: `/org/acme-corp` or `/org/acme-corp/dashboard`
+- Hash: `#org=acme-corp` (recommended)
+- Query: `?org=acme-corp`
+
+**Files Modified:**
+- `owkai-pilot-frontend/index.html` - Added early org detection script
+- `owkai-pilot-frontend/src/components/CognitoLogin.jsx` - Updated org detection logic
+
+**Production URL:**
+```
+https://pilot.owkai.app/#org={organization-slug}
+```
+
+**Example:**
+```
+https://pilot.owkai.app/#org=donald-test-corp
+```
+
+**Console Output (Success):**
+```
+[ENTERPRISE] Org detected from hash: donald-test-corp
+[ENTERPRISE] Org slug stored in session: donald-test-corp
+🏢 [MULTI-TENANT] Using URL-detected org: donald-test-corp
+```
+
+**Compliance:** SOC 2 CC6.1, HIPAA 164.312, PCI-DSS 7.1, GDPR - Tenant Isolation
+
 ---
 
 ## Multi-Tenant Architecture
