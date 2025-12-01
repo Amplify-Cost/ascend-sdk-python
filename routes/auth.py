@@ -37,6 +37,8 @@ import jwt
 import os
 import logging
 import json
+import boto3
+from botocore.exceptions import ClientError
 
 # ✅ SECURITY FIX: Import secure JWT decoder
 # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
@@ -321,16 +323,217 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
     logger.info(f"🔍 DIAGNOSTIC: {endpoint} response structure:")
     logger.info(f"🔍 Response keys: {list(response_data.keys())}")
     logger.info(f"🔍 Response size: {len(json.dumps(response_data))} characters")
-    
+
     for key, value in response_data.items():
         logger.info(f"🔍 Field '{key}': {type(value).__name__} = {str(value)[:100]}...")
-    
+
     if "user" in response_data:
         user_data = response_data["user"]
         logger.info(f"🔍 User object keys: {list(user_data.keys()) if isinstance(user_data, dict) else 'not a dict'}")
         if isinstance(user_data, dict):
             for k, v in user_data.items():
                 logger.info(f"🔍 User.{k}: {type(v).__name__} = {v}")
+
+
+# =================== ENTERPRISE COGNITO AUTHENTICATION (SEC-021) ===================
+# Banking-Level Security: AWS Cognito Integration for Enterprise Authentication
+# Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B, HIPAA 164.312
+# ==================================================================================
+
+def authenticate_via_cognito(
+    email: str,
+    password: str,
+    organization: Organization,
+    user: User,
+    db: Session
+) -> Dict[str, Any]:
+    """
+    SEC-021: Enterprise Cognito Authentication
+
+    Banking-level security authentication via AWS Cognito.
+
+    Features:
+    - Per-organization Cognito User Pools (multi-tenant isolation)
+    - Handles auth challenges (NEW_PASSWORD_REQUIRED, MFA, etc.)
+    - Automatic Cognito-to-local user sync
+    - Complete audit trail
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
+
+    Args:
+        email: User's email address
+        password: User's password
+        organization: User's organization with Cognito pool config
+        user: Local database user record
+        db: Database session
+
+    Returns:
+        Dict with:
+        - success: bool
+        - cognito_tokens: Dict with access/id/refresh tokens (if successful)
+        - challenge: str (if auth challenge required)
+        - session: str (for continuing auth challenges)
+        - error: str (if failed)
+    """
+
+    # Validate organization has Cognito configured
+    if not organization.cognito_user_pool_id:
+        logger.warning(f"SEC-021: Organization {organization.id} has no Cognito pool - falling back to local auth")
+        return {"success": False, "fallback_to_local": True}
+
+    if not organization.cognito_app_client_id:
+        logger.warning(f"SEC-021: Organization {organization.id} has no Cognito client ID - falling back to local auth")
+        return {"success": False, "fallback_to_local": True}
+
+    try:
+        # Initialize Cognito client
+        cognito = boto3.client('cognito-idp', region_name='us-east-2')
+
+        logger.info(f"🔐 SEC-021: Authenticating via Cognito for {email}")
+        logger.info(f"   Pool: {organization.cognito_user_pool_id}")
+        logger.info(f"   Client: {organization.cognito_app_client_id[:8]}...")
+
+        # Initiate authentication with USER_PASSWORD_AUTH flow
+        try:
+            auth_response = cognito.initiate_auth(
+                ClientId=organization.cognito_app_client_id,
+                AuthFlow='USER_PASSWORD_AUTH',
+                AuthParameters={
+                    'USERNAME': email,
+                    'PASSWORD': password
+                }
+            )
+
+            # Check if there's a challenge
+            if 'ChallengeName' in auth_response:
+                challenge = auth_response['ChallengeName']
+                session = auth_response.get('Session', '')
+
+                logger.info(f"🔐 SEC-021: Cognito auth challenge: {challenge}")
+
+                if challenge == 'NEW_PASSWORD_REQUIRED':
+                    return {
+                        "success": False,
+                        "challenge": "NEW_PASSWORD_REQUIRED",
+                        "session": session,
+                        "message": "Password change required. Please set a new password.",
+                        "cognito_user_id": auth_response.get('ChallengeParameters', {}).get('USER_ID_FOR_SRP')
+                    }
+                elif challenge == 'MFA_SETUP':
+                    return {
+                        "success": False,
+                        "challenge": "MFA_SETUP",
+                        "session": session,
+                        "message": "MFA setup required for this account."
+                    }
+                elif challenge == 'SOFTWARE_TOKEN_MFA':
+                    return {
+                        "success": False,
+                        "challenge": "SOFTWARE_TOKEN_MFA",
+                        "session": session,
+                        "message": "Please enter your MFA code."
+                    }
+                elif challenge == 'SMS_MFA':
+                    return {
+                        "success": False,
+                        "challenge": "SMS_MFA",
+                        "session": session,
+                        "message": "Please enter the SMS code sent to your phone."
+                    }
+                else:
+                    logger.warning(f"SEC-021: Unhandled Cognito challenge: {challenge}")
+                    return {
+                        "success": False,
+                        "challenge": challenge,
+                        "session": session,
+                        "message": f"Authentication challenge: {challenge}"
+                    }
+
+            # Authentication successful - extract tokens
+            auth_result = auth_response.get('AuthenticationResult', {})
+
+            if not auth_result:
+                logger.error("SEC-021: No AuthenticationResult in Cognito response")
+                return {"success": False, "error": "Authentication failed - no tokens received"}
+
+            cognito_tokens = {
+                "access_token": auth_result.get('AccessToken'),
+                "id_token": auth_result.get('IdToken'),
+                "refresh_token": auth_result.get('RefreshToken'),
+                "expires_in": auth_result.get('ExpiresIn', 3600),
+                "token_type": auth_result.get('TokenType', 'Bearer')
+            }
+
+            # Extract Cognito user ID from ID token
+            # The 'sub' claim in the ID token is the Cognito user ID
+            try:
+                import base64
+                # Decode JWT payload (without verification - we trust Cognito signed it)
+                id_token_parts = cognito_tokens['id_token'].split('.')
+                if len(id_token_parts) >= 2:
+                    # Add padding if needed
+                    padded = id_token_parts[1] + '=' * (4 - len(id_token_parts[1]) % 4)
+                    id_payload = json.loads(base64.urlsafe_b64decode(padded))
+                    cognito_user_id = id_payload.get('sub')
+
+                    # Update local user with Cognito ID if not set
+                    if cognito_user_id and user.cognito_user_id != cognito_user_id:
+                        logger.info(f"🔗 SEC-021: Linking user to Cognito: {email} -> {cognito_user_id}")
+                        user.cognito_user_id = cognito_user_id
+                        db.commit()
+
+                    cognito_tokens['cognito_user_id'] = cognito_user_id
+            except Exception as e:
+                logger.warning(f"SEC-021: Could not extract Cognito user ID: {e}")
+
+            logger.info(f"✅ SEC-021: Cognito authentication successful for {email}")
+
+            return {
+                "success": True,
+                "cognito_tokens": cognito_tokens
+            }
+
+        except cognito.exceptions.NotAuthorizedException as e:
+            logger.warning(f"❌ SEC-021: Cognito auth failed - invalid credentials: {email}")
+            return {"success": False, "error": "Invalid credentials", "cognito_error": True}
+
+        except cognito.exceptions.UserNotConfirmedException:
+            logger.warning(f"❌ SEC-021: Cognito user not confirmed: {email}")
+            return {
+                "success": False,
+                "error": "Account not confirmed. Please check your email for confirmation link.",
+                "needs_confirmation": True
+            }
+
+        except cognito.exceptions.UserNotFoundException:
+            logger.warning(f"❌ SEC-021: User not found in Cognito: {email}")
+            # User exists locally but not in Cognito - fallback to local auth
+            return {"success": False, "fallback_to_local": True, "reason": "user_not_in_cognito"}
+
+        except cognito.exceptions.PasswordResetRequiredException:
+            logger.warning(f"❌ SEC-021: Password reset required in Cognito: {email}")
+            return {
+                "success": False,
+                "error": "Password reset required. Please use the forgot password flow.",
+                "needs_password_reset": True
+            }
+
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+        logger.error(f"❌ SEC-021: Cognito ClientError: {error_code} - {error_message}")
+
+        if error_code == 'InvalidParameterException':
+            # Often means client ID is wrong or pool doesn't allow this auth flow
+            return {"success": False, "fallback_to_local": True, "reason": "cognito_config_error"}
+
+        return {"success": False, "error": f"Authentication service error: {error_code}"}
+
+    except Exception as e:
+        logger.error(f"❌ SEC-021: Unexpected Cognito error: {e}", exc_info=True)
+        # Fallback to local auth on unexpected errors
+        return {"success": False, "fallback_to_local": True, "reason": str(e)}
+
 
 # =================== ENTERPRISE ENDPOINTS ===================
 
@@ -426,8 +629,81 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
                 user.failed_login_attempts = 0
                 db.commit()
 
-        # Verify password
-        if not verify_password(password, user.password):
+        # ============================================================================
+        # SEC-021: ENTERPRISE COGNITO AUTHENTICATION
+        # Banking-Level Security: Per-organization Cognito User Pools
+        # Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
+        # ============================================================================
+
+        # Get user's organization for Cognito config
+        organization = user.organization
+        auth_method_used = None
+        cognito_auth_result = None
+
+        # Attempt Cognito authentication if organization has Cognito configured
+        if organization and organization.cognito_user_pool_id:
+            logger.info(f"🔐 SEC-021: Attempting Cognito auth for {email} (org: {organization.slug})")
+            cognito_auth_result = authenticate_via_cognito(
+                email=email,
+                password=password,
+                organization=organization,
+                user=user,
+                db=db
+            )
+
+            if cognito_auth_result.get("success"):
+                # Cognito authentication successful
+                auth_method_used = "cognito"
+                logger.info(f"✅ SEC-021: Cognito auth successful for {email}")
+            elif cognito_auth_result.get("challenge"):
+                # Auth challenge required (NEW_PASSWORD_REQUIRED, MFA, etc.)
+                challenge = cognito_auth_result.get("challenge")
+                logger.info(f"🔐 SEC-021: Auth challenge required: {challenge}")
+
+                # Return challenge response for frontend to handle
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "auth_challenge",
+                        "challenge": challenge,
+                        "session": cognito_auth_result.get("session", ""),
+                        "message": cognito_auth_result.get("message", "Additional authentication required"),
+                        "requires_action": True
+                    }
+                )
+            elif cognito_auth_result.get("cognito_error"):
+                # Cognito explicitly rejected credentials
+                logger.warning(f"❌ SEC-021: Cognito rejected credentials for {email}")
+                # Fall through to failed login handling
+                auth_method_used = "cognito_failed"
+            elif cognito_auth_result.get("fallback_to_local"):
+                # Cognito not available for this user/org - try local auth
+                logger.info(f"🔐 SEC-021: Falling back to local auth for {email} (reason: {cognito_auth_result.get('reason', 'unknown')})")
+                auth_method_used = "local_fallback"
+            else:
+                # Other Cognito error - check if we should fallback
+                error_msg = cognito_auth_result.get("error", "Unknown error")
+                logger.warning(f"⚠️ SEC-021: Cognito auth error: {error_msg}")
+                auth_method_used = "local_fallback"
+        else:
+            # No Cognito configured - use local auth
+            logger.info(f"🔐 Using local authentication for {email} (no Cognito configured)")
+            auth_method_used = "local"
+
+        # Verify password (for local auth or Cognito fallback)
+        password_valid = False
+
+        if auth_method_used == "cognito":
+            # Already authenticated via Cognito
+            password_valid = True
+        elif auth_method_used == "cognito_failed":
+            # Cognito rejected - don't try local auth, it's definitely wrong
+            password_valid = False
+        else:
+            # Local authentication
+            password_valid = verify_password(password, user.password)
+
+        if not password_valid:
             # ============================================================================
             # PHASE 2 RBAC: FAILED LOGIN ATTEMPT TRACKING
             # ============================================================================
@@ -455,44 +731,47 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
 
         # ============================================================================
         # PHASE 2 RBAC: PASSWORD EXPIRATION (CVSS 5.8 - MEDIUM)
+        # SEC-021: Skip for Cognito users - Cognito manages its own password policies
         # ============================================================================
-        # Check password age (90-day expiration policy)
-        if user.password_last_changed:
-            password_age_days = (datetime.now(UTC) - user.password_last_changed.replace(tzinfo=UTC)).days
+        if auth_method_used != "cognito":
+            # Check password age (90-day expiration policy) - only for local auth
+            if user.password_last_changed:
+                password_age_days = (datetime.now(UTC) - user.password_last_changed.replace(tzinfo=UTC)).days
 
-            # Block login if password expired (>90 days)
-            if password_age_days >= 90:
-                logger.warning(f"⏰ Password expired for {email} ({password_age_days} days old)")
+                # Block login if password expired (>90 days)
+                if password_age_days >= 90:
+                    logger.warning(f"⏰ Password expired for {email} ({password_age_days} days old)")
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={
+                            "error": "password_expired",
+                            "message": "Your password has expired. Please reset your password to continue.",
+                            "password_age_days": password_age_days,
+                            "requires_password_change": True
+                        }
+                    )
+
+                # Warn if password expiring soon (80-89 days)
+                elif password_age_days >= 80:
+                    days_until_expiration = 90 - password_age_days
+                    logger.info(f"⚠️ Password expiring soon for {email} ({days_until_expiration} days remaining)")
+                    # Continue with login but include warning in response
+
+            # ============================================================================
+            # PHASE 2 RBAC: FORCE PASSWORD CHANGE
+            # SEC-021: Skip for Cognito users - handled via Cognito challenges
+            # ============================================================================
+            # Check if admin forced password change
+            if user.force_password_change:
+                logger.info(f"🔑 Force password change required for {email}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={
-                        "error": "password_expired",
-                        "message": "Your password has expired. Please reset your password to continue.",
-                        "password_age_days": password_age_days,
+                        "error": "password_change_required",
+                        "message": "Administrator has reset your password. You must change it before logging in.",
                         "requires_password_change": True
                     }
                 )
-
-            # Warn if password expiring soon (80-89 days)
-            elif password_age_days >= 80:
-                days_until_expiration = 90 - password_age_days
-                logger.info(f"⚠️ Password expiring soon for {email} ({days_until_expiration} days remaining)")
-                # Continue with login but include warning in response
-
-        # ============================================================================
-        # PHASE 2 RBAC: FORCE PASSWORD CHANGE
-        # ============================================================================
-        # Check if admin forced password change
-        if user.force_password_change:
-            logger.info(f"🔑 Force password change required for {email}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "error": "password_change_required",
-                    "message": "Administrator has reset your password. You must change it before logging in.",
-                    "requires_password_change": True
-                }
-            )
 
         # ============================================================================
         # PHASE 2 RBAC: SUCCESSFUL LOGIN - RESET COUNTER
