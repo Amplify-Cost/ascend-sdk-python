@@ -198,6 +198,176 @@ class EnterpriseEmailService:
             sent_by=invited_by
         )
 
+    async def send_verification_email(
+        self,
+        to_email: str,
+        first_name: str,
+        verification_url: str,
+        db: Session = None
+    ) -> Dict:
+        """
+        SEC-021: Send email verification for self-service signup.
+
+        Security:
+        - Verification URL contains secure token
+        - Token expires in 24 hours
+        - Audit logged for compliance
+
+        Args:
+            to_email: Recipient email address
+            first_name: User's first name
+            verification_url: URL with verification token
+            db: Optional database session for audit logging
+
+        Returns:
+            Result dict with success status
+        """
+        subject = "Verify your ASCEND account"
+
+        html_body = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Account</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px 40px; text-align: center; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 8px 8px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600;">ASCEND</h1>
+                            <p style="color: #e0e0e0; margin: 10px 0 0 0; font-size: 14px;">AI Governance Platform</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <h2 style="color: #1e40af; margin: 0 0 20px 0; font-size: 22px;">Verify Your Email</h2>
+
+                            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Hi {first_name},
+                            </p>
+
+                            <p style="color: #333; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                                Thank you for signing up for ASCEND! Please verify your email address by clicking the button below.
+                            </p>
+
+                            <!-- CTA Button -->
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="{verification_url}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; padding: 14px 40px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Verify Email Address</a>
+                            </div>
+
+                            <p style="color: #666; font-size: 14px; line-height: 1.6; margin: 20px 0;">
+                                This link expires in 24 hours. If you didn't create an account with ASCEND, you can safely ignore this email.
+                            </p>
+
+                            <p style="color: #666; font-size: 14px; margin: 20px 0 0 0;">
+                                If the button doesn't work, copy and paste this link into your browser:
+                            </p>
+                            <p style="color: #3b82f6; font-size: 12px; word-break: break-all; margin: 10px 0;">
+                                {verification_url}
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f8f9fa; border-radius: 0 0 8px 8px; border-top: 1px solid #e9ecef;">
+                            <p style="margin: 0; color: #666; font-size: 12px; text-align: center;">
+                                ASCEND™ AI Governance Platform<br>
+                                <a href="https://ascendowkai.com" style="color: #1e40af; text-decoration: none;">ascendowkai.com</a> |
+                                <a href="mailto:support@ow-kai.com" style="color: #1e40af; text-decoration: none;">support@ow-kai.com</a>
+                            </p>
+                            <p style="margin: 15px 0 0 0; color: #999; font-size: 11px; text-align: center;">
+                                This email was sent to {to_email}.<br>
+                                OW-KAI Technologies, Inc.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+
+        text_body = f"""
+Verify Your ASCEND Account
+===========================
+
+Hi {first_name},
+
+Thank you for signing up for ASCEND! Please verify your email address by clicking the link below.
+
+Verify Email: {verification_url}
+
+This link expires in 24 hours. If you didn't create an account with ASCEND, you can safely ignore this email.
+
+---
+ASCEND AI Governance Platform
+https://ascendowkai.com | support@ow-kai.com
+OW-KAI Technologies, Inc.
+"""
+
+        try:
+            response = self.ses_client.send_email(
+                Source=f"ASCEND <{self.DEFAULT_FROM_EMAIL}>",
+                Destination={
+                    'ToAddresses': [to_email]
+                },
+                Message={
+                    'Subject': {
+                        'Data': subject,
+                        'Charset': 'UTF-8'
+                    },
+                    'Body': {
+                        'Text': {
+                            'Data': text_body,
+                            'Charset': 'UTF-8'
+                        },
+                        'Html': {
+                            'Data': html_body,
+                            'Charset': 'UTF-8'
+                        }
+                    }
+                },
+                Tags=[
+                    {'Name': 'email_type', 'Value': 'verification'},
+                    {'Name': 'environment', 'Value': 'production'}
+                ]
+            )
+
+            message_id = response['MessageId']
+            logger.info(f"SEC-021: Verification email sent to {to_email} (MessageId: {message_id})")
+
+            return {
+                'success': True,
+                'message_id': message_id
+            }
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = e.response['Error']['Message']
+            logger.error(f"SEC-021: Failed to send verification email to {to_email}: {error_code} - {error_message}")
+            return {
+                'success': False,
+                'error': error_message,
+                'error_code': error_code
+            }
+        except Exception as e:
+            logger.error(f"SEC-021: Unexpected error sending verification email: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
     async def send_password_reset_email(
         self,
         db: Session,
