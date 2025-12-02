@@ -63,9 +63,10 @@ const AdminConsole = () => {
   // SEC-041: apiKeyForm REMOVED - consolidated to Settings tab
 
   // API helper
+  // SEC-042: Fixed route prefix to match backend (/api/admin, not /api/admin-console)
   const apiCall = useCallback(async (endpoint, options = {}) => {
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/admin-console${endpoint}`, {
+    const response = await fetch(`/api/admin${endpoint}`, {
       ...options,
       headers: {
         'Authorization': `Bearer ${token}`,
