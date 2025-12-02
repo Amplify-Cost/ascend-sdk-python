@@ -31,6 +31,11 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ErrorBoundaryTest from './components/ErrorBoundaryTest';
 // SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
 import AgentRegistryManagement from './components/AgentRegistryManagement';
+// SEC-021: Self-Service Signup Flow
+import SignupFlow from './components/SignupFlow';
+import VerifyEmail from './components/VerifyEmail';
+// SEC-022: Admin Console
+import AdminConsole from './components/AdminConsole';
 import { API_BASE_URL } from './config/api';
 import logger from './utils/logger.js';
 
@@ -107,6 +112,15 @@ const AppContent = () => {
       try {
         logger.debug("🔍 Checking enterprise authentication status...");
         setLoading(true);
+
+        // SEC-021: Check for /verify-email path to show verification view
+        const pathname = window.location.pathname;
+        if (pathname === '/verify-email' || pathname.startsWith('/verify-email')) {
+          logger.debug("SEC-021: Detected /verify-email path, showing verification view");
+          setView("verify-email");
+          setLoading(false);
+          return;
+        }
 
         // 🍪 COOKIE-BASED AUTH: Simply try to get current user
         // If cookies are valid, this will succeed
@@ -468,6 +482,11 @@ const AppContent = () => {
         return user?.role === "admin" ?
           contentWithTransition(<AgentRegistryManagement getAuthHeaders={getAuthHeaders} user={user} />) :
           adminRequiredMessage;
+      // SEC-022: Admin Console - Organization Management
+      case "admin-console":
+        return (user?.role === "admin" || user?.role === "org_admin") ?
+          contentWithTransition(<AdminConsole />) :
+          adminRequiredMessage;
       default:
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
@@ -493,6 +512,7 @@ const AppContent = () => {
           onLoginSuccess={handleLoginSuccess}
           switchToRegister={() => setView("register")}
           switchToForgotPassword={() => setView("forgot")}
+          switchToSignup={() => setView("signup")}
         />
       )}
       {view === "register" && (
@@ -502,6 +522,26 @@ const AppContent = () => {
         />
       )}
       {view === "forgot" && <ForgotPasswordEnterpriseV3 switchToLogin={() => setView("login")} />}
+      {/* SEC-021: Self-Service Signup Flow (PUBLIC - No auth required) */}
+      {view === "signup" && (
+        <SignupFlow
+          onSignupComplete={() => {
+            toast.success("Account created! Please check your email to verify.");
+            setView("login");
+          }}
+          switchToLogin={() => setView("login")}
+        />
+      )}
+      {/* SEC-021: Email Verification (PUBLIC - No auth required) */}
+      {view === "verify-email" && (
+        <VerifyEmail
+          onVerified={() => {
+            toast.success("Email verified! You can now log in.");
+            setView("login");
+          }}
+          switchToLogin={() => setView("login")}
+        />
+      )}
       {view === "app" && (
         <>
           <Sidebar
