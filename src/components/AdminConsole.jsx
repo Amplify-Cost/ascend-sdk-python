@@ -59,7 +59,8 @@ const AdminConsole = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
 
   // Form states
-  const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', role: 'analyst' });
+  // SEC-043: Fixed field names to match backend (snake_case: first_name, last_name)
+  const [inviteForm, setInviteForm] = useState({ email: '', first_name: '', last_name: '', role: 'analyst' });
   // SEC-041: apiKeyForm REMOVED - consolidated to Settings tab
 
   // API helper
@@ -94,11 +95,12 @@ const AdminConsole = () => {
 
     try {
       // SEC-041: API keys fetch REMOVED - consolidated to Settings tab
+      // SEC-043: Fixed analytics path to match backend (/analytics/overview)
       const [orgData, usersData, billingData, analyticsData] = await Promise.all([
         apiCall('/organization'),
         apiCall('/users'),
         apiCall('/billing'),
-        apiCall('/analytics'),
+        apiCall('/analytics/overview'),
       ]);
 
       setOrganization(orgData);
@@ -113,6 +115,7 @@ const AdminConsole = () => {
   };
 
   // User management functions
+  // SEC-043: Fixed field names and HTTP methods to match backend
   const inviteUser = async () => {
     try {
       await apiCall('/users/invite', {
@@ -120,7 +123,7 @@ const AdminConsole = () => {
         body: JSON.stringify(inviteForm),
       });
       setShowInviteModal(false);
-      setInviteForm({ email: '', firstName: '', lastName: '', role: 'analyst' });
+      setInviteForm({ email: '', first_name: '', last_name: '', role: 'analyst' });
       loadDashboardData();
     } catch (err) {
       setError(err.message);
@@ -129,8 +132,9 @@ const AdminConsole = () => {
 
   const updateUserRole = async (userId, newRole) => {
     try {
+      // SEC-043: Fixed HTTP method to PATCH (backend uses @router.patch)
       await apiCall(`/users/${userId}/role`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify({ role: newRole }),
       });
       loadDashboardData();
@@ -298,8 +302,9 @@ const AdminConsole = () => {
           className="btn-primary"
           onClick={async () => {
             try {
+              // SEC-043: Fixed HTTP method to PATCH (backend uses @router.patch)
               await apiCall('/organization', {
-                method: 'PUT',
+                method: 'PATCH',
                 body: JSON.stringify(organization),
               });
               alert('Organization settings saved');
@@ -436,16 +441,16 @@ const AdminConsole = () => {
                 <label>First Name</label>
                 <input
                   type="text"
-                  value={inviteForm.firstName}
-                  onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })}
+                  value={inviteForm.first_name}
+                  onChange={(e) => setInviteForm({ ...inviteForm, first_name: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label>Last Name</label>
                 <input
                   type="text"
-                  value={inviteForm.lastName}
-                  onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })}
+                  value={inviteForm.last_name}
+                  onChange={(e) => setInviteForm({ ...inviteForm, last_name: e.target.value })}
                 />
               </div>
             </div>
