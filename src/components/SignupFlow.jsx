@@ -391,7 +391,8 @@ const SignupFlow = () => {
                 </div>
               </div>
 
-              {/* Terms & Privacy Checkboxes */}
+              {/* SEC-021: Terms & Privacy Checkboxes - Banking-Level Defense in Depth */}
+              {/* HTML5 required + aria-required for browser-native validation + accessibility */}
               <div className="space-y-3 mb-6">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
@@ -399,6 +400,8 @@ const SignupFlow = () => {
                     name="termsAccepted"
                     checked={formData.termsAccepted}
                     onChange={handleInputChange}
+                    required
+                    aria-required="true"
                     className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-900/50 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-slate-300">
@@ -414,6 +417,8 @@ const SignupFlow = () => {
                     name="privacyAccepted"
                     checked={formData.privacyAccepted}
                     onChange={handleInputChange}
+                    required
+                    aria-required="true"
                     className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-900/50 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm text-slate-300">
