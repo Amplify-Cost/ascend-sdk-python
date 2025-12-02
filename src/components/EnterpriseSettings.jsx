@@ -174,13 +174,15 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
     );
   };
 
+  // SEC-041: Enterprise Clean Separation - Settings = Platform Configuration
+  // Security Settings REMOVED - was non-functional (local state only, not persisted)
+  // Security settings are properly managed in Admin Console → Organization tab
   const settingsTabs = [
     { id: "general", label: "General Settings" },
-    { id: "security", label: "Security Settings" },
-    { id: "api-keys", label: "🔑 API Keys" }, // SEC-013: Enterprise API Key Management
+    { id: "api-keys", label: "🔑 API Keys" }, // SEC-013: Enterprise API Key Management (consolidated here)
     { id: "integrations", label: "Integrations" },
     { id: "risk-config", label: "🎯 Risk Configuration" }, // Enterprise Risk Scoring
-    { id: "admin-tools", label: "🔧 Admin Tools" } // Admin-only tab
+    { id: "admin-tools", label: "🔧 Admin Tools" } // Admin-only tab (compliance reports removed - use Admin Console)
   ];
 
   // SEC-028: Enterprise General Settings (Dynamic from API)
@@ -245,49 +247,9 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
     </div>
   );
 
-  const renderSecuritySettings = () => (
-    <div className="space-y-6">
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold mb-4">🔐 Authentication Settings</h4>
-        <div className="space-y-4">
-          <label className="flex items-center">
-            <input type="checkbox" className="mr-2" defaultChecked />
-            <span className="text-sm">Require MFA for admin actions</span>
-          </label>
-          <label className="flex items-center">
-            <input type="checkbox" className="mr-2" defaultChecked />
-            <span className="text-sm">Auto-logout after 8 hours</span>
-          </label>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Password Policy</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-              <option>Enterprise (12+ chars, complex)</option>
-              <option>Standard (8+ chars)</option>
-              <option>High Security (16+ chars, MFA required)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold mb-4">🛡️ Risk Management</h4>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Default Risk Threshold</label>
-            <select className="w-full px-3 py-2 border border-gray-300 rounded-md">
-              <option>Conservative (60+ requires approval)</option>
-              <option>Balanced (70+ requires approval)</option>
-              <option>Aggressive (80+ requires approval)</option>
-            </select>
-          </div>
-          <label className="flex items-center">
-            <input type="checkbox" className="mr-2" defaultChecked />
-            <span className="text-sm">Auto-escalate critical threats</span>
-          </label>
-        </div>
-      </div>
-    </div>
-  );
+  // SEC-041: renderSecuritySettings REMOVED - was non-functional (local state only, not persisted)
+  // Security settings are now managed in Admin Console → Organization tab
+  // This deletion reduces code bloat and eliminates dead code per OWASP guidelines
 
   // SEC-028: Enterprise Integrations (Dynamic from API - Multi-Tenant)
   const renderIntegrations = () => (
@@ -539,43 +501,25 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
         </div>
       </div>
       
-      {/* Audit Tools */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h4 className="text-lg font-semibold mb-4">📋 Audit & Compliance Tools</h4>
-        <p className="text-gray-600 text-sm mb-4">
-          Generate compliance reports and audit trails for regulatory review.
-        </p>
-        
-        <div className="space-y-3">
-          <button className="w-full p-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-left">
-            <div className="flex justify-between items-center">
-              <div>
-                <h5 className="font-medium text-gray-900">📊 SOX Compliance Report</h5>
-                <p className="text-sm text-gray-600">Generate Sarbanes-Oxley audit trail</p>
-              </div>
-              <span className="text-blue-600">Generate →</span>
-            </div>
-          </button>
-          
-          <button className="w-full p-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-left">
-            <div className="flex justify-between items-center">
-              <div>
-                <h5 className="font-medium text-gray-900">🏥 HIPAA Security Report</h5>
-                <p className="text-sm text-gray-600">Healthcare data protection audit</p>
-              </div>
-              <span className="text-blue-600">Generate →</span>
-            </div>
-          </button>
-          
-          <button className="w-full p-3 border border-gray-300 rounded-lg hover:bg-gray-50 text-left">
-            <div className="flex justify-between items-center">
-              <div>
-                <h5 className="font-medium text-gray-900">💳 PCI-DSS Assessment</h5>
-                <p className="text-sm text-gray-600">Payment card security compliance</p>
-              </div>
-              <span className="text-blue-600">Generate →</span>
-            </div>
-          </button>
+      {/* SEC-041: Compliance Tools - CONSOLIDATED to Admin Console */}
+      {/* Duplicate compliance reports removed - use Admin Console → Compliance Metrics */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-lg font-semibold text-blue-900 mb-2">📋 Audit & Compliance Reports</h4>
+            <p className="text-blue-700 text-sm">
+              Compliance reports (SOX, HIPAA, PCI-DSS) have been consolidated to the Admin Console
+              for centralized compliance management and audit trail visibility.
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 text-xs rounded-full font-medium">
+              SEC-041: Enterprise Consolidation
+            </span>
+            <p className="text-xs text-blue-600">
+              Navigate to: Admin Console → Compliance Metrics
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -608,10 +552,10 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
       </div>
 
       {/* Tab Content */}
+      {/* SEC-041: Security Settings REMOVED - was non-functional, use Admin Console instead */}
       <div className="min-h-[400px]">
         {activeSettingsTab === "general" && renderGeneralSettings()}
-        {activeSettingsTab === "security" && renderSecuritySettings()}
-        {/* SEC-013: Enterprise API Key Management Tab */}
+        {/* SEC-013: Enterprise API Key Management Tab - CONSOLIDATED HERE (single source of truth) */}
         {activeSettingsTab === "api-keys" && (
           <ApiKeyManagement
             API_BASE_URL={API_BASE_URL || ""}

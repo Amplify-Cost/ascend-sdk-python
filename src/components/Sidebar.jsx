@@ -91,37 +91,29 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
     },
   ];
 
-  // ✅ PRESERVED: Add admin-only features (unchanged)
+  // SEC-040: Consolidated admin features with single Admin Console entry point
   if (user?.role === "admin") {
     menuItems.push(
-      { 
-        label: "Authorization Center", 
-        icon: <SafeIcon iconName="Shield" size={18} ariaLabel="Security shield" />, 
+      {
+        label: "Authorization Center",
+        icon: <SafeIcon iconName="Shield" size={18} ariaLabel="Security shield" />,
         tab: "auth",
         description: "Agent authorization and approval system",
         adminOnly: true
       },
-      { 
-        label: "🧠 AI Alert Management", 
-        icon: <SafeIcon iconName="AlertCircle" size={18} ariaLabel="Alert warning" />, 
+      {
+        label: "🧠 AI Alert Management",
+        icon: <SafeIcon iconName="AlertCircle" size={18} ariaLabel="Alert warning" />,
         tab: "ai-alerts",
         description: "AI-powered alert management system",
         adminOnly: true
       },
-      { 
-        label: "🧠 AI Rule Engine", 
-        icon: <SafeIcon iconName="Zap" size={18} ariaLabel="Lightning bolt" />, 
+      {
+        label: "🧠 AI Rule Engine",
+        icon: <SafeIcon iconName="Zap" size={18} ariaLabel="Lightning bolt" />,
         tab: "smartRules",
         badge: "Enterprise",
         description: "AI-powered rule generation and management",
-        adminOnly: true
-      },
-      { 
-        label: "👥 User Management", 
-        icon: <SafeIcon iconName="Users" size={18} ariaLabel="Users group" />, 
-        tab: "users",
-        badge: "RBAC",
-        description: "Role-based access control and user management",
         adminOnly: true
       },
       {
@@ -140,13 +132,14 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         description: "Enterprise AI agent registration, MCP server governance, and SDK integration",
         adminOnly: true
       },
-      // SEC-022: Admin Console - Organization Management
+      // SEC-040: Unified Admin Console - Consolidated Organization & User Management
+      // Replaces separate "User Management" tab - now single entry point for all admin functions
       {
         label: "🏛️ Admin Console",
         icon: <SafeIcon iconName="Building" size={18} ariaLabel="Admin building" />,
         tab: "admin-console",
         badge: "Admin",
-        description: "Organization settings, billing, user management, and analytics",
+        description: "Unified administration: users, RBAC, billing, compliance, and organization settings",
         adminOnly: true
       }
     );

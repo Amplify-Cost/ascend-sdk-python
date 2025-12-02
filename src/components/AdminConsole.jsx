@@ -9,7 +9,9 @@
  * - User management (invite, remove, role changes)
  * - Billing & subscription management
  * - Usage analytics dashboard
- * - API key management
+ * - Audit log with compliance reporting
+ *
+ * SEC-041: API key management consolidated to Settings tab (EnterpriseSettings.jsx)
  *
  * Security: Requires org_admin role
  * Compliance: SOC 2, HIPAA, PCI-DSS, GDPR
@@ -18,13 +20,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 // Tab configuration
+// SEC-041: API Keys tab REMOVED - consolidated to Settings tab (single source of truth)
+// Settings API Keys has more features: expiration, usage stats, descriptions
 const ADMIN_TABS = [
   { id: 'overview', label: 'Overview', icon: '📊' },
   { id: 'organization', label: 'Organization', icon: '🏢' },
   { id: 'users', label: 'Users', icon: '👥' },
   { id: 'billing', label: 'Billing', icon: '💳' },
   { id: 'analytics', label: 'Analytics', icon: '📈' },
-  { id: 'api-keys', label: 'API Keys', icon: '🔑' },
   { id: 'audit', label: 'Audit Log', icon: '📋' },
 ];
 
@@ -47,18 +50,17 @@ const AdminConsole = () => {
   const [users, setUsers] = useState([]);
   const [billing, setBilling] = useState(null);
   const [analytics, setAnalytics] = useState(null);
-  const [apiKeys, setApiKeys] = useState([]);
+  // SEC-041: apiKeys state REMOVED - consolidated to Settings tab
   const [auditLog, setAuditLog] = useState([]);
 
   // Modal states
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  // SEC-041: showApiKeyModal, newApiKey REMOVED - consolidated to Settings tab
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [newApiKey, setNewApiKey] = useState(null);
 
   // Form states
   const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', role: 'analyst' });
-  const [apiKeyForm, setApiKeyForm] = useState({ name: '', permissions: ['read'] });
+  // SEC-041: apiKeyForm REMOVED - consolidated to Settings tab
 
   // API helper
   const apiCall = useCallback(async (endpoint, options = {}) => {
@@ -90,19 +92,18 @@ const AdminConsole = () => {
     setError(null);
 
     try {
-      const [orgData, usersData, billingData, analyticsData, keysData] = await Promise.all([
+      // SEC-041: API keys fetch REMOVED - consolidated to Settings tab
+      const [orgData, usersData, billingData, analyticsData] = await Promise.all([
         apiCall('/organization'),
         apiCall('/users'),
         apiCall('/billing'),
         apiCall('/analytics'),
-        apiCall('/api-keys'),
       ]);
 
       setOrganization(orgData);
       setUsers(usersData.users || []);
       setBilling(billingData);
       setAnalytics(analyticsData);
-      setApiKeys(keysData.keys || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -147,29 +148,7 @@ const AdminConsole = () => {
     }
   };
 
-  // API Key functions
-  const generateApiKey = async () => {
-    try {
-      const result = await apiCall('/api-keys/generate', {
-        method: 'POST',
-        body: JSON.stringify(apiKeyForm),
-      });
-      setNewApiKey(result.key);
-      setApiKeyForm({ name: '', permissions: ['read'] });
-      loadDashboardData();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const revokeApiKey = async (keyId) => {
-    try {
-      await apiCall(`/api-keys/${keyId}/revoke`, { method: 'POST' });
-      loadDashboardData();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  // SEC-041: generateApiKey(), revokeApiKey() REMOVED - consolidated to Settings tab
 
   // Load audit log
   const loadAuditLog = async () => {
@@ -201,11 +180,12 @@ const AdminConsole = () => {
           </div>
         </div>
 
-        <div className="stat-card">
+        {/* SEC-041: API Keys consolidated to Settings tab */}
+        <div className="stat-card" style={{ cursor: 'pointer' }} title="Manage API Keys in Settings → API Keys">
           <div className="stat-icon">🔑</div>
           <div className="stat-content">
-            <div className="stat-value">{apiKeys.filter(k => k.is_active).length}</div>
-            <div className="stat-label">Active API Keys</div>
+            <div className="stat-value" style={{ fontSize: '14px' }}>Settings</div>
+            <div className="stat-label">API Keys → Settings Tab</div>
           </div>
         </div>
 
@@ -732,152 +712,9 @@ const AdminConsole = () => {
     </div>
   );
 
-  const renderApiKeys = () => (
-    <div className="admin-api-keys">
-      <div className="section-header">
-        <h2>API Key Management</h2>
-        <button className="btn-primary" onClick={() => setShowApiKeyModal(true)}>
-          + Generate New Key
-        </button>
-      </div>
-
-      <div className="security-notice">
-        <span className="notice-icon">🔒</span>
-        <div>
-          <strong>Banking-Level Security</strong>
-          <p>API keys are hashed using SHA-256. The full key is only shown once upon creation.</p>
-        </div>
-      </div>
-
-      <div className="api-keys-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Key (Masked)</th>
-              <th>Permissions</th>
-              <th>Created</th>
-              <th>Last Used</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {apiKeys.map(key => (
-              <tr key={key.id} className={!key.is_active ? 'revoked' : ''}>
-                <td>{key.name}</td>
-                <td><code>{key.key_prefix}...{key.key_suffix}</code></td>
-                <td>
-                  {key.permissions?.map(p => (
-                    <span key={p} className="permission-badge">{p}</span>
-                  ))}
-                </td>
-                <td>{new Date(key.created_at).toLocaleDateString()}</td>
-                <td>{key.last_used_at ? new Date(key.last_used_at).toLocaleDateString() : 'Never'}</td>
-                <td>
-                  <span className={`status-badge status-${key.is_active ? 'active' : 'revoked'}`}>
-                    {key.is_active ? 'Active' : 'Revoked'}
-                  </span>
-                </td>
-                <td>
-                  {key.is_active && (
-                    <button
-                      className="btn-danger-small"
-                      onClick={() => revokeApiKey(key.id)}
-                    >
-                      Revoke
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Generate API Key Modal */}
-      {showApiKeyModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            {newApiKey ? (
-              <>
-                <h3>API Key Generated</h3>
-                <div className="key-display">
-                  <div className="key-warning">
-                    <span className="warning-icon">⚠️</span>
-                    <strong>Copy this key now - it won't be shown again!</strong>
-                  </div>
-                  <div className="key-value">
-                    <code>{newApiKey}</code>
-                    <button
-                      className="btn-copy"
-                      onClick={() => {
-                        navigator.clipboard.writeText(newApiKey);
-                        alert('API key copied to clipboard');
-                      }}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-                <div className="modal-actions">
-                  <button
-                    className="btn-primary"
-                    onClick={() => {
-                      setShowApiKeyModal(false);
-                      setNewApiKey(null);
-                    }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3>Generate New API Key</h3>
-                <div className="form-group">
-                  <label>Key Name</label>
-                  <input
-                    type="text"
-                    value={apiKeyForm.name}
-                    onChange={(e) => setApiKeyForm({ ...apiKeyForm, name: e.target.value })}
-                    placeholder="e.g., Production Server, CI/CD Pipeline"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Permissions</label>
-                  <div className="checkbox-group">
-                    {['read', 'write', 'admin'].map(perm => (
-                      <label key={perm} className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={apiKeyForm.permissions.includes(perm)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setApiKeyForm({ ...apiKeyForm, permissions: [...apiKeyForm.permissions, perm] });
-                            } else {
-                              setApiKeyForm({ ...apiKeyForm, permissions: apiKeyForm.permissions.filter(p => p !== perm) });
-                            }
-                          }}
-                        />
-                        {perm.charAt(0).toUpperCase() + perm.slice(1)}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="modal-actions">
-                  <button className="btn-secondary" onClick={() => setShowApiKeyModal(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={generateApiKey} disabled={!apiKeyForm.name}>
-                    Generate Key
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  // SEC-041: renderApiKeys() REMOVED (146 lines) - consolidated to Settings tab
+  // API Key management now lives in EnterpriseSettings.jsx → ApiKeyManagement.jsx
+  // Features: expiration options, usage stats, descriptions, SHA-256 hashing
 
   const renderAuditLog = () => (
     <div className="admin-audit">
@@ -949,7 +786,7 @@ const AdminConsole = () => {
       case 'users': return renderUsers();
       case 'billing': return renderBilling();
       case 'analytics': return renderAnalytics();
-      case 'api-keys': return renderApiKeys();
+      // SEC-041: API Keys consolidated to Settings tab
       case 'audit': return renderAuditLog();
       default: return renderOverview();
     }
