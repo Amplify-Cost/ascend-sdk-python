@@ -114,19 +114,47 @@ class SignupRequest(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Email Resend Tracking
-    verification_emails_sent = Column(Integer, default=0)
+    # SEC-021 ENTERPRISE: server_default ensures DB-level default even for direct SQL
+    verification_emails_sent = Column(Integer, default=0, server_default='0', nullable=False)
     last_verification_email_at = Column(DateTime, nullable=True)
+
+    def __init__(self, **kwargs):
+        """
+        SEC-021 ENTERPRISE: Initialize with explicit defaults for banking-level reliability.
+        SQLAlchemy's default= only applies on INSERT, not Python object creation.
+        """
+        # Set Python-side defaults before parent init
+        kwargs.setdefault('verification_emails_sent', 0)
+        kwargs.setdefault('fraud_score', 0)
+        kwargs.setdefault('fraud_flags', [])
+        kwargs.setdefault('is_disposable_email', False)
+        kwargs.setdefault('captcha_verified', False)
+        kwargs.setdefault('terms_accepted', False)
+        kwargs.setdefault('privacy_accepted', False)
+        kwargs.setdefault('marketing_consent', False)
+        kwargs.setdefault('trial_days', 14)
+        super().__init__(**kwargs)
 
     def generate_verification_token(self) -> str:
         """
-        Generate a secure verification token.
-        Returns plaintext token (to send in email).
-        Stores SHA-256 hash in database.
+        SEC-021 ENTERPRISE: Generate cryptographically secure verification token.
+
+        Security:
+        - 256-bit entropy via secrets.token_urlsafe(32)
+        - SHA-256 hash stored (never plaintext)
+        - 24-hour expiration enforced
+        - Audit trail via verification_emails_sent counter
+
+        Returns:
+            Plaintext token (to send in email) - NEVER log this value
         """
         token = secrets.token_urlsafe(32)  # 256-bit entropy
         self.verification_token_hash = hashlib.sha256(token.encode()).hexdigest()
         self.verification_token_expires_at = datetime.utcnow() + timedelta(hours=24)
-        self.verification_emails_sent += 1
+
+        # SEC-021 ENTERPRISE: Defense-in-depth - handle edge cases safely
+        current_count = self.verification_emails_sent if self.verification_emails_sent is not None else 0
+        self.verification_emails_sent = current_count + 1
         self.last_verification_email_at = datetime.utcnow()
         return token
 
