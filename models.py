@@ -385,23 +385,35 @@ class SystemConfiguration(Base):
     creator = relationship("User", foreign_keys=[created_by])
 
 class AuditLog(Base):
+    """
+    SEC-044: Enterprise Audit Log with Multi-Tenant Isolation
+
+    Banking-Level Compliance: SOC 2 CC6.1, HIPAA 164.312(b), PCI-DSS 10.2, SOX 302/404
+    """
     __tablename__ = "audit_logs"
-    
+
     id = Column(Integer, primary_key=True, index=True)
+    # SEC-044: Multi-tenant isolation for audit trails
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT, APPROVE, DENY
     resource_type = Column(String)  # users, alerts, rules, agent_actions, etc.
     resource_id = Column(String, nullable=True)
     details = Column(JSON, nullable=True)
+    changes = Column(JSON, nullable=True)  # SEC-044: Track field-level changes
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
-    
+
+    # SEC-044: Audit timestamp for compliance
+    created_at = Column(DateTime, default=datetime.now(UTC), index=True)
+
     # Compliance and Risk
     risk_level = Column(String, nullable=True)
     compliance_impact = Column(String, nullable=True)
-    
+
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
+    organization = relationship("Organization", foreign_keys=[organization_id])
 
 class IntegrationEndpoint(Base):
     __tablename__ = "integration_endpoints"
