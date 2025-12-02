@@ -155,18 +155,28 @@ def get_secure_frontend_url() -> str:
 # =============================================================================
 
 class SignupRequestCreate(BaseModel):
-    """SEC-021: Signup request with validation"""
+    """
+    SEC-021: Enterprise Signup Request Schema
+
+    Banking-Level Security Features:
+    - Strict input validation with sanitization
+    - Null/empty string coercion for optional fields
+    - XSS prevention via bleach sanitization
+    - Length limits to prevent DoS attacks
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 6.5.1, OWASP Input Validation
+    """
 
     # Contact
     email: EmailStr
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
-    phone: Optional[str] = Field(None, max_length=50)
+    phone: Optional[str] = Field(default=None, max_length=50)
 
     # Organization
     organization_name: str = Field(..., min_length=2, max_length=255)
-    organization_size: Optional[str] = None
-    industry: Optional[str] = Field(None, max_length=100)
+    organization_size: Optional[str] = Field(default=None)
+    industry: Optional[str] = Field(default=None, max_length=100)
 
     # Subscription
     requested_tier: str = Field(default="pilot")
@@ -180,10 +190,34 @@ class SignupRequestCreate(BaseModel):
     marketing_consent: bool = Field(default=False)
 
     # Tracking (optional)
-    referral_code: Optional[str] = None
-    utm_source: Optional[str] = None
-    utm_medium: Optional[str] = None
-    utm_campaign: Optional[str] = None
+    referral_code: Optional[str] = Field(default=None)
+    utm_source: Optional[str] = Field(default=None)
+    utm_medium: Optional[str] = Field(default=None)
+    utm_campaign: Optional[str] = Field(default=None)
+
+    # SEC-021 ENTERPRISE: Sanitize optional string fields
+    # Coerce empty strings and whitespace-only to None
+    # This ensures database consistency and prevents empty string issues
+    @validator('phone', 'organization_size', 'industry', 'referral_code',
+               'utm_source', 'utm_medium', 'utm_campaign', pre=True, always=True)
+    def sanitize_optional_strings(cls, v):
+        """
+        SEC-021: Enterprise null/empty string sanitization
+
+        Converts:
+        - null/None -> None
+        - "" (empty string) -> None
+        - "   " (whitespace only) -> None
+        - "value" -> "value" (stripped)
+
+        Compliance: Input normalization for data integrity
+        """
+        if v is None:
+            return None
+        if isinstance(v, str):
+            stripped = v.strip()
+            return stripped if stripped else None
+        return v
 
     @validator('email')
     def validate_email(cls, v):
