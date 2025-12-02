@@ -1125,7 +1125,8 @@ async def create_organization_from_signup(signup_id: int, db: Session):
         # MUST use for database user creation to maintain synchronization.
         # =================================================================
         try:
-            provisioner = CognitoPoolProvisioner()
+            # SEC-039: Skip IAM validation per-request (validated at ECS startup)
+            provisioner = CognitoPoolProvisioner(validate_permissions=False)
 
             # SEC-021 FIX: Pass correct parameters instead of Organization object
             pool_config = await provisioner.create_organization_pool(
@@ -1134,7 +1135,7 @@ async def create_organization_from_signup(signup_id: int, db: Session):
                 organization_slug=organization.slug,
                 admin_email=signup_request.email,
                 db=db,
-                mfa_config='OPTIONAL'  # Enterprise default
+                mfa_config='OFF'  # SEC-039: Start with OFF, org admin can enable later
             )
 
             organization.cognito_user_pool_id = pool_config["user_pool_id"]
