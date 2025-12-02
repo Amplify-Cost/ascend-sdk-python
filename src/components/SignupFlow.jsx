@@ -127,29 +127,36 @@ const SignupFlow = () => {
       // Get reCAPTCHA token
       const captchaToken = await getRecaptchaToken();
 
+      // SEC-021: Build request body with only defined values (Pydantic v2 strict validation)
+      const urlParams = new URLSearchParams(window.location.search);
+      const requestBody = {
+        // Required fields
+        email: formData.email,
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        organization_name: formData.organizationName,
+        terms_accepted: formData.termsAccepted,
+        privacy_accepted: formData.privacyAccepted,
+        marketing_consent: formData.marketingConsent,
+        captcha_token: captchaToken,
+        requested_tier: formData.requestedTier || 'pilot'
+      };
+
+      // Optional fields - only include if they have values
+      if (formData.phone) requestBody.phone = formData.phone;
+      if (formData.organizationSize) requestBody.organization_size = formData.organizationSize;
+      if (formData.industry) requestBody.industry = formData.industry;
+      if (urlParams.get('utm_source')) requestBody.utm_source = urlParams.get('utm_source');
+      if (urlParams.get('utm_medium')) requestBody.utm_medium = urlParams.get('utm_medium');
+      if (urlParams.get('utm_campaign')) requestBody.utm_campaign = urlParams.get('utm_campaign');
+
       // Submit to API
       const response = await fetch(`${API_BASE}/api/signup/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          email: formData.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          phone: formData.phone || null,
-          organization_name: formData.organizationName,
-          organization_size: formData.organizationSize || null,
-          industry: formData.industry || null,
-          requested_tier: formData.requestedTier,
-          terms_accepted: formData.termsAccepted,
-          privacy_accepted: formData.privacyAccepted,
-          marketing_consent: formData.marketingConsent,
-          captcha_token: captchaToken,
-          utm_source: new URLSearchParams(window.location.search).get('utm_source'),
-          utm_medium: new URLSearchParams(window.location.search).get('utm_medium'),
-          utm_campaign: new URLSearchParams(window.location.search).get('utm_campaign')
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
