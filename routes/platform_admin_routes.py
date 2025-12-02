@@ -776,6 +776,258 @@ async def get_brute_force_attempts(
     }
 
 
+@router.delete("/organizations/{target_org_id}")
+async def delete_organization(
+    target_org_id: int,
+    req: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_platform_owner)
+):
+    """
+    SEC-021: Delete an organization and all its data.
+
+    Security:
+    - Requires platform owner permissions (org_id = 1)
+    - Cannot delete owkai-internal (org_id = 1)
+    - Full audit logging
+    - Deletes all related data (users, signups, etc.)
+
+    Args:
+        target_org_id: Organization ID to delete
+        req: Request object for IP logging
+        db: Database session
+        current_user: Current authenticated platform admin
+
+    Returns:
+        Deletion confirmation with details
+    """
+    from sqlalchemy import text
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Protect owkai-internal
+    if target_org_id == 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot delete owkai-internal (platform owner organization)"
+        )
+
+    # Verify org exists
+    org = db.query(Organization).filter(Organization.id == target_org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail=f"Organization {target_org_id} not found")
+
+    org_name = org.name
+    org_slug = org.slug
+
+    logger.info(f"SEC-021: Platform admin deleting org {target_org_id} ({org_name})")
+
+    # Tables to clean (order matters for FK constraints)
+    tables = [
+        'pending_actions', 'agent_actions', 'alerts', 'smart_rules',
+        'rule_feedback', 'automation_playbooks', 'playbook_versions',
+        'playbook_execution_logs', 'workflows', 'workflow_steps',
+        'enterprise_policies', 'policy_templates', 'api_keys', 'audit_logs',
+        'risk_scoring_configs', 'notification_channels', 'webhook_endpoints',
+        'servicenow_configs', 'integration_configs', 'compliance_export_jobs',
+        'cognito_pool_audit', 'email_audit_log', 'mcp_governance_decisions',
+        'agent_registry'
+    ]
+
+    deleted_counts = {}
+    for table in tables:
+        try:
+            result = db.execute(
+                text(f"DELETE FROM {table} WHERE organization_id = :oid"),
+                {"oid": target_org_id}
+            )
+            if result.rowcount > 0:
+                deleted_counts[table] = result.rowcount
+        except Exception:
+            pass  # Table might not exist
+
+    # Handle users and their signup data
+    users = db.query(User).filter(User.organization_id == target_org_id).all()
+    user_emails = []
+    for user in users:
+        user_emails.append(user.email)
+        # Delete signup audits
+        db.execute(
+            text("""
+                DELETE FROM email_verification_audits
+                WHERE signup_request_id IN (
+                    SELECT id FROM signup_requests WHERE user_id = :uid
+                )
+            """),
+            {"uid": user.id}
+        )
+        db.execute(text("DELETE FROM signup_requests WHERE user_id = :uid"), {"uid": user.id})
+
+    if users:
+        db.execute(text("DELETE FROM users WHERE organization_id = :oid"), {"oid": target_org_id})
+        deleted_counts["users"] = len(users)
+
+    # Delete signup_requests with this org
+    result = db.execute(
+        text("DELETE FROM signup_requests WHERE organization_id = :oid"),
+        {"oid": target_org_id}
+    )
+    if result.rowcount > 0:
+        deleted_counts["signup_requests"] = result.rowcount
+
+    # Delete the organization
+    db.execute(text("DELETE FROM organizations WHERE id = :oid"), {"oid": target_org_id})
+
+    db.commit()
+
+    # Log the deletion
+    log_auth_event(
+        event_type="organization_deleted",
+        success=True,
+        user_id=current_user.get("user_id"),
+        cognito_user_id=current_user.get("cognito_user_id"),
+        organization_id=current_user.get("organization_id"),
+        ip_address=req.client.host if req.client else None,
+        user_agent=req.headers.get("user-agent"),
+        metadata={
+            "deleted_organization_id": target_org_id,
+            "deleted_organization_name": org_name,
+            "deleted_organization_slug": org_slug,
+            "deleted_counts": deleted_counts,
+            "deleted_user_emails": user_emails
+        },
+        db=db
+    )
+
+    logger.info(f"SEC-021: Successfully deleted org {target_org_id}: {deleted_counts}")
+
+    return {
+        "success": True,
+        "message": f"Organization {target_org_id} ({org_name}) deleted",
+        "deleted_counts": deleted_counts,
+        "deleted_user_emails": user_emails
+    }
+
+
+@router.delete("/cleanup/orphaned-orgs")
+async def cleanup_orphaned_organizations(
+    req: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_platform_owner)
+):
+    """
+    SEC-021: Delete all orphaned organizations (keeping only owkai-internal).
+
+    Security:
+    - Requires platform owner permissions (org_id = 1)
+    - Protects owkai-internal (org_id = 1)
+    - Full audit logging
+
+    Returns:
+        Summary of deleted organizations
+    """
+    from sqlalchemy import text
+    import logging
+    logger = logging.getLogger(__name__)
+
+    logger.info("SEC-021: Starting orphaned organization cleanup")
+
+    # Get all orgs except owkai-internal
+    orgs = db.query(Organization).filter(Organization.id != 1).order_by(Organization.id).all()
+
+    if not orgs:
+        return {"success": True, "message": "No orphaned organizations found", "deleted": []}
+
+    deleted = []
+    failed = []
+
+    for org in orgs:
+        try:
+            # Tables to clean
+            tables = [
+                'pending_actions', 'agent_actions', 'alerts', 'smart_rules',
+                'rule_feedback', 'automation_playbooks', 'playbook_versions',
+                'playbook_execution_logs', 'workflows', 'workflow_steps',
+                'enterprise_policies', 'policy_templates', 'api_keys', 'audit_logs',
+                'risk_scoring_configs', 'notification_channels', 'webhook_endpoints',
+                'servicenow_configs', 'integration_configs', 'compliance_export_jobs',
+                'cognito_pool_audit', 'email_audit_log', 'mcp_governance_decisions',
+                'agent_registry'
+            ]
+
+            for table in tables:
+                try:
+                    db.execute(
+                        text(f"DELETE FROM {table} WHERE organization_id = :oid"),
+                        {"oid": org.id}
+                    )
+                except Exception:
+                    pass
+
+            # Delete users and signup data
+            users = db.query(User).filter(User.organization_id == org.id).all()
+            for user in users:
+                db.execute(
+                    text("""
+                        DELETE FROM email_verification_audits
+                        WHERE signup_request_id IN (
+                            SELECT id FROM signup_requests WHERE user_id = :uid
+                        )
+                    """),
+                    {"uid": user.id}
+                )
+                db.execute(text("DELETE FROM signup_requests WHERE user_id = :uid"), {"uid": user.id})
+
+            db.execute(text("DELETE FROM users WHERE organization_id = :oid"), {"oid": org.id})
+            db.execute(text("DELETE FROM signup_requests WHERE organization_id = :oid"), {"oid": org.id})
+            db.execute(text("DELETE FROM organizations WHERE id = :oid"), {"oid": org.id})
+
+            deleted.append({"id": org.id, "name": org.name, "slug": org.slug})
+            logger.info(f"SEC-021: Deleted org {org.id} ({org.name})")
+
+        except Exception as e:
+            failed.append({"id": org.id, "name": org.name, "error": str(e)[:100]})
+            logger.error(f"SEC-021: Failed to delete org {org.id}: {e}")
+
+    db.commit()
+
+    # Clean orphaned signups
+    db.execute(text("""
+        DELETE FROM email_verification_audits
+        WHERE signup_request_id IN (
+            SELECT id FROM signup_requests WHERE organization_id IS NULL
+        )
+    """))
+    db.execute(text("DELETE FROM signup_requests WHERE organization_id IS NULL"))
+    db.execute(text("DELETE FROM signup_attempts"))
+    db.commit()
+
+    # Log the cleanup
+    log_auth_event(
+        event_type="orphaned_orgs_cleanup",
+        success=True,
+        user_id=current_user.get("user_id"),
+        cognito_user_id=current_user.get("cognito_user_id"),
+        organization_id=current_user.get("organization_id"),
+        ip_address=req.client.host if req.client else None,
+        user_agent=req.headers.get("user-agent"),
+        metadata={
+            "deleted_count": len(deleted),
+            "failed_count": len(failed),
+            "deleted_orgs": deleted,
+            "failed_orgs": failed
+        },
+        db=db
+    )
+
+    return {
+        "success": True,
+        "message": f"Cleanup complete: {len(deleted)} deleted, {len(failed)} failed",
+        "deleted": deleted,
+        "failed": failed
+    }
+
+
 @router.get("/active-tokens")
 async def get_active_token_stats(
     db: Session = Depends(get_db),
