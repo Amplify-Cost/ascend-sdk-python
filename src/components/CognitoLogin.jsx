@@ -28,7 +28,7 @@ import MFASetupChallenge from './MFASetupChallenge'; // 🏦 ENTERPRISE: Handle 
 import NewPasswordRequired from './NewPasswordRequired'; // SEC-030: Handle NEW_REDACTED-CREDENTIAL_REQUIRED challenge
 import { detectOrganizationFromURL, getPoolConfigBySlug } from '../services/cognitoAuth';
 
-const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
+const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword, switchToSignup }) => {
   // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -475,6 +475,21 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
               Forgot your password?
             </button>
           </div>
+
+          {/* SEC-021: Self-Service Signup - Start Free Trial */}
+          {switchToSignup && (
+            <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+              <p className="text-sm text-gray-600 mb-2">New to ASCEND?</p>
+              <button
+                onClick={switchToSignup}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-lg font-semibold hover:from-emerald-600 hover:to-cyan-600 transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <span>🚀</span>
+                Start Your 14-Day Free Trial
+              </button>
+              <p className="text-xs text-gray-500 mt-2">No credit card required</p>
+            </div>
+          )}
 
           {/* Security Notice */}
           <div className="mt-6 pt-6 border-t border-gray-200">

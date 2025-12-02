@@ -25,6 +25,8 @@ const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
     Radar: "📡",
     // SEC-024: Agent Registry icon
     Robot: "🤖",
+    // SEC-022: Admin Console icon
+    Building: "🏛️",
   };
 
   return (
@@ -136,6 +138,15 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         tab: "agent-registry",
         badge: "Enterprise",
         description: "Enterprise AI agent registration, MCP server governance, and SDK integration",
+        adminOnly: true
+      },
+      // SEC-022: Admin Console - Organization Management
+      {
+        label: "🏛️ Admin Console",
+        icon: <SafeIcon iconName="Building" size={18} ariaLabel="Admin building" />,
+        tab: "admin-console",
+        badge: "Admin",
+        description: "Organization settings, billing, user management, and analytics",
         adminOnly: true
       }
     );
