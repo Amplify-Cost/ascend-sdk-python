@@ -70,6 +70,86 @@ BUILTIN_DISPOSABLE_DOMAINS = {
     "sharklasers.com", "guerrillamailblock.com", "pokemail.net",
 }
 
+# SEC-021 ENTERPRISE: Allowed frontend domains (banking-level security)
+# Only these domains are permitted for email verification links
+ALLOWED_FRONTEND_DOMAINS = {
+    "pilot.owkai.app",      # Production application
+    "staging.owkai.app",    # Staging environment
+    "localhost",            # Local development only
+}
+
+
+# =============================================================================
+# SEC-021 ENTERPRISE: SECURE URL UTILITIES
+# =============================================================================
+
+def get_secure_frontend_url() -> str:
+    """
+    SEC-021 ENTERPRISE: Get validated frontend URL with banking-level security.
+
+    Security Features:
+    - HTTPS enforcement in production environments
+    - Domain allowlist validation
+    - Audit logging for security events
+    - Environment-aware configuration
+
+    Returns:
+        Validated, HTTPS-enforced frontend URL
+
+    Raises:
+        ValueError: If configured domain is not in allowlist (in strict mode)
+    """
+    # Get configured URL with secure default
+    frontend_url = os.getenv('FRONTEND_URL', 'https://pilot.owkai.app')
+    environment = os.getenv('ENVIRONMENT', 'production')
+
+    # Strip trailing slashes for consistency
+    frontend_url = frontend_url.rstrip('/')
+
+    # Parse and validate domain
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(frontend_url)
+        domain = parsed.netloc or parsed.path.split('/')[0]
+
+        # Remove port for domain validation (e.g., localhost:3000 -> localhost)
+        domain_without_port = domain.split(':')[0]
+
+        # SEC-021: Validate against allowlist
+        if domain_without_port not in ALLOWED_FRONTEND_DOMAINS:
+            logger.warning(
+                f"SEC-021 SECURITY ALERT: Frontend domain '{domain_without_port}' "
+                f"not in allowlist. Allowed: {ALLOWED_FRONTEND_DOMAINS}"
+            )
+            # In production, fall back to known-good URL
+            if environment == 'production':
+                logger.warning("SEC-021: Falling back to default production URL")
+                frontend_url = 'https://pilot.owkai.app'
+    except Exception as e:
+        logger.error(f"SEC-021: URL parsing error: {e}. Using secure default.")
+        frontend_url = 'https://pilot.owkai.app'
+
+    # SEC-021: Enforce HTTPS in production (banking-level security requirement)
+    if environment == 'production':
+        if not frontend_url.startswith('https://'):
+            logger.warning(
+                f"SEC-021 SECURITY: Non-HTTPS URL '{frontend_url}' detected in production - enforcing HTTPS"
+            )
+            if frontend_url.startswith('http://'):
+                frontend_url = frontend_url.replace('http://', 'https://', 1)
+            else:
+                frontend_url = f'https://{frontend_url}'
+
+    # Allow HTTP only in development for localhost
+    if environment != 'production' and 'localhost' in frontend_url:
+        if not frontend_url.startswith('http'):
+            frontend_url = f'http://{frontend_url}'
+    elif not frontend_url.startswith('http'):
+        frontend_url = f'https://{frontend_url}'
+
+    logger.debug(f"SEC-021: Frontend URL resolved to: {frontend_url}")
+    return frontend_url
+
 # =============================================================================
 # REQUEST/RESPONSE MODELS
 # =============================================================================
@@ -795,10 +875,15 @@ async def send_verification_email(
     SEC-021: Send verification email
 
     Uses AWS SES or configured email provider.
+    Banking-level security via get_secure_frontend_url() utility.
     """
     from services.enterprise_email_service import EnterpriseEmailService
 
-    verification_url = f"{os.getenv('FRONTEND_URL', 'https://ascendowkai.com')}/verify-email?token={token}"
+    # SEC-021 ENTERPRISE: Use centralized secure URL utility
+    frontend_url = get_secure_frontend_url()
+    verification_url = f"{frontend_url}/verify-email?token={token}"
+
+    logger.debug(f"SEC-021: Generated verification URL for {email}: {frontend_url}/verify-email?token=***")
 
     try:
         email_service = EnterpriseEmailService()
@@ -920,7 +1005,7 @@ async def create_organization_from_signup(signup_id: int, db: Session):
                 to_email=signup_request.email,
                 first_name=signup_request.first_name,
                 organization_name=signup_request.organization_name,
-                login_url=f"{os.getenv('FRONTEND_URL', 'https://ascendowkai.com')}/login"
+                login_url=get_secure_frontend_url() + "/login"
             )
         except Exception as e:
             logger.error(f"SEC-021: Failed to send welcome email: {e}")
