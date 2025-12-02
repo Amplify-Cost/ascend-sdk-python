@@ -1447,7 +1447,13 @@ async def create_test_action_api(
             "recommendation": "Execute security control action"
         })
 
+        # SEC-043: Get organization_id for multi-tenant isolation (SEC-007 compliance)
+        user = db.query(User).filter(User.id == current_user.get("user_id")).first()
+        if not user or not user.organization_id:
+            raise HTTPException(status_code=403, detail="User has no organization - multi-tenant isolation required")
+
         # 🏢 ENTERPRISE: Build complete action data with all required fields
+        # SEC-043: Added organization_id for multi-tenant isolation
         action_data = {
             "agent_id": agent_id,
             "action_type": action_type,
@@ -1470,12 +1476,14 @@ async def create_test_action_api(
             "cvss_vector": f"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
             "created_at": datetime.now(UTC),
             "user_id": current_user.get("user_id", 1),
+            "organization_id": user.organization_id,  # SEC-043: Multi-tenant isolation
             "tool_name": tool_name,
             "summary": business_justification[:200]  # First 200 chars for quick reference
         }
 
         with DatabaseService.get_transaction(db):
             # 🏢 ENTERPRISE: Insert action with full compliance mapping
+            # SEC-043: Added organization_id for multi-tenant isolation (SEC-007 compliance)
             result = DatabaseService.safe_execute(
                 db,
                 """
@@ -1484,14 +1492,14 @@ async def create_test_action_api(
                     target_system, target_resource, nist_control, nist_description,
                     mitre_tactic, mitre_technique, recommendation, status,
                     requires_approval, approval_level, required_approval_level,
-                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, tool_name, summary
+                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, organization_id, tool_name, summary
                 )
                 VALUES (
                     :agent_id, :action_type, :description, :risk_level, :risk_score,
                     :target_system, :target_resource, :nist_control, :nist_description,
                     :mitre_tactic, :mitre_technique, :recommendation, :status,
                     :requires_approval, :approval_level, :required_approval_level,
-                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :tool_name, :summary
+                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :organization_id, :tool_name, :summary
                 )
                 RETURNING id, created_at
                 """,
@@ -1530,6 +1538,7 @@ async def create_test_action_api(
                 alert_message += f"Description: {description[:150]}...\n"
                 alert_message += f"Justification: {business_justification[:150]}..."
 
+                # SEC-043: Added organization_id for multi-tenant isolation
                 alert_data = {
                     "alert_type": f"agent_action_{action_type}",
                     "severity": alert_severity_mapping.get(risk_level.lower(), "medium"),
@@ -1537,18 +1546,20 @@ async def create_test_action_api(
                     "timestamp": datetime.now(UTC),
                     "agent_id": agent_id,
                     "agent_action_id": action_id,
+                    "organization_id": user.organization_id,  # SEC-043: Multi-tenant isolation
                     "status": "new"
                 }
 
                 # Insert alert and get its ID
+                # SEC-043: Added organization_id for multi-tenant isolation
                 result = db.execute(text("""
                     INSERT INTO alerts (
                         alert_type, severity, message, timestamp, agent_id,
-                        agent_action_id, status
+                        agent_action_id, organization_id, status
                     )
                     VALUES (
                         :alert_type, :severity, :message, :timestamp, :agent_id,
-                        :agent_action_id, :status
+                        :agent_action_id, :organization_id, :status
                     )
                     RETURNING id
                 """), alert_data)
