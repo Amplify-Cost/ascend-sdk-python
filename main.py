@@ -1501,6 +1501,26 @@ try:
 except ImportError as e:
     logger.warning(f"Agent Registry routes not loaded: {e}")
 
+# ============================================================================
+# SEC-021: Self-Service Signup Routes (PUBLIC - No auth required)
+# ============================================================================
+try:
+    from routes.signup_routes import router as signup_router
+    app.include_router(signup_router, tags=["Self-Service Signup"])
+    logger.info("✅ SEC-021: Self-Service Signup routes loaded - /api/signup/*")
+except ImportError as e:
+    logger.warning(f"SEC-021: Self-Service Signup routes not loaded: {e}")
+
+# ============================================================================
+# SEC-022: Admin Console Routes (Requires org_admin)
+# ============================================================================
+try:
+    from routes.admin_console_routes import router as admin_console_router
+    app.include_router(admin_console_router, tags=["Admin Console"])
+    logger.info("✅ SEC-022: Admin Console routes loaded - /api/admin/*")
+except ImportError as e:
+    logger.warning(f"SEC-022: Admin Console routes not loaded: {e}")
+
 # Unchanged commented-out includes
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
