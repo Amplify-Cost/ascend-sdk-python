@@ -1030,19 +1030,29 @@ async def create_organization_from_signup(signup_id: int, db: Session):
 
         logger.info(f"SEC-021: Signup {signup_id} completed. Org: {organization.id}, User: {admin_user.id}")
 
-        # Send welcome email with temp password
-        # (In production, this would be a password reset link instead)
+        # SEC-021 ENTERPRISE: Send welcome email with temp password and login credentials
+        # Banking-level security: temp password is hashed, user must change on first login
         from services.enterprise_email_service import EnterpriseEmailService
         try:
             email_service = EnterpriseEmailService()
+
+            # Build organization-specific login URL
+            frontend_url = get_secure_frontend_url()
+            org_login_url = f"{frontend_url}/#org={signup_request.organization_slug}"
+
             await email_service.send_welcome_email(
+                db=db,
                 to_email=signup_request.email,
-                first_name=signup_request.first_name,
                 organization_name=signup_request.organization_name,
-                login_url=get_secure_frontend_url() + "/login"
+                organization_slug=signup_request.organization_slug,
+                temp_password=temp_password,
+                login_url=org_login_url,
+                trial_days=trial_days,
+                sent_by="signup_system"
             )
+            logger.info(f"SEC-021: Welcome email sent to {signup_request.email}")
         except Exception as e:
-            logger.error(f"SEC-021: Failed to send welcome email: {e}")
+            logger.error(f"SEC-021: Failed to send welcome email to {signup_request.email}: {e}")
 
     except Exception as e:
         logger.error(f"SEC-021: Error creating organization from signup {signup_id}: {e}")
