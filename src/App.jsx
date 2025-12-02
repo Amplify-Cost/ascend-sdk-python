@@ -113,8 +113,18 @@ const AppContent = () => {
         logger.debug("🔍 Checking enterprise authentication status...");
         setLoading(true);
 
-        // SEC-021: Check for /verify-email path to show verification view
+        // SEC-021: Check for public paths (no auth required)
         const pathname = window.location.pathname;
+
+        // SEC-021: /signup path for self-service signup
+        if (pathname === '/signup' || pathname.startsWith('/signup')) {
+          logger.debug("SEC-021: Detected /signup path, showing signup flow");
+          setView("signup");
+          setLoading(false);
+          return;
+        }
+
+        // SEC-021: /verify-email path for email verification
         if (pathname === '/verify-email' || pathname.startsWith('/verify-email')) {
           logger.debug("SEC-021: Detected /verify-email path, showing verification view");
           setView("verify-email");
