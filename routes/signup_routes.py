@@ -714,18 +714,88 @@ async def verify_email(
     )
     db.add(audit)
 
-    # Check if already verified
+    # =================================================================
+    # SEC-021 IDEMPOTENCY FIX: Handle already-verified cases properly
+    # =================================================================
+    # Check if already verified or active - prevent duplicate org creation
     if signup_request.status != SignupStatus.PENDING_VERIFICATION.value:
-        audit.failure_reason = f"already_in_status_{signup_request.status}"
-        db.commit()
+        audit.event_type = "verification_retry"
 
+        # Case 1: Already ACTIVE - org and user exist, just redirect to login
         if signup_request.status == SignupStatus.ACTIVE.value:
+            audit.success = True
+            audit.failure_reason = "already_active"
+            db.commit()
+
+            # Build org-specific login URL
+            frontend_url = get_secure_frontend_url()
+            org_login_url = f"{frontend_url}/#org={signup_request.organization_slug}"
+
             return VerifyEmailResponse(
                 success=True,
-                message="Your email is already verified. Please login.",
-                redirect_url=f"/login?email={signup_request.email}"
+                message="Your email is already verified. Please check your email for login credentials.",
+                organization_slug=signup_request.organization_slug,
+                redirect_url=org_login_url
             )
+
+        # Case 2: EMAIL_VERIFIED but org creation failed - retry org creation
+        elif signup_request.status == SignupStatus.EMAIL_VERIFIED.value:
+            logger.info(f"SEC-021: Retrying org creation for verified signup {signup_request.id}")
+
+            # Check if organization already exists (from previous attempt)
+            if signup_request.organization_id:
+                org = db.query(Organization).filter(
+                    Organization.id == signup_request.organization_id
+                ).first()
+
+                if org and org.cognito_pool_status == "active":
+                    # Org is complete - something else failed, check for user
+                    existing_user = db.query(User).filter(
+                        User.email == signup_request.email,
+                        User.organization_id == org.id
+                    ).first()
+
+                    if existing_user:
+                        # Everything exists - mark as active and redirect
+                        signup_request.status = SignupStatus.ACTIVE.value
+                        signup_request.status_changed_at = datetime.utcnow()
+                        signup_request.status_changed_reason = "Recovery: org and user exist"
+                        audit.success = True
+                        db.commit()
+
+                        frontend_url = get_secure_frontend_url()
+                        org_login_url = f"{frontend_url}/#org={signup_request.organization_slug}"
+
+                        return VerifyEmailResponse(
+                            success=True,
+                            message="Your account is ready. Please check your email for login credentials.",
+                            organization_slug=signup_request.organization_slug,
+                            redirect_url=org_login_url
+                        )
+
+            # Org creation needs retry - proceed with background task
+            audit.success = True
+            audit.failure_reason = "retry_org_creation"
+            db.commit()
+
+            # Re-run background task (will be idempotent due to checks in create_organization_from_signup)
+            background_tasks.add_task(
+                create_organization_from_signup,
+                signup_request.id,
+                db
+            )
+
+            return VerifyEmailResponse(
+                success=True,
+                message="Setting up your organization... Please wait a moment and check your email.",
+                organization_slug=signup_request.organization_slug,
+                redirect_url=f"/onboarding/{signup_request.organization_slug}"
+            )
+
+        # Case 3: Other statuses (EXPIRED, REJECTED, etc.) - error
         else:
+            audit.failure_reason = f"invalid_status_{signup_request.status}"
+            db.commit()
             raise HTTPException(
                 status_code=400,
                 detail="This signup request is no longer pending verification."
@@ -975,7 +1045,11 @@ async def create_organization_from_signup(signup_id: int, db: Session):
             return
 
         if signup_request.status != SignupStatus.EMAIL_VERIFIED.value:
-            logger.warning(f"SEC-021: Signup {signup_id} not in correct status for org creation")
+            # SEC-021: Also allow ACTIVE status for recovery/retry scenarios
+            if signup_request.status == SignupStatus.ACTIVE.value:
+                logger.info(f"SEC-021: Signup {signup_id} already ACTIVE, skipping org creation")
+                return
+            logger.warning(f"SEC-021: Signup {signup_id} not in correct status for org creation: {signup_request.status}")
             return
 
         logger.info(f"SEC-021: Creating organization for signup {signup_id}")
@@ -990,21 +1064,56 @@ async def create_organization_from_signup(signup_id: int, db: Session):
         }
         limits = tier_limits.get(signup_request.requested_tier, tier_limits["pilot"])
 
-        # Create organization
-        organization = Organization(
-            name=signup_request.organization_name,
-            slug=signup_request.organization_slug,
-            domain=signup_request.email.split('@')[1].lower(),
-            subscription_tier=signup_request.requested_tier,
-            subscription_status="trial",
-            trial_ends_at=datetime.utcnow() + timedelta(days=trial_days),
-            included_users=limits["users"],
-            included_api_calls=limits["api_calls"],
-            included_mcp_servers=limits["mcp_servers"],
-            cognito_pool_status="pending"
-        )
-        db.add(organization)
-        db.flush()
+        # =================================================================
+        # SEC-021 IDEMPOTENCY: Check if organization already exists
+        # =================================================================
+        # If signup already has an organization_id, reuse that org instead
+        # of creating a new one. This handles retry scenarios.
+        organization = None
+
+        if signup_request.organization_id:
+            organization = db.query(Organization).filter(
+                Organization.id == signup_request.organization_id
+            ).first()
+
+            if organization:
+                logger.info(f"SEC-021: Reusing existing org {organization.id} ({organization.slug}) for signup {signup_id}")
+
+                # If org is already active with Cognito, skip to user creation
+                if organization.cognito_pool_status == "active":
+                    logger.info(f"SEC-021: Org {organization.id} already has active Cognito pool")
+                    # Check if user already exists
+                    existing_user = db.query(User).filter(
+                        User.email == signup_request.email,
+                        User.organization_id == organization.id
+                    ).first()
+
+                    if existing_user:
+                        logger.info(f"SEC-021: User {existing_user.id} already exists, marking signup as ACTIVE")
+                        signup_request.status = SignupStatus.ACTIVE.value
+                        signup_request.status_changed_at = datetime.utcnow()
+                        signup_request.status_changed_reason = "Recovery: org and user already exist"
+                        signup_request.user_id = existing_user.id
+                        db.commit()
+                        return
+
+        # Create NEW organization only if we don't have one
+        if not organization:
+            organization = Organization(
+                name=signup_request.organization_name,
+                slug=signup_request.organization_slug,
+                domain=signup_request.email.split('@')[1].lower(),
+                subscription_tier=signup_request.requested_tier,
+                subscription_status="trial",
+                trial_ends_at=datetime.utcnow() + timedelta(days=trial_days),
+                included_users=limits["users"],
+                included_api_calls=limits["api_calls"],
+                included_mcp_servers=limits["mcp_servers"],
+                cognito_pool_status="pending"
+            )
+            db.add(organization)
+            db.flush()
+            logger.info(f"SEC-021: Created new organization {organization.id} ({organization.slug})")
 
         logger.info(f"SEC-021: Organization {organization.id} created, provisioning Cognito pool")
 
@@ -1045,15 +1154,16 @@ async def create_organization_from_signup(signup_id: int, db: Session):
             logger.error(f"SEC-021 CRITICAL: Failed to create Cognito pool for org {organization.id}: {e}")
             organization.cognito_pool_status = "failed"
 
-            # SEC-021 FIX: Do NOT silently continue - Cognito is required for login
-            # Mark signup as failed so user can retry
-            signup_request.status = SignupStatus.PENDING_VERIFICATION.value
+            # SEC-021 IDEMPOTENCY FIX: Do NOT reset status to PENDING_VERIFICATION
+            # Keep status as EMAIL_VERIFIED so retry logic works correctly
+            # Store the organization_id so we can retry with the SAME org (not create new)
+            signup_request.organization_id = organization.id
             signup_request.status_changed_at = datetime.utcnow()
             signup_request.status_changed_reason = f"Cognito pool creation failed: {str(e)[:200]}"
             db.commit()
 
-            logger.error(f"SEC-021: Signup {signup_id} reset to pending due to Cognito failure")
-            raise  # Re-raise to trigger rollback and cleanup
+            logger.error(f"SEC-021: Signup {signup_id} Cognito failed, org {organization.id} marked for retry")
+            raise  # Re-raise to trigger outer exception handler
 
         # =================================================================
         # SEC-021 FIX: Validate we have required data from Cognito
