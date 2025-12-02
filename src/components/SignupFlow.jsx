@@ -155,7 +155,23 @@ const SignupFlow = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || 'Signup failed. Please try again.');
+        // SEC-021: Handle different error formats from FastAPI
+        let errorMessage = 'Signup failed. Please try again.';
+        if (data.detail) {
+          if (typeof data.detail === 'string') {
+            errorMessage = data.detail;
+          } else if (Array.isArray(data.detail)) {
+            // FastAPI validation error format: [{loc: [...], msg: "...", type: "..."}]
+            errorMessage = data.detail.map(e => e.msg || e.message || String(e)).join(', ');
+          } else if (typeof data.detail === 'object' && data.detail.msg) {
+            errorMessage = data.detail.msg;
+          } else {
+            errorMessage = JSON.stringify(data.detail);
+          }
+        } else if (data.message) {
+          errorMessage = data.message;
+        }
+        throw new Error(errorMessage);
       }
 
       // Success - move to verification step
