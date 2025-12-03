@@ -35,38 +35,30 @@ def column_exists(table_name: str, column_name: str) -> bool:
     """
     SEC-044: Check if column exists before creation (idempotent migration pattern)
 
-    Banking-Level Security: Uses information_schema for reliable detection
-    across PostgreSQL versions.
+    Banking-Level Security: Uses SQLAlchemy Inspector for injection-safe introspection.
+    PCI-DSS 6.5.1 Compliant: No string interpolation in SQL queries.
     """
-    conn = op.get_bind()
-    result = conn.execute(text(
-        f"""
-        SELECT EXISTS (
-            SELECT FROM information_schema.columns
-            WHERE table_schema = 'public'
-            AND table_name = '{table_name}'
-            AND column_name = '{column_name}'
-        )
-        """
-    ))
-    return result.scalar()
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    try:
+        columns = [col['name'] for col in inspector.get_columns(table_name)]
+        return column_name in columns
+    except Exception:
+        return False
 
 
 def table_exists(table_name: str) -> bool:
     """
     SEC-044: Check if table exists before modification
+
+    Banking-Level Security: Uses SQLAlchemy Inspector for injection-safe introspection.
+    PCI-DSS 6.5.1 Compliant: No string interpolation in SQL queries.
     """
-    conn = op.get_bind()
-    result = conn.execute(text(
-        f"""
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables
-            WHERE table_schema = 'public'
-            AND table_name = '{table_name}'
-        )
-        """
-    ))
-    return result.scalar()
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return table_name in inspector.get_table_names()
 
 
 def upgrade() -> None:

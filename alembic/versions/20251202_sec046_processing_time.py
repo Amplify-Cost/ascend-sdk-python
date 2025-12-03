@@ -20,30 +20,38 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def column_exists(table_name: str, column_name: str) -> bool:
-    """Check if column exists (idempotent pattern)"""
-    conn = op.get_bind()
-    result = conn.execute(text(f"""
-        SELECT EXISTS (
-            SELECT FROM information_schema.columns
-            WHERE table_schema = 'public'
-            AND table_name = '{table_name}'
-            AND column_name = '{column_name}'
-        )
-    """))
-    return result.scalar()
+    """
+    Check if column exists (idempotent pattern)
+
+    Banking-Level Security: Uses SQLAlchemy Inspector for injection-safe introspection.
+    PCI-DSS 6.5.1 Compliant: No string interpolation in SQL queries.
+    """
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    try:
+        columns = [col['name'] for col in inspector.get_columns(table_name)]
+        return column_name in columns
+    except Exception:
+        return False
 
 
 def index_exists(index_name: str) -> bool:
-    """Check if index exists"""
-    conn = op.get_bind()
-    result = conn.execute(text(f"""
-        SELECT EXISTS (
-            SELECT FROM pg_indexes
-            WHERE schemaname = 'public'
-            AND indexname = '{index_name}'
-        )
-    """))
-    return result.scalar()
+    """
+    Check if index exists
+
+    Banking-Level Security: Uses SQLAlchemy Inspector for injection-safe introspection.
+    PCI-DSS 6.5.1 Compliant: No string interpolation in SQL queries.
+    """
+    from sqlalchemy import inspect
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    # Get all indexes across all tables
+    for table_name in inspector.get_table_names():
+        indexes = inspector.get_indexes(table_name)
+        if any(idx['name'] == index_name for idx in indexes):
+            return True
+    return False
 
 
 def upgrade() -> None:

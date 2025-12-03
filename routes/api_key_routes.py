@@ -12,12 +12,13 @@ Status: Production-ready
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Union
 from datetime import datetime, timedelta, UTC
 import secrets
 import hashlib
 import logging
+import re
 
 # Import dependencies
 from database import get_db
@@ -44,6 +45,32 @@ class PermissionRequest(BaseModel):
     actions: List[str] = Field(..., description="Allowed actions (e.g., ['create', 'read'])")
 
 
+def parse_permission_string(perm_str: str) -> PermissionRequest:
+    """
+    SEC-039: Parse permission string like "agent:read" into PermissionRequest
+
+    Supports formats:
+    - "category:action" -> {category: "category", actions: ["action"]}
+    - "category:*" -> {category: "category", actions: ["*"]}
+
+    Security: Input validation prevents injection attacks
+    """
+    if ":" not in perm_str:
+        raise ValueError(f"Invalid permission format: {perm_str}. Expected 'category:action'")
+
+    parts = perm_str.split(":", 1)
+    category = parts[0].strip()
+    action = parts[1].strip()
+
+    # Security: Validate category and action contain only safe characters
+    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', category):
+        raise ValueError(f"Invalid permission category: {category}")
+    if action != "*" and not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', action):
+        raise ValueError(f"Invalid permission action: {action}")
+
+    return PermissionRequest(category=category, actions=[action])
+
+
 class RateLimitRequest(BaseModel):
     """Rate limit configuration for API key"""
     max_requests: int = Field(default=1000, ge=1, le=100000, description="Maximum requests per window")
@@ -51,12 +78,56 @@ class RateLimitRequest(BaseModel):
 
 
 class GenerateKeyRequest(BaseModel):
-    """Request to generate a new API key"""
+    """Request to generate a new API key
+
+    SEC-039: Accepts permissions in TWO formats for SDK compatibility:
+    1. Structured: [{"category": "agent", "actions": ["read", "write"]}]
+    2. Simple strings: ["agent:read", "agent:write", "action:submit"]
+
+    Both formats are normalized to structured PermissionRequest objects internally.
+    """
     name: str = Field(..., min_length=1, max_length=255, description="User-friendly name for the key")
     description: Optional[str] = Field(None, max_length=1000, description="Purpose of the key")
     expires_in_days: Optional[int] = Field(None, ge=1, le=3650, description="Expiration in days (NULL = never expires)")
-    permissions: Optional[List[PermissionRequest]] = Field(None, description="Specific permissions (NULL = inherit user permissions)")
+    permissions: Optional[List[Union[PermissionRequest, str]]] = Field(
+        None,
+        description="Permissions as structured objects OR simple strings like 'category:action'"
+    )
     rate_limit: Optional[RateLimitRequest] = Field(None, description="Rate limit config (NULL = default 1000/hour)")
+
+    @field_validator('permissions', mode='before')
+    @classmethod
+    def normalize_permissions(cls, v):
+        """
+        SEC-039: Normalize permissions to structured format
+
+        Converts:
+        - ["agent:read", "action:submit"] -> [{category: "agent", actions: ["read"]}, ...]
+        - [{category: "agent", actions: ["read"]}] -> unchanged
+
+        Compliance: SOC 2 CC6.1 - consistent permission format for audit trail
+        """
+        if v is None:
+            return v
+
+        normalized = []
+        for perm in v:
+            if isinstance(perm, str):
+                # Parse string format: "category:action"
+                try:
+                    parsed = parse_permission_string(perm)
+                    normalized.append(parsed.model_dump())
+                except ValueError as e:
+                    raise ValueError(f"Invalid permission string: {e}")
+            elif isinstance(perm, dict):
+                # Already structured format - validate
+                if 'category' not in perm or 'actions' not in perm:
+                    raise ValueError(f"Permission object must have 'category' and 'actions' keys: {perm}")
+                normalized.append(perm)
+            else:
+                raise ValueError(f"Permission must be string or object, got: {type(perm)}")
+
+        return normalized
 
 
 class ApiKeyResponse(BaseModel):
