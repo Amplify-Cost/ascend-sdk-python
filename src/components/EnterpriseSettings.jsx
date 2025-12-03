@@ -5,6 +5,7 @@ import ApiKeyManagement from "./ApiKeyManagement";
 import IntegrationManagement from "./IntegrationManagement";
 import IntegrationHealthDashboard from "./IntegrationHealthDashboard";
 import IntegrationWizard from "./IntegrationWizard";
+import InteractiveApiExplorer from "./InteractiveApiExplorer";
 import fetchWithAuth from "../utils/fetchWithAuth";
 
 /**
@@ -188,6 +189,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
   const settingsTabs = [
     { id: "general", label: "General Settings" },
     { id: "api-keys", label: "🔑 API Keys" }, // SEC-013: Enterprise API Key Management (consolidated here)
+    { id: "api-explorer", label: "🔍 API Explorer" }, // SEC-055: Interactive API Explorer
     { id: "integrations", label: "Integrations" },
     { id: "risk-config", label: "🎯 Risk Configuration" }, // Enterprise Risk Scoring
     { id: "admin-tools", label: "🔧 Admin Tools" } // Admin-only tab (compliance reports removed - use Admin Console)
@@ -687,6 +689,13 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
           <ApiKeyManagement
             API_BASE_URL={API_BASE_URL || ""}
             getAuthHeaders={getAuthHeaders}
+          />
+        )}
+        {/* SEC-055: Interactive API Explorer - Stripe/Postman style */}
+        {activeSettingsTab === "api-explorer" && (
+          <InteractiveApiExplorer
+            getAuthHeaders={getAuthHeaders}
+            API_BASE_URL={API_BASE_URL || ""}
           />
         )}
         {activeSettingsTab === "integrations" && renderIntegrations()}
