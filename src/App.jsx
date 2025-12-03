@@ -117,10 +117,10 @@ const AppContent = () => {
         const pathname = window.location.pathname;
 
         // SEC-021: /signup path for self-service signup
+        // DISABLED: Self-signup disabled - redirect to login instead
         if (pathname === '/signup' || pathname.startsWith('/signup')) {
-          logger.debug("SEC-021: Detected /signup path, showing signup flow");
-          setView("signup");
-          setLoading(false);
+          logger.debug("SEC-021: Signup disabled - redirecting to login");
+          window.location.href = '/login';
           return;
         }
 
