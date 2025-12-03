@@ -57,6 +57,28 @@ class User(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     is_org_admin = Column(Boolean, default=False, nullable=False)
 
+    # SEC-046 Phase 2: User Profile Extended Fields
+    # Compliance: SOC 2 CC6.1, HIPAA 164.312, PCI-DSS 8.1
+    first_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=True)
+    phone = Column(String(20), nullable=True)
+    department = Column(String(100), nullable=True, index=True)
+    job_title = Column(String(100), nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+    # SEC-046 Phase 2: User Suspension Management
+    # Banking-level: Suspend without delete for audit compliance
+    is_suspended = Column(Boolean, default=False, nullable=False, index=True)
+    suspended_at = Column(DateTime, nullable=True)
+    suspended_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    suspension_reason = Column(String(500), nullable=True)
+
+    # SEC-046 Phase 2: Session & Token Management
+    # Banking-level: Token versioning for force logout compliance
+    token_version = Column(Integer, default=0, nullable=False)
+    last_logout = Column(DateTime, nullable=True)
+    last_active_at = Column(DateTime, nullable=True)
+
     # Relationships
 
     logs = relationship("Log", back_populates="user")

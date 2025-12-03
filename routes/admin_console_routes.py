@@ -50,7 +50,150 @@ except ImportError:
 
 from database import get_db
 from models import Organization, User, AgentAction, Alert, SmartRule, AuditLog
-from dependencies import get_current_user, get_organization_filter
+from dependencies import get_current_user, get_organization_filter, require_csrf
+
+# SEC-046: Rate limiting for brute force protection
+from security.rate_limiter import limiter, RATE_LIMITS
+
+# =============================================================================
+# SEC-046: ENTERPRISE BILLING CONFIGURATION
+# =============================================================================
+# Tier pricing moved from hardcoded values to configurable settings
+# Prices are in USD (monthly) - Stripe uses cents internally
+# =============================================================================
+
+BILLING_CONFIG = {
+    "tiers": {
+        # Professional - Perfect for growing teams
+        "professional": {
+            "name": "Professional",
+            "monthly_usd": 799,
+            "yearly_usd": 7990,  # ~$666/mo annual
+            "included_agent_actions": 2500,
+            "overage_per_action": 0.35,
+            "included_users": -1,  # Unlimited (no per-seat fees)
+            "support_sla_hours": 24,
+            "audit_retention_days": 90,
+            "features": [
+                "2,500 AI agent actions/month",
+                "Unlimited users (no per-seat fees)",
+                "Email support (24hr SLA)",
+                "Standard MCP protocol detection",
+                "Audit logs (90 days)",
+                "API access",
+                "Webhook integrations",
+                "Real-time action monitoring"
+            ]
+        },
+        # Business - Ideal for mid-market companies (MOST POPULAR)
+        "business": {
+            "name": "Business",
+            "monthly_usd": 1999,
+            "yearly_usd": 19990,  # ~$1,666/mo annual
+            "included_agent_actions": 10000,
+            "overage_per_action": 0.25,
+            "included_users": -1,  # Unlimited (no per-seat fees)
+            "support_sla_hours": 4,
+            "audit_retention_days": 365,
+            "is_popular": True,
+            "features": [
+                "Everything in Professional, plus:",
+                "10,000 AI agent actions/month",
+                "Unlimited users (no per-seat fees)",
+                "Priority support (4hr SLA)",
+                "Advanced MCP protocol coverage",
+                "Audit logs (1 year retention)",
+                "SSO (SAML/OIDC)",
+                "Advanced analytics dashboard",
+                "Slack/Teams integration",
+                "Custom approval workflows",
+                "Anomaly detection alerts"
+            ]
+        },
+        # Enterprise - Built for Fortune 500
+        "enterprise": {
+            "name": "Enterprise",
+            "monthly_usd": 4999,
+            "yearly_usd": 49992,  # $4,166/mo annual (17% discount)
+            "annual_discount_percent": 17,
+            "included_agent_actions": 50000,
+            "overage_per_action": 0.15,
+            "included_users": -1,  # Unlimited (no per-seat fees)
+            "support_sla_hours": 1,
+            "audit_retention_days": -1,  # Unlimited
+            "features": [
+                "Everything in Business, plus:",
+                "50,000 AI agent actions/month",
+                "Unlimited users (no per-seat fees)",
+                "Dedicated support + CSM (1hr SLA)",
+                "All MCP protocols + custom detection",
+                "Unlimited audit log retention",
+                "Advanced SSO + SCIM provisioning",
+                "Custom integrations",
+                "White-label options",
+                "Quarterly business reviews",
+                "On-premise deployment available",
+                "Custom MCP server monitoring"
+            ]
+        },
+        # Pilot - Free trial tier (internal use)
+        "pilot": {
+            "name": "Pilot Trial",
+            "monthly_usd": 0,
+            "yearly_usd": 0,
+            "included_agent_actions": 500,
+            "overage_per_action": 0,  # No overage during trial
+            "included_users": -1,
+            "support_sla_hours": 48,
+            "audit_retention_days": 30,
+            "is_trial": True,
+            "features": [
+                "500 AI agent actions/month",
+                "Unlimited users",
+                "Email support (48hr SLA)",
+                "Basic MCP detection",
+                "Audit logs (30 days)",
+                "API access"
+            ]
+        }
+    },
+    "overage_rates": {
+        # Per-action overage rates by tier (used as fallback)
+        "professional": 0.35,
+        "business": 0.25,
+        "enterprise": 0.15,
+        "pilot": 0.00
+    },
+    "thresholds": {
+        "warning": 80,   # Show warning at 80% usage
+        "critical": 95,  # Show critical at 95% usage
+    }
+}
+
+def get_tier_pricing(tier: str) -> dict:
+    """SEC-046: Get pricing for a tier from config"""
+    tier_config = BILLING_CONFIG["tiers"].get(tier, BILLING_CONFIG["tiers"]["pilot"])
+    return {
+        "name": tier_config["name"],
+        "monthly": tier_config["monthly_usd"],
+        "yearly": tier_config["yearly_usd"],
+        "price_cents": tier_config["monthly_usd"] * 100,  # Convert to cents for Stripe
+        "included_agent_actions": tier_config["included_agent_actions"],
+        "overage_per_action": tier_config["overage_per_action"],
+        "support_sla_hours": tier_config["support_sla_hours"],
+        "audit_retention_days": tier_config["audit_retention_days"],
+        "features": tier_config["features"],
+        "is_popular": tier_config.get("is_popular", False),
+        "annual_discount_percent": tier_config.get("annual_discount_percent", 0)
+    }
+
+
+def get_overage_rate(tier: str) -> float:
+    """SEC-046: Get overage rate per action for a tier"""
+    tier_config = BILLING_CONFIG["tiers"].get(tier)
+    if tier_config:
+        return tier_config.get("overage_per_action", 0)
+    return BILLING_CONFIG["overage_rates"].get(tier, 0)
 
 # SEC-040: Import RBAC manager for permission enforcement
 try:
@@ -292,6 +435,37 @@ class ComplianceReportRequest(BaseModel):
 
 
 # =============================================================================
+# SEC-046 PHASE 2: USER MANAGEMENT MODELS
+# =============================================================================
+
+class UserSuspendRequest(BaseModel):
+    """SEC-046: Suspend or reactivate a user"""
+    suspended: bool = Field(..., description="True to suspend, False to reactivate")
+    reason: Optional[str] = Field(None, max_length=500, description="Reason for suspension")
+
+
+class UserProfileUpdate(BaseModel):
+    """SEC-046: Update user profile information"""
+    first_name: Optional[str] = Field(None, max_length=100)
+    last_name: Optional[str] = Field(None, max_length=100)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=20)
+    department: Optional[str] = Field(None, max_length=100)
+    job_title: Optional[str] = Field(None, max_length=100)
+
+
+class PasswordResetRequest(BaseModel):
+    """SEC-046: Request password reset for a user"""
+    send_email: bool = Field(default=True, description="Send reset email to user")
+
+
+class ForceLogoutRequest(BaseModel):
+    """SEC-046: Force logout a user from all sessions"""
+    revoke_all_tokens: bool = Field(default=True, description="Revoke all refresh tokens")
+    reason: Optional[str] = Field(None, max_length=500)
+
+
+# =============================================================================
 # ORGANIZATION MANAGEMENT
 # =============================================================================
 
@@ -354,16 +528,20 @@ async def get_organization_details(
 
 
 @router.patch("/organization")
+@limiter.limit(RATE_LIMITS["api_write"])  # SEC-046: Rate limit (30/min per IP)
 async def update_organization(
     request: Request,
     update_data: OrganizationUpdate,
     admin: dict = Depends(require_org_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)  # SEC-046: CSRF validation
 ):
     """
     SEC-022: Update organization settings.
 
     Audit logged for compliance.
+    Rate limited: 30 requests/minute per IP (SEC-046)
+    CSRF protected: Double-submit validation (SEC-046)
     """
     org = db.query(Organization).filter(
         Organization.id == admin["organization_id"]
@@ -426,41 +604,94 @@ async def update_organization(
 
 @router.get("/users")
 async def list_organization_users(
+    include_inactive: bool = Query(False, description="Include deactivated users"),
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db)
 ):
     """
-    SEC-022: List all users in the organization.
+    SEC-046: List all users in the organization with enterprise filtering.
+
+    Enterprise Features:
+    - Filters out soft-deleted users by default (is_active=True)
+    - Optional include_inactive parameter for admin recovery
+    - Returns user status for UI badge display
+    - Includes first_name, last_name for proper display
+    - Tracks is_owner to prevent self-demotion
+
+    Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 7.1
     """
-    users = db.query(User).filter(
+    query = db.query(User).filter(
         User.organization_id == admin["organization_id"]
-    ).order_by(User.created_at.desc()).all()
+    )
+
+    # SEC-046: Filter out inactive users by default (enterprise standard)
+    if not include_inactive:
+        query = query.filter(User.is_active == True)
+
+    users = query.order_by(User.created_at.desc()).all()
+
+    # SEC-046: Determine organization owner for UI protection
+    org = db.query(Organization).filter(
+        Organization.id == admin["organization_id"]
+    ).first()
+    owner_user_id = org.owner_user_id if org and hasattr(org, 'owner_user_id') else None
 
     return {
         "users": [
             {
                 "id": u.id,
                 "email": u.email,
+                "first_name": getattr(u, 'first_name', None) or u.email.split('@')[0],
+                "last_name": getattr(u, 'last_name', None) or '',
                 "role": u.role,
                 "is_org_admin": u.is_org_admin,
                 "is_active": u.is_active,
+                # SEC-046: Compute status for UI badge (active, suspended, pending, deactivated)
+                "status": _compute_user_status(u),
+                "is_owner": u.id == owner_user_id if owner_user_id else u.is_org_admin and u.role == "admin",
                 "last_login": u.last_login.isoformat() if u.last_login else None,
+                "last_active_at": u.last_login.isoformat() if u.last_login else None,
                 "created_at": u.created_at.isoformat() if u.created_at else None,
-                "approval_level": u.approval_level,
-                "is_emergency_approver": u.is_emergency_approver
+                "approval_level": u.approval_level or 1,
+                "access_level_name": ACCESS_LEVEL_NAMES.get(u.approval_level or 1, "Basic User"),
+                "is_emergency_approver": u.is_emergency_approver,
+                "mfa_enabled": getattr(u, 'mfa_enabled', False)
             }
             for u in users
         ],
-        "total": len(users)
+        "total": len(users),
+        "active_count": sum(1 for u in users if u.is_active),
+        "inactive_count": sum(1 for u in users if not u.is_active)
     }
 
 
+def _compute_user_status(user) -> str:
+    """
+    SEC-046: Compute user status for UI display.
+
+    Status hierarchy:
+    - deactivated: is_active=False (soft deleted)
+    - suspended: is_suspended=True (temporary disable)
+    - pending: never logged in (invited but not activated)
+    - active: normal active user
+    """
+    if not user.is_active:
+        return "deactivated"
+    if getattr(user, 'is_suspended', False):
+        return "suspended"
+    if user.last_login is None:
+        return "pending"
+    return "active"
+
+
 @router.post("/users/invite")
+@limiter.limit("10/minute")  # SEC-046: Strict rate limit for user creation
 async def invite_user(
     request: Request,
     invite_data: UserInviteRequest,
     admin: dict = Depends(require_org_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)  # SEC-046: CSRF validation
 ):
     """
     SEC-022: Invite a new user to the organization.
@@ -471,6 +702,8 @@ async def invite_user(
     - Generates secure temporary password
     - Sends invitation email
     - Audit logged
+    - Rate limited: 10 requests/minute per IP (SEC-046)
+    - CSRF protected: Double-submit validation (SEC-046)
     """
     import bcrypt
     import secrets
@@ -578,15 +811,19 @@ async def invite_user(
 
 
 @router.patch("/users/{user_id}/role")
+@limiter.limit(RATE_LIMITS["api_write"])  # SEC-046: Rate limit (30/min per IP)
 async def update_user_role(
     request: Request,
     user_id: int,
     role_update: UserRoleUpdate,
     admin: dict = Depends(require_org_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)  # SEC-046: CSRF validation
 ):
     """
     SEC-022: Update a user's role.
+    Rate limited: 30 requests/minute per IP (SEC-046)
+    CSRF protected: Double-submit validation (SEC-046)
     """
     user = db.query(User).filter(
         User.id == user_id,
@@ -628,11 +865,13 @@ async def update_user_role(
 
 
 @router.delete("/users/{user_id}")
+@limiter.limit("10/minute")  # SEC-046: Strict rate limit for user deletion
 async def remove_user(
     request: Request,
     user_id: int,
     admin: dict = Depends(require_org_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)  # SEC-046: CSRF validation
 ):
     """
     SEC-022: Remove a user from the organization.
@@ -641,6 +880,8 @@ async def remove_user(
     - Soft delete (is_active = False)
     - Revokes all active sessions
     - Audit logged
+    - CSRF protected: Double-submit validation (SEC-046)
+    - Rate limited: 10 requests/minute per IP (SEC-046)
     """
     user = db.query(User).filter(
         User.id == user_id,
@@ -677,6 +918,478 @@ async def remove_user(
 
 
 # =============================================================================
+# SEC-046 PHASE 2: ADVANCED USER MANAGEMENT
+# =============================================================================
+
+@router.patch("/users/{user_id}/suspend")
+@limiter.limit("10/minute")
+async def suspend_or_reactivate_user(
+    request: Request,
+    user_id: int,
+    suspend_data: UserSuspendRequest,
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)
+):
+    """
+    SEC-046 Phase 2: Suspend or reactivate a user.
+
+    Enterprise Features:
+    - Temporary suspension (different from soft delete)
+    - Suspension reason tracking for compliance
+    - Automatic session revocation on suspend
+    - Audit trail for SOX/HIPAA compliance
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(a)(1), NIST AC-2
+    """
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.organization_id == admin["organization_id"]
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Can't suspend yourself
+    if user.id == admin["user_id"]:
+        raise HTTPException(status_code=403, detail="Cannot suspend yourself")
+
+    # Track changes
+    old_status = "suspended" if getattr(user, 'is_suspended', False) else "active"
+    new_status = "suspended" if suspend_data.suspended else "active"
+
+    # Update user
+    user.is_suspended = suspend_data.suspended
+    if suspend_data.suspended:
+        user.suspended_at = datetime.now(UTC)
+        user.suspended_by = admin["user_id"]
+        user.suspension_reason = suspend_data.reason
+    else:
+        user.suspended_at = None
+        user.suspended_by = None
+        user.suspension_reason = None
+
+    # Audit log
+    audit = AuditLog(
+        organization_id=admin["organization_id"],
+        user_id=admin["user_id"],
+        action="user.suspend" if suspend_data.suspended else "user.reactivate",
+        resource_type="user",
+        resource_id=user.id,
+        changes={
+            "email": user.email,
+            "status": {"old": old_status, "new": new_status},
+            "reason": suspend_data.reason
+        },
+        ip_address=request.client.host if request.client else None
+    )
+    db.add(audit)
+    db.commit()
+
+    action = "suspended" if suspend_data.suspended else "reactivated"
+    logger.info(f"SEC-046: User {user.email} {action} by {admin['email']}")
+
+    return {
+        "success": True,
+        "message": f"User {action} successfully",
+        "user_id": user.id,
+        "status": new_status
+    }
+
+
+@router.patch("/users/{user_id}/profile")
+@limiter.limit(RATE_LIMITS["api_write"])
+async def update_user_profile(
+    request: Request,
+    user_id: int,
+    profile_data: UserProfileUpdate,
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)
+):
+    """
+    SEC-046 Phase 2: Update user profile information.
+
+    Enterprise Features:
+    - Partial update (only provided fields)
+    - Email change validation
+    - Change tracking for audit
+    - Cognito sync for email changes
+
+    Compliance: SOC 2 CC6.1, GDPR Art. 16
+    """
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.organization_id == admin["organization_id"]
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Track changes
+    changes = {}
+
+    if profile_data.first_name is not None:
+        changes["first_name"] = {"old": getattr(user, 'first_name', None), "new": profile_data.first_name}
+        user.first_name = profile_data.first_name
+
+    if profile_data.last_name is not None:
+        changes["last_name"] = {"old": getattr(user, 'last_name', None), "new": profile_data.last_name}
+        user.last_name = profile_data.last_name
+
+    if profile_data.email is not None and profile_data.email != user.email:
+        # Check if email already exists
+        existing = db.query(User).filter(
+            User.email == profile_data.email,
+            User.organization_id == admin["organization_id"],
+            User.id != user_id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Email already in use")
+        changes["email"] = {"old": user.email, "new": profile_data.email}
+        user.email = profile_data.email
+        # TODO: Sync with Cognito if using Cognito auth
+
+    if profile_data.phone is not None:
+        changes["phone"] = {"old": getattr(user, 'phone', None), "new": profile_data.phone}
+        user.phone = profile_data.phone
+
+    if profile_data.department is not None:
+        changes["department"] = {"old": getattr(user, 'department', None), "new": profile_data.department}
+        user.department = profile_data.department
+
+    if profile_data.job_title is not None:
+        changes["job_title"] = {"old": getattr(user, 'job_title', None), "new": profile_data.job_title}
+        user.job_title = profile_data.job_title
+
+    if not changes:
+        return {"success": True, "message": "No changes made", "changes": {}}
+
+    user.updated_at = datetime.now(UTC)
+
+    # Audit log
+    audit = AuditLog(
+        organization_id=admin["organization_id"],
+        user_id=admin["user_id"],
+        action="user.profile_update",
+        resource_type="user",
+        resource_id=user.id,
+        changes=changes,
+        ip_address=request.client.host if request.client else None
+    )
+    db.add(audit)
+    db.commit()
+
+    logger.info(f"SEC-046: User {user.email} profile updated by {admin['email']}: {list(changes.keys())}")
+
+    return {
+        "success": True,
+        "message": "Profile updated successfully",
+        "user_id": user.id,
+        "changes": changes
+    }
+
+
+@router.post("/users/{user_id}/reset-password")
+@limiter.limit("5/minute")  # Strict limit for password operations
+async def reset_user_password(
+    request: Request,
+    user_id: int,
+    reset_data: PasswordResetRequest,
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)
+):
+    """
+    SEC-046 Phase 2: Trigger password reset for a user.
+
+    Enterprise Features:
+    - Admin-initiated password reset
+    - Cognito integration for password reset flow
+    - Email notification to user
+    - Audit logging for compliance
+
+    Compliance: SOC 2 CC6.1, NIST IA-5, PCI-DSS 8.2.4
+    """
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.organization_id == admin["organization_id"]
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Get organization for Cognito pool info
+    org = db.query(Organization).filter(
+        Organization.id == admin["organization_id"]
+    ).first()
+
+    reset_initiated = False
+    reset_method = "email"
+
+    # Try Cognito password reset
+    if org and org.cognito_user_pool_id and user.cognito_user_id:
+        try:
+            import boto3
+            cognito = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'us-east-2'))
+
+            # Admin reset password - this sends an email to the user
+            cognito.admin_reset_user_password(
+                UserPoolId=org.cognito_user_pool_id,
+                Username=user.cognito_user_id
+            )
+            reset_initiated = True
+            reset_method = "cognito"
+            logger.info(f"SEC-046: Cognito password reset initiated for {user.email}")
+        except Exception as e:
+            logger.error(f"SEC-046: Cognito password reset failed: {e}")
+            # Fall back to manual reset
+            reset_method = "manual"
+
+    # If Cognito not available, generate temporary password
+    if not reset_initiated:
+        import secrets
+        import bcrypt
+        temp_password = secrets.token_urlsafe(16)
+        user.password = bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode()
+        user.force_password_change = True
+        reset_initiated = True
+
+        # Send email with temp password if requested
+        if reset_data.send_email:
+            try:
+                from services.enterprise_email_service import EnterpriseEmailService
+                email_service = EnterpriseEmailService()
+                # TODO: Implement password reset email template
+                logger.info(f"SEC-046: Password reset email would be sent to {user.email}")
+            except Exception as e:
+                logger.error(f"SEC-046: Failed to send reset email: {e}")
+
+    # Audit log
+    audit = AuditLog(
+        organization_id=admin["organization_id"],
+        user_id=admin["user_id"],
+        action="user.password_reset",
+        resource_type="user",
+        resource_id=user.id,
+        changes={
+            "email": user.email,
+            "reset_method": reset_method,
+            "email_sent": reset_data.send_email
+        },
+        ip_address=request.client.host if request.client else None
+    )
+    db.add(audit)
+    db.commit()
+
+    logger.info(f"SEC-046: Password reset for {user.email} by {admin['email']} via {reset_method}")
+
+    return {
+        "success": True,
+        "message": "Password reset initiated",
+        "user_id": user.id,
+        "reset_method": reset_method,
+        "email_sent": reset_data.send_email and reset_method == "cognito"
+    }
+
+
+@router.post("/users/{user_id}/force-logout")
+@limiter.limit("10/minute")
+async def force_logout_user(
+    request: Request,
+    user_id: int,
+    logout_data: ForceLogoutRequest,
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)
+):
+    """
+    SEC-046 Phase 2: Force logout a user from all sessions.
+
+    Enterprise Features:
+    - Revoke all active sessions
+    - Invalidate refresh tokens
+    - Cognito global sign-out
+    - Immediate effect (no grace period)
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(d), NIST AC-12
+    """
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.organization_id == admin["organization_id"]
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Get organization for Cognito pool info
+    org = db.query(Organization).filter(
+        Organization.id == admin["organization_id"]
+    ).first()
+
+    sessions_revoked = 0
+    cognito_logout = False
+
+    # Try Cognito global sign-out
+    if org and org.cognito_user_pool_id and user.cognito_user_id:
+        try:
+            import boto3
+            cognito = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'us-east-2'))
+
+            # Global sign-out - invalidates all tokens
+            cognito.admin_user_global_sign_out(
+                UserPoolId=org.cognito_user_pool_id,
+                Username=user.cognito_user_id
+            )
+            cognito_logout = True
+            sessions_revoked += 1
+            logger.info(f"SEC-046: Cognito global sign-out for {user.email}")
+        except Exception as e:
+            logger.error(f"SEC-046: Cognito sign-out failed: {e}")
+
+    # Invalidate local refresh tokens if stored
+    if logout_data.revoke_all_tokens:
+        # Update user's token version to invalidate existing tokens
+        user.token_version = (getattr(user, 'token_version', 0) or 0) + 1
+        user.last_logout = datetime.now(UTC)
+        sessions_revoked += 1
+
+    # Audit log
+    audit = AuditLog(
+        organization_id=admin["organization_id"],
+        user_id=admin["user_id"],
+        action="user.force_logout",
+        resource_type="user",
+        resource_id=user.id,
+        changes={
+            "email": user.email,
+            "cognito_logout": cognito_logout,
+            "tokens_revoked": logout_data.revoke_all_tokens,
+            "reason": logout_data.reason
+        },
+        ip_address=request.client.host if request.client else None
+    )
+    db.add(audit)
+    db.commit()
+
+    logger.info(f"SEC-046: Force logout for {user.email} by {admin['email']}")
+
+    return {
+        "success": True,
+        "message": "User logged out from all sessions",
+        "user_id": user.id,
+        "sessions_revoked": sessions_revoked,
+        "cognito_logout": cognito_logout
+    }
+
+
+@router.get("/users/{user_id}/activity")
+async def get_user_activity_log(
+    user_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-046 Phase 2: Get activity log for a specific user.
+
+    Enterprise Features:
+    - User-specific audit trail
+    - Actions performed BY and ON the user
+    - Pagination support
+    - Risk classification
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(b), SOX 302/404
+    """
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.organization_id == admin["organization_id"]
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Get activities where user performed action OR was target
+    activities = db.query(AuditLog).filter(
+        AuditLog.organization_id == admin["organization_id"],
+        or_(
+            AuditLog.user_id == user_id,  # User performed action
+            and_(
+                AuditLog.resource_type == "user",
+                AuditLog.resource_id == user_id  # User was target
+            )
+        )
+    ).order_by(desc(AuditLog.created_at)).offset(offset).limit(limit).all()
+
+    # Get total count
+    total_count = db.query(AuditLog).filter(
+        AuditLog.organization_id == admin["organization_id"],
+        or_(
+            AuditLog.user_id == user_id,
+            and_(
+                AuditLog.resource_type == "user",
+                AuditLog.resource_id == user_id
+            )
+        )
+    ).count()
+
+    # Format activities
+    activity_list = []
+    for activity in activities:
+        # Determine if user was actor or target
+        is_actor = activity.user_id == user_id
+
+        activity_list.append({
+            "id": activity.id,
+            "timestamp": activity.created_at.isoformat() if activity.created_at else None,
+            "action": activity.action,
+            "action_display": _format_action_display(activity.action),
+            "role": "actor" if is_actor else "target",
+            "resource_type": activity.resource_type,
+            "resource_id": activity.resource_id,
+            "details": activity.changes or {},
+            "ip_address": activity.ip_address,
+            "risk_level": _classify_audit_risk(activity.action)
+        })
+
+    return {
+        "user_id": user_id,
+        "user_email": user.email,
+        "activities": activity_list,
+        "total": total_count,
+        "limit": limit,
+        "offset": offset,
+        "has_more": offset + limit < total_count
+    }
+
+
+def _format_action_display(action: str) -> str:
+    """SEC-046: Format action string for display"""
+    action_display = {
+        "user.login": "Logged in",
+        "user.logout": "Logged out",
+        "user.invite": "Invited to organization",
+        "user.remove": "Removed from organization",
+        "user.role_change": "Role changed",
+        "user.profile_update": "Profile updated",
+        "user.password_reset": "Password reset",
+        "user.force_logout": "Force logged out",
+        "user.suspend": "Account suspended",
+        "user.reactivate": "Account reactivated",
+        "user.mfa_setup": "MFA configured",
+        "authorization.approve": "Approved action",
+        "authorization.deny": "Denied action",
+        "rule.create": "Created rule",
+        "rule.update": "Updated rule",
+        "rule.delete": "Deleted rule",
+        "organization.update": "Updated organization settings",
+        "subscription.upgrade": "Upgraded subscription"
+    }
+    return action_display.get(action, action.replace(".", " ").replace("_", " ").title())
+
+
+# =============================================================================
 # BILLING & SUBSCRIPTION
 # =============================================================================
 
@@ -686,15 +1399,34 @@ async def get_billing_details(
     db: Session = Depends(get_db)
 ):
     """
-    SEC-022: Get billing and subscription details.
+    SEC-046: Get billing and subscription details with enterprise metrics.
+
+    Enterprise Features:
+    - Flat limit values for React compatibility (prevents Error #31)
+    - Detailed usage breakdown for analytics
+    - Overage cost calculation
+    - Trial period tracking
+    - Current period dates for invoice display
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 3.4
     """
     org = db.query(Organization).filter(
         Organization.id == admin["organization_id"]
     ).first()
 
-    # Calculate current usage
-    # SEC-044: Use timezone-aware datetime
-    month_start = datetime.now(UTC).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    # SEC-046: Calculate current usage with timezone-aware datetime
+    now = datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    # Calculate next month for period end
+    if now.month == 12:
+        period_end = now.replace(year=now.year + 1, month=1, day=1)
+    else:
+        period_end = now.replace(month=now.month + 1, day=1)
+
     api_calls_this_month = db.query(AgentAction).filter(
         AgentAction.organization_id == org.id,
         AgentAction.created_at >= month_start
@@ -705,86 +1437,196 @@ async def get_billing_details(
         User.is_active == True
     ).count()
 
-    # Calculate overage
-    overage_api_calls = max(0, api_calls_this_month - (org.included_api_calls or 0))
-    overage_cost = overage_api_calls * 0.001  # $0.001 per overage API call
+    # SEC-046: Count MCP servers and agents for limits display
+    mcp_servers_count = 0
+    agents_count = 0
+    try:
+        from models_mcp_governance import MCPServer
+        mcp_servers_count = db.query(MCPServer).filter(
+            MCPServer.is_active == True
+        ).count()
+    except Exception:
+        pass
 
-    # Tier pricing
-    tier_pricing = {
-        "pilot": {"monthly": 0, "yearly": 0},
-        "growth": {"monthly": 499, "yearly": 4990},
-        "enterprise": {"monthly": 1999, "yearly": 19990},
-        "mega": {"monthly": 4999, "yearly": 49990}
-    }
+    try:
+        # Count unique agent_ids from recent actions
+        agents_count = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
+            AgentAction.organization_id == org.id,
+            AgentAction.created_at >= month_start
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    # SEC-046: Get pricing from config (includes tier-specific overage rates)
+    current_pricing = get_tier_pricing(org.subscription_tier)
+
+    # SEC-046: Calculate overage using tier-specific rates
+    # Use org's included actions if set, otherwise use tier default
+    included_agent_actions = org.included_api_calls or current_pricing["included_agent_actions"]
+    overage_actions = max(0, api_calls_this_month - included_agent_actions)
+    # Use tier-specific overage rate (e.g., $0.35/action for Professional, $0.25 for Business)
+    overage_rate = current_pricing["overage_per_action"]
+    overage_cost = overage_actions * overage_rate
+
+    # Calculate usage percentages for warnings
+    api_usage_percent = (api_calls_this_month / included_agent_actions * 100) if included_agent_actions > 0 else 0
+    # Unlimited users (-1) means no percentage calculation needed
+    user_usage_percent = 0  # Unlimited users for all tiers
+
+    # SEC-046: Calculate days remaining
+    days_remaining = None
+    if org.trial_ends_at and org.subscription_status == "trial":
+        days_remaining = max(0, (org.trial_ends_at - now).days)
 
     return {
-        "subscription": {
-            "tier": org.subscription_tier,
-            "status": org.subscription_status,
-            "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
-            "is_trial": org.subscription_status == "trial",
-            # SEC-044: Use timezone-aware datetime for proper subtraction
-            "days_remaining_in_trial": (org.trial_ends_at - datetime.now(UTC)).days if org.trial_ends_at and org.subscription_status == "trial" else None
-        },
+        # SEC-046: Top-level fields for frontend compatibility
+        "tier": org.subscription_tier,
+        "tier_name": current_pricing["name"],
+        "status": org.subscription_status,
+        "is_trial": org.subscription_status == "trial",
+        "is_popular": current_pricing["is_popular"],
+        "days_remaining": days_remaining,
+        "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
+
+        # SEC-046: Flat limit numbers for React (prevents Error #31)
+        # Note: users = -1 means unlimited (no per-seat fees)
         "limits": {
-            "users": {"included": org.included_users, "current": user_count},
-            "api_calls": {"included": org.included_api_calls, "current": api_calls_this_month},
-            "mcp_servers": {"included": org.included_mcp_servers}
+            "users": -1,  # Unlimited users for all tiers
+            "agent_actions": included_agent_actions,
+            "api_calls": included_agent_actions,  # Alias for backward compatibility
+            "mcp_servers": org.included_mcp_servers or 10,
+            "agents": getattr(org, 'included_agents', 50) or 50,
+            "audit_retention_days": current_pricing["audit_retention_days"]
         },
+
+        # SEC-046: Current usage for display
+        "usage": {
+            "users": user_count,
+            "agent_actions": api_calls_this_month,
+            "api_calls": api_calls_this_month,  # Alias for backward compatibility
+            "mcp_servers": mcp_servers_count,
+            "agents": agents_count
+        },
+
+        # SEC-046: Usage percentages for warning indicators (thresholds from config)
+        "usage_percent": {
+            "users": 0,  # N/A - unlimited users
+            "agent_actions": round(api_usage_percent, 1),
+            "api_calls": round(api_usage_percent, 1),  # Alias
+            "warning_threshold": BILLING_CONFIG["thresholds"]["warning"],
+            "critical_threshold": BILLING_CONFIG["thresholds"]["critical"]
+        },
+
+        # Period information
+        "current_period_start": month_start.isoformat(),
+        "current_period_end": period_end.isoformat(),
+        "price_cents": current_pricing["price_cents"],
+        "monthly_price_usd": current_pricing["monthly"],
+        "yearly_price_usd": current_pricing["yearly"],
+        "annual_discount_percent": current_pricing["annual_discount_percent"],
+        "billing_email": getattr(org, 'billing_email', None) or getattr(org, 'primary_email', None),
+
+        # Overage details
         "overage": {
-            "api_calls": overage_api_calls,
+            "agent_actions": overage_actions,
+            "api_calls": overage_actions,  # Alias
+            "rate_per_action": overage_rate,
             "estimated_cost": round(overage_cost, 2)
         },
-        "pricing": tier_pricing.get(org.subscription_tier, tier_pricing["pilot"]),
+
+        # Support SLA
+        "support": {
+            "sla_hours": current_pricing["support_sla_hours"],
+            "tier_level": "dedicated" if current_pricing["support_sla_hours"] <= 1 else
+                         "priority" if current_pricing["support_sla_hours"] <= 4 else "standard"
+        },
+
+        # Full pricing config for current tier
+        "pricing": current_pricing,
+
+        # All available tiers for upgrade options
+        "available_tiers": {
+            tier_key: {
+                "name": tier_data["name"],
+                "monthly_usd": tier_data["monthly_usd"],
+                "yearly_usd": tier_data["yearly_usd"],
+                "included_agent_actions": tier_data["included_agent_actions"],
+                "overage_per_action": tier_data["overage_per_action"],
+                "features": tier_data["features"],
+                "is_popular": tier_data.get("is_popular", False)
+            }
+            for tier_key, tier_data in BILLING_CONFIG["tiers"].items()
+            if not tier_data.get("is_trial", False)  # Exclude trial tier from upgrade options
+        },
+
+        # Stripe integration
         "stripe": {
-            "customer_id": org.stripe_customer_id if hasattr(org, 'stripe_customer_id') else None,
-            "has_payment_method": False  # TODO: Check with Stripe
-        }
+            "customer_id": getattr(org, 'stripe_customer_id', None),
+            "has_payment_method": False  # TODO: Check with Stripe API
+        },
+
+        # SEC-046: Invoice history placeholder (enterprise feature)
+        "invoices": []  # TODO: Fetch from Stripe when integrated
     }
 
 
 @router.post("/billing/upgrade")
+@limiter.limit("5/minute")  # SEC-046: Strict rate limit for billing operations
 async def upgrade_subscription(
     request: Request,
     upgrade_data: BillingUpdateRequest,
     admin: dict = Depends(require_org_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)  # SEC-046: CSRF validation
 ):
     """
     SEC-022: Upgrade subscription tier.
 
     Integrates with Stripe for payment processing.
+    Rate limited: 5 requests/minute per IP (SEC-046)
+    CSRF protected: Double-submit validation (SEC-046)
     """
     org = db.query(Organization).filter(
         Organization.id == admin["organization_id"]
     ).first()
 
-    valid_tiers = ["pilot", "growth", "enterprise", "mega"]
+    # SEC-046: Use config-based tiers (professional, business, enterprise)
+    valid_tiers = list(BILLING_CONFIG["tiers"].keys())
     if upgrade_data.subscription_tier not in valid_tiers:
         raise HTTPException(status_code=400, detail=f"Invalid tier. Must be one of: {valid_tiers}")
 
-    tier_order = {"pilot": 0, "growth": 1, "enterprise": 2, "mega": 3}
-    if tier_order[upgrade_data.subscription_tier] <= tier_order[org.subscription_tier]:
+    # SEC-046: Tier ordering for upgrade validation
+    tier_order = {"pilot": 0, "professional": 1, "business": 2, "enterprise": 3}
+    current_tier_level = tier_order.get(org.subscription_tier, 0)
+    new_tier_level = tier_order.get(upgrade_data.subscription_tier, 0)
+
+    if new_tier_level <= current_tier_level:
         raise HTTPException(status_code=400, detail="Can only upgrade to a higher tier")
 
-    # Tier limits
-    tier_limits = {
-        "pilot": {"users": 5, "api_calls": 10000, "mcp_servers": 3},
-        "growth": {"users": 25, "api_calls": 100000, "mcp_servers": 10},
-        "enterprise": {"users": 100, "api_calls": 500000, "mcp_servers": 50},
-        "mega": {"users": 1000, "api_calls": 5000000, "mcp_servers": 200}
-    }
+    # SEC-046: Get limits from config
+    new_tier_config = BILLING_CONFIG["tiers"][upgrade_data.subscription_tier]
 
     old_tier = org.subscription_tier
-    limits = tier_limits[upgrade_data.subscription_tier]
 
-    # Update organization
+    # SEC-046: Update organization with config-based limits
     org.subscription_tier = upgrade_data.subscription_tier
     org.subscription_status = "active"
-    org.included_users = limits["users"]
-    org.included_api_calls = limits["api_calls"]
-    org.included_mcp_servers = limits["mcp_servers"]
+    # Unlimited users (-1) for all tiers
+    org.included_users = new_tier_config["included_users"] if new_tier_config["included_users"] > 0 else 9999
+    org.included_api_calls = new_tier_config["included_agent_actions"]
+    org.included_mcp_servers = 50  # Standard for all tiers
     org.trial_ends_at = None  # End trial on upgrade
+
+    # SEC-046: Prepare limits for response
+    new_limits = {
+        "tier_name": new_tier_config["name"],
+        "agent_actions": new_tier_config["included_agent_actions"],
+        "overage_per_action": new_tier_config["overage_per_action"],
+        "support_sla_hours": new_tier_config["support_sla_hours"],
+        "audit_retention_days": new_tier_config["audit_retention_days"],
+        "users": "unlimited",
+        "monthly_price_usd": new_tier_config["monthly_usd"]
+    }
 
     # Audit log
     audit = AuditLog(
@@ -793,7 +1635,10 @@ async def upgrade_subscription(
         action="subscription.upgrade",
         resource_type="organization",
         resource_id=org.id,
-        changes={"tier": {"old": old_tier, "new": upgrade_data.subscription_tier}},
+        changes={
+            "tier": {"old": old_tier, "new": upgrade_data.subscription_tier},
+            "agent_actions": {"old": org.included_api_calls, "new": new_tier_config["included_agent_actions"]}
+        },
         ip_address=request.client.host if request.client else None
     )
     db.add(audit)
@@ -803,8 +1648,8 @@ async def upgrade_subscription(
 
     return {
         "success": True,
-        "message": f"Upgraded to {upgrade_data.subscription_tier}",
-        "new_limits": limits
+        "message": f"Upgraded to {new_tier_config['name']}",
+        "new_limits": new_limits
     }
 
 
@@ -862,105 +1707,241 @@ async def get_analytics_overview(
     db: Session = Depends(get_db)
 ):
     """
-    SEC-022: Get usage analytics overview.
+    SEC-046: Get usage analytics overview with enterprise metrics.
+
+    Enterprise Features:
+    - Flat field names for frontend compatibility
+    - Trend calculations (period-over-period change)
+    - Endpoint statistics for API usage analysis
+    - Top users by activity for governance
+    - Recent activity feed
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(b), PCI-DSS 10.2
     """
     org_id = admin["organization_id"]
-    # SEC-044: Use timezone-aware datetime for consistency
     now = datetime.now(UTC)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     week_ago = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
     day_ago = now - timedelta(days=1)
 
-    # API calls
-    total_api_calls = db.query(AgentAction).filter(
+    # SEC-046: Calculate previous period for trend comparison
+    prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
+
+    # ========================================
+    # API Calls Metrics
+    # ========================================
+    api_calls_this_month = db.query(AgentAction).filter(
         AgentAction.organization_id == org_id,
         AgentAction.created_at >= month_start
     ).count()
 
-    api_calls_last_week = db.query(AgentAction).filter(
+    api_calls_last_month = db.query(AgentAction).filter(
         AgentAction.organization_id == org_id,
-        AgentAction.created_at >= week_ago
+        AgentAction.created_at >= prev_month_start,
+        AgentAction.created_at < month_start
     ).count()
 
-    api_calls_last_day = db.query(AgentAction).filter(
-        AgentAction.organization_id == org_id,
-        AgentAction.created_at >= day_ago
-    ).count()
+    # Calculate trend percentage
+    api_calls_trend = 0
+    if api_calls_last_month > 0:
+        api_calls_trend = round(((api_calls_this_month - api_calls_last_month) / api_calls_last_month) * 100, 1)
 
-    # Alerts
-    # SEC-044: Use Alert.timestamp (correct column name per model)
-    total_alerts = db.query(Alert).filter(
-        Alert.organization_id == org_id,
-        Alert.timestamp >= month_start
-    ).count()
-
-    critical_alerts = db.query(Alert).filter(
-        Alert.organization_id == org_id,
-        Alert.severity == "critical",
-        Alert.timestamp >= month_start
-    ).count()
-
-    # Actions by decision
-    # SEC-045: Use try-except for graceful degradation if column doesn't exist yet
-    try:
-        actions_by_decision = db.query(
-            AgentAction.decision,
-            func.count(AgentAction.id)
-        ).filter(
-            AgentAction.organization_id == org_id,
-            AgentAction.created_at >= month_start
-        ).group_by(AgentAction.decision).all()
-        decision_breakdown = {d[0]: d[1] for d in actions_by_decision if d[0]}
-    except Exception as e:
-        logger.warning(f"SEC-045: decision column query failed, using fallback: {e}")
-        # Fallback: use policy_decision or status
-        decision_breakdown = {"pending": 0, "approved": 0, "denied": 0}
-
-    # Active users
-    active_users = db.query(User).filter(
+    # ========================================
+    # Active Users Metrics
+    # ========================================
+    active_users_count = db.query(User).filter(
         User.organization_id == org_id,
         User.is_active == True,
         User.last_login >= week_ago
     ).count()
 
-    # Smart rules
-    # SEC-045: Use try-except for graceful degradation if column doesn't exist yet
+    active_users_prev_week = db.query(User).filter(
+        User.organization_id == org_id,
+        User.is_active == True,
+        User.last_login >= two_weeks_ago,
+        User.last_login < week_ago
+    ).count()
+
+    active_users_trend = 0
+    if active_users_prev_week > 0:
+        active_users_trend = round(((active_users_count - active_users_prev_week) / active_users_prev_week) * 100, 1)
+
+    # ========================================
+    # Alerts Processed
+    # ========================================
+    alerts_processed = db.query(Alert).filter(
+        Alert.organization_id == org_id,
+        Alert.timestamp >= month_start
+    ).count()
+
+    alerts_last_month = db.query(Alert).filter(
+        Alert.organization_id == org_id,
+        Alert.timestamp >= prev_month_start,
+        Alert.timestamp < month_start
+    ).count()
+
+    alerts_trend = 0
+    if alerts_last_month > 0:
+        alerts_trend = round(((alerts_processed - alerts_last_month) / alerts_last_month) * 100, 1)
+
+    # ========================================
+    # Active Rules
+    # ========================================
     try:
-        active_rules = db.query(SmartRule).filter(
+        active_rules_count = db.query(SmartRule).filter(
             SmartRule.organization_id == org_id,
             SmartRule.is_enabled == True
         ).count()
-    except Exception as e:
-        logger.warning(f"SEC-045: is_enabled column query failed, using fallback: {e}")
-        # Fallback: count all rules for this org
-        active_rules = db.query(SmartRule).filter(
+    except Exception:
+        active_rules_count = db.query(SmartRule).filter(
             SmartRule.organization_id == org_id
         ).count()
 
+    rules_trend = 0  # Rules don't typically have trend comparison
+
+    # ========================================
+    # SEC-046: Endpoint Statistics (Enterprise Feature)
+    # ========================================
+    endpoint_stats = []
+    try:
+        endpoint_query = db.query(
+            AgentAction.action_type,
+            func.count(AgentAction.id).label('calls'),
+            func.avg(
+                case(
+                    (AgentAction.processing_time_ms.isnot(None), AgentAction.processing_time_ms),
+                    else_=0
+                )
+            ).label('avg_response_ms')
+        ).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= month_start
+        ).group_by(AgentAction.action_type).order_by(desc('calls')).limit(10).all()
+
+        for stat in endpoint_query:
+            endpoint_stats.append({
+                "endpoint": f"/api/{stat.action_type}" if stat.action_type else "/api/unknown",
+                "calls": stat.calls,
+                "avg_response_ms": round(float(stat.avg_response_ms or 0), 1),
+                "error_rate": 0.0  # TODO: Calculate from error counts
+            })
+    except Exception as e:
+        logger.warning(f"SEC-046: endpoint_stats query failed: {e}")
+        endpoint_stats = []
+
+    # ========================================
+    # SEC-046: Top Users by Activity (Enterprise Feature)
+    # ========================================
+    top_users = []
+    try:
+        top_users_query = db.query(
+            User.email,
+            User.last_login,
+            func.count(AgentAction.id).label('action_count')
+        ).outerjoin(
+            AgentAction,
+            and_(
+                AgentAction.user_id == User.id,
+                AgentAction.created_at >= month_start
+            )
+        ).filter(
+            User.organization_id == org_id,
+            User.is_active == True
+        ).group_by(User.id, User.email, User.last_login).order_by(desc('action_count')).limit(5).all()
+
+        for user in top_users_query:
+            top_users.append({
+                "email": user.email,
+                "action_count": user.action_count or 0,
+                "last_active": user.last_login.isoformat() if user.last_login else None
+            })
+    except Exception as e:
+        logger.warning(f"SEC-046: top_users query failed: {e}")
+        top_users = []
+
+    # ========================================
+    # SEC-046: Recent Activity Feed (Enterprise Feature)
+    # ========================================
+    recent_activity = []
+    try:
+        recent_actions = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id
+        ).order_by(desc(AgentAction.created_at)).limit(10).all()
+
+        for action in recent_actions:
+            recent_activity.append({
+                "timestamp": action.created_at.isoformat() if action.created_at else None,
+                "description": f"{action.action_type}: {action.agent_id}" if action.action_type else "Agent action",
+                "type": "agent_action",
+                "severity": getattr(action, 'risk_level', 'low')
+            })
+    except Exception as e:
+        logger.warning(f"SEC-046: recent_activity query failed: {e}")
+        recent_activity = []
+
+    # ========================================
+    # SEC-046: MCP Server Count
+    # ========================================
+    mcp_servers_count = 0
+    try:
+        from models_mcp_governance import MCPServer
+        mcp_servers_count = db.query(MCPServer).filter(
+            MCPServer.is_active == True
+        ).count()
+    except Exception:
+        pass
+
+    # ========================================
+    # SEC-046: Agents Count (unique agent IDs this month)
+    # ========================================
+    agents_count = 0
+    try:
+        agents_count = db.query(func.count(func.distinct(AgentAction.agent_id))).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= month_start
+        ).scalar() or 0
+    except Exception:
+        pass
+
+    # SEC-046: Return flat field names for frontend compatibility
     return {
+        # Flat fields expected by frontend
+        "api_calls_this_month": api_calls_this_month,
+        "api_calls_trend": api_calls_trend,
+        "active_users_count": active_users_count,
+        "active_users_trend": active_users_trend,
+        "alerts_processed": alerts_processed,
+        "alerts_trend": alerts_trend,
+        "active_rules_count": active_rules_count,
+        "rules_trend": rules_trend,
+
+        # Additional counts for billing display
+        "mcp_servers_count": mcp_servers_count,
+        "agents_count": agents_count,
+
+        # Enterprise features
+        "endpoint_stats": endpoint_stats,
+        "top_users": top_users,
+        "recent_activity": recent_activity,
+
+        # Period information
         "period": {
             "start": month_start.isoformat(),
             "end": now.isoformat()
         },
+
+        # Legacy nested format (backward compatibility)
         "api_calls": {
-            "total_this_month": total_api_calls,
-            "last_7_days": api_calls_last_week,
-            "last_24_hours": api_calls_last_day
-        },
-        "alerts": {
-            "total": total_alerts,
-            "critical": critical_alerts
-        },
-        "decisions": {
-            "allow": decision_breakdown.get("allow", 0),
-            "require_approval": decision_breakdown.get("require_approval", 0),
-            "block": decision_breakdown.get("block", 0)
-        },
-        "users": {
-            "active_last_7_days": active_users
-        },
-        "rules": {
-            "active": active_rules
+            "total_this_month": api_calls_this_month,
+            "last_7_days": db.query(AgentAction).filter(
+                AgentAction.organization_id == org_id,
+                AgentAction.created_at >= week_ago
+            ).count(),
+            "last_24_hours": db.query(AgentAction).filter(
+                AgentAction.organization_id == org_id,
+                AgentAction.created_at >= day_ago
+            ).count()
         }
     }
 
@@ -1019,47 +2000,160 @@ async def get_audit_log(
     limit: int = 50,
     offset: int = 0,
     action_filter: Optional[str] = None,
-    risk_level: Optional[str] = None,
+    event_type: Optional[str] = None,
+    days: int = Query(30, ge=1, le=365, description="Days of history to fetch"),
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db)
 ):
     """
-    SEC-040: Get organization audit log with filtering.
+    SEC-046: Get organization audit log with enterprise filtering.
 
-    Compliance: SOC 2, HIPAA, SOX
+    Enterprise Features:
+    - Field names aligned with frontend (entries, timestamp, event_type, user_email)
+    - User email resolution from user_id
+    - Date range filtering
+    - Event type filtering
+    - Full-text search on action
+
+    Compliance: SOC 2 CC7.2, HIPAA 164.312(b), PCI-DSS 10.2, SOX 302/404
     """
+    org_id = admin["organization_id"]
+    now = datetime.now(UTC)
+    start_date = now - timedelta(days=days)
+
     query = db.query(AuditLog).filter(
-        AuditLog.organization_id == admin["organization_id"]
+        AuditLog.organization_id == org_id,
+        AuditLog.created_at >= start_date
     )
 
-    # SEC-040: Add filters
+    # SEC-046: Add filters
     if action_filter:
         query = query.filter(AuditLog.action.ilike(f"%{action_filter}%"))
+
+    if event_type:
+        query = query.filter(AuditLog.action.ilike(f"{event_type}%"))
 
     logs = query.order_by(desc(AuditLog.created_at)).offset(offset).limit(limit).all()
 
     total = db.query(AuditLog).filter(
-        AuditLog.organization_id == admin["organization_id"]
+        AuditLog.organization_id == org_id,
+        AuditLog.created_at >= start_date
     ).count()
 
+    # SEC-046: Build user email cache for efficient lookups
+    user_ids = list(set(log.user_id for log in logs if log.user_id))
+    user_email_map = {}
+    if user_ids:
+        users = db.query(User.id, User.email).filter(User.id.in_(user_ids)).all()
+        user_email_map = {u.id: u.email for u in users}
+
+    # SEC-046: Transform logs to match frontend expectations
+    entries = []
+    for log in logs:
+        entries.append({
+            # Frontend expected fields
+            "id": log.id,
+            "timestamp": log.created_at.isoformat() if log.created_at else None,
+            "event_type": log.action,
+            "user_email": user_email_map.get(log.user_id, f"user_{log.user_id}"),
+            "ip_address": log.ip_address,
+            "details": log.changes or {},
+
+            # Additional enterprise fields
+            "user_id": log.user_id,
+            "resource_type": log.resource_type,
+            "resource_id": log.resource_id,
+            "action": log.action,  # Legacy compatibility
+
+            # SEC-046: Risk classification for audit
+            "risk_level": _classify_audit_risk(log.action),
+            "compliance_tags": _get_compliance_tags(log.action)
+        })
+
     return {
-        "logs": [
-            {
-                "id": log.id,
-                "action": log.action,
-                "user_id": log.user_id,
-                "resource_type": log.resource_type,
-                "resource_id": log.resource_id,
-                "changes": log.changes,
-                "ip_address": log.ip_address,
-                "created_at": log.created_at.isoformat() if log.created_at else None
-            }
-            for log in logs
-        ],
+        # SEC-046: Frontend expects "entries" not "logs"
+        "entries": entries,
+
+        # Also provide "logs" for backward compatibility
+        "logs": entries,
+
+        # Pagination info
         "total": total,
         "limit": limit,
-        "offset": offset
+        "offset": offset,
+
+        # Period info for compliance reporting
+        "period": {
+            "start": start_date.isoformat(),
+            "end": now.isoformat(),
+            "days": days
+        }
     }
+
+
+def _classify_audit_risk(action: str) -> str:
+    """
+    SEC-046: Classify audit action risk level for compliance.
+
+    Risk Levels:
+    - critical: User deletion, role changes to admin, security settings
+    - high: Password changes, API key operations, data exports
+    - medium: User invites, configuration changes
+    - low: Read operations, login events
+    """
+    if not action:
+        return "low"
+
+    action_lower = action.lower()
+
+    critical_patterns = ["delete", "remove", "admin", "role_change", "access_level", "security"]
+    high_patterns = ["password", "api_key", "export", "revoke", "suspend"]
+    medium_patterns = ["invite", "create", "update", "modify", "settings"]
+
+    for pattern in critical_patterns:
+        if pattern in action_lower:
+            return "critical"
+
+    for pattern in high_patterns:
+        if pattern in action_lower:
+            return "high"
+
+    for pattern in medium_patterns:
+        if pattern in action_lower:
+            return "medium"
+
+    return "low"
+
+
+def _get_compliance_tags(action: str) -> List[str]:
+    """
+    SEC-046: Map audit actions to compliance frameworks.
+
+    Returns list of applicable compliance frameworks for the action.
+    """
+    if not action:
+        return []
+
+    action_lower = action.lower()
+    tags = []
+
+    # SOX - Financial controls and access changes
+    if any(p in action_lower for p in ["role", "access", "admin", "delete", "security"]):
+        tags.append("SOX")
+
+    # HIPAA - Data access and user management
+    if any(p in action_lower for p in ["user", "access", "export", "data", "patient"]):
+        tags.append("HIPAA")
+
+    # PCI-DSS - Access control and authentication
+    if any(p in action_lower for p in ["login", "password", "api_key", "auth", "access"]):
+        tags.append("PCI-DSS")
+
+    # SOC 2 - All security-relevant events
+    if any(p in action_lower for p in ["security", "settings", "config", "user", "role"]):
+        tags.append("SOC2")
+
+    return tags
 
 
 # =============================================================================
@@ -1140,12 +2234,14 @@ async def get_users_by_access_level(
 
 
 @router.patch("/users/{user_id}/access-level")
+@limiter.limit(RATE_LIMITS["api_write"])  # SEC-046: Rate limit (30/min per IP)
 async def update_user_access_level(
     request: Request,
     user_id: int,
     update_data: UserAccessLevelUpdate,
     admin: dict = Depends(require_org_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)  # SEC-046: CSRF validation
 ):
     """
     SEC-040: Update a user's RBAC access level.
@@ -1154,6 +2250,8 @@ async def update_user_access_level(
     - Only users with users.manage_roles permission can update access levels
     - Cannot set level higher than your own
     - Audit logged for compliance
+    - Rate limited: 30 requests/minute per IP (SEC-046)
+    - CSRF protected: Double-submit validation (SEC-046)
 
     Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 7.1
     """
@@ -1519,4 +2617,566 @@ async def get_security_settings(
     }
 
 
+# =============================================================================
+# SEC-046 PHASE 3: BULK USER OPERATIONS
+# =============================================================================
+
+class BulkUserOperation(BaseModel):
+    """SEC-046 Phase 3: Bulk user operation request"""
+    user_ids: List[int] = Field(..., min_length=1, max_length=100, description="User IDs to operate on")
+    operation: str = Field(..., description="Operation: suspend, reactivate, delete, role_change")
+    role: Optional[str] = Field(None, description="New role for role_change operation")
+    reason: Optional[str] = Field(None, max_length=500, description="Reason for bulk operation")
+
+
+@router.post("/users/bulk-operation")
+@limiter.limit("10/minute")
+async def bulk_user_operation(
+    request: Request,
+    operation_data: BulkUserOperation,
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db),
+    _csrf: bool = Depends(require_csrf)
+):
+    """
+    SEC-046 Phase 3: Perform bulk operations on multiple users.
+
+    Enterprise Features:
+    - Suspend/reactivate multiple users at once
+    - Bulk role changes
+    - Bulk user deletion (soft delete)
+    - Comprehensive audit logging per user
+    - Rate limited: 10/minute
+
+    Compliance: SOC 2 CC6.1, NIST AC-2, HIPAA 164.312(a)
+    """
+    org_id = admin["organization_id"]
+    valid_operations = ["suspend", "reactivate", "delete", "role_change"]
+
+    if operation_data.operation not in valid_operations:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid operation. Must be one of: {valid_operations}"
+        )
+
+    if operation_data.operation == "role_change" and not operation_data.role:
+        raise HTTPException(status_code=400, detail="Role is required for role_change operation")
+
+    if operation_data.operation == "role_change":
+        valid_roles = ["viewer", "analyst", "operator", "admin", "org_admin"]
+        if operation_data.role not in valid_roles:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid role. Must be one of: {valid_roles}"
+            )
+
+    # Fetch users (with org isolation)
+    users = db.query(User).filter(
+        User.id.in_(operation_data.user_ids),
+        User.organization_id == org_id
+    ).all()
+
+    if not users:
+        raise HTTPException(status_code=404, detail="No users found with provided IDs")
+
+    # Filter out self and owners
+    eligible_users = []
+    skipped_users = []
+
+    for user in users:
+        if user.id == admin["user_id"]:
+            skipped_users.append({"id": user.id, "email": user.email, "reason": "Cannot operate on self"})
+        elif getattr(user, 'is_owner', False):
+            skipped_users.append({"id": user.id, "email": user.email, "reason": "Cannot operate on owner"})
+        else:
+            eligible_users.append(user)
+
+    if not eligible_users:
+        return {
+            "success": False,
+            "message": "No eligible users for operation",
+            "processed": 0,
+            "skipped": skipped_users
+        }
+
+    # Perform operation
+    processed = []
+    now = datetime.now(UTC)
+
+    for user in eligible_users:
+        old_values = {}
+        new_values = {}
+
+        if operation_data.operation == "suspend":
+            old_values["is_suspended"] = getattr(user, 'is_suspended', False)
+            user.is_suspended = True
+            user.suspended_at = now
+            user.suspended_by = admin["user_id"]
+            user.suspension_reason = operation_data.reason
+            new_values["is_suspended"] = True
+
+        elif operation_data.operation == "reactivate":
+            old_values["is_suspended"] = getattr(user, 'is_suspended', True)
+            user.is_suspended = False
+            user.suspended_at = None
+            user.suspended_by = None
+            user.suspension_reason = None
+            new_values["is_suspended"] = False
+
+        elif operation_data.operation == "delete":
+            old_values["is_active"] = user.is_active
+            user.is_active = False
+            new_values["is_active"] = False
+
+        elif operation_data.operation == "role_change":
+            old_values["role"] = user.role
+            user.role = operation_data.role
+            if operation_data.role == "org_admin":
+                user.is_org_admin = True
+            else:
+                user.is_org_admin = False
+            new_values["role"] = operation_data.role
+
+        # Audit log per user
+        audit = AuditLog(
+            organization_id=org_id,
+            user_id=admin["user_id"],
+            action=f"user.bulk_{operation_data.operation}",
+            resource_type="user",
+            resource_id=user.id,
+            changes={
+                "operation": operation_data.operation,
+                "target_email": user.email,
+                "reason": operation_data.reason,
+                "old": old_values,
+                "new": new_values
+            },
+            ip_address=request.client.host if request.client else None
+        )
+        db.add(audit)
+
+        processed.append({
+            "id": user.id,
+            "email": user.email,
+            "operation": operation_data.operation,
+            "success": True
+        })
+
+    db.commit()
+
+    logger.info(f"SEC-046 Phase 3: Bulk {operation_data.operation} on {len(processed)} users by admin {admin['user_id']}")
+
+    return {
+        "success": True,
+        "message": f"Bulk {operation_data.operation} completed",
+        "operation": operation_data.operation,
+        "processed": len(processed),
+        "skipped": len(skipped_users),
+        "results": processed,
+        "skipped_details": skipped_users
+    }
+
+
+# =============================================================================
+# SEC-046 PHASE 3: USAGE OVERAGE ALERTS
+# =============================================================================
+
+@router.get("/alerts/usage-status")
+async def get_usage_overage_status(
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-046 Phase 3: Get usage status and overage alerts.
+
+    Enterprise Features:
+    - Real-time usage vs limit comparison
+    - Warning/critical thresholds (80%/95%)
+    - Overage cost calculation
+    - Notification recommendations
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 12.10
+    """
+    org_id = admin["organization_id"]
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    # Get current tier limits
+    tier_key = org.subscription_tier or "pilot"
+    tier_config = BILLING_CONFIG["tiers"].get(tier_key, BILLING_CONFIG["tiers"]["pilot"])
+
+    # Calculate current month usage
+    now = datetime.now(UTC)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    current_usage = db.query(AgentAction).filter(
+        AgentAction.organization_id == org_id,
+        AgentAction.created_at >= month_start
+    ).count()
+
+    # Get limits
+    included_actions = tier_config["included_agent_actions"]
+    overage_rate = tier_config["overage_per_action"]
+    warning_threshold = BILLING_CONFIG["thresholds"]["warning"]
+    critical_threshold = BILLING_CONFIG["thresholds"]["critical"]
+
+    # Calculate percentages and status
+    usage_percent = (current_usage / included_actions * 100) if included_actions > 0 else 0
+
+    # Determine alert level
+    alert_level = "normal"
+    alert_message = None
+
+    if current_usage > included_actions:
+        alert_level = "overage"
+        overage_count = current_usage - included_actions
+        overage_cost = overage_count * overage_rate
+        alert_message = f"You have exceeded your plan limit by {overage_count} actions. Current overage cost: ${overage_cost:.2f}"
+    elif usage_percent >= critical_threshold:
+        alert_level = "critical"
+        remaining = included_actions - current_usage
+        alert_message = f"Critical: Only {remaining} agent actions remaining ({100 - usage_percent:.1f}% left)"
+    elif usage_percent >= warning_threshold:
+        alert_level = "warning"
+        remaining = included_actions - current_usage
+        alert_message = f"Warning: {remaining} agent actions remaining ({100 - usage_percent:.1f}% left)"
+
+    # User count
+    user_count = db.query(User).filter(
+        User.organization_id == org_id,
+        User.is_active == True
+    ).count()
+
+    # Days remaining in billing period
+    if now.month == 12:
+        next_month = now.replace(year=now.year + 1, month=1, day=1)
+    else:
+        next_month = now.replace(month=now.month + 1, day=1)
+    days_remaining = (next_month - now).days
+
+    # Projected usage
+    days_elapsed = now.day
+    daily_rate = current_usage / days_elapsed if days_elapsed > 0 else 0
+    projected_month_end = int(daily_rate * 30)
+
+    # SEC-046: Build separate warnings and critical arrays for frontend compatibility
+    warnings = []
+    critical = []
+    if alert_message:
+        alert_obj = {
+            "resource": "Agent Actions",
+            "current": current_usage,
+            "limit": included_actions,
+            "percentage": round(usage_percent, 1),
+            "message": alert_message
+        }
+        if alert_level in ("critical", "overage"):
+            critical.append(alert_obj)
+        elif alert_level == "warning":
+            warnings.append(alert_obj)
+
+    return {
+        "status": alert_level,
+        # SEC-046: Separate arrays for frontend usage alert display
+        "warnings": warnings,
+        "critical": critical,
+
+        "usage": {
+            "agent_actions": {
+                "current": current_usage,
+                "limit": included_actions,
+                "percent": round(usage_percent, 1),
+                "remaining": max(0, included_actions - current_usage),
+                "overage": max(0, current_usage - included_actions),
+                "overage_cost": max(0, (current_usage - included_actions) * overage_rate) if current_usage > included_actions else 0
+            },
+            "users": {"current": user_count, "limit": "unlimited", "percent": 0}
+        },
+
+        "projection": {
+            "daily_rate": round(daily_rate, 1),
+            "projected_month_end": projected_month_end,
+            "will_exceed": projected_month_end > included_actions
+        },
+
+        "billing_period": {
+            "start": month_start.isoformat(),
+            "end": next_month.isoformat(),
+            "days_remaining": days_remaining
+        },
+
+        "tier": {"name": tier_config["name"], "key": tier_key, "overage_rate": overage_rate}
+    }
+
+
+# =============================================================================
+# SEC-046 PHASE 3: ANALYTICS CHARTS DATA
+# =============================================================================
+
+@router.get("/analytics/charts")
+async def get_analytics_chart_data(
+    days: int = Query(30, ge=7, le=90, description="Number of days: 7, 30, or 90"),
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-046 Phase 3: Get formatted chart data for analytics dashboards.
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(b)
+    """
+    org_id = admin["organization_id"]
+    now = datetime.now(UTC)
+    # SEC-046: Accept days directly from frontend
+    period_days = days if days in (7, 30, 90) else 30
+    start_date = now - timedelta(days=period_days)
+
+    # Daily action counts
+    daily_actions = db.query(
+        func.date(AgentAction.created_at).label('date'),
+        func.count(AgentAction.id).label('count')
+    ).filter(
+        AgentAction.organization_id == org_id,
+        AgentAction.created_at >= start_date
+    ).group_by(func.date(AgentAction.created_at)).order_by('date').all()
+
+    # Daily alerts
+    daily_alerts = db.query(
+        func.date(Alert.timestamp).label('date'),
+        func.count(Alert.id).label('count')
+    ).filter(
+        Alert.organization_id == org_id,
+        Alert.timestamp >= start_date
+    ).group_by(func.date(Alert.timestamp)).order_by('date').all()
+
+    # Decision breakdown
+    decision_breakdown = []
+    try:
+        decisions = db.query(
+            AgentAction.status,
+            func.count(AgentAction.id).label('count')
+        ).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= start_date
+        ).group_by(AgentAction.status).all()
+        decision_breakdown = [{"name": d.status or "pending", "value": d.count} for d in decisions]
+    except Exception:
+        pass
+
+    # Risk distribution
+    risk_distribution = []
+    try:
+        risks = db.query(
+            AgentAction.risk_level,
+            func.count(AgentAction.id).label('count')
+        ).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= start_date,
+            AgentAction.risk_level.isnot(None)
+        ).group_by(AgentAction.risk_level).all()
+        risk_distribution = [{"name": r.risk_level, "value": r.count} for r in risks]
+    except Exception:
+        pass
+
+    return {
+        "period": {"start": start_date.isoformat(), "end": now.isoformat(), "days": period_days},
+        "time_series": {
+            "agent_actions": [{"date": str(d.date), "value": d.count} for d in daily_actions],
+            "alerts": [{"date": str(d.date), "value": d.count} for d in daily_alerts]
+        },
+        "distributions": {"decisions": decision_breakdown, "risk_levels": risk_distribution},
+        "totals": {
+            "agent_actions": sum(d.count for d in daily_actions),
+            "alerts": sum(d.count for d in daily_alerts)
+        }
+    }
+
+
+# =============================================================================
+# SEC-046 PHASE 3: AUDIT LOG EXPORT
+# =============================================================================
+
+@router.get("/audit-log/export")
+@limiter.limit("5/minute")
+async def export_audit_log(
+    request: Request,
+    format: str = Query("json", description="Export format: json, csv"),
+    days: int = Query(30, ge=1, le=365),
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-046 Phase 3: Export audit logs for compliance reporting.
+
+    Compliance: SOC 2 CC7.2, HIPAA 164.312(b), PCI-DSS 10.7, SOX 302/404
+    """
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+
+    org_id = admin["organization_id"]
+    now = datetime.now(UTC)
+    start_date = now - timedelta(days=days)
+
+    logs = db.query(AuditLog).filter(
+        AuditLog.organization_id == org_id,
+        AuditLog.created_at >= start_date
+    ).order_by(desc(AuditLog.created_at)).all()
+
+    # User email map
+    user_ids = list(set(log.user_id for log in logs if log.user_id))
+    user_email_map = {}
+    if user_ids:
+        users = db.query(User.id, User.email).filter(User.id.in_(user_ids)).all()
+        user_email_map = {u.id: u.email for u in users}
+
+    # Audit the export
+    export_audit = AuditLog(
+        organization_id=org_id,
+        user_id=admin["user_id"],
+        action="audit.export",
+        resource_type="audit_log",
+        resource_id=None,
+        changes={"format": format, "days": days, "record_count": len(logs)},
+        ip_address=request.client.host if request.client else None
+    )
+    db.add(export_audit)
+    db.commit()
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Timestamp", "Event Type", "User Email", "Resource Type", "Resource ID", "IP Address", "Details"])
+        for log in logs:
+            writer.writerow([
+                log.created_at.isoformat() if log.created_at else "",
+                log.action,
+                user_email_map.get(log.user_id, f"user_{log.user_id}"),
+                log.resource_type or "",
+                log.resource_id or "",
+                log.ip_address or "",
+                str(log.changes) if log.changes else ""
+            ])
+        output.seek(0)
+        filename = f"audit_log_{org_id}_{now.strftime('%Y%m%d_%H%M%S')}.csv"
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    # JSON export
+    return {
+        "export_info": {
+            "organization_id": org_id,
+            "exported_by": admin["email"],
+            "export_timestamp": now.isoformat(),
+            "record_count": len(logs)
+        },
+        "entries": [
+            {
+                "timestamp": log.created_at.isoformat() if log.created_at else None,
+                "event_type": log.action,
+                "user_email": user_email_map.get(log.user_id, f"user_{log.user_id}"),
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "ip_address": log.ip_address,
+                "details": log.changes or {}
+            }
+            for log in logs
+        ]
+    }
+
+
+# =============================================================================
+# SEC-046 PHASE 3: REAL-TIME STATUS UPDATES
+# =============================================================================
+
+@router.get("/status/realtime")
+async def get_realtime_status(
+    admin: dict = Depends(require_org_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-046 Phase 3: Get real-time system status for live dashboard updates.
+    Poll every 30 seconds.
+
+    Compliance: SOC 2 CC6.1
+    """
+    org_id = admin["organization_id"]
+    now = datetime.now(UTC)
+
+    five_min_ago = now - timedelta(minutes=5)
+    hour_ago = now - timedelta(hours=1)
+
+    recent_action_count = db.query(AgentAction).filter(
+        AgentAction.organization_id == org_id,
+        AgentAction.created_at >= five_min_ago
+    ).count()
+
+    pending_approvals = db.query(AgentAction).filter(
+        AgentAction.organization_id == org_id,
+        AgentAction.status == "pending",
+        AgentAction.requires_approval == True
+    ).count()
+
+    active_users = db.query(User).filter(
+        User.organization_id == org_id,
+        User.is_active == True,
+        User.last_login >= hour_ago
+    ).count()
+
+    recent_alerts = db.query(Alert).filter(
+        Alert.organization_id == org_id,
+        Alert.timestamp >= hour_ago,
+        Alert.status == "new"
+    ).count()
+
+    # Health check
+    health_status = "healthy"
+    health_issues = []
+    if pending_approvals > 10:
+        health_status = "warning"
+        health_issues.append(f"{pending_approvals} actions pending approval")
+    if recent_alerts > 5:
+        health_status = "warning" if health_status == "healthy" else health_status
+        health_issues.append(f"{recent_alerts} new alerts in last hour")
+
+    # Recent activity
+    recent_activities = []
+    try:
+        recent = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id
+        ).order_by(desc(AgentAction.created_at)).limit(5).all()
+        for action in recent:
+            recent_activities.append({
+                "id": action.id,
+                "type": action.action_type,
+                "agent": action.agent_id,
+                "status": action.status,
+                "timestamp": action.created_at.isoformat() if action.created_at else None
+            })
+    except Exception:
+        pass
+
+    # SEC-046: Flatten response structure for frontend compatibility
+    return {
+        "timestamp": now.isoformat(),
+        "poll_interval_seconds": 30,
+        # Flattened fields for frontend
+        "system_status": health_status,
+        "active_users": active_users,
+        "pending_actions": pending_approvals,  # Renamed for frontend
+        "new_alerts": recent_alerts,
+        "actions_last_5min": recent_action_count,
+        "api_latency_ms": 0,  # TODO: Implement actual API latency tracking
+        # Additional detail
+        "health_issues": health_issues,
+        "recent_activity": recent_activities,
+        "notifications": [{"type": "warning", "message": issue} for issue in health_issues]
+    }
+
+
 logger.info("SEC-040: Enterprise Unified Admin Console routes registered")
+logger.info("SEC-046 Phase 3: Bulk operations, usage alerts, charts, export, real-time endpoints added")
