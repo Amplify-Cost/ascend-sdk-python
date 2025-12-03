@@ -338,9 +338,120 @@ async def lifespan(app: FastAPI):
 
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app (unchanged)
+# ============================================================================
+# SEC-048: Enterprise API Documentation
+# ============================================================================
+# Datadog/Splunk-style interactive API documentation
+# Compliance: SOC 2 CC6.1 (API security documentation)
+
+API_DESCRIPTION = """
+# Ascend AI Governance Platform API
+
+Enterprise-grade API for AI agent authorization, governance, and compliance monitoring.
+
+## Quick Start
+
+1. **Generate API Key**: Go to Settings → API Keys in the dashboard
+2. **Authenticate**: Include `Authorization: Bearer YOUR_API_KEY` header
+3. **Submit Actions**: POST to `/api/authorization/agent-action`
+
+## Authentication
+
+All API endpoints require authentication via one of:
+- **JWT Token**: For dashboard/UI access (obtained via login)
+- **API Key**: For SDK/programmatic access (generated in Settings)
+
+```bash
+# Example: Using API Key
+curl -X POST https://pilot.owkai.app/api/authorization/agent-action \\
+  -H "Authorization: Bearer owkai_your_api_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_id": "my-agent", "action_type": "file_read", "action_details": {}}'
+```
+
+## Rate Limits
+
+| Tier | Requests/Day | Requests/Minute |
+|------|-------------|-----------------|
+| Starter | 1,000 | 60 |
+| Professional | 10,000 | 300 |
+| Enterprise | Unlimited | 1,000 |
+
+## Support
+
+- **Documentation**: [docs.ascendowkai.com](https://docs.ascendowkai.com)
+- **Status**: [status.ascendowkai.com](https://status.ascendowkai.com)
+- **Email**: support@ascendowkai.com
+"""
+
+API_TAGS_METADATA = [
+    {
+        "name": "Authorization",
+        "description": "Submit and manage AI agent actions for authorization. Core endpoint for SDK integration.",
+    },
+    {
+        "name": "Agent Registry",
+        "description": "Register, configure, and monitor AI agents. Manage trust levels and policies.",
+    },
+    {
+        "name": "Governance",
+        "description": "Create and manage governance policies. Define rules for agent behavior.",
+    },
+    {
+        "name": "API Key Management",
+        "description": "Generate, rotate, and revoke API keys for SDK authentication.",
+    },
+    {
+        "name": "Integration Suite",
+        "description": "Connect external systems: SIEMs, webhooks, notifications, and more.",
+    },
+    {
+        "name": "Integration Wizard",
+        "description": "Guided setup wizard for self-service integration configuration.",
+    },
+    {
+        "name": "Analytics",
+        "description": "Usage metrics, risk analytics, and compliance reporting.",
+    },
+    {
+        "name": "Alerts",
+        "description": "Security alerts and incident management.",
+    },
+    {
+        "name": "Admin Console",
+        "description": "Organization administration, user management, and settings.",
+    },
+    {
+        "name": "Enterprise Webhooks",
+        "description": "Configure webhook subscriptions for real-time event notifications.",
+    },
+    {
+        "name": "Health",
+        "description": "System health checks and status endpoints.",
+    },
+]
+
+# Initialize FastAPI app with enterprise documentation
 from routes.alert_routes import router as alerts_router
-app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Ascend AI Governance Platform",
+    description=API_DESCRIPTION,
+    version="2.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+    openapi_tags=API_TAGS_METADATA,
+    contact={
+        "name": "Ascend Support",
+        "url": "https://ascendowkai.com/support",
+        "email": "support@ascendowkai.com",
+    },
+    license_info={
+        "name": "Enterprise License",
+        "url": "https://ascendowkai.com/license",
+    },
+    lifespan=lifespan
+)
 
 # Register rate limiter
 app.state.limiter = limiter
