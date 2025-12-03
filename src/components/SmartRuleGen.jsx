@@ -17,6 +17,13 @@ const EnterpriseSmartRuleEngine = ({ getAuthHeaders, user }) => {
   const [abTests, setAbTests] = useState([]);
   const [creatingTest, setCreatingTest] = useState(false);
 
+  // SEC-057: ML Insights state (empty state by default, fetched from backend)
+  const [mlInsights, setMlInsights] = useState({
+    pattern_recognition_accuracy: null,
+    events_analyzed: 0,
+    threat_patterns_identified: 0
+  });
+
   // Manual Rule Creation
   const [createMethod, setCreateMethod] = useState("natural-language");
   const [manualRule, setManualRule] = useState({
@@ -1163,8 +1170,9 @@ Sample Size: ${test.sample_size}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-gradient-to-r from-purple-100 to-purple-200 rounded-lg">
                 <div className="text-lg font-bold text-purple-800">
-                  {mlInsights?.pattern_recognition_accuracy || 'N/A'}
-                  {mlInsights?.pattern_recognition_accuracy ? '%' : ''}
+                  {/* SEC-057 RISK-004: Use nullish coalescing to properly handle 0% accuracy */}
+                  {mlInsights?.pattern_recognition_accuracy ?? 'N/A'}
+                  {mlInsights?.pattern_recognition_accuracy !== null ? '%' : ''}
                 </div>
                 <div className="text-sm text-purple-700">Pattern Recognition Accuracy</div>
               </div>
