@@ -61,14 +61,29 @@ const INTEGRATION_TYPES = {
     category: "siem",
     icon: "☁️",
     description: "Microsoft Azure Sentinel Cloud SIEM",
-    requiredFields: ["endpoint_url", "client_id", "client_secret", "tenant_id"],
-    authTypes: ["oauth2"],
+    requiredFields: ["workspace_id", "shared_key"],
+    authTypes: ["shared_key"],
     fields: [
-      { name: "endpoint_url", label: "Workspace URL", type: "url", placeholder: "https://your-workspace.ods.opinsights.azure.com", required: true },
-      { name: "workspace_id", label: "Workspace ID", type: "text", placeholder: "Enter Log Analytics Workspace ID", required: true },
-      { name: "tenant_id", label: "Tenant ID", type: "text", placeholder: "Enter Azure AD Tenant ID", required: true },
-      { name: "client_id", label: "App Client ID", type: "text", placeholder: "Enter App Registration Client ID", required: true },
-      { name: "client_secret", label: "Client Secret", type: "password", placeholder: "Enter Client Secret", required: true, sensitive: true }
+      { name: "workspace_id", label: "Log Analytics Workspace ID", type: "text", placeholder: "Enter Log Analytics Workspace ID (GUID)", required: true },
+      { name: "shared_key", label: "Primary/Secondary Key", type: "password", placeholder: "Enter Log Analytics Primary or Secondary Key", required: true, sensitive: true },
+      { name: "log_type", label: "Custom Log Type", type: "text", placeholder: "OWAISecurityEvents", required: false }
+    ]
+  },
+  elastic: {
+    id: "elastic",
+    name: "Elastic Security",
+    category: "siem",
+    icon: "🔎",
+    description: "Elastic/ELK Stack Security SIEM",
+    requiredFields: ["endpoint_url"],
+    authTypes: ["api_key", "basic"],
+    fields: [
+      { name: "endpoint_url", label: "Elasticsearch URL", type: "url", placeholder: "https://elasticsearch.company.com:9200", required: true },
+      { name: "api_key", label: "API Key", type: "password", placeholder: "Enter Elasticsearch API Key", required: false, sensitive: true },
+      { name: "username", label: "Username (if not using API key)", type: "text", placeholder: "elastic", required: false },
+      { name: "password", label: "Password (if not using API key)", type: "password", placeholder: "Enter password", required: false, sensitive: true },
+      { name: "cloud_id", label: "Elastic Cloud ID (optional)", type: "text", placeholder: "For Elastic Cloud deployments", required: false },
+      { name: "index", label: "Index Name", type: "text", placeholder: "owai_security", required: false }
     ]
   },
   active_directory: {
