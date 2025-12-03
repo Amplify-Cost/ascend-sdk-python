@@ -1637,13 +1637,16 @@ except ImportError as e:
 
 # ============================================================================
 # SEC-021: Self-Service Signup Routes (PUBLIC - No auth required)
+# DISABLED: Self-signup disabled per business decision. Use quick_onboard_customer.py
+# to manually onboard customers via Cognito.
 # ============================================================================
-try:
-    from routes.signup_routes import router as signup_router
-    app.include_router(signup_router, tags=["Self-Service Signup"])
-    logger.info("✅ SEC-021: Self-Service Signup routes loaded - /api/signup/*")
-except ImportError as e:
-    logger.warning(f"SEC-021: Self-Service Signup routes not loaded: {e}")
+# try:
+#     from routes.signup_routes import router as signup_router
+#     app.include_router(signup_router, tags=["Self-Service Signup"])
+#     logger.info("✅ SEC-021: Self-Service Signup routes loaded - /api/signup/*")
+# except ImportError as e:
+#     logger.warning(f"SEC-021: Self-Service Signup routes not loaded: {e}")
+logger.info("ℹ️ SEC-021: Self-Service Signup DISABLED - use manual onboarding")
 
 # ============================================================================
 # SEC-022: Admin Console Routes (Requires org_admin)
