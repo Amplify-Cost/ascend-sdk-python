@@ -3,6 +3,7 @@ import AgentActionSubmitPanel from "./AgentActionSubmitPanel";
 import RiskConfigurationTab from "./risk-config/RiskConfigurationTab";
 import ApiKeyManagement from "./ApiKeyManagement";
 import IntegrationManagement from "./IntegrationManagement";
+import IntegrationWizard from "./IntegrationWizard";
 import fetchWithAuth from "../utils/fetchWithAuth";
 
 /**
@@ -23,6 +24,9 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
   // Phase 5: Integration Management Modal State
   const [showIntegrationModal, setShowIntegrationModal] = useState(false);
   const [selectedIntegrationType, setSelectedIntegrationType] = useState(null);
+
+  // SEC-047: Integration Wizard State (Datadog-style quick setup)
+  const [showIntegrationWizard, setShowIntegrationWizard] = useState(false);
 
   // SEC-028: Dynamic integration status state (no hardcoded defaults)
   const [integrationStatus, setIntegrationStatus] = useState({
@@ -254,6 +258,38 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
   // SEC-028: Enterprise Integrations (Dynamic from API - Multi-Tenant)
   const renderIntegrations = () => (
     <div className="space-y-6">
+      {/* SEC-047: Quick Setup Banner - Prominent CTA */}
+      <div
+        onClick={() => setShowIntegrationWizard(true)}
+        className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 cursor-pointer hover:from-blue-700 hover:to-indigo-800 transition-all shadow-lg hover:shadow-xl group"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <span className="text-3xl">🚀</span>
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-xl font-bold text-white">Quick Setup</h3>
+                <span className="px-2 py-0.5 bg-white/20 text-white text-xs rounded-full">Recommended</span>
+              </div>
+              <p className="text-blue-100 mt-1">
+                Connect your first AI agent or integration in under 5 minutes
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3">
+            <div className="text-right hidden md:block">
+              <p className="text-blue-100 text-sm">Guided setup wizard</p>
+              <p className="text-white text-sm font-medium">3 simple steps</p>
+            </div>
+            <svg className="w-8 h-8 text-white group-hover:translate-x-2 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
       {/* SEC-028: Error State */}
       {integrationStatus.error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -576,6 +612,16 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
         }}
         initialType={selectedIntegrationType}
         onIntegrationSaved={handleIntegrationSaved}
+      />
+
+      {/* SEC-047: Integration Setup Wizard (Datadog-style) */}
+      <IntegrationWizard
+        isOpen={showIntegrationWizard}
+        onClose={() => setShowIntegrationWizard(false)}
+        onComplete={() => {
+          setShowIntegrationWizard(false);
+          fetchIntegrationStatus();
+        }}
       />
     </div>
   );
