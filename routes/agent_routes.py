@@ -807,25 +807,80 @@ async def create_agent_action_via_sdk(
                 detail=f"Missing required fields: {', '.join(missing_fields)}"
             )
 
-        # Extract risk score (default to 50 if not provided)
-        risk_score = data.get("risk_score", 50)
-        if not isinstance(risk_score, (int, float)):
-            risk_score = 50
-        risk_score = max(0, min(100, int(risk_score)))
+        # SEC-061: Use enrichment system for action-type-based risk scoring
+        # This ensures SDK actions get proper risk assessment like the main endpoint
+        try:
+            enrichment = evaluate_action_enrichment(
+                action_type=data["action_type"],
+                description=data["description"],
+                db=db,
+                action_id=None,  # No action_id yet
+                context={
+                    "tool_name": data.get("tool_name"),
+                    "resource": data.get("resource"),
+                    "sdk_integration": True
+                }
+            )
 
-        # Determine risk level from score
-        if risk_score < 30:
-            risk_level = "low"
+            # SEC-061: Calculate risk_score from enrichment
+            # Priority: 1) CVSS score (scaled to 0-100), 2) Risk level mapping, 3) Client-provided
+            if enrichment.get("cvss_score"):
+                risk_score = int(enrichment["cvss_score"] * 10)  # 0-10 CVSS -> 0-100
+            else:
+                # Map risk_level to score ranges
+                risk_level_scores = {
+                    "low": 25,
+                    "medium": 55,
+                    "high": 75,
+                    "critical": 95
+                }
+                risk_score = risk_level_scores.get(enrichment["risk_level"], 50)
+
+            risk_level = enrichment["risk_level"]
+            mitre_tactic = enrichment.get("mitre_tactic", "TA0002")
+            mitre_technique = enrichment.get("mitre_technique", "T1059")
+            nist_control = enrichment.get("nist_control", "AC-3")
+            nist_description = enrichment.get("nist_description", "Access Enforcement")
+            recommendation = enrichment.get("recommendation", "Review agent action")
+            cvss_score = enrichment.get("cvss_score")
+            cvss_severity = enrichment.get("cvss_severity")
+            cvss_vector = enrichment.get("cvss_vector")
+
+            logger.info(f"SEC-061: Enrichment applied to SDK action - action_type={data['action_type']}, "
+                       f"risk_level={risk_level}, risk_score={risk_score}")
+
+        except Exception as enrichment_error:
+            logger.warning(f"SEC-061: Enrichment failed for SDK action, using client-provided score: {enrichment_error}")
+            # Fallback to client-provided risk_score
+            risk_score = data.get("risk_score", 50)
+            if not isinstance(risk_score, (int, float)):
+                risk_score = 50
+            risk_score = max(0, min(100, int(risk_score)))
+
+            # Derive risk_level from score
+            if risk_score >= 90:
+                risk_level = "critical"
+            elif risk_score >= 70:
+                risk_level = "high"
+            elif risk_score >= 40:
+                risk_level = "medium"
+            else:
+                risk_level = "low"
+
+            mitre_tactic = "TA0002"
+            mitre_technique = "T1059"
+            nist_control = "AC-3"
+            nist_description = "Access Enforcement"
+            recommendation = "Review agent action"
+            cvss_score = None
+            cvss_severity = None
+            cvss_vector = None
+
+        # Determine if approval is required based on risk level
+        if risk_level == "low":
             requires_approval = False  # Auto-approve low risk
-        elif risk_score < 60:
-            risk_level = "medium"
-            requires_approval = True
-        elif risk_score < 80:
-            risk_level = "high"
-            requires_approval = True
         else:
-            risk_level = "critical"
-            requires_approval = True
+            requires_approval = True  # medium, high, critical require approval
 
         # Generate summary
         try:
@@ -838,7 +893,7 @@ async def create_agent_action_via_sdk(
             logger.warning(f"OpenAI summary generation failed: {e}")
             summary = f"SDK Agent '{data['agent_id']}' requesting '{data['action_type']}' - requires review"
 
-        # Create the agent action
+        # Create the agent action - SEC-061: Include enrichment data
         action = AgentAction(
             agent_id=data["agent_id"],
             tool_name=data.get("tool_name", f"sdk_{data['action_type']}"),
@@ -854,52 +909,180 @@ async def create_agent_action_via_sdk(
             extra_data=data.get("metadata", {}),
             organization_id=org_id,
             timestamp=datetime.now(UTC),
-            created_at=datetime.now(UTC)
+            created_at=datetime.now(UTC),
+            # SEC-061: Enterprise enrichment data
+            mitre_tactic=mitre_tactic,
+            mitre_technique=mitre_technique,
+            nist_control=nist_control,
+            nist_description=nist_description,
+            recommendation=recommendation,
+            cvss_score=cvss_score,
+            cvss_severity=cvss_severity,
+            cvss_vector=cvss_vector
         )
 
         db.add(action)
-        db.flush()  # Get action.id before alert creation
+        db.flush()  # Get action.id before further processing
+        action_id = action.id
+        logger.info(f"SEC-061: SDK action record created (not committed): {action_id}")
 
-        # SEC-023: Generate alerts for high-risk SDK actions
+        # =====================================================================
+        # SEC-061 ENTERPRISE: CVSS Second Pass Assessment with action_id
+        # Compliance: NIST 800-30, SOC 2 CC3.2, PCI-DSS 6.1
+        # =====================================================================
+        try:
+            from services.cvss_auto_mapper import cvss_auto_mapper
+            cvss_result = cvss_auto_mapper.auto_assess_action(
+                db=db,
+                action_id=action.id,
+                action_type=data["action_type"],
+                context={
+                    "description": data["description"],
+                    "risk_level": risk_level,
+                    "contains_pii": "pii" in (data.get("description") or "").lower(),
+                    "production_system": "production" in (data.get("description") or "").lower(),
+                    "financial_transaction": any(x in (data.get("description") or "").lower()
+                                                  for x in ["payment", "transaction", "billing"]),
+                    "requires_admin": risk_level == "high",
+                    "sdk_integration": True
+                }
+            )
+
+            # Update action with CVSS fields from detailed assessment
+            action.cvss_score = cvss_result["base_score"]
+            action.cvss_severity = cvss_result["severity"]
+            action.cvss_vector = cvss_result["vector_string"]
+            action.risk_score = int(cvss_result["base_score"] * 10)  # 0-100 scale
+
+            db.add(action)
+            db.flush()
+
+            logger.info(f"SEC-061: CVSS integrated for SDK action {action.id} -> "
+                       f"{cvss_result['base_score']} ({cvss_result['severity']})")
+        except Exception as cvss_error:
+            logger.warning(f"SEC-061: CVSS integration failed for SDK action {action.id}: {cvss_error}")
+            # Continue - CVSS is supplementary
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Automation Service - Playbook Matching
+        # Compliance: SOC 2 CC7.1, NIST 800-53 IR-4
+        # =====================================================================
+        playbook_result = None
+        try:
+            from services.automation_service import get_automation_service
+            automation_service = get_automation_service(db)
+
+            action_data = {
+                'risk_score': action.risk_score or 0,
+                'action_type': action.action_type,
+                'agent_id': action.agent_id,
+                'timestamp': action.timestamp
+            }
+
+            matched_playbook = automation_service.match_playbooks(action_data)
+
+            if matched_playbook:
+                logger.info(f"SEC-061: Playbook matched for SDK action {action.id}: {matched_playbook.id}")
+
+                execution_result = automation_service.execute_playbook(
+                    playbook_id=matched_playbook.id,
+                    action_id=action.id
+                )
+
+                if execution_result['success']:
+                    playbook_result = {
+                        "matched": True,
+                        "playbook_name": execution_result['playbook_name'],
+                        "auto_approved": True
+                    }
+                    logger.info(f"SEC-061: SDK action auto-approved via playbook: {execution_result['playbook_name']}")
+                else:
+                    playbook_result = {"matched": True, "execution_failed": True}
+                    logger.warning(f"SEC-061: Playbook execution failed: {execution_result['message']}")
+            else:
+                playbook_result = {"matched": False}
+                logger.info(f"SEC-061: No playbook match for SDK action {action.id}")
+
+        except Exception as automation_error:
+            logger.warning(f"SEC-061: Automation service failed for SDK action {action.id}: {automation_error}")
+            playbook_result = {"error": str(automation_error)}
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Orchestration Service - Workflow Triggering
+        # Compliance: SOC 2 CC7.2, NIST 800-53 IR-6
+        # =====================================================================
+        workflow_result = None
+        try:
+            from services.orchestration_service import get_orchestration_service
+            orchestration_service = get_orchestration_service(db)
+
+            orchestration_result = orchestration_service.orchestrate_action(
+                action_id=action.id,
+                risk_level=action.risk_level,
+                risk_score=action.risk_score or 0,
+                action_type=action.action_type
+            )
+
+            workflow_result = {
+                "workflow_triggered": orchestration_result.get('workflow_triggered', False),
+                "workflow_id": orchestration_result.get('workflow_id'),
+                "alert_created": orchestration_result.get('alert_created', False)
+            }
+
+            if orchestration_result.get('workflow_triggered'):
+                logger.info(f"SEC-061: Workflow triggered for SDK action {action.id}: {orchestration_result['workflow_id']}")
+
+        except Exception as orchestration_error:
+            logger.warning(f"SEC-061: Orchestration service failed for SDK action {action.id}: {orchestration_error}")
+            workflow_result = {"error": str(orchestration_error)}
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Alert Generation for High-Risk Actions
         # Compliance: SOC 2 CC7.2, PCI-DSS 12.10, NIST 800-53 IR-6
+        # =====================================================================
         alert_id = None
         if risk_level in ("high", "critical"):
             try:
-                # Check for existing alert (idempotency)
                 existing_alert = db.query(Alert).filter(
                     Alert.agent_action_id == action.id
                 ).first()
 
                 if existing_alert:
                     alert_id = existing_alert.id
-                    logger.info(f"SEC-023: Alert already exists for SDK action {action.id}: alert_id={alert_id}")
+                    logger.info(f"SEC-061: Alert already exists for SDK action {action.id}: alert_id={alert_id}")
                 else:
-                    # Create enterprise alert for high-risk SDK action
                     severity = "critical" if risk_level == "critical" else "high"
                     alert = Alert(
                         agent_action_id=action.id,
                         organization_id=org_id,
                         alert_type=f"{severity.title()} Risk SDK Agent Action",
                         severity=severity,
-                        message=f"Enterprise Alert: SDK Agent '{data['agent_id']}' requesting {risk_level}-risk action: {data['action_type']} - {data['description'][:100]}",
+                        message=f"Enterprise Alert: SDK Agent '{data['agent_id']}' requesting {risk_level}-risk action: "
+                                f"{data['action_type']} - {data['description'][:100]} | "
+                                f"NIST: {nist_control} | MITRE: {mitre_tactic}",
                         timestamp=datetime.now(UTC)
                     )
                     db.add(alert)
                     db.flush()
                     alert_id = alert.id
-                    logger.info(f"SEC-023: Alert created for SDK action {action.id}: alert_id={alert_id}, severity={severity}")
+                    logger.info(f"SEC-061: Alert created for SDK action {action.id}: alert_id={alert_id}, severity={severity}")
             except Exception as alert_error:
-                logger.warning(f"SEC-023: Alert creation failed for SDK action {action.id}: {alert_error}")
-                # Continue without alert - core action still valid
+                logger.warning(f"SEC-061: Alert creation failed for SDK action {action.id}: {alert_error}")
 
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Commit Transaction
+        # =====================================================================
         db.commit()
         db.refresh(action)
 
-        # Log SDK action creation
         auth_method = current_user.get("auth_method", "api_key")
-        logger.info(f"SEC-022: SDK agent action created - ID: {action.id}, Agent: {data['agent_id']}, "
-                    f"Risk: {risk_score}, Status: {action.status}, Auth: {auth_method}, Alert: {alert_id}")
+        logger.info(f"SEC-061: Enterprise SDK action committed - ID: {action.id}, Agent: {data['agent_id']}, "
+                    f"Risk: {action.risk_score}, Level: {action.risk_level}, Status: {action.status}, "
+                    f"Auth: {auth_method}, Alert: {alert_id}")
 
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Enhanced Response with Full Compliance Data
+        # =====================================================================
         return {
             "id": action.id,
             "action_id": action.id,
@@ -914,7 +1097,23 @@ async def create_agent_action_via_sdk(
             "alert_id": alert_id,
             "poll_url": f"/api/agent-action/status/{action.id}",
             "enterprise_grade": True,
-            "sdk_integration": True
+            "sdk_integration": True,
+            # SEC-061: Enterprise compliance data
+            "compliance": {
+                "nist_control": action.nist_control,
+                "nist_description": action.nist_description,
+                "mitre_tactic": action.mitre_tactic,
+                "mitre_technique": action.mitre_technique,
+                "recommendation": action.recommendation,
+                "cvss_score": action.cvss_score,
+                "cvss_severity": action.cvss_severity,
+                "cvss_vector": action.cvss_vector
+            },
+            # SEC-061: Enterprise automation results
+            "automation": {
+                "playbook": playbook_result,
+                "workflow": workflow_result
+            }
         }
 
     except HTTPException:
