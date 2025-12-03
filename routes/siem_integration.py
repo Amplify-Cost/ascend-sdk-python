@@ -14,7 +14,11 @@ from pydantic import BaseModel
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../integrations'))
-from siem_connector import SIEMManager, SIEMConfig, SIEMType, SplunkConnector, QRadarConnector, SecurityEvent
+# SEC-052: Import all SIEM connectors including new Sentinel and Elastic
+from siem_connector import (
+    SIEMManager, SIEMConfig, SIEMType, SecurityEvent,
+    SplunkConnector, QRadarConnector, SentinelConnector, ElasticConnector
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/siem-integration", tags=["siem-integration"])
@@ -24,15 +28,22 @@ siem_manager = SIEMManager()
 
 # Pydantic Models
 class SIEMConfigRequest(BaseModel):
+    """SEC-052: Extended SIEM configuration supporting all connector types."""
     siem_type: str
-    host: str
-    port: int
-    username: str
-    password: str
+    host: str = ""
+    port: int = 443
+    username: str = ""
+    password: str = ""
     api_token: Optional[str] = None
     use_ssl: bool = True
     verify_ssl: bool = True
     index_name: str = "owai_security"
+    # SEC-052: Azure Sentinel specific
+    workspace_id: Optional[str] = None
+    shared_key: Optional[str] = None
+    log_type: str = "OWAISecurityEvents"
+    # SEC-052: Elastic Cloud specific
+    cloud_id: Optional[str] = None
 
 class ThreatIntelRequest(BaseModel):
     agent_id: str
@@ -88,7 +99,7 @@ async def configure_siem(
         logger.info(f"🔄 SIEM configuration requested by: {current_user.get('email', 'unknown')}")
         logger.info(f"🔧 Configuring SIEM: {config_request.siem_type} at {config_request.host}:{config_request.port}")
         
-        # Create SIEM configuration
+        # SEC-052: Create SIEM configuration with all connector-specific fields
         siem_config = SIEMConfig(
             siem_type=SIEMType(config_request.siem_type),
             host=config_request.host,
@@ -98,14 +109,36 @@ async def configure_siem(
             api_token=config_request.api_token,
             use_ssl=config_request.use_ssl,
             verify_ssl=config_request.verify_ssl,
-            index_name=config_request.index_name
+            index_name=config_request.index_name,
+            # SEC-052: Azure Sentinel fields
+            workspace_id=config_request.workspace_id,
+            shared_key=config_request.shared_key,
+            log_type=config_request.log_type,
+            # SEC-052: Elastic Cloud fields
+            cloud_id=config_request.cloud_id
         )
         
-        # Create appropriate connector
+        # SEC-052: Create appropriate connector for all supported SIEM types
         if config_request.siem_type == "splunk":
             connector = SplunkConnector(siem_config)
         elif config_request.siem_type == "qradar":
             connector = QRadarConnector(siem_config)
+        elif config_request.siem_type == "sentinel":
+            # SEC-052: Microsoft Sentinel requires workspace_id and shared_key
+            if not config_request.workspace_id or not config_request.shared_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Sentinel requires workspace_id and shared_key"
+                )
+            connector = SentinelConnector(siem_config)
+        elif config_request.siem_type == "elastic":
+            # SEC-052: Elastic requires either host/port or cloud_id
+            if not config_request.host and not config_request.cloud_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Elastic requires either host/port or cloud_id"
+                )
+            connector = ElasticConnector(siem_config)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported SIEM type: {config_request.siem_type}")
         
