@@ -22,6 +22,10 @@ from database import get_db
 from dependencies import get_current_user
 from services.integration_suite_service import IntegrationSuiteService
 from models_integration_suite import (
+    # SEC-051: SQLAlchemy models for health summary aggregation
+    IntegrationRegistry,
+    IntegrationHealthCheck,
+    # Pydantic request/response models
     IntegrationCreateRequest,
     IntegrationUpdateRequest,
     IntegrationResponse,
@@ -414,6 +418,119 @@ async def delete_integration(
 # ============================================
 # Health Monitoring Endpoints
 # ============================================
+
+@router.get("/health/summary", summary="Get integration health summary")
+async def get_health_summary(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    SEC-051: Enterprise Integration Health Summary
+
+    Returns aggregated health metrics for the dashboard:
+    - Total integrations by health status (healthy/degraded/unhealthy/unknown)
+    - Average latency and uptime metrics
+    - Problem integrations requiring attention
+    - Recent health status changes
+
+    Compliance: SOC 2 CC7.1, NIST SI-4, PCI-DSS 10.6
+    """
+    from datetime import datetime, timedelta, UTC
+    from sqlalchemy import func, and_, desc
+
+    org_id = get_org_id(current_user)
+
+    # SEC-051: SQL aggregation for health counts (fixes N+1 query pattern)
+    # Single query with GROUP BY instead of fetching all records and looping in Python
+    health_counts_result = db.query(
+        func.coalesce(IntegrationRegistry.health_status, 'unknown').label('status'),
+        func.count(IntegrationRegistry.id).label('count')
+    ).filter(
+        IntegrationRegistry.organization_id == org_id
+    ).group_by(
+        func.coalesce(IntegrationRegistry.health_status, 'unknown')
+    ).all()
+
+    # Initialize and populate counts from aggregation result
+    health_counts = {"healthy": 0, "degraded": 0, "unhealthy": 0, "unknown": 0}
+    total = 0
+    for row in health_counts_result:
+        status = row.status if row.status in health_counts else "unknown"
+        health_counts[status] = row.count
+        total += row.count
+
+    # SEC-051: SQL aggregation for average uptime (single query)
+    avg_uptime_result = db.query(
+        func.avg(IntegrationRegistry.uptime_percent_30d)
+    ).filter(
+        and_(
+            IntegrationRegistry.organization_id == org_id,
+            IntegrationRegistry.uptime_percent_30d.isnot(None)
+        )
+    ).scalar()
+
+    # Get average latency from recent health checks
+    now = datetime.now(UTC)
+    avg_latency_result = db.query(func.avg(IntegrationHealthCheck.response_time_ms)).filter(
+        and_(
+            IntegrationHealthCheck.organization_id == org_id,
+            IntegrationHealthCheck.checked_at >= now - timedelta(hours=24),
+            IntegrationHealthCheck.response_time_ms.isnot(None)
+        )
+    ).scalar()
+
+    # Get problem integrations (degraded or unhealthy)
+    problem_integrations = db.query(IntegrationRegistry).filter(
+        and_(
+            IntegrationRegistry.organization_id == org_id,
+            IntegrationRegistry.health_status.in_(["degraded", "unhealthy"])
+        )
+    ).order_by(
+        # Unhealthy first, then by consecutive failures
+        IntegrationRegistry.health_status.desc(),
+        IntegrationRegistry.consecutive_failures.desc()
+    ).limit(10).all()
+
+    # Calculate health score (0-100) - total already computed from aggregation
+    if total > 0:
+        health_score = int(
+            (health_counts["healthy"] * 100 +
+             health_counts["degraded"] * 50 +
+             health_counts["unhealthy"] * 0 +
+             health_counts["unknown"] * 25) / total
+        )
+    else:
+        health_score = 100
+
+    return {
+        "summary": {
+            "total_integrations": total,
+            "healthy": health_counts["healthy"],
+            "degraded": health_counts["degraded"],
+            "unhealthy": health_counts["unhealthy"],
+            "unknown": health_counts["unknown"],
+            "health_score": health_score
+        },
+        "metrics": {
+            "avg_latency_ms": round(avg_latency_result, 2) if avg_latency_result else None,
+            "avg_uptime_percent": round(float(avg_uptime_result), 2) if avg_uptime_result else None
+        },
+        "problem_integrations": [
+            {
+                "id": i.id,
+                "integration_name": i.integration_name,
+                "display_name": i.display_name,
+                "integration_type": i.integration_type,
+                "health_status": i.health_status,
+                "consecutive_failures": i.consecutive_failures,
+                "last_health_check": i.last_health_check.isoformat() if i.last_health_check else None,
+                "uptime_percent_30d": i.uptime_percent_30d
+            }
+            for i in problem_integrations
+        ],
+        "last_updated": datetime.now(UTC).isoformat()
+    }
+
 
 @router.post("/{integration_id}/health-check", summary="Run health check")
 async def run_health_check(
