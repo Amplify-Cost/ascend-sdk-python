@@ -3,6 +3,7 @@ import AgentActionSubmitPanel from "./AgentActionSubmitPanel";
 import RiskConfigurationTab from "./risk-config/RiskConfigurationTab";
 import ApiKeyManagement from "./ApiKeyManagement";
 import IntegrationManagement from "./IntegrationManagement";
+import IntegrationHealthDashboard from "./IntegrationHealthDashboard";
 import IntegrationWizard from "./IntegrationWizard";
 import fetchWithAuth from "../utils/fetchWithAuth";
 
@@ -27,6 +28,9 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
 
   // SEC-047: Integration Wizard State (Datadog-style quick setup)
   const [showIntegrationWizard, setShowIntegrationWizard] = useState(false);
+
+  // SEC-051: Integration Health Dashboard State
+  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
 
   // SEC-028: Dynamic integration status state (no hardcoded defaults)
   const [integrationStatus, setIntegrationStatus] = useState({
@@ -430,15 +434,23 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
               View, edit, delete, and test all configured integrations
             </p>
           </div>
-          <button
-            onClick={() => {
-              setSelectedIntegrationType(null);
-              setShowIntegrationModal(true);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-          >
-            🔌 Open Integration Manager
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowHealthDashboard(true)}
+              className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 flex items-center"
+            >
+              📊 Health Dashboard
+            </button>
+            <button
+              onClick={() => {
+                setSelectedIntegrationType(null);
+                setShowIntegrationModal(true);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            >
+              🔌 Open Integration Manager
+            </button>
+          </div>
         </div>
       </div>
 
@@ -702,6 +714,26 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
           fetchIntegrationStatus();
         }}
       />
+
+      {/* SEC-051: Integration Health Dashboard Modal */}
+      {showHealthDashboard && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-900">Integration Health Dashboard</h2>
+              <button
+                onClick={() => setShowHealthDashboard(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-light"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <IntegrationHealthDashboard />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
