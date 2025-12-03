@@ -176,6 +176,57 @@ export interface ActionListResponse {
 }
 
 /**
+ * SEC-054: Batch action submission options
+ */
+export interface BatchOptions {
+  /** Process actions in parallel (default: true) */
+  parallel?: boolean;
+  /** Timeout for entire batch in milliseconds */
+  timeout?: number;
+  /** Continue processing if some actions fail */
+  continueOnError?: boolean;
+  /** Wait for all decisions before returning */
+  waitForDecisions?: boolean;
+}
+
+/**
+ * SEC-054: Individual batch action result
+ */
+export interface BatchActionResult {
+  /** Original action index in batch */
+  index: number;
+  /** Action ID if submitted successfully */
+  actionId?: string;
+  /** Authorization decision */
+  decision?: AuthorizationDecision;
+  /** Error if submission failed */
+  error?: {
+    code: string;
+    message: string;
+  };
+  /** Whether this action succeeded */
+  success: boolean;
+}
+
+/**
+ * SEC-054: Batch submission response
+ */
+export interface BatchResponse {
+  /** Results for each action */
+  results: BatchActionResult[];
+  /** Total actions submitted */
+  totalSubmitted: number;
+  /** Successfully submitted */
+  successCount: number;
+  /** Failed submissions */
+  errorCount: number;
+  /** Total batch duration in ms */
+  duration: number;
+  /** Whether all actions succeeded */
+  allSucceeded: boolean;
+}
+
+/**
  * Convert AgentAction to API payload format
  */
 export function toApiPayload(action: AgentAction): Record<string, unknown> {

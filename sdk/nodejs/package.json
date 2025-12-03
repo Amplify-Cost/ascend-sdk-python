@@ -1,7 +1,7 @@
 {
   "name": "@owkai/sdk",
-  "version": "1.0.0",
-  "description": "OW-AI Enterprise Authorization SDK for AI Agent Governance",
+  "version": "1.1.0",
+  "description": "OW-AI Enterprise Authorization SDK for AI Agent Governance - SEC-054 Enhanced",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

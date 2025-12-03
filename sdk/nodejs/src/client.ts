@@ -3,15 +3,23 @@
  * ================
  *
  * Enterprise-grade HTTP client for OW-AI Authorization API.
+ *
+ * SEC-054 Enhancements:
+ * - Batch action submission
+ * - Metrics collection and telemetry
+ * - Request/response interceptors
  */
 
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
 import {
   AgentAction,
   AuthorizationDecision,
   ActionDetails,
   ActionListResponse,
   DecisionStatus,
+  BatchOptions,
+  BatchResponse,
+  BatchActionResult,
   toApiPayload,
   parseDecision,
 } from './models';
@@ -24,6 +32,13 @@ import {
   ValidationError,
   ConnectionError,
 } from './errors';
+import { MetricsCollector, MetricsSnapshot, MetricEvent, MetricsCallback } from './metrics';
+import {
+  InterceptorManager,
+  RequestConfig,
+  ResponseData,
+  generateRequestId,
+} from './interceptors';
 
 /**
  * Client configuration options
@@ -41,6 +56,12 @@ export interface OWKAIClientOptions {
   maxRetries?: number;
   /** Enable debug logging */
   debug?: boolean;
+  /** SEC-054: Enable metrics collection */
+  enableMetrics?: boolean;
+  /** SEC-054: Metrics window in milliseconds (default: 5 minutes) */
+  metricsWindow?: number;
+  /** SEC-054: Max metrics events to store (default: 10000) */
+  maxMetricsEvents?: number;
 }
 
 const DEFAULT_API_URL = 'https://pilot.owkai.app';
@@ -78,6 +99,12 @@ export class OWKAIClient {
   private readonly debug: boolean;
   private readonly client: AxiosInstance;
 
+  /** SEC-054: Metrics collector instance */
+  private readonly metricsCollector: MetricsCollector | null;
+
+  /** SEC-054: Request/response interceptors */
+  readonly interceptors: InterceptorManager;
+
   /**
    * Initialize the OW-AI client
    *
@@ -97,6 +124,18 @@ export class OWKAIClient {
         'API key is required. Pass apiKey option or set OWKAI_API_KEY environment variable.'
       );
     }
+
+    // SEC-054: Initialize metrics collector
+    const enableMetrics = options.enableMetrics !== false; // Enabled by default
+    this.metricsCollector = enableMetrics
+      ? new MetricsCollector({
+          maxEvents: options.maxMetricsEvents || 10000,
+          windowMs: options.metricsWindow || 300000,
+        })
+      : null;
+
+    // SEC-054: Initialize interceptors
+    this.interceptors = new InterceptorManager();
 
     this.client = axios.create({
       baseURL: this.apiUrl,
@@ -119,7 +158,7 @@ export class OWKAIClient {
   }
 
   /**
-   * Make authenticated request with retry logic
+   * Make authenticated request with retry logic, metrics, and interceptors
    */
   private async request<T = Record<string, unknown>>(
     method: 'get' | 'post' | 'put' | 'delete',
@@ -128,24 +167,66 @@ export class OWKAIClient {
     params?: Record<string, unknown>,
     retryCount: number = 0
   ): Promise<T> {
-    this.log(`${method.toUpperCase()} ${endpoint}`);
+    const startTime = Date.now();
+    const requestId = generateRequestId();
+
+    this.log(`${method.toUpperCase()} ${endpoint} [${requestId}]`);
+
+    // SEC-054: Build request config for interceptors
+    let requestConfig: RequestConfig = {
+      method: method.toUpperCase(),
+      url: endpoint,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+        Authorization: `Bearer ${this.apiKey}`,
+        'User-Agent': 'owkai-sdk/1.0.0 NodeJS',
+        'X-Request-ID': requestId,
+      },
+      data,
+      params,
+      timestamp: new Date(),
+      requestId,
+    };
 
     try {
+      // SEC-054: Run request interceptors
+      requestConfig = await this.interceptors.runRequestInterceptors(requestConfig);
+
       const response = await this.client.request<T>({
         method,
-        url: endpoint,
-        data,
-        params,
+        url: requestConfig.url,
+        data: requestConfig.data,
+        params: requestConfig.params,
+        headers: requestConfig.headers,
       });
+
+      const duration = Date.now() - startTime;
+
+      // SEC-054: Record metrics
+      if (this.metricsCollector) {
+        this.metricsCollector.recordRequest(method, endpoint, duration, response.status);
+      }
+
+      // SEC-054: Run response interceptors
+      const responseData: ResponseData = {
+        status: response.status,
+        headers: response.headers as Record<string, string>,
+        data: response.data as Record<string, unknown>,
+        config: requestConfig,
+        duration,
+      };
+      await this.interceptors.runResponseInterceptors(responseData);
 
       return response.data;
     } catch (error) {
-      return this.handleError(error as AxiosError, method, endpoint, data, params, retryCount);
+      const duration = Date.now() - startTime;
+      return this.handleError(error as AxiosError, method, endpoint, data, params, retryCount, duration, requestConfig);
     }
   }
 
   /**
-   * Handle API errors with retries
+   * Handle API errors with retries and metrics tracking
    */
   private async handleError<T>(
     error: AxiosError,
@@ -153,11 +234,18 @@ export class OWKAIClient {
     endpoint: string,
     data?: Record<string, unknown>,
     params?: Record<string, unknown>,
-    retryCount: number = 0
+    retryCount: number = 0,
+    duration: number = 0,
+    requestConfig?: RequestConfig
   ): Promise<T> {
     if (error.response) {
       const status = error.response.status;
       const responseData = error.response.data as Record<string, unknown>;
+
+      // SEC-054: Record error metrics
+      if (this.metricsCollector) {
+        this.metricsCollector.recordError(method, endpoint, duration, error.message, status);
+      }
 
       if (status === 401) {
         throw new AuthenticationError('Invalid or expired API key', { status });
@@ -175,6 +263,10 @@ export class OWKAIClient {
         const retryAfter = parseInt(error.response.headers['retry-after'] || '60', 10);
         if (retryCount < this.maxRetries) {
           this.log(`Rate limited. Retrying in ${retryAfter}s...`);
+          // SEC-054: Record retry metrics
+          if (this.metricsCollector) {
+            this.metricsCollector.recordRetry(method, endpoint, retryCount + 1, 'rate_limited');
+          }
           await this.sleep(retryAfter * 1000);
           return this.request<T>(method, endpoint, data, params, retryCount + 1);
         }
@@ -192,6 +284,10 @@ export class OWKAIClient {
         if (retryCount < this.maxRetries) {
           const waitTime = Math.pow(2, retryCount) * 1000;
           this.log(`Server error. Retrying in ${waitTime}ms...`);
+          // SEC-054: Record retry metrics
+          if (this.metricsCollector) {
+            this.metricsCollector.recordRetry(method, endpoint, retryCount + 1, 'server_error');
+          }
           await this.sleep(waitTime);
           return this.request<T>(method, endpoint, data, params, retryCount + 1);
         }
@@ -200,6 +296,10 @@ export class OWKAIClient {
     }
 
     if (error.code === 'ECONNABORTED') {
+      // SEC-054: Record timeout metrics
+      if (this.metricsCollector) {
+        this.metricsCollector.recordTimeout(method, endpoint, duration);
+      }
       throw new TimeoutError(`Request timed out after ${this.timeout}ms`, this.timeout);
     }
 
@@ -207,12 +307,24 @@ export class OWKAIClient {
       if (retryCount < this.maxRetries) {
         const waitTime = Math.pow(2, retryCount) * 1000;
         this.log(`Connection failed. Retrying in ${waitTime}ms...`);
+        // SEC-054: Record retry metrics
+        if (this.metricsCollector) {
+          this.metricsCollector.recordRetry(method, endpoint, retryCount + 1, 'connection_failed');
+        }
         await this.sleep(waitTime);
         return this.request<T>(method, endpoint, data, params, retryCount + 1);
+      }
+      // SEC-054: Record error metrics
+      if (this.metricsCollector) {
+        this.metricsCollector.recordError(method, endpoint, duration, 'connection_failed');
       }
       throw new ConnectionError(`Failed to connect to ${this.apiUrl}`);
     }
 
+    // SEC-054: Record generic error metrics
+    if (this.metricsCollector) {
+      this.metricsCollector.recordError(method, endpoint, duration, error.message);
+    }
     throw new OWKAIError(error.message, 'REQUEST_ERROR', { originalError: error.message });
   }
 
@@ -401,5 +513,197 @@ export class OWKAIClient {
       }
     );
     return parseDecision(response);
+  }
+
+  // ============================================================
+  // SEC-054: Batch Action Submission
+  // ============================================================
+
+  /**
+   * Submit multiple actions for authorization in a single batch
+   *
+   * Supports parallel or sequential processing with error handling options.
+   *
+   * @param actions - Array of agent actions to submit
+   * @param options - Batch processing options
+   * @returns Batch response with results for each action
+   *
+   * @example
+   * ```typescript
+   * const results = await client.submitActionBatch([
+   *   { agentId: 'agent-1', agentName: 'Agent 1', actionType: 'data_access', resource: 'db1' },
+   *   { agentId: 'agent-2', agentName: 'Agent 2', actionType: 'transaction', resource: 'payments' }
+   * ], { parallel: true, continueOnError: true });
+   *
+   * console.log(`Success: ${results.successCount}/${results.totalSubmitted}`);
+   * ```
+   */
+  async submitActionBatch(
+    actions: AgentAction[],
+    options: BatchOptions = {}
+  ): Promise<BatchResponse> {
+    const startTime = Date.now();
+    const {
+      parallel = true,
+      timeout = this.timeout * actions.length,
+      continueOnError = true,
+      waitForDecisions = false,
+    } = options;
+
+    this.log(`Submitting batch of ${actions.length} actions (parallel: ${parallel})`);
+
+    const results: BatchActionResult[] = [];
+
+    if (parallel) {
+      // Process all actions in parallel
+      const promises = actions.map(async (action, index) => {
+        try {
+          const decision = await this.submitAction(action);
+
+          // Optionally wait for decision
+          let finalDecision = decision;
+          if (waitForDecisions && decision.decision === DecisionStatus.PENDING) {
+            finalDecision = await this.waitForDecision(decision.actionId, timeout / actions.length);
+          }
+
+          return {
+            index,
+            actionId: finalDecision.actionId,
+            decision: finalDecision,
+            success: true,
+          } as BatchActionResult;
+        } catch (error) {
+          const err = error as Error;
+          return {
+            index,
+            success: false,
+            error: {
+              code: (err as OWKAIError).code || 'UNKNOWN_ERROR',
+              message: err.message,
+            },
+          } as BatchActionResult;
+        }
+      });
+
+      const settledResults = await Promise.all(promises);
+      results.push(...settledResults);
+    } else {
+      // Process actions sequentially
+      for (let i = 0; i < actions.length; i++) {
+        try {
+          const decision = await this.submitAction(actions[i]);
+
+          // Optionally wait for decision
+          let finalDecision = decision;
+          if (waitForDecisions && decision.decision === DecisionStatus.PENDING) {
+            finalDecision = await this.waitForDecision(decision.actionId, timeout / actions.length);
+          }
+
+          results.push({
+            index: i,
+            actionId: finalDecision.actionId,
+            decision: finalDecision,
+            success: true,
+          });
+        } catch (error) {
+          const err = error as Error;
+          results.push({
+            index: i,
+            success: false,
+            error: {
+              code: (err as OWKAIError).code || 'UNKNOWN_ERROR',
+              message: err.message,
+            },
+          });
+
+          if (!continueOnError) {
+            break;
+          }
+        }
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    const successCount = results.filter((r) => r.success).length;
+    const errorCount = results.filter((r) => !r.success).length;
+
+    this.log(`Batch complete: ${successCount}/${actions.length} succeeded in ${duration}ms`);
+
+    return {
+      results,
+      totalSubmitted: actions.length,
+      successCount,
+      errorCount,
+      duration,
+      allSucceeded: errorCount === 0,
+    };
+  }
+
+  // ============================================================
+  // SEC-054: Metrics API
+  // ============================================================
+
+  /**
+   * Get current metrics snapshot
+   *
+   * Returns aggregated metrics for the current time window including
+   * request counts, latency percentiles, error rates, and more.
+   *
+   * @returns Metrics snapshot
+   *
+   * @example
+   * ```typescript
+   * const metrics = client.getMetrics();
+   * console.log(`Success rate: ${(metrics.successRate * 100).toFixed(1)}%`);
+   * console.log(`P95 latency: ${metrics.p95Latency}ms`);
+   * console.log(`Requests/min: ${metrics.requestsPerMinute}`);
+   * ```
+   */
+  getMetrics(): MetricsSnapshot | null {
+    if (!this.metricsCollector) {
+      return null;
+    }
+    return this.metricsCollector.getSnapshot();
+  }
+
+  /**
+   * Register callback for real-time metrics events
+   *
+   * Useful for integrating with external monitoring systems like
+   * Datadog, Prometheus, or custom dashboards.
+   *
+   * @param callback - Function to call on each metric event
+   * @returns Unsubscribe function
+   *
+   * @example
+   * ```typescript
+   * // Send metrics to Datadog
+   * const unsubscribe = client.onMetricEvent((event) => {
+   *   datadogClient.gauge('owkai.sdk.latency', event.duration, {
+   *     endpoint: event.endpoint,
+   *     method: event.method,
+   *   });
+   * });
+   *
+   * // Later: stop sending metrics
+   * unsubscribe();
+   * ```
+   */
+  onMetricEvent(callback: MetricsCallback): () => void {
+    if (!this.metricsCollector) {
+      return () => {}; // No-op if metrics disabled
+    }
+    return this.metricsCollector.onEvent(callback);
+  }
+
+  /**
+   * Reset all collected metrics
+   *
+   * Useful for testing or when starting a new measurement period.
+   */
+  resetMetrics(): void {
+    if (this.metricsCollector) {
+      this.metricsCollector.reset();
+    }
   }
 }
