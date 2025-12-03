@@ -1490,6 +1490,16 @@ except ImportError as e:
     print(f"⚠️  Risk scoring config routes not available: {e}")
     logger.error(f"❌ Failed to import risk_scoring_config_routes: {e}")
 
+# SEC-063: Enterprise Documentation Routes
+try:
+    from routes import docs_routes
+    app.include_router(docs_routes.router, prefix="/api", tags=["Documentation"])
+    print("✅ SEC-063: Documentation routes included")
+    logger.info("✅ SEC-063: Documentation routes registered at /api/docs/*")
+except ImportError as e:
+    print(f"⚠️  Documentation routes not available: {e}")
+    logger.error(f"❌ Failed to import docs_routes: {e}")
+
 # ============================================================================
 # PHASE 2: AWS Cognito Integration Routes
 # ============================================================================

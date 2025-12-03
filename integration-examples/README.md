@@ -1,13 +1,15 @@
-# OW-AI Enterprise Integration Examples
+# Ascend Enterprise Integration Examples
 
-Complete, production-ready examples showing how to integrate OW-AI governance into your AI agent and automation infrastructure.
+Complete, production-ready examples showing how to integrate Ascend governance into your AI agent and automation infrastructure.
+
+**Publisher:** OW-kai Corporation
 
 ## Quick Start
 
 ```bash
-# Set your OW-AI API key
-export OWKAI_API_KEY="owkai_admin_your_key_here"
-export OWKAI_BASE_URL="https://pilot.owkai.app"
+# Set your Ascend API key
+export ASCEND_API_KEY="ascend_admin_your_key_here"
+export ASCEND_BASE_URL="https://your-domain.ascendowkai.com"
 
 # Run any example
 python 01_langchain_agent.py
@@ -21,30 +23,31 @@ python 01_langchain_agent.py
 
 **Key Features:**
 - Wrap any LangChain tool with governance
-- Risk assessment before execution
+- Enterprise risk assessment before execution
 - Approval workflow integration
 - Works with GPT-4, Claude, or any LLM
 
 **Architecture:**
 ```
-User Request → LangChain Agent → Governed Tool → OW-AI → Execute if Approved
+User Request → LangChain Agent → Governed Tool → Ascend → Execute if Approved
 ```
 
 **Example:**
 ```python
-from owkai import OWKAIClient
+from ascend_sdk import AscendClient
 
-client = OWKAIClient(api_key="owkai_admin_...")
+client = AscendClient(api_key="ascend_admin_...")
 
 # Before executing any tool action
-result = client.execute_action(
-    action_type="database_write",
-    description="UPDATE users SET role='admin'",
-    tool_name="postgresql"
+result = client.evaluate_action(
+    agent_id="langchain-finance-agent",
+    action_type="database.write",
+    tool_name="postgresql",
+    description="UPDATE users SET role='admin'"
 )
 
 if result.requires_approval:
-    status = client.wait_for_approval(result.action_id)
+    decision = client.wait_for_decision(result.action_id)
 ```
 
 ---
@@ -61,13 +64,13 @@ if result.requires_approval:
 
 **Architecture:**
 ```
-Lambda Trigger → Lambda Function → boto3 (patched) → OW-AI → AWS API
+Lambda Trigger → Lambda Function → boto3 (patched) → Ascend → AWS API
 ```
 
 **Example:**
 ```python
-from owkai.boto3_patch import enable_governance
-enable_governance(api_key="owkai_admin_...")
+from ascend_sdk.integrations.boto3 import enable_governance
+enable_governance(api_key="ascend_admin_...")
 
 import boto3
 s3 = boto3.client('s3')
@@ -101,7 +104,7 @@ s3.delete_bucket(Bucket='production-backup')  # Blocks until approved
 
 **Architecture:**
 ```
-Claude Desktop → MCP Protocol → MCP Server → OW-AI Governance → Tool Execution
+Claude Desktop → MCP Protocol → MCP Server → Ascend Governance → Tool Execution
 ```
 
 **Available Tools:**
@@ -144,7 +147,7 @@ python 03_mcp_server.py --test
 
 **Architecture:**
 ```
-Agent Request → FastAPI → Governance Middleware → OW-AI → Route Handler
+Agent Request → FastAPI → Governance Middleware → Ascend → Route Handler
                               ↓
                     X-Governance-Status: approved
                     X-Risk-Level: medium
@@ -225,16 +228,41 @@ python 05_automation_cron.py --tasks backup_verification --mode fail_fast
 
 ---
 
+## Example 6: Webhook Receiver (`06_webhook_receiver.py`)
+
+**Use Case:** Receive real-time notifications when actions are approved, denied, or when alerts are triggered.
+
+**Key Features:**
+- HMAC signature verification
+- Replay attack prevention
+- Event-driven processing
+- All Ascend event types supported
+
+**Event Types:**
+- `action.submitted` - New action submitted for review
+- `action.approved` - Action approved by reviewer
+- `action.denied` - Action denied
+- `alert.triggered` - Security alert generated
+- `policy.violated` - Policy violation detected
+
+**Run Server:**
+```bash
+python 06_webhook_receiver.py
+# Webhook endpoint: http://localhost:5000/webhook/ascend
+```
+
+---
+
 ## Common Configuration
 
 All examples use these environment variables:
 
 ```bash
 # Required
-export OWKAI_API_KEY="owkai_admin_your_key_here"
+export ASCEND_API_KEY="ascend_admin_your_key_here"
 
 # Optional (defaults shown)
-export OWKAI_BASE_URL="https://pilot.owkai.app"
+export ASCEND_BASE_URL="https://your-domain.ascendowkai.com"
 export SYNC_APPROVAL_TIMEOUT="300"  # seconds
 
 # For LangChain example
@@ -251,14 +279,22 @@ export AUTOMATION_AGENT_ID="scheduled-automation-agent"
 All examples follow this governance flow:
 
 ```
-1. SUBMIT    → Client sends action details to OW-AI
-2. ASSESS    → OW-AI calculates risk (0-100) using CVSS, NIST, MITRE
-3. ROUTE     → Based on risk score:
-               • 0-30:   Auto-approve
-               • 31-70:  Level 1 approval
-               • 71-85:  Level 2 approval
-               • 86-100: Level 3 executive approval
-4. DECIDE    → Approver reviews in dashboard
+1. SUBMIT    → Client sends action details to Ascend
+2. ASSESS    → Ascend calculates risk (0-100) using multi-layer pipeline:
+               • Enrichment Engine
+               • CVSS Calculator
+               • MITRE ATT&CK Mapper
+               • NIST 800-53 Mapper
+               • Policy Engine
+               • Hybrid Risk Calculator
+               • Risk Fusion (80% Policy + 20% Hybrid)
+               • Safety Rules
+3. ROUTE     → Based on final fused risk score:
+               • 0-44:   Auto-approve (low risk)
+               • 45-69:  Configurable (medium risk)
+               • 70-84:  Requires approval (high risk)
+               • 85-100: Escalation required (critical risk)
+4. DECIDE    → Approver reviews in Ascend dashboard
 5. EXECUTE   → Client proceeds if approved
 6. AUDIT     → Everything logged for compliance
 ```
@@ -267,20 +303,62 @@ All examples follow this governance flow:
 
 ## API Endpoints Used
 
-| Endpoint | Purpose |
-|----------|---------|
-| `POST /api/authorization/agent-action` | Submit action |
-| `GET /api/agent-action/status/{id}` | Check approval status |
-| `POST /mcp/governance/evaluate` | MCP action evaluation |
+| Endpoint | Purpose | Risk Pipeline |
+|----------|---------|---------------|
+| `POST /api/authorization/agent-action` | Submit action (full pipeline) | Full enterprise |
+| `POST /api/sdk/agent-action` | SDK-optimized submission | Full enterprise |
+| `GET /api/agent-action/status/{id}` | Check approval status | N/A |
+| `POST /mcp/governance/evaluate` | MCP action evaluation | MCP-specific |
+
+**Note:** Both `/api/authorization/agent-action` and `/api/sdk/agent-action` now provide identical enterprise-grade risk scoring including:
+- MITRE ATT&CK mapping
+- NIST 800-53 control mapping
+- Policy engine evaluation
+- Hybrid risk calculation
+- Risk fusion (80% policy + 20% hybrid)
+- Safety rules enforcement
+
+---
+
+## Response Fields
+
+All endpoints return comprehensive risk assessment data:
+
+```json
+{
+  "id": 12345,
+  "status": "approved",
+  "risk_score": 35,
+  "risk_level": "low",
+  "requires_approval": false,
+  "compliance": {
+    "nist_control": "AU-12",
+    "mitre_tactic": "TA0009",
+    "cvss_score": 3.5,
+    "cvss_severity": "LOW"
+  },
+  "risk_assessment": {
+    "policy_evaluated": true,
+    "policy_risk": 30,
+    "hybrid_risk": 35,
+    "fusion_applied": true,
+    "fusion_formula": "(30 × 0.8) + (35 × 0.2)"
+  },
+  "automation": {
+    "playbook": {"matched": false},
+    "workflow": {"workflow_triggered": false}
+  }
+}
+```
 
 ---
 
 ## Support
 
-- **Documentation:** https://docs.owkai.app
-- **Support Email:** support@owkai.com
+- **Documentation:** https://docs.ascendowkai.com
+- **Support Email:** support@ascendowkai.com
 - **Enterprise Support:** Contact your account manager
 
 ---
 
-*OW-AI Enterprise - Governing AI Actions at Enterprise Scale*
+*Ascend by OW-kai - Enterprise AI Agent Governance at Scale*

@@ -961,7 +961,180 @@ async def create_agent_action_via_sdk(
                        f"{cvss_result['base_score']} ({cvss_result['severity']})")
         except Exception as cvss_error:
             logger.warning(f"SEC-061: CVSS integration failed for SDK action {action.id}: {cvss_error}")
-            # Continue - CVSS is supplementary
+            cvss_result = None  # Continue - CVSS is supplementary
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: MITRE ATT&CK Mapping
+        # Compliance: NIST 800-53 SI-4, SOC 2 CC7.2
+        # =====================================================================
+        mitre_result = None
+        try:
+            from services.mitre_mapper import mitre_mapper
+            mitre_result = mitre_mapper.map_action_to_techniques(
+                db=db,
+                action_id=action.id,
+                action_type=data["action_type"]
+            )
+            logger.info(f"SEC-061: MITRE mapping completed for SDK action {action.id}")
+        except Exception as mitre_error:
+            logger.warning(f"SEC-061: MITRE mapping failed for SDK action {action.id}: {mitre_error}")
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: NIST 800-53 Control Mapping
+        # Compliance: NIST 800-53, SOC 2 CC6.1, PCI-DSS 12.1
+        # =====================================================================
+        nist_result = None
+        try:
+            from services.nist_mapper import nist_mapper
+            nist_result = nist_mapper.map_action_to_controls(
+                db=db,
+                action_id=action.id,
+                action_type=data["action_type"]
+            )
+            logger.info(f"SEC-061: NIST mapping completed for SDK action {action.id}")
+        except Exception as nist_error:
+            logger.warning(f"SEC-061: NIST mapping failed for SDK action {action.id}: {nist_error}")
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Policy Engine Evaluation
+        # Compliance: NIST 800-53 AC-3, SOC 2 CC6.1, PCI-DSS 7.1
+        # =====================================================================
+        policy_risk = None
+        policy_decision = None
+        policy_evaluated = False
+        try:
+            from policy_engine import create_policy_engine, create_evaluation_context
+
+            policy_engine = create_policy_engine(db)
+            policy_context = create_evaluation_context(
+                user_id=str(current_user.get("user_id", 1)),
+                user_email=current_user.get("email", "sdk@agent"),
+                user_role=current_user.get("role", "agent"),
+                action_type=data["action_type"],
+                resource=data.get("resource", data["description"]),
+                namespace="agent_actions",
+                environment=data.get("environment", "production"),
+                client_ip=""
+            )
+
+            policy_result = await policy_engine.evaluate_policy(
+                policy_context,
+                action_metadata={
+                    "cvss_score": cvss_result.get("base_score") if cvss_result else None,
+                    "risk_level": action.risk_level,
+                    "mitre_tactic": action.mitre_tactic,
+                    "nist_control": action.nist_control,
+                    "sdk_integration": True
+                }
+            )
+
+            policy_risk = policy_result.risk_score.total_score  # 0-100
+            policy_decision = policy_result.decision
+            policy_evaluated = True
+
+            logger.info(f"SEC-061: Policy evaluation completed for SDK action {action.id}: "
+                       f"score={policy_risk}, decision={policy_decision}")
+
+        except Exception as policy_error:
+            logger.warning(f"SEC-061: Policy evaluation failed for SDK action {action.id}: {policy_error}")
+            policy_risk = None
+            policy_decision = "REQUIRE_APPROVAL"
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Hybrid Risk Calculator v2
+        # Formula: (Env × 35%) + (Data × 30%) + (CVSS × 25%) + (Context × 10%)
+        # Compliance: NIST 800-30, SOC 2 CC3.2
+        # =====================================================================
+        hybrid_risk = None
+        hybrid_result_data = None
+        try:
+            from services.enterprise_risk_calculator_v2 import enterprise_risk_calculator
+
+            hybrid_result_data = enterprise_risk_calculator.calculate_hybrid_risk_score(
+                cvss_score=cvss_result.get('base_score') if cvss_result else None,
+                environment=data.get('environment', 'production'),
+                action_type=data['action_type'],
+                contains_pii=data.get('contains_pii', False) or 'pii' in data['description'].lower(),
+                resource_name=data.get('resource', data['description']),
+                resource_type=data.get('resource_type', 'unknown'),
+                description=data['description'],
+                action_metadata={
+                    'user_id': current_user.get('user_id'),
+                    'action_id': action.id,
+                    'sdk_integration': True
+                },
+                db=db
+            )
+
+            hybrid_risk = hybrid_result_data['risk_score']
+            logger.info(f"SEC-061: Hybrid risk calculated for SDK action {action.id}: "
+                       f"{hybrid_risk}/100, formula: {hybrid_result_data.get('formula', 'N/A')}")
+
+        except Exception as hybrid_error:
+            logger.warning(f"SEC-061: Hybrid risk calculation failed for SDK action {action.id}: {hybrid_error}")
+            hybrid_risk = action.risk_score  # Fallback to current score
+
+        # =====================================================================
+        # SEC-061 ENTERPRISE: Risk Fusion (80% Policy + 20% Hybrid)
+        # This creates the final authoritative risk score
+        # Compliance: SOC 2 CC3.2, NIST 800-30
+        # =====================================================================
+        if policy_evaluated and policy_risk is not None and hybrid_risk is not None:
+            # Weighted fusion: 80% policy, 20% hybrid
+            fused_score = (policy_risk * 0.8) + (hybrid_risk * 0.2)
+            logger.info(f"SEC-061: Risk fusion for SDK action {action.id}: "
+                       f"({policy_risk} × 0.8) + ({hybrid_risk} × 0.2) = {fused_score:.1f}")
+
+            # =====================================================================
+            # SEC-061 ENTERPRISE: Safety Rules
+            # =====================================================================
+            # Safety Rule 1: CRITICAL CVSS overrides policy
+            if cvss_result and cvss_result.get('severity') == 'CRITICAL':
+                fused_score = max(fused_score, 85)
+                logger.info(f"SEC-061: Safety Rule 1 applied - CRITICAL CVSS, floor set to 85")
+
+            # Safety Rule 2: Policy DENY overrides everything
+            if policy_decision and policy_decision.value == 'deny':
+                fused_score = 100
+                logger.info(f"SEC-061: Safety Rule 2 applied - Policy DENY, score set to 100")
+
+            # Safety Rule 3: PII in production gets minimum floor
+            if data.get('environment', 'production') == 'production':
+                if 'pii' in data['description'].lower() or data.get('contains_pii'):
+                    fused_score = max(fused_score, 70)
+                    logger.info(f"SEC-061: Safety Rule 3 applied - PII in production, floor set to 70")
+
+            # Update action with fused score
+            action.risk_score = int(fused_score)
+
+            # Re-determine risk level based on fused score
+            if fused_score >= 85:
+                action.risk_level = "critical"
+            elif fused_score >= 70:
+                action.risk_level = "high"
+            elif fused_score >= 45:
+                action.risk_level = "medium"
+            else:
+                action.risk_level = "low"
+
+            # Re-determine approval requirement
+            action.requires_approval = action.risk_level != "low"
+            action.status = "approved" if not action.requires_approval else "pending"
+            action.approved = not action.requires_approval
+
+            db.add(action)
+            db.flush()
+
+            logger.info(f"SEC-061: Final risk assessment for SDK action {action.id}: "
+                       f"score={action.risk_score}, level={action.risk_level}, "
+                       f"requires_approval={action.requires_approval}")
+        else:
+            # No fusion possible, use hybrid or existing score
+            if hybrid_risk is not None:
+                action.risk_score = int(hybrid_risk)
+                db.add(action)
+                db.flush()
+            logger.info(f"SEC-061: No fusion applied for SDK action {action.id}, using direct score: {action.risk_score}")
 
         # =====================================================================
         # SEC-061 ENTERPRISE: Automation Service - Playbook Matching
@@ -1108,6 +1281,17 @@ async def create_agent_action_via_sdk(
                 "cvss_score": action.cvss_score,
                 "cvss_severity": action.cvss_severity,
                 "cvss_vector": action.cvss_vector
+            },
+            # SEC-061: Enterprise risk assessment breakdown
+            "risk_assessment": {
+                "policy_evaluated": policy_evaluated,
+                "policy_risk": policy_risk,
+                "policy_decision": str(policy_decision) if policy_decision else None,
+                "hybrid_risk": hybrid_risk,
+                "hybrid_breakdown": hybrid_result_data.get("breakdown") if hybrid_result_data else None,
+                "hybrid_formula": hybrid_result_data.get("formula") if hybrid_result_data else None,
+                "fusion_applied": policy_evaluated and policy_risk is not None and hybrid_risk is not None,
+                "fusion_formula": f"({policy_risk} × 0.8) + ({hybrid_risk} × 0.2)" if policy_evaluated and policy_risk and hybrid_risk else None
             },
             # SEC-061: Enterprise automation results
             "automation": {

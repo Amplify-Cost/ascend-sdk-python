@@ -2304,21 +2304,21 @@ async def create_agent_action_api(
             # Fallback risk assessment
             risk_score = 50
             risk_level = "medium"
+            enrichment = {}
 
         # ===================================================================
-        # STEP 2: POLICY EVALUATION - Check governance policies
+        # SEC-062: Initialize status and approval based on initial risk
         # ===================================================================
-        # TODO: Add policy engine check here
-        # policy_decision = policy_engine.evaluate(action_context)
+        # Determine initial status and approval requirement from first-pass risk
+        if risk_score >= 70:
+            status = "pending"
+            requires_approval = True
+        else:
+            status = "approved"
+            requires_approval = False
 
         # ===================================================================
-        # STEP 3: AUTHORIZATION DECISION
-        # ===================================================================
-        requires_approval = risk_score >= 70
-        status = "pending_approval" if requires_approval else "approved"
-
-        # ===================================================================
-        # STEP 4: CREATE AGENT ACTION
+        # SEC-062: STEP 2: CREATE AGENT ACTION (Early creation for service calls)
         # ===================================================================
         # ARCH-004 PHASE 1: Use enrichment values instead of client data
         # SEC-020: Include organization_id for multi-tenant data isolation
@@ -2386,41 +2386,381 @@ async def create_agent_action_api(
             logger.warning(
                 f"⚠️ CVSS integration failed for action {action.id}: {cvss_error}"
             )
+            cvss_result = None
             # Graceful degradation: first-pass enrichment score still valid
             # Don't fail the request - action already created successfully
 
         # ===================================================================
-        # STEP 5: ALERT GENERATION (if risk threshold exceeded)
+        # SEC-062 ENTERPRISE: MITRE ATT&CK Mapping
+        # Compliance: PCI-DSS 6.1, NIST 800-53 SI-3
         # ===================================================================
-        alert_triggered = False
-        if action.risk_score >= 80:  # Use action.risk_score (updated by ARCH-003)
-            alert = Alert(
-                alert_type="High Risk Agent Action",
-                severity="critical" if action.risk_score >= 90 else "high",  # ENTERPRISE FIX: Use updated score
-                message=f"{data['agent_id']}: {data['description']}",
-                agent_id=data['agent_id'],
-                agent_action_id=action.id,
-                organization_id=org_id,  # SEC-020: Multi-tenant isolation for alerts
-                status="new",
-                timestamp=datetime.now(UTC)
+        mitre_result = None
+        mitre_tactic = enrichment.get("mitre_tactic", "Unknown")
+        mitre_technique = enrichment.get("mitre_technique", "Unknown")
+        try:
+            from services.mitre_mapper import mitre_mapper
+
+            mitre_result = mitre_mapper.map_action_to_techniques(
+                db=db,
+                action_id=action.id,
+                action_type=data["action_type"]
             )
-            db.add(alert)
-            db.commit()
-            alert_triggered = True
+
+            if mitre_result and mitre_result.get("mapped"):
+                mitre_tactic = mitre_result.get("tactic", mitre_tactic)
+                mitre_technique = mitre_result.get("technique", mitre_technique)
+                action.mitre_tactic = mitre_tactic
+                action.mitre_technique = mitre_technique
+                db.flush()
+                logger.info(f"SEC-062: MITRE mapped for Auth API action {action.id}: {mitre_tactic}/{mitre_technique}")
+
+        except Exception as mitre_error:
+            logger.warning(f"SEC-062: MITRE mapping failed for Auth API action {action.id}: {mitre_error}")
 
         # ===================================================================
-        # RETURN: Platform's decision
+        # SEC-062 ENTERPRISE: NIST 800-53 Control Mapping
+        # Compliance: SOC 2 CC6.1, PCI-DSS 7.1
+        # ===================================================================
+        nist_result = None
+        nist_control = enrichment.get("nist_control", "Unknown")
+        try:
+            from services.nist_mapper import nist_mapper
+
+            nist_result = nist_mapper.map_action_to_controls(
+                db=db,
+                action_id=action.id,
+                action_type=data["action_type"]
+            )
+
+            if nist_result and nist_result.get("mapped"):
+                nist_control = nist_result.get("control", nist_control)
+                action.nist_control = nist_control
+                action.nist_description = nist_result.get("description", action.nist_description)
+                db.flush()
+                logger.info(f"SEC-062: NIST mapped for Auth API action {action.id}: {nist_control}")
+
+        except Exception as nist_error:
+            logger.warning(f"SEC-062: NIST mapping failed for Auth API action {action.id}: {nist_error}")
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Policy Engine Evaluation
+        # Compliance: SOC 2 CC6.1, PCI-DSS 7.1, NIST 800-53 AC-3
+        # ===================================================================
+        policy_evaluated = False
+        policy_risk = None
+        policy_decision = None
+        try:
+            from policy_engine import (
+                EnterpriseRealTimePolicyEngine as create_policy_engine,
+                create_evaluation_context
+            )
+
+            policy_engine = create_policy_engine(db)
+
+            policy_context = create_evaluation_context(
+                user_id=str(current_user.get("user_id", "unknown")),
+                user_email=current_user.get("email", "sdk-user@system"),
+                user_role=current_user.get("role", "api_user"),
+                action_type=data["action_type"],
+                resource=data.get("target_system", data["description"]),
+                namespace="authorization_api",
+                environment=data.get("environment", "production"),
+                client_ip="",
+                session_data={}
+            )
+
+            action_metadata = {
+                "tool_name": data["tool_name"],
+                "action_type": data["action_type"],
+                "description": data["description"],
+                "auth_api_integration": True,
+                "org_id": org_id
+            }
+
+            policy_result = await policy_engine.evaluate_policy(policy_context, action_metadata)
+            policy_risk = policy_result.risk_score.total_score
+            policy_decision = policy_result.decision
+            policy_evaluated = True
+
+            # Update action with policy evaluation results
+            action.policy_evaluated = True
+            action.policy_decision = policy_decision.value if hasattr(policy_decision, 'value') else str(policy_decision)
+            action.policy_risk_score = policy_risk
+            db.flush()
+
+            logger.info(f"SEC-062: Policy evaluated for Auth API action {action.id}: "
+                       f"risk={policy_risk}, decision={policy_decision}")
+
+        except Exception as policy_error:
+            logger.warning(f"SEC-062: Policy evaluation failed for Auth API action {action.id}: {policy_error}")
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Hybrid Risk Calculator v2
+        # Formula: (Environment × 35%) + (Data Sensitivity × 30%) + (CVSS × 25%) + (Operational × 10%) × Resource Multiplier
+        # Compliance: SOC 2 CC3.2, NIST 800-30
+        # ===================================================================
+        hybrid_risk = None
+        hybrid_result_data = None
+        try:
+            from services.enterprise_risk_calculator_v2 import enterprise_risk_calculator
+
+            hybrid_result_data = enterprise_risk_calculator.calculate_hybrid_risk_score(
+                cvss_score=cvss_result.get('base_score') if cvss_result else None,
+                environment=data.get('environment', 'production'),
+                action_type=data['action_type'],
+                contains_pii=data.get('contains_pii', False) or 'pii' in data['description'].lower(),
+                resource_name=data.get('target_system', data['description']),
+                resource_type=data.get('resource_type', 'unknown'),
+                description=data['description'],
+                action_metadata={
+                    'user_id': current_user.get('user_id'),
+                    'action_id': action.id,
+                    'auth_api_integration': True
+                },
+                db=db
+            )
+
+            hybrid_risk = hybrid_result_data['risk_score']
+            logger.info(f"SEC-062: Hybrid risk calculated for Auth API action {action.id}: "
+                       f"{hybrid_risk}/100, formula: {hybrid_result_data.get('formula', 'N/A')}")
+
+        except Exception as hybrid_error:
+            logger.warning(f"SEC-062: Hybrid risk calculation failed for Auth API action {action.id}: {hybrid_error}")
+            hybrid_risk = action.risk_score  # Fallback to current score
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Risk Fusion (80% Policy + 20% Hybrid)
+        # This creates the final authoritative risk score
+        # Compliance: SOC 2 CC3.2, NIST 800-30
+        # ===================================================================
+        if policy_evaluated and policy_risk is not None and hybrid_risk is not None:
+            # Weighted fusion: 80% policy, 20% hybrid
+            fused_score = (policy_risk * 0.8) + (hybrid_risk * 0.2)
+            logger.info(f"SEC-062: Risk fusion for Auth API action {action.id}: "
+                       f"({policy_risk} × 0.8) + ({hybrid_risk} × 0.2) = {fused_score:.1f}")
+
+            # =====================================================================
+            # SEC-062 ENTERPRISE: Safety Rules
+            # =====================================================================
+            # Safety Rule 1: CRITICAL CVSS overrides policy
+            if cvss_result and cvss_result.get('severity') == 'CRITICAL':
+                fused_score = max(fused_score, 85)
+                logger.info(f"SEC-062: Safety Rule 1 applied - CRITICAL CVSS, floor set to 85")
+
+            # Safety Rule 2: Policy DENY overrides everything
+            if policy_decision and hasattr(policy_decision, 'value') and policy_decision.value == 'deny':
+                fused_score = 100
+                logger.info(f"SEC-062: Safety Rule 2 applied - Policy DENY, score set to 100")
+
+            # Safety Rule 3: PII in production gets minimum floor
+            if data.get('environment', 'production') == 'production':
+                if 'pii' in data['description'].lower() or data.get('contains_pii'):
+                    fused_score = max(fused_score, 70)
+                    logger.info(f"SEC-062: Safety Rule 3 applied - PII in production, floor set to 70")
+
+            # Update action with fused score
+            action.risk_score = int(fused_score)
+
+            # Re-determine risk level based on fused score
+            if fused_score >= 85:
+                action.risk_level = "critical"
+            elif fused_score >= 70:
+                action.risk_level = "high"
+            elif fused_score >= 45:
+                action.risk_level = "medium"
+            else:
+                action.risk_level = "low"
+
+            # Re-determine approval requirement
+            requires_approval = action.risk_level != "low"
+            status = "approved" if not requires_approval else "pending"
+            action.requires_approval = requires_approval
+            action.status = status
+            action.approved = not requires_approval
+
+            db.add(action)
+            db.flush()
+
+            logger.info(f"SEC-062: Final risk assessment for Auth API action {action.id}: "
+                       f"score={action.risk_score}, level={action.risk_level}, "
+                       f"requires_approval={requires_approval}")
+        else:
+            # No fusion possible, use hybrid or existing score
+            if hybrid_risk is not None:
+                action.risk_score = int(hybrid_risk)
+                db.add(action)
+                db.flush()
+            logger.info(f"SEC-062: No fusion applied for Auth API action {action.id}, using direct score: {action.risk_score}")
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Automation Service - Playbook Matching
+        # Compliance: SOC 2 CC7.1, NIST 800-53 IR-4
+        # ===================================================================
+        playbook_result = None
+        try:
+            from services.automation_service import get_automation_service
+            automation_service = get_automation_service(db)
+
+            action_data = {
+                'risk_score': action.risk_score or 0,
+                'action_type': action.action_type,
+                'agent_id': action.agent_id,
+                'timestamp': action.timestamp
+            }
+
+            matched_playbook = automation_service.match_playbooks(action_data)
+
+            if matched_playbook:
+                logger.info(f"SEC-062: Playbook matched for Auth API action {action.id}: {matched_playbook.id}")
+
+                execution_result = automation_service.execute_playbook(
+                    playbook_id=matched_playbook.id,
+                    action_id=action.id
+                )
+
+                if execution_result['success']:
+                    playbook_result = {
+                        "matched": True,
+                        "playbook_name": execution_result['playbook_name'],
+                        "auto_approved": True
+                    }
+                    logger.info(f"SEC-062: Auth API action auto-approved via playbook: {execution_result['playbook_name']}")
+                else:
+                    playbook_result = {"matched": True, "execution_failed": True}
+                    logger.warning(f"SEC-062: Playbook execution failed: {execution_result['message']}")
+            else:
+                playbook_result = {"matched": False}
+                logger.info(f"SEC-062: No playbook match for Auth API action {action.id}")
+
+        except Exception as automation_error:
+            logger.warning(f"SEC-062: Automation service failed for Auth API action {action.id}: {automation_error}")
+            playbook_result = {"error": str(automation_error)}
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Orchestration Service - Workflow Triggering
+        # Compliance: SOC 2 CC7.2, NIST 800-53 IR-6
+        # ===================================================================
+        workflow_result = None
+        try:
+            from services.orchestration_service import get_orchestration_service
+            orchestration_service = get_orchestration_service(db)
+
+            orchestration_result = orchestration_service.orchestrate_action(
+                action_id=action.id,
+                risk_level=action.risk_level,
+                risk_score=action.risk_score or 0,
+                action_type=action.action_type
+            )
+
+            workflow_result = {
+                "workflow_triggered": orchestration_result.get('workflow_triggered', False),
+                "workflow_id": orchestration_result.get('workflow_id'),
+                "alert_created": orchestration_result.get('alert_created', False)
+            }
+
+            if orchestration_result.get('workflow_triggered'):
+                logger.info(f"SEC-062: Workflow triggered for Auth API action {action.id}: {orchestration_result['workflow_id']}")
+
+        except Exception as orchestration_error:
+            logger.warning(f"SEC-062: Orchestration service failed for Auth API action {action.id}: {orchestration_error}")
+            workflow_result = {"error": str(orchestration_error)}
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: ALERT GENERATION (if risk threshold exceeded)
+        # Compliance: SOC 2 CC7.2, PCI-DSS 12.10, NIST 800-53 IR-6
+        # ===================================================================
+        alert_triggered = False
+        alert_id = None
+        if action.risk_level in ("high", "critical"):
+            try:
+                # Check if alert already exists (e.g., from orchestration service)
+                existing_alert = db.query(Alert).filter(
+                    Alert.agent_action_id == action.id
+                ).first()
+
+                if existing_alert:
+                    alert_id = existing_alert.id
+                    alert_triggered = True
+                    logger.info(f"SEC-062: Alert already exists for Auth API action {action.id}: alert_id={alert_id}")
+                else:
+                    severity = "critical" if action.risk_level == "critical" else "high"
+                    alert = Alert(
+                        agent_action_id=action.id,
+                        organization_id=org_id,
+                        alert_type=f"{severity.title()} Risk Auth API Agent Action",
+                        severity=severity,
+                        message=f"Enterprise Alert: Agent '{data['agent_id']}' requesting {action.risk_level}-risk action: "
+                                f"{data['action_type']} - {data['description'][:100]} | "
+                                f"NIST: {nist_control} | MITRE: {mitre_tactic}",
+                        agent_id=data['agent_id'],
+                        status="new",
+                        timestamp=datetime.now(UTC)
+                    )
+                    db.add(alert)
+                    db.flush()
+                    alert_id = alert.id
+                    alert_triggered = True
+                    logger.info(f"SEC-062: Alert created for Auth API action {action.id}: alert_id={alert_id}, severity={severity}")
+            except Exception as alert_error:
+                logger.warning(f"SEC-062: Alert creation failed for Auth API action {action.id}: {alert_error}")
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Commit Transaction
+        # ===================================================================
+        db.commit()
+        db.refresh(action)
+
+        auth_method = current_user.get("auth_method", "api_key")
+        logger.info(f"SEC-062: Enterprise Auth API action committed - ID: {action.id}, Agent: {data['agent_id']}, "
+                    f"Risk: {action.risk_score}, Level: {action.risk_level}, Status: {action.status}, "
+                    f"Auth: {auth_method}, Alert: {alert_id}")
+
+        # ===================================================================
+        # SEC-062 ENTERPRISE: Enhanced Response with Full Compliance Data
         # ===================================================================
         return {
             "id": action.id,
+            "action_id": action.id,
             "agent_id": action.agent_id,
-            "action_type": action.action_type,  # SEC-022: Include action_type for SDK compatibility
+            "action_type": action.action_type,
             "status": action.status,
             "risk_score": action.risk_score,
             "risk_level": action.risk_level,
             "requires_approval": requires_approval,
-            "alert_triggered": alert_triggered,
-            "message": f"Action processed through platform workflow - Risk: {action.risk_score}"  # ENTERPRISE FIX: Return updated score
+            "approved": action.approved,
+            "alert_generated": alert_triggered,
+            "alert_id": alert_id,
+            "poll_url": f"/api/agent-action/status/{action.id}",
+            "enterprise_grade": True,
+            "auth_api_integration": True,
+            # SEC-062: Enterprise compliance data
+            "compliance": {
+                "nist_control": action.nist_control,
+                "nist_description": action.nist_description,
+                "mitre_tactic": action.mitre_tactic,
+                "mitre_technique": action.mitre_technique,
+                "recommendation": action.recommendation,
+                "cvss_score": action.cvss_score,
+                "cvss_severity": action.cvss_severity,
+                "cvss_vector": action.cvss_vector
+            },
+            # SEC-062: Enterprise risk assessment breakdown
+            "risk_assessment": {
+                "policy_evaluated": policy_evaluated,
+                "policy_risk": policy_risk,
+                "policy_decision": str(policy_decision) if policy_decision else None,
+                "hybrid_risk": hybrid_risk,
+                "hybrid_breakdown": hybrid_result_data.get("breakdown") if hybrid_result_data else None,
+                "hybrid_formula": hybrid_result_data.get("formula") if hybrid_result_data else None,
+                "fusion_applied": policy_evaluated and policy_risk is not None and hybrid_risk is not None,
+                "fusion_formula": f"({policy_risk} × 0.8) + ({hybrid_risk} × 0.2)" if policy_evaluated and policy_risk and hybrid_risk else None
+            },
+            # SEC-062: Enterprise automation results
+            "automation": {
+                "playbook": playbook_result,
+                "workflow": workflow_result
+            },
+            "message": f"Enterprise action processed - Risk: {action.risk_score}, Level: {action.risk_level}"
         }
 
     except HTTPException:
