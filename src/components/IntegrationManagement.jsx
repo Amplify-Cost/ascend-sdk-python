@@ -316,16 +316,20 @@ const IntegrationManagement = ({ isOpen, onClose, initialType, onIntegrationSave
         })
       });
 
+      // SEC-049: Capture full response details for enhanced UI
       setTestResult({
         success: response.success,
         message: response.message || (response.success ? "Connection successful" : "Connection failed"),
-        latency: response.latency_ms,
-        details: response.details
+        latency: response.response_time_ms || response.latency_ms,
+        statusCode: response.result?.status_code,
+        httpMethod: response.http_method || response.result?.http_method,
+        healthStatus: response.health_status,
+        details: response.result
       });
     } catch (error) {
       setTestResult({
         success: false,
-        message: error.message || "Connection test failed",
+        message: error.message || "Connection test failed - please check your network and try again",
         details: { error: error.toString() }
       });
     } finally {
@@ -804,28 +808,84 @@ const IntegrationManagement = ({ isOpen, onClose, initialType, onIntegrationSave
                   })}
                 </div>
 
-                {/* Test result */}
+                {/* SEC-049: Enhanced Test Result with Details & Troubleshooting */}
                 {testResult && (
-                  <div className={`p-4 rounded-lg ${
+                  <div className={`rounded-lg overflow-hidden ${
                     testResult.success
                       ? "bg-green-50 border border-green-200"
                       : "bg-red-50 border border-red-200"
                   }`}>
-                    <div className="flex items-center">
-                      <span className="text-xl mr-2">
-                        {testResult.success ? "✅" : "❌"}
-                      </span>
-                      <div>
-                        <p className={`font-medium ${testResult.success ? "text-green-700" : "text-red-700"}`}>
-                          {testResult.message}
-                        </p>
-                        {testResult.latency && (
-                          <p className="text-sm text-gray-600">
-                            Response time: {testResult.latency}ms
-                          </p>
+                    {/* Main Result */}
+                    <div className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                            testResult.success ? "bg-green-100" : "bg-red-100"
+                          }`}>
+                            <span className="text-xl">{testResult.success ? "✓" : "✕"}</span>
+                          </div>
+                          <div>
+                            <p className={`font-semibold ${testResult.success ? "text-green-800" : "text-red-800"}`}>
+                              {testResult.success ? "Connection Successful" : "Connection Failed"}
+                            </p>
+                            <p className={`text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}>
+                              {testResult.message}
+                            </p>
+                          </div>
+                        </div>
+                        {testResult.success && (
+                          <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                            Ready to Save
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Technical Details */}
+                      <div className="mt-3 flex flex-wrap gap-3 text-sm">
+                        {testResult.latency !== undefined && (
+                          <span className={`px-2 py-1 rounded ${testResult.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            ⏱️ {testResult.latency}ms
+                          </span>
+                        )}
+                        {testResult.statusCode && (
+                          <span className={`px-2 py-1 rounded ${testResult.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                            HTTP {testResult.statusCode}
+                          </span>
+                        )}
+                        {testResult.httpMethod && (
+                          <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                            {testResult.httpMethod}
+                          </span>
                         )}
                       </div>
                     </div>
+
+                    {/* Troubleshooting Tips (on failure) */}
+                    {!testResult.success && (
+                      <div className="px-4 pb-4">
+                        <div className="p-3 bg-red-100 rounded-lg">
+                          <p className="text-sm font-medium text-red-800 mb-2">💡 Troubleshooting Tips:</p>
+                          <ul className="text-sm text-red-700 space-y-1">
+                            <li>• Verify the URL is correct and accessible from the internet</li>
+                            <li>• Check that any API keys or tokens are valid and not expired</li>
+                            <li>• Ensure HTTPS is used (required for most integrations)</li>
+                            <li>• Confirm firewall rules allow outbound connections</li>
+                            {testResult.message?.toLowerCase().includes("timeout") && (
+                              <li>• The endpoint may be slow to respond - try again</li>
+                            )}
+                            {testResult.message?.toLowerCase().includes("ssl") && (
+                              <li>• SSL certificate may be invalid or self-signed</li>
+                            )}
+                          </ul>
+                        </div>
+                        <button
+                          onClick={handleTestConnection}
+                          className="mt-3 w-full py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium"
+                        >
+                          🔄 Retry Test
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
