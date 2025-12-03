@@ -20,6 +20,9 @@ import hashlib
 import logging
 import re
 
+# SEC-056: Import rate limiter for public endpoint protection
+from security.rate_limiter import limiter, RATE_LIMITS
+
 # Import dependencies
 from database import get_db
 from dependencies import get_current_user, get_organization_filter
@@ -507,7 +510,139 @@ async def revoke_api_key(
 
 
 # ========================================
-# Endpoint 4: Get API Key Usage
+# Endpoint 4: Validate API Key (SEC-056)
+# ========================================
+
+class ValidateKeyRequest(BaseModel):
+    """Request to validate an API key - SEC-056"""
+    api_key: str = Field(..., min_length=10, description="The API key to validate")
+
+
+class ValidateKeyResponse(BaseModel):
+    """Response from API key validation - SEC-056"""
+    valid: bool
+    key_prefix: Optional[str] = None
+    organization_id: Optional[int] = None
+    user_id: Optional[int] = None
+    permissions: Optional[List[str]] = None
+    expires_at: Optional[str] = None
+    rate_limit: Optional[dict] = None
+    error: Optional[str] = None
+
+
+@router.post("/validate", response_model=ValidateKeyResponse)
+@limiter.limit("10/minute")  # SEC-056: RISK-002 - Rate limit public endpoint
+async def validate_api_key(
+    request: ValidateKeyRequest,
+    http_request: Request,  # Required for rate limiter
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-056: Validate an API key and return its metadata
+
+    Security:
+    - Does NOT require prior authentication (validates the provided key)
+    - Returns limited metadata for security
+    - Audit logged for compliance
+    - Rate limited: 10 requests/minute per IP (RISK-002)
+    - Constant-time hash comparison (RISK-001)
+
+    Use Cases:
+    - SDK initialization verification
+    - Pre-flight key checks before operations
+    - Admin console key testing
+
+    Returns:
+        ValidateKeyResponse with validity status and metadata
+    """
+    try:
+        api_key_value = request.api_key
+
+        # 1. Extract prefix for lookup
+        if not api_key_value.startswith("owkai_"):
+            logger.warning(f"SEC-056: Invalid key format - missing owkai_ prefix")
+            return ValidateKeyResponse(
+                valid=False,
+                error="Invalid key format"
+            )
+
+        key_prefix = api_key_value[:16]
+
+        # 2. Find key by prefix
+        api_key = db.query(ApiKey).filter(
+            ApiKey.key_prefix == key_prefix,
+            ApiKey.is_active == True
+        ).first()
+
+        if not api_key:
+            logger.warning(f"SEC-056: Key not found or inactive: {key_prefix}")
+            return ValidateKeyResponse(
+                valid=False,
+                error="Key not found or revoked"
+            )
+
+        # 3. Verify hash - SEC-056 RISK-001: Use constant-time comparison to prevent timing attacks
+        computed_hash = hashlib.sha256((api_key_value + api_key.salt).encode()).hexdigest()
+        if not secrets.compare_digest(computed_hash, api_key.key_hash):
+            logger.warning(f"SEC-056: Hash mismatch for key: {key_prefix}")
+            return ValidateKeyResponse(
+                valid=False,
+                error="Invalid key"
+            )
+
+        # 4. Check expiration
+        if api_key.expires_at and api_key.expires_at < datetime.now(UTC):
+            logger.warning(f"SEC-056: Expired key: {key_prefix}")
+            return ValidateKeyResponse(
+                valid=False,
+                error="Key expired"
+            )
+
+        # 5. Get permissions
+        permissions = db.query(ApiKeyPermission).filter(
+            ApiKeyPermission.api_key_id == api_key.id
+        ).all()
+
+        permission_list = [
+            f"{p.permission_category}:{p.permission_action}"
+            for p in permissions
+        ]
+
+        # 6. Get rate limit
+        rate_limit = db.query(ApiKeyRateLimit).filter(
+            ApiKeyRateLimit.api_key_id == api_key.id
+        ).first()
+
+        rate_limit_info = None
+        if rate_limit:
+            rate_limit_info = {
+                "max_requests": rate_limit.max_requests,
+                "window_seconds": rate_limit.window_seconds,
+                "current_count": rate_limit.current_count
+            }
+
+        logger.info(f"✅ SEC-056: Key validated successfully: {key_prefix}")
+
+        return ValidateKeyResponse(
+            valid=True,
+            key_prefix=key_prefix,
+            organization_id=api_key.organization_id,
+            user_id=api_key.user_id,
+            permissions=permission_list,
+            expires_at=api_key.expires_at.isoformat() if api_key.expires_at else None,
+            rate_limit=rate_limit_info
+        )
+
+    except Exception as e:
+        logger.error(f"❌ SEC-056: Key validation error: {e}")
+        return ValidateKeyResponse(
+            valid=False,
+            error="Validation error"
+        )
+
+
+# ========================================
+# Endpoint 5: Get API Key Usage
 # ========================================
 
 @router.get("/{key_id}/usage")
