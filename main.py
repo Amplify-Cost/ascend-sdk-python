@@ -1481,6 +1481,19 @@ except ImportError as e:
     print(f"⚠️  Enterprise Integration Suite routes not available: {e}")
     logger.error(f"❌ Failed to import integration_suite_routes: {e}")
 
+# ============================================================================
+# SEC-047: Integration Setup Wizard Routes
+# ============================================================================
+# Datadog-style self-service integration wizard with quick setup path
+try:
+    from routes.integration_wizard_routes import router as integration_wizard_router
+    app.include_router(integration_wizard_router, tags=["Integration Wizard"])
+    print("✅ SEC-047: Integration Wizard routes included")
+    logger.info("✅ SEC-047: Integration Wizard routes registered at /api/integrations/wizard/*")
+except ImportError as e:
+    print(f"⚠️  Integration Wizard routes not available: {e}")
+    logger.warning(f"Integration Wizard routes not loaded: {e}")
+
 print("🚀 ENTERPRISE: Application startup complete - All 5 Phases Active")
 
 
