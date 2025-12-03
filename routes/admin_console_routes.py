@@ -1805,15 +1805,10 @@ async def get_analytics_overview(
     # ========================================
     endpoint_stats = []
     try:
+        # SEC-046: Simplified query without processing_time_ms (column doesn't exist yet)
         endpoint_query = db.query(
             AgentAction.action_type,
-            func.count(AgentAction.id).label('calls'),
-            func.avg(
-                case(
-                    (AgentAction.processing_time_ms.isnot(None), AgentAction.processing_time_ms),
-                    else_=0
-                )
-            ).label('avg_response_ms')
+            func.count(AgentAction.id).label('calls')
         ).filter(
             AgentAction.organization_id == org_id,
             AgentAction.created_at >= month_start
@@ -1823,7 +1818,7 @@ async def get_analytics_overview(
             endpoint_stats.append({
                 "endpoint": f"/api/{stat.action_type}" if stat.action_type else "/api/unknown",
                 "calls": stat.calls,
-                "avg_response_ms": round(float(stat.avg_response_ms or 0), 1),
+                "avg_response_ms": 0,  # TODO: Add processing_time_ms column to track this
                 "error_rate": 0.0  # TODO: Calculate from error counts
             })
     except Exception as e:
