@@ -1662,6 +1662,16 @@ except ImportError as e:
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
 
+# ============================================================================
+# ASCEND SDK Routes - API endpoints for SDK integration
+# ============================================================================
+try:
+    from routes.sdk_routes import router as sdk_router
+    app.include_router(sdk_router, tags=["ASCEND SDK"])
+    logger.info("✅ ASCEND SDK routes loaded - /api/sdk/*")
+except ImportError as e:
+    logger.warning(f"ASCEND SDK routes not loaded: {e}")
+
 
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================

@@ -164,3 +164,24 @@ export class ConnectionError extends OWKAIError {
     this.name = 'ConnectionError';
   }
 }
+
+/**
+ * Raised when circuit breaker is open due to repeated failures.
+ *
+ * The circuit breaker prevents cascading failures by failing fast
+ * when the ASCEND service appears to be down.
+ */
+export class CircuitBreakerOpenError extends OWKAIError {
+  /** Estimated time until circuit recovery attempt */
+  readonly recoveryTimeSeconds: number;
+
+  constructor(
+    message: string = 'Circuit breaker is open - service appears to be down',
+    recoveryTimeSeconds: number = 0,
+    details: Record<string, unknown> = {}
+  ) {
+    super(message, 'CIRCUIT_OPEN', { ...details, recoveryTimeSeconds });
+    this.name = 'CircuitBreakerOpenError';
+    this.recoveryTimeSeconds = recoveryTimeSeconds;
+  }
+}

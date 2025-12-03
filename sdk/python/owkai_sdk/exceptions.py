@@ -163,3 +163,26 @@ class ConnectionError(OWKAIError):
         details: Optional[Dict[str, Any]] = None
     ):
         super().__init__(message, error_code, details)
+
+
+class CircuitBreakerOpen(OWKAIError):
+    """
+    Raised when circuit breaker is open due to repeated failures.
+
+    The circuit breaker prevents cascading failures by failing fast
+    when the ASCEND service appears to be down.
+    """
+
+    def __init__(
+        self,
+        message: str = "Circuit breaker is open - service appears to be down",
+        error_code: str = "CIRCUIT_OPEN",
+        recovery_time: Optional[int] = None,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        details = details or {}
+        if recovery_time:
+            details["recovery_time_seconds"] = recovery_time
+
+        super().__init__(message, error_code, details)
+        self.recovery_time = recovery_time

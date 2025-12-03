@@ -1,22 +1,31 @@
 /**
- * OW-AI SDK Client
- * ================
+ * ASCEND SDK Client v2.0
+ * ======================
  *
- * Enterprise-grade HTTP client for OW-AI Authorization API.
+ * Enterprise-grade HTTP client for ASCEND AI Governance API.
  *
- * SEC-054 Enhancements:
- * - Batch action submission
- * - Metrics collection and telemetry
- * - Request/response interceptors
+ * Features:
+ * - Fail mode configuration (closed/open)
+ * - Circuit breaker pattern
+ * - HMAC-SHA256 request signing
+ * - Agent registration and lifecycle
+ * - Action completion/failure logging
+ * - Approval workflow support
+ * - Webhook configuration
+ * - Structured JSON logging
+ *
+ * Compliance: SOC 2 CC6.1, HIPAA 164.312(e), PCI-DSS 8.2, NIST AI RMF
  */
 
 import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
+import * as crypto from 'crypto';
 import {
   AgentAction,
   AuthorizationDecision,
   ActionDetails,
   ActionListResponse,
   DecisionStatus,
+  Decision,
   BatchOptions,
   BatchResponse,
   BatchActionResult,
@@ -31,6 +40,7 @@ import {
   RateLimitError,
   ValidationError,
   ConnectionError,
+  CircuitBreakerOpenError,
 } from './errors';
 import { MetricsCollector, MetricsSnapshot, MetricEvent, MetricsCallback } from './metrics';
 import {
@@ -40,8 +50,239 @@ import {
   generateRequestId,
 } from './interceptors';
 
+// ============================================================
+// Fail Mode Configuration
+// ============================================================
+
 /**
- * Client configuration options
+ * Fail mode determines behavior when ASCEND is unreachable.
+ *
+ * CLOSED: Block all actions when ASCEND is down (secure default)
+ * OPEN: Allow actions when ASCEND is down (fail-open for availability)
+ */
+export enum FailMode {
+  /** Block actions when ASCEND is unreachable (recommended for production) */
+  CLOSED = 'closed',
+  /** Allow actions when ASCEND is unreachable (use with caution) */
+  OPEN = 'open',
+}
+
+// ============================================================
+// Circuit Breaker Pattern
+// ============================================================
+
+export enum CircuitState {
+  CLOSED = 'closed',
+  OPEN = 'open',
+  HALF_OPEN = 'half_open',
+}
+
+export interface CircuitBreakerOptions {
+  /** Number of failures before opening circuit */
+  failureThreshold?: number;
+  /** Seconds to wait before attempting recovery */
+  recoveryTimeout?: number;
+  /** Number of test requests in half-open state */
+  halfOpenMaxCalls?: number;
+}
+
+/**
+ * Circuit breaker for resilient API communication.
+ *
+ * Prevents cascading failures by failing fast when ASCEND is down.
+ */
+export class CircuitBreaker {
+  private state: CircuitState = CircuitState.CLOSED;
+  private failures: number = 0;
+  private lastFailureTime: number = 0;
+  private halfOpenCalls: number = 0;
+
+  private readonly failureThreshold: number;
+  private readonly recoveryTimeout: number;
+  private readonly halfOpenMaxCalls: number;
+
+  constructor(options: CircuitBreakerOptions = {}) {
+    this.failureThreshold = options.failureThreshold ?? 5;
+    this.recoveryTimeout = options.recoveryTimeout ?? 30;
+    this.halfOpenMaxCalls = options.halfOpenMaxCalls ?? 3;
+  }
+
+  getState(): CircuitState {
+    return this.state;
+  }
+
+  getFailures(): number {
+    return this.failures;
+  }
+
+  recordSuccess(): void {
+    if (this.state === CircuitState.HALF_OPEN) {
+      // Successful call in half-open state closes the circuit
+      this.state = CircuitState.CLOSED;
+      this.failures = 0;
+      this.halfOpenCalls = 0;
+    } else if (this.state === CircuitState.CLOSED) {
+      this.failures = Math.max(0, this.failures - 1);
+    }
+  }
+
+  recordFailure(): void {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+
+    if (this.state === CircuitState.HALF_OPEN) {
+      // Failure in half-open state reopens the circuit
+      this.state = CircuitState.OPEN;
+      this.halfOpenCalls = 0;
+    } else if (this.failures >= this.failureThreshold) {
+      this.state = CircuitState.OPEN;
+    }
+  }
+
+  allowRequest(): boolean {
+    if (this.state === CircuitState.CLOSED) {
+      return true;
+    }
+
+    if (this.state === CircuitState.OPEN) {
+      const elapsed = (Date.now() - this.lastFailureTime) / 1000;
+      if (elapsed >= this.recoveryTimeout) {
+        // Transition to half-open state
+        this.state = CircuitState.HALF_OPEN;
+        this.halfOpenCalls = 0;
+        return true;
+      }
+      return false;
+    }
+
+    // Half-open: allow limited test requests
+    if (this.halfOpenCalls < this.halfOpenMaxCalls) {
+      this.halfOpenCalls++;
+      return true;
+    }
+    return false;
+  }
+
+  reset(): void {
+    this.state = CircuitState.CLOSED;
+    this.failures = 0;
+    this.lastFailureTime = 0;
+    this.halfOpenCalls = 0;
+  }
+}
+
+// ============================================================
+// Structured Logger
+// ============================================================
+
+export type LogLevel = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR';
+
+export interface AscendLoggerOptions {
+  level?: LogLevel;
+  jsonFormat?: boolean;
+  maskApiKeys?: boolean;
+}
+
+/**
+ * Structured JSON logger with API key masking.
+ */
+export class AscendLogger {
+  private readonly level: LogLevel;
+  private readonly jsonFormat: boolean;
+  private readonly maskApiKeys: boolean;
+  private readonly levels: Record<LogLevel, number> = {
+    DEBUG: 10,
+    INFO: 20,
+    WARNING: 30,
+    ERROR: 40,
+  };
+
+  constructor(options: AscendLoggerOptions = {}) {
+    this.level = options.level ?? 'INFO';
+    this.jsonFormat = options.jsonFormat ?? true;
+    this.maskApiKeys = options.maskApiKeys ?? true;
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    return this.levels[level] >= this.levels[this.level];
+  }
+
+  private maskSensitive(data: unknown): unknown {
+    if (!this.maskApiKeys) return data;
+
+    if (typeof data === 'string') {
+      // Mask API keys
+      return data.replace(/owkai_[a-zA-Z0-9_]+/g, 'owkai_****');
+    }
+
+    if (Array.isArray(data)) {
+      return data.map((item) => this.maskSensitive(item));
+    }
+
+    if (data && typeof data === 'object') {
+      const masked: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(data)) {
+        if (['api_key', 'apiKey', 'authorization', 'secret', 'password', 'token'].includes(key.toLowerCase())) {
+          masked[key] = '****';
+        } else {
+          masked[key] = this.maskSensitive(value);
+        }
+      }
+      return masked;
+    }
+
+    return data;
+  }
+
+  private formatMessage(level: LogLevel, message: string, extra: Record<string, unknown> = {}): string {
+    const timestamp = new Date().toISOString();
+    const maskedExtra = this.maskSensitive(extra) as Record<string, unknown>;
+
+    if (this.jsonFormat) {
+      return JSON.stringify({
+        timestamp,
+        level,
+        logger: 'ascend_sdk',
+        message,
+        ...maskedExtra,
+      });
+    }
+
+    const extraStr = Object.keys(extra).length > 0 ? ` ${JSON.stringify(maskedExtra)}` : '';
+    return `${timestamp} [${level}] ascend_sdk: ${message}${extraStr}`;
+  }
+
+  debug(message: string, extra: Record<string, unknown> = {}): void {
+    if (this.shouldLog('DEBUG')) {
+      console.log(this.formatMessage('DEBUG', message, extra));
+    }
+  }
+
+  info(message: string, extra: Record<string, unknown> = {}): void {
+    if (this.shouldLog('INFO')) {
+      console.log(this.formatMessage('INFO', message, extra));
+    }
+  }
+
+  warning(message: string, extra: Record<string, unknown> = {}): void {
+    if (this.shouldLog('WARNING')) {
+      console.warn(this.formatMessage('WARNING', message, extra));
+    }
+  }
+
+  error(message: string, extra: Record<string, unknown> = {}): void {
+    if (this.shouldLog('ERROR')) {
+      console.error(this.formatMessage('ERROR', message, extra));
+    }
+  }
+}
+
+// ============================================================
+// Client Configuration
+// ============================================================
+
+/**
+ * Legacy client configuration options (v1.0)
  */
 export interface OWKAIClientOptions {
   /** API endpoint URL */
@@ -62,6 +303,40 @@ export interface OWKAIClientOptions {
   metricsWindow?: number;
   /** SEC-054: Max metrics events to store (default: 10000) */
   maxMetricsEvents?: number;
+}
+
+/**
+ * AscendClient configuration options (v2.0)
+ */
+export interface AscendClientOptions {
+  /** API endpoint URL */
+  apiUrl?: string;
+  /** Organization API key */
+  apiKey: string;
+  /** Unique agent identifier */
+  agentId: string;
+  /** Human-readable agent name */
+  agentName: string;
+  /** Environment (production/staging/development) */
+  environment?: string;
+  /** Fail mode when ASCEND is unreachable */
+  failMode?: FailMode;
+  /** Request timeout in milliseconds */
+  timeout?: number;
+  /** Maximum retry attempts */
+  maxRetries?: number;
+  /** Enable debug logging */
+  debug?: boolean;
+  /** Log level */
+  logLevel?: LogLevel;
+  /** Use JSON format for logs */
+  jsonLogs?: boolean;
+  /** Enable metrics collection */
+  enableMetrics?: boolean;
+  /** Circuit breaker options */
+  circuitBreakerOptions?: CircuitBreakerOptions;
+  /** Secret for HMAC signing (optional) */
+  signingSecret?: string;
 }
 
 const DEFAULT_API_URL = 'https://pilot.owkai.app';
@@ -260,9 +535,11 @@ export class OWKAIClient {
       }
 
       if (status === 429) {
-        const retryAfter = parseInt(error.response.headers['retry-after'] || '60', 10);
+        const MAX_RETRY_AFTER_SECONDS = 300; // Cap at 5 minutes to prevent DoS
+        const retryAfterRaw = parseInt(error.response.headers['retry-after'] || '60', 10);
+        const retryAfter = Math.min(retryAfterRaw, MAX_RETRY_AFTER_SECONDS);
         if (retryCount < this.maxRetries) {
-          this.log(`Rate limited. Retrying in ${retryAfter}s...`);
+          this.log(`Rate limited. Retrying in ${retryAfter}s (requested: ${retryAfterRaw}s)...`);
           // SEC-054: Record retry metrics
           if (this.metricsCollector) {
             this.metricsCollector.recordRetry(method, endpoint, retryCount + 1, 'rate_limited');
@@ -705,5 +982,790 @@ export class OWKAIClient {
     if (this.metricsCollector) {
       this.metricsCollector.reset();
     }
+  }
+}
+
+// ============================================================
+// ASCEND Client v2.0
+// ============================================================
+
+/**
+ * Authorization decision result
+ */
+export interface EvaluateActionResult {
+  decision: Decision;
+  actionId: string;
+  reason?: string;
+  riskScore?: number;
+  policyViolations: string[];
+  conditions: string[];
+  approvalRequestId?: string;
+  requiredApprovers: string[];
+  expiresAt?: string;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Agent registration response
+ */
+export interface RegisterResponse {
+  agentId: string;
+  status: string;
+  registeredAt: string;
+  capabilities: string[];
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Action completion response
+ */
+export interface ActionLogResponse {
+  actionId: string;
+  status: string;
+  loggedAt: string;
+}
+
+/**
+ * Approval status response
+ */
+export interface ApprovalStatusResponse {
+  approvalRequestId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  rejectedBy?: string;
+  rejectionReason?: string;
+  decidedAt?: string;
+}
+
+/**
+ * Webhook configuration response
+ */
+export interface WebhookConfigResponse {
+  webhookId: string;
+  url: string;
+  events: string[];
+  status: string;
+  createdAt: string;
+}
+
+/**
+ * ASCEND Enterprise SDK Client v2.0
+ *
+ * Production-ready client for AI agent governance with enterprise features:
+ * - Fail mode configuration (closed/open)
+ * - Circuit breaker pattern for resilience
+ * - HMAC-SHA256 request signing
+ * - Agent registration and lifecycle
+ * - Action completion/failure logging
+ * - Approval workflow support
+ * - Webhook configuration
+ *
+ * @example
+ * ```typescript
+ * const client = new AscendClient({
+ *   apiKey: 'owkai_...',
+ *   agentId: 'agent-001',
+ *   agentName: 'My AI Agent',
+ *   failMode: FailMode.CLOSED,
+ * });
+ *
+ * // Register agent
+ * await client.register({
+ *   agentType: 'automation',
+ *   capabilities: ['data_access', 'file_operations'],
+ * });
+ *
+ * // Evaluate action
+ * const decision = await client.evaluateAction({
+ *   actionType: 'database.query',
+ *   resource: 'production_db',
+ *   parameters: { query: 'SELECT * FROM users' },
+ * });
+ *
+ * if (decision.decision === Decision.ALLOWED) {
+ *   const result = await executeQuery();
+ *   await client.logActionCompleted(decision.actionId, result);
+ * }
+ * ```
+ *
+ * Compliance: SOC 2 CC6.1, HIPAA 164.312(e), PCI-DSS 8.2, NIST AI RMF
+ */
+export class AscendClient {
+  private readonly apiUrl: string;
+  private readonly apiKey: string;
+  private readonly agentId: string;
+  private readonly agentName: string;
+  private readonly environment: string;
+  private readonly failMode: FailMode;
+  private readonly timeout: number;
+  private readonly maxRetries: number;
+  private readonly signingSecret?: string;
+  private readonly client: AxiosInstance;
+  private readonly logger: AscendLogger;
+  private readonly circuitBreaker: CircuitBreaker;
+  private readonly metricsCollector: MetricsCollector | null;
+
+  constructor(options: AscendClientOptions) {
+    this.apiUrl = options.apiUrl || process.env.ASCEND_API_URL || DEFAULT_API_URL;
+    this.apiKey = options.apiKey;
+    this.agentId = options.agentId;
+    this.agentName = options.agentName;
+    this.environment = options.environment || 'production';
+    this.failMode = options.failMode ?? FailMode.CLOSED;
+    this.timeout = options.timeout || DEFAULT_TIMEOUT;
+    this.maxRetries = options.maxRetries || DEFAULT_MAX_RETRIES;
+    this.signingSecret = options.signingSecret;
+
+    // Initialize logger
+    this.logger = new AscendLogger({
+      level: options.logLevel ?? (options.debug ? 'DEBUG' : 'INFO'),
+      jsonFormat: options.jsonLogs ?? true,
+      maskApiKeys: true,
+    });
+
+    // Initialize circuit breaker
+    this.circuitBreaker = new CircuitBreaker(options.circuitBreakerOptions);
+
+    // Initialize metrics
+    this.metricsCollector = options.enableMetrics !== false
+      ? new MetricsCollector({ maxEvents: 10000, windowMs: 300000 })
+      : null;
+
+    // Create HTTP client
+    this.client = axios.create({
+      baseURL: this.apiUrl,
+      timeout: this.timeout,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.apiKey,
+        Authorization: `Bearer ${this.apiKey}`,
+        'User-Agent': 'ascend-sdk/2.0.0 NodeJS',
+      },
+    });
+
+    this.logger.info('AscendClient initialized', {
+      apiUrl: this.apiUrl,
+      agentId: this.agentId,
+      failMode: this.failMode,
+      environment: this.environment,
+    });
+  }
+
+  // ============================================================
+  // HMAC Signing
+  // ============================================================
+
+  private generateSignature(payload: string, timestamp: string): string {
+    if (!this.signingSecret) {
+      return '';
+    }
+
+    const signatureBase = `${timestamp}.${payload}`;
+    return crypto
+      .createHmac('sha256', this.signingSecret)
+      .update(signatureBase)
+      .digest('hex');
+  }
+
+  private generateCorrelationId(): string {
+    return `${this.agentId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  }
+
+  // ============================================================
+  // Core Request Method
+  // ============================================================
+
+  private async request<T = Record<string, unknown>>(
+    method: 'get' | 'post' | 'put' | 'delete',
+    endpoint: string,
+    data?: Record<string, unknown>,
+    params?: Record<string, unknown>,
+    retryCount: number = 0
+  ): Promise<T> {
+    const startTime = Date.now();
+    const correlationId = this.generateCorrelationId();
+
+    // Check circuit breaker
+    if (!this.circuitBreaker.allowRequest()) {
+      const error = new CircuitBreakerOpenError(
+        'Circuit breaker is open - service appears to be down',
+        Math.max(0, this.circuitBreaker['recoveryTimeout'] -
+          (Date.now() - this.circuitBreaker['lastFailureTime']) / 1000)
+      );
+
+      this.logger.warning('Circuit breaker open', {
+        endpoint,
+        correlationId,
+        circuitState: this.circuitBreaker.getState(),
+      });
+
+      throw error;
+    }
+
+    // Prepare headers
+    const timestamp = new Date().toISOString();
+    const payloadStr = data ? JSON.stringify(data) : '';
+    const signature = this.generateSignature(payloadStr, timestamp);
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-API-Key': this.apiKey,
+      Authorization: `Bearer ${this.apiKey}`,
+      'User-Agent': 'ascend-sdk/2.0.0 NodeJS',
+      'X-Correlation-ID': correlationId,
+      'X-Timestamp': timestamp,
+    };
+
+    if (signature) {
+      headers['X-Signature'] = signature;
+    }
+
+    this.logger.debug(`${method.toUpperCase()} ${endpoint}`, {
+      correlationId,
+      hasData: !!data,
+    });
+
+    try {
+      const response = await this.client.request<T>({
+        method,
+        url: endpoint,
+        data,
+        params,
+        headers,
+      });
+
+      const duration = Date.now() - startTime;
+      this.circuitBreaker.recordSuccess();
+
+      if (this.metricsCollector) {
+        this.metricsCollector.recordRequest(method, endpoint, duration, response.status);
+      }
+
+      this.logger.debug(`Response received`, {
+        correlationId,
+        status: response.status,
+        duration,
+      });
+
+      return response.data;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      return this.handleError(error as AxiosError, method, endpoint, data, params, retryCount, duration, correlationId);
+    }
+  }
+
+  private async handleError<T>(
+    error: AxiosError,
+    method: 'get' | 'post' | 'put' | 'delete',
+    endpoint: string,
+    data?: Record<string, unknown>,
+    params?: Record<string, unknown>,
+    retryCount: number = 0,
+    duration: number = 0,
+    correlationId: string = ''
+  ): Promise<T> {
+    this.circuitBreaker.recordFailure();
+
+    if (error.response) {
+      const status = error.response.status;
+      const responseData = error.response.data as Record<string, unknown>;
+
+      if (this.metricsCollector) {
+        this.metricsCollector.recordError(method, endpoint, duration, error.message, status);
+      }
+
+      this.logger.error(`API error`, {
+        correlationId,
+        status,
+        endpoint,
+        message: responseData.detail || error.message,
+      });
+
+      if (status === 401) {
+        throw new AuthenticationError('Invalid or expired API key', { status });
+      }
+
+      if (status === 403) {
+        throw new AuthorizationError(
+          String(responseData.detail || 'Access denied'),
+          responseData.policy_violations as string[] | undefined,
+          responseData.risk_score as number | undefined
+        );
+      }
+
+      if (status === 429) {
+        const MAX_RETRY_AFTER_SECONDS = 300; // Cap at 5 minutes to prevent DoS
+        const retryAfterRaw = parseInt(error.response.headers['retry-after'] || '60', 10);
+        const retryAfter = Math.min(retryAfterRaw, MAX_RETRY_AFTER_SECONDS);
+        if (retryCount < this.maxRetries) {
+          this.logger.warning(`Rate limited, retrying in ${retryAfter}s (requested: ${retryAfterRaw}s)`, { correlationId });
+          await this.sleep(retryAfter * 1000);
+          return this.request<T>(method, endpoint, data, params, retryCount + 1);
+        }
+        throw new RateLimitError('Rate limit exceeded', retryAfter);
+      }
+
+      if (status >= 500 && retryCount < this.maxRetries) {
+        const waitTime = Math.pow(2, retryCount) * 1000;
+        this.logger.warning(`Server error, retrying in ${waitTime}ms`, { correlationId });
+        await this.sleep(waitTime);
+        return this.request<T>(method, endpoint, data, params, retryCount + 1);
+      }
+    }
+
+    if (error.code === 'ECONNABORTED') {
+      throw new TimeoutError(`Request timed out after ${this.timeout}ms`, this.timeout);
+    }
+
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      if (retryCount < this.maxRetries) {
+        const waitTime = Math.pow(2, retryCount) * 1000;
+        this.logger.warning(`Connection failed, retrying in ${waitTime}ms`, { correlationId });
+        await this.sleep(waitTime);
+        return this.request<T>(method, endpoint, data, params, retryCount + 1);
+      }
+      throw new ConnectionError(`Failed to connect to ${this.apiUrl}`);
+    }
+
+    throw new OWKAIError(error.message, 'REQUEST_ERROR', { originalError: error.message });
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // ============================================================
+  // Fail Mode Handling
+  // ============================================================
+
+  private handleFailMode(error: Error, actionType: string): EvaluateActionResult {
+    if (this.failMode === FailMode.OPEN) {
+      this.logger.warning('Fail-open: allowing action due to ASCEND unavailability', {
+        actionType,
+        error: error.message,
+      });
+
+      return {
+        decision: Decision.ALLOWED,
+        actionId: `failopen-${Date.now()}`,
+        reason: 'Allowed due to ASCEND service unavailability (fail-open mode)',
+        riskScore: undefined,
+        policyViolations: [],
+        conditions: ['fail_open_mode'],
+        requiredApprovers: [],
+        metadata: {
+          failOpen: true,
+          originalError: error.message,
+        },
+      };
+    }
+
+    // Fail closed - re-throw the error
+    throw error;
+  }
+
+  // ============================================================
+  // Agent Registration
+  // ============================================================
+
+  /**
+   * Register this agent with ASCEND.
+   *
+   * Should be called on agent startup to establish presence.
+   *
+   * @param options - Registration options
+   * @returns Registration response
+   */
+  async register(options: {
+    agentType: string;
+    capabilities: string[];
+    allowedResources?: string[];
+    metadata?: Record<string, unknown>;
+  }): Promise<RegisterResponse> {
+    this.logger.info('Registering agent', {
+      agentId: this.agentId,
+      agentType: options.agentType,
+    });
+
+    const response = await this.request<Record<string, unknown>>(
+      'post',
+      '/api/sdk/agent/register',
+      {
+        agent_id: this.agentId,
+        agent_name: this.agentName,
+        agent_type: options.agentType,
+        capabilities: options.capabilities,
+        allowed_resources: options.allowedResources,
+        environment: this.environment,
+        metadata: options.metadata,
+      }
+    );
+
+    return {
+      agentId: String(response.agent_id || this.agentId),
+      status: String(response.status || 'registered'),
+      registeredAt: String(response.registered_at || new Date().toISOString()),
+      capabilities: (response.capabilities as string[]) || options.capabilities,
+      metadata: response.metadata as Record<string, unknown>,
+    };
+  }
+
+  // ============================================================
+  // Action Evaluation
+  // ============================================================
+
+  /**
+   * Evaluate an action for authorization.
+   *
+   * @param options - Action evaluation options
+   * @returns Authorization decision
+   */
+  async evaluateAction(options: {
+    actionType: string;
+    resource: string;
+    parameters?: Record<string, unknown>;
+    context?: Record<string, unknown>;
+    waitForApproval?: boolean;
+    approvalTimeout?: number;
+    riskLevel?: string;
+    requireHumanApproval?: boolean;
+  }): Promise<EvaluateActionResult> {
+    const correlationId = this.generateCorrelationId();
+
+    this.logger.info('Evaluating action', {
+      correlationId,
+      actionType: options.actionType,
+      resource: options.resource,
+    });
+
+    try {
+      const response = await this.request<Record<string, unknown>>(
+        'post',
+        '/api/authorization/agent-action',
+        {
+          agent_id: this.agentId,
+          agent_name: this.agentName,
+          action_type: options.actionType,
+          resource: options.resource,
+          action_details: options.parameters,
+          context: {
+            ...options.context,
+            correlation_id: correlationId,
+            environment: this.environment,
+          },
+          risk_level: options.riskLevel,
+          require_human_approval: options.requireHumanApproval,
+        }
+      );
+
+      // Map API response to v2.0 format
+      const rawDecision = String(response.decision || response.status || 'pending');
+      let decision: Decision;
+
+      if (rawDecision === 'approved' || rawDecision === 'allowed') {
+        decision = Decision.ALLOWED;
+      } else if (rawDecision === 'denied') {
+        decision = Decision.DENIED;
+      } else {
+        decision = Decision.PENDING;
+      }
+
+      const result: EvaluateActionResult = {
+        decision,
+        actionId: String(response.action_id || response.id || ''),
+        reason: response.reason as string | undefined,
+        riskScore: response.risk_score as number | undefined,
+        policyViolations: (response.policy_violations as string[]) || [],
+        conditions: (response.conditions as string[]) || [],
+        approvalRequestId: response.approval_request_id as string | undefined,
+        requiredApprovers: (response.required_approvers as string[]) || [],
+        expiresAt: response.expires_at as string | undefined,
+        metadata: (response.metadata as Record<string, unknown>) || {},
+      };
+
+      this.logger.info('Action evaluated', {
+        correlationId,
+        decision: result.decision,
+        actionId: result.actionId,
+        riskScore: result.riskScore,
+      });
+
+      // Handle pending with wait
+      if (result.decision === Decision.PENDING && options.waitForApproval) {
+        return this.waitForApprovalDecision(
+          result.approvalRequestId!,
+          options.approvalTimeout || 300000,
+          result
+        );
+      }
+
+      return result;
+    } catch (error) {
+      if (error instanceof ConnectionError ||
+          error instanceof TimeoutError ||
+          error instanceof CircuitBreakerOpenError) {
+        return this.handleFailMode(error, options.actionType);
+      }
+      throw error;
+    }
+  }
+
+  private async waitForApprovalDecision(
+    approvalRequestId: string,
+    timeout: number,
+    initialResult: EvaluateActionResult
+  ): Promise<EvaluateActionResult> {
+    const startTime = Date.now();
+    const pollInterval = 5000;
+
+    this.logger.info('Waiting for approval decision', {
+      approvalRequestId,
+      timeout,
+    });
+
+    while (Date.now() - startTime < timeout) {
+      await this.sleep(pollInterval);
+
+      try {
+        const status = await this.checkApproval(approvalRequestId);
+
+        if (status.status === 'approved') {
+          return {
+            ...initialResult,
+            decision: Decision.ALLOWED,
+            reason: 'Approved by human reviewer',
+            metadata: {
+              ...initialResult.metadata,
+              approvedBy: status.approvedBy,
+            },
+          };
+        }
+
+        if (status.status === 'rejected') {
+          return {
+            ...initialResult,
+            decision: Decision.DENIED,
+            reason: status.rejectionReason || 'Rejected by human reviewer',
+            metadata: {
+              ...initialResult.metadata,
+              rejectedBy: status.rejectedBy,
+            },
+          };
+        }
+      } catch (error) {
+        this.logger.warning('Error checking approval status', {
+          approvalRequestId,
+          error: (error as Error).message,
+        });
+      }
+    }
+
+    throw new TimeoutError(`Approval decision not received within ${timeout}ms`, timeout);
+  }
+
+  // ============================================================
+  // Action Completion Logging
+  // ============================================================
+
+  /**
+   * Log successful action completion.
+   *
+   * @param actionId - Action ID from evaluateAction
+   * @param result - Action result/output
+   * @param durationMs - Optional execution duration
+   * @returns Log response
+   */
+  async logActionCompleted(
+    actionId: string,
+    result?: Record<string, unknown>,
+    durationMs?: number
+  ): Promise<ActionLogResponse> {
+    this.logger.info('Logging action completion', {
+      actionId,
+      durationMs,
+    });
+
+    const response = await this.request<Record<string, unknown>>(
+      'post',
+      `/api/sdk/action/${actionId}/completed`,
+      {
+        status: 'completed',
+        result: result ? { success: true, data: result } : { success: true },
+        duration_ms: durationMs,
+        completed_at: new Date().toISOString(),
+      }
+    );
+
+    return {
+      actionId,
+      status: 'completed',
+      loggedAt: String(response.logged_at || new Date().toISOString()),
+    };
+  }
+
+  /**
+   * Log action failure.
+   *
+   * @param actionId - Action ID from evaluateAction
+   * @param error - Error message or object
+   * @param durationMs - Optional execution duration
+   * @returns Log response
+   */
+  async logActionFailed(
+    actionId: string,
+    error: string | Error,
+    durationMs?: number
+  ): Promise<ActionLogResponse> {
+    const errorMessage = typeof error === 'string' ? error : error.message;
+
+    this.logger.warning('Logging action failure', {
+      actionId,
+      error: errorMessage,
+      durationMs,
+    });
+
+    const response = await this.request<Record<string, unknown>>(
+      'post',
+      `/api/sdk/action/${actionId}/failed`,
+      {
+        status: 'failed',
+        error: errorMessage,
+        duration_ms: durationMs,
+        failed_at: new Date().toISOString(),
+      }
+    );
+
+    return {
+      actionId,
+      status: 'failed',
+      loggedAt: String(response.logged_at || new Date().toISOString()),
+    };
+  }
+
+  // ============================================================
+  // Approval Workflow
+  // ============================================================
+
+  /**
+   * Check approval status.
+   *
+   * @param approvalRequestId - Approval request ID
+   * @returns Approval status
+   */
+  async checkApproval(approvalRequestId: string): Promise<ApprovalStatusResponse> {
+    const response = await this.request<Record<string, unknown>>(
+      'get',
+      `/api/sdk/approval/${approvalRequestId}`
+    );
+
+    return {
+      approvalRequestId,
+      status: (response.status as 'pending' | 'approved' | 'rejected') || 'pending',
+      approvedBy: response.approved_by as string | undefined,
+      rejectedBy: response.rejected_by as string | undefined,
+      rejectionReason: response.rejection_reason as string | undefined,
+      decidedAt: response.decided_at as string | undefined,
+    };
+  }
+
+  // ============================================================
+  // Webhook Configuration
+  // ============================================================
+
+  /**
+   * Configure webhook for event notifications.
+   *
+   * @param options - Webhook configuration
+   * @returns Webhook configuration response
+   */
+  async configureWebhook(options: {
+    url: string;
+    events: string[];
+    secret?: string;
+  }): Promise<WebhookConfigResponse> {
+    this.logger.info('Configuring webhook', {
+      url: options.url,
+      events: options.events,
+    });
+
+    const response = await this.request<Record<string, unknown>>(
+      'post',
+      '/api/sdk/webhooks/configure',
+      {
+        agent_id: this.agentId,
+        url: options.url,
+        events: options.events,
+        secret: options.secret,
+      }
+    );
+
+    return {
+      webhookId: String(response.webhook_id || ''),
+      url: options.url,
+      events: options.events,
+      status: String(response.status || 'active'),
+      createdAt: String(response.created_at || new Date().toISOString()),
+    };
+  }
+
+  // ============================================================
+  // Health & Diagnostics
+  // ============================================================
+
+  /**
+   * Test connection to ASCEND API.
+   *
+   * @returns Connection status
+   */
+  async testConnection(): Promise<{
+    status: 'connected' | 'error';
+    apiVersion?: string;
+    latency?: number;
+    error?: string;
+  }> {
+    const startTime = Date.now();
+
+    try {
+      await this.request('get', '/health');
+      const latency = Date.now() - startTime;
+
+      return {
+        status: 'connected',
+        latency,
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Get current circuit breaker state.
+   */
+  getCircuitBreakerState(): {
+    state: CircuitState;
+    failures: number;
+  } {
+    return {
+      state: this.circuitBreaker.getState(),
+      failures: this.circuitBreaker.getFailures(),
+    };
+  }
+
+  /**
+   * Reset circuit breaker.
+   */
+  resetCircuitBreaker(): void {
+    this.circuitBreaker.reset();
+    this.logger.info('Circuit breaker reset');
+  }
+
+  /**
+   * Get metrics snapshot.
+   */
+  getMetrics(): MetricsSnapshot | null {
+    return this.metricsCollector?.getSnapshot() || null;
   }
 }

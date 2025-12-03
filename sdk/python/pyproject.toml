@@ -3,16 +3,16 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "owkai-sdk"
-version = "1.0.0"
-description = "OW-AI Enterprise Authorization SDK for AI Agent Governance"
+name = "ascend-sdk"
+version = "2.0.0"
+description = "ASCEND SDK - Enterprise AI Governance with fail mode, circuit breaker, and MCP integration"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "OW-AI Enterprise", email = "sdk@owkai.app"}
+    {name = "ASCEND by OW-AI", email = "support@ascendowkai.com"}
 ]
 maintainers = [
-    {name = "OW-AI Enterprise", email = "sdk@owkai.app"}
+    {name = "ASCEND by OW-AI", email = "support@ascendowkai.com"}
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -38,7 +38,10 @@ keywords = [
     "compliance",
     "soc2",
     "hipaa",
-    "pci-dss"
+    "pci-dss",
+    "mcp",
+    "circuit-breaker",
+    "fail-mode"
 ]
 requires-python = ">=3.8"
 dependencies = [
@@ -49,22 +52,23 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
-    "pytest-asyncio>=0.20.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.10.0",
     "pytest-cov>=4.0.0",
     "mypy>=1.0.0",
     "black>=23.0.0",
     "isort>=5.12.0",
-    "flake8>=6.0.0"
+    "ruff>=0.1.0"
 ]
 async = [
     "aiohttp>=3.8.0"
 ]
 
 [project.urls]
-Homepage = "https://owkai.app"
-Documentation = "https://docs.owkai.app/sdk/python"
-Repository = "https://github.com/owkai/owkai-sdk-python"
-Changelog = "https://github.com/owkai/owkai-sdk-python/blob/main/CHANGELOG.md"
+Homepage = "https://ascendowkai.com"
+Documentation = "https://docs.ascendowkai.com/sdk/python"
+Repository = "https://github.com/anthropics/ascend-sdk-python"
+Issues = "https://github.com/anthropics/ascend-sdk-python/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

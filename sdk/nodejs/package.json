@@ -1,7 +1,7 @@
 {
-  "name": "@owkai/sdk",
-  "version": "1.1.0",
-  "description": "OW-AI Enterprise Authorization SDK for AI Agent Governance - SEC-054 Enhanced",
+  "name": "@ascend/sdk",
+  "version": "2.0.0",
+  "description": "ASCEND SDK - Enterprise AI Governance with fail mode, circuit breaker, and MCP integration",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -36,17 +36,20 @@
     "soc2",
     "hipaa",
     "pci-dss",
-    "typescript"
+    "typescript",
+    "mcp",
+    "circuit-breaker",
+    "fail-mode"
   ],
-  "author": "OW-AI Enterprise <sdk@owkai.app>",
+  "author": "ASCEND by OW-AI <support@ascendowkai.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/owkai/owkai-sdk-nodejs"
+    "url": "https://github.com/anthropics/ascend-sdk-nodejs"
   },
-  "homepage": "https://owkai.app",
+  "homepage": "https://ascendowkai.com",
   "bugs": {
-    "url": "https://github.com/owkai/owkai-sdk-nodejs/issues"
+    "url": "https://github.com/anthropics/ascend-sdk-nodejs/issues"
   },
   "engines": {
     "node": ">=16.0.0"
@@ -56,8 +59,11 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/jest": "^29.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
     "vitest": "^1.0.0",
     "eslint": "^8.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",

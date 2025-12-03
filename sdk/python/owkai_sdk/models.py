@@ -26,7 +26,7 @@ class ActionType(str, Enum):
 
 
 class DecisionStatus(str, Enum):
-    """Authorization decision statuses."""
+    """Authorization decision statuses (legacy)."""
     PENDING = "pending"
     APPROVED = "approved"
     DENIED = "denied"
@@ -34,6 +34,17 @@ class DecisionStatus(str, Enum):
     TIMEOUT = "timeout"
     AUTO_APPROVED = "auto_approved"
     ESCALATED = "escalated"
+
+
+class Decision(str, Enum):
+    """
+    Authorization decision values (v2.0).
+
+    Used by AscendClient.evaluate_action() response.
+    """
+    ALLOWED = "allowed"
+    DENIED = "denied"
+    PENDING = "pending"
 
 
 class RiskLevel(str, Enum):
@@ -134,13 +145,21 @@ class AgentAction:
 @dataclass
 class AuthorizationDecision:
     """
-    Authorization decision response from OW-AI.
+    Authorization decision response from ASCEND.
+
+    Supports both v1.0 (legacy) and v2.0 response formats.
+    v2.0 uses Decision enum (ALLOWED/DENIED/PENDING).
     """
     action_id: str
-    decision: DecisionStatus
+    decision: Decision  # v2.0: Decision enum
     risk_score: Optional[int] = None
     risk_level: Optional[RiskLevel] = None
+    reason: Optional[str] = None
     policy_violations: List[str] = field(default_factory=list)
+    conditions: List[str] = field(default_factory=list)
+    approval_request_id: Optional[str] = None
+    required_approvers: List[str] = field(default_factory=list)
+    expires_at: Optional[str] = None
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
     comments: Optional[str] = None
@@ -149,17 +168,33 @@ class AuthorizationDecision:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AuthorizationDecision":
-        """Create from API response dictionary."""
+        """Create from API response dictionary (v2.0 format)."""
+        # Map v1.0 status to v2.0 decision
+        raw_decision = data.get("decision", data.get("status", "pending"))
+        if raw_decision == "approved":
+            decision = Decision.ALLOWED
+        elif raw_decision == "denied":
+            decision = Decision.DENIED
+        elif raw_decision in ("allowed", "denied", "pending"):
+            decision = Decision(raw_decision)
+        else:
+            decision = Decision.PENDING
+
         return cls(
             action_id=data.get("action_id", ""),
-            decision=DecisionStatus(data.get("decision", data.get("status", "pending"))),
+            decision=decision,
             risk_score=data.get("risk_score"),
             risk_level=RiskLevel(data["risk_level"]) if data.get("risk_level") else None,
+            reason=data.get("reason"),
             policy_violations=data.get("policy_violations", []),
+            conditions=data.get("conditions", []),
+            approval_request_id=data.get("approval_request_id"),
+            required_approvers=data.get("required_approvers", []),
+            expires_at=data.get("expires_at"),
             approved_by=data.get("approved_by", data.get("reviewed_by")),
             approved_at=data.get("approved_at", data.get("reviewed_at")),
             comments=data.get("comments"),
-            execution_allowed=data.get("execution_allowed", data.get("decision") == "approved"),
+            execution_allowed=data.get("execution_allowed", decision == Decision.ALLOWED),
             metadata=data.get("metadata", {})
         )
 

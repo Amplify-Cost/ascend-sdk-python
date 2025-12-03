@@ -1,61 +1,87 @@
 /**
- * OW-AI Enterprise SDK for Node.js/TypeScript
- * ============================================
+ * ASCEND SDK for Node.js/TypeScript
+ * ==================================
  *
  * Enterprise-grade authorization SDK for AI agent governance.
  *
- * SEC-054 Enhancements:
- * - Batch action submission for high-throughput scenarios
- * - Metrics collection and telemetry for monitoring
- * - Request/response interceptors for middleware patterns
+ * v2.0 Features:
+ * - Fail mode configuration (closed/open)
+ * - Circuit breaker pattern for resilience
+ * - HMAC-SHA256 request signing
+ * - Agent registration and lifecycle
+ * - Action completion/failure logging
+ * - Approval workflow support
+ * - Webhook configuration
+ * - Structured JSON logging
  *
  * @example
  * ```typescript
- * import { OWKAIClient, AuthorizedAgent } from '@owkai/sdk';
+ * import { AscendClient, FailMode, Decision } from '@ascend/sdk';
  *
- * // Initialize client with metrics
- * const client = new OWKAIClient({
- *   apiKey: 'your-api-key',
- *   enableMetrics: true
+ * // Initialize client with fail mode
+ * const client = new AscendClient({
+ *   apiKey: 'owkai_...',
+ *   agentId: 'agent-001',
+ *   agentName: 'My AI Agent',
+ *   failMode: FailMode.CLOSED,
  * });
  *
- * // Add request interceptor for tracing
- * client.interceptors.request.use((config) => {
- *   config.headers['X-Trace-ID'] = generateTraceId();
- *   return config;
+ * // Register agent
+ * await client.register({
+ *   agentType: 'automation',
+ *   capabilities: ['data_access', 'file_operations'],
  * });
  *
- * // Create authorized agent
- * const agent = new AuthorizedAgent('agent-001', 'My AI Agent', client);
- *
- * // Request authorization
- * const decision = await agent.requestAuthorization({
- *   actionType: ActionType.DATA_ACCESS,
- *   resource: 'customer_data'
+ * // Evaluate action
+ * const decision = await client.evaluateAction({
+ *   actionType: 'database.query',
+ *   resource: 'production_db',
+ *   parameters: { query: 'SELECT * FROM users' },
  * });
  *
- * // Batch submit multiple actions
- * const batch = await client.submitActionBatch([action1, action2, action3]);
- *
- * // Get metrics
- * const metrics = client.getMetrics();
- * console.log(`Success rate: ${metrics.successRate * 100}%`);
+ * if (decision.decision === Decision.ALLOWED) {
+ *   const result = await executeQuery();
+ *   await client.logActionCompleted(decision.actionId, result);
+ * }
  * ```
  *
  * Security Standards:
- * - SOC 2 Type II Compliant
- * - PCI-DSS 8.3 (MFA)
- * - HIPAA 164.312 (Audit)
+ * - SOC 2 Type II Compliant (CC6.1)
+ * - PCI-DSS 8.2 (API Key Management), 8.3 (MFA)
+ * - HIPAA 164.312(e) (Transmission Security)
+ * - NIST AI RMF (Govern, Map, Measure, Manage)
  * - NIST 800-63B (Authentication)
  *
  * @packageDocumentation
  */
 
+// v2.0 Client and configuration
+export {
+  AscendClient,
+  FailMode,
+  CircuitBreaker,
+  CircuitState,
+  AscendLogger,
+  type AscendClientOptions,
+  type CircuitBreakerOptions,
+  type AscendLoggerOptions,
+  type LogLevel,
+  type EvaluateActionResult,
+  type RegisterResponse,
+  type ActionLogResponse,
+  type ApprovalStatusResponse,
+  type WebhookConfigResponse,
+} from './client';
+
+// Legacy v1.0 client (deprecated)
 export { OWKAIClient, type OWKAIClientOptions } from './client';
 export { AuthorizedAgent, type AuthorizationOptions } from './agent';
+
+// Models
 export {
   ActionType,
   DecisionStatus,
+  Decision,
   RiskLevel,
   toApiPayload,
   parseDecision,
@@ -67,11 +93,12 @@ export type {
   ActionContext,
   ActionDetails,
   ActionListResponse,
-  // SEC-054: Batch types
   BatchOptions,
   BatchResponse,
   BatchActionResult,
 } from './models';
+
+// Errors
 export {
   OWKAIError,
   AuthenticationError,
@@ -80,9 +107,10 @@ export {
   RateLimitError,
   ValidationError,
   ConnectionError,
+  CircuitBreakerOpenError,
 } from './errors';
 
-// SEC-054: Metrics exports
+// Metrics
 export {
   MetricsCollector,
   type MetricEvent,
@@ -91,7 +119,7 @@ export {
   type EndpointMetrics,
 } from './metrics';
 
-// SEC-054: Interceptor exports
+// Interceptors
 export {
   InterceptorManager,
   InterceptorChain,
@@ -108,7 +136,17 @@ export {
   responseTimingInterceptor,
 } from './interceptors';
 
+// MCP Governance
+export {
+  mcpGovernance,
+  requireGovernance,
+  highRiskAction,
+  MCPGovernanceMiddleware,
+  type GovernanceOptions,
+  type MCPGovernanceConfig,
+} from './mcp';
+
 /**
  * SDK Version
  */
-export const VERSION = '1.1.0';
+export const VERSION = '2.0.0';

@@ -22,7 +22,7 @@ export enum ActionType {
 }
 
 /**
- * Authorization decision statuses
+ * Authorization decision statuses (legacy v1.0)
  */
 export enum DecisionStatus {
   PENDING = 'pending',
@@ -32,6 +32,20 @@ export enum DecisionStatus {
   TIMEOUT = 'timeout',
   AUTO_APPROVED = 'auto_approved',
   ESCALATED = 'escalated',
+}
+
+/**
+ * Authorization decision values (v2.0)
+ *
+ * Used by AscendClient.evaluateAction() response.
+ */
+export enum Decision {
+  /** Action is allowed to proceed */
+  ALLOWED = 'allowed',
+  /** Action is denied */
+  DENIED = 'denied',
+  /** Action is pending human approval */
+  PENDING = 'pending',
 }
 
 /**
