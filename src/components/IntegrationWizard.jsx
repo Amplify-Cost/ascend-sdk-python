@@ -42,6 +42,9 @@ const IntegrationWizard = ({ isOpen, onClose, onComplete, existingApiKey }) => {
   const [copied, setCopied] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // SEC-058: SDK language tab selection
+  const [selectedLanguage, setSelectedLanguage] = useState('python');
+
   // Refs
   const codeRef = useRef(null);
 
@@ -566,66 +569,82 @@ if (result.status === 'approved') {
                       </p>
                     </div>
 
-                    {/* Language tabs */}
+                    {/* Language tabs - SEC-058: Added onClick handlers for tab switching */}
                     <div className="border border-gray-200 rounded-xl overflow-hidden">
                       <div className="flex border-b border-gray-200 bg-gray-50">
-                        <button className="px-6 py-3 text-sm font-medium text-blue-600 bg-white border-b-2 border-blue-600">
+                        <button
+                          onClick={() => setSelectedLanguage('python')}
+                          className={`px-6 py-3 text-sm font-medium ${selectedLanguage === 'python' ? 'text-blue-600 bg-white border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
                           🐍 Python
                         </button>
-                        <button className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900">
+                        <button
+                          onClick={() => setSelectedLanguage('node')}
+                          className={`px-6 py-3 text-sm font-medium ${selectedLanguage === 'node' ? 'text-blue-600 bg-white border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
                           📦 Node.js
                         </button>
-                        <button className="px-6 py-3 text-sm font-medium text-gray-600 hover:text-gray-900">
+                        <button
+                          onClick={() => setSelectedLanguage('curl')}
+                          className={`px-6 py-3 text-sm font-medium ${selectedLanguage === 'curl' ? 'text-blue-600 bg-white border-b-2 border-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+                        >
                           🌐 cURL
                         </button>
                       </div>
 
                       <div className="p-4 space-y-4">
-                        {/* Install command */}
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-gray-700">1. Install the SDK</span>
-                            <button
-                              onClick={() => handleCopy(snippets.python.install, "install")}
-                              className="text-sm text-blue-600 hover:text-blue-700"
-                            >
-                              {copied === "install" ? "✓ Copied" : "Copy"}
-                            </button>
+                        {/* SEC-058: Dynamic content based on selectedLanguage */}
+                        {/* Install command - only for Python and Node.js */}
+                        {snippets[selectedLanguage]?.install && (
+                          <div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-gray-700">1. Install the SDK</span>
+                              <button
+                                onClick={() => handleCopy(snippets[selectedLanguage].install, "install")}
+                                className="text-sm text-blue-600 hover:text-blue-700"
+                              >
+                                {copied === "install" ? "✓ Copied" : "Copy"}
+                              </button>
+                            </div>
+                            <pre className="p-3 bg-gray-900 text-green-400 rounded-lg text-sm overflow-x-auto">
+                              <code>{snippets[selectedLanguage].install}</code>
+                            </pre>
                           </div>
-                          <pre className="p-3 bg-gray-900 text-green-400 rounded-lg text-sm overflow-x-auto">
-                            <code>{snippets.python.install}</code>
-                          </pre>
-                        </div>
+                        )}
 
-                        {/* Init code */}
-                        <div>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-gray-700">2. Initialize the client</span>
-                            <button
-                              onClick={() => handleCopy(snippets.python.init, "init")}
-                              className="text-sm text-blue-600 hover:text-blue-700"
-                            >
-                              {copied === "init" ? "✓ Copied" : "Copy"}
-                            </button>
+                        {/* Init code - only for Python and Node.js */}
+                        {snippets[selectedLanguage]?.init && (
+                          <div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-sm font-medium text-gray-700">{snippets[selectedLanguage]?.install ? '2.' : '1.'} Initialize the client</span>
+                              <button
+                                onClick={() => handleCopy(snippets[selectedLanguage].init, "init")}
+                                className="text-sm text-blue-600 hover:text-blue-700"
+                              >
+                                {copied === "init" ? "✓ Copied" : "Copy"}
+                              </button>
+                            </div>
+                            <pre className="p-3 bg-gray-900 text-green-400 rounded-lg text-sm overflow-x-auto">
+                              <code>{snippets[selectedLanguage].init}</code>
+                            </pre>
                           </div>
-                          <pre className="p-3 bg-gray-900 text-green-400 rounded-lg text-sm overflow-x-auto">
-                            <code>{snippets.python.init}</code>
-                          </pre>
-                        </div>
+                        )}
 
-                        {/* Submit action */}
+                        {/* Submit action - all languages */}
                         <div>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-gray-700">3. Submit an action</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              {selectedLanguage === 'curl' ? '1.' : '3.'} {selectedLanguage === 'curl' ? 'Make API request' : 'Submit an action'}
+                            </span>
                             <button
-                              onClick={() => handleCopy(snippets.python.submit, "submit")}
+                              onClick={() => handleCopy(snippets[selectedLanguage].submit, "submit")}
                               className="text-sm text-blue-600 hover:text-blue-700"
                             >
                               {copied === "submit" ? "✓ Copied" : "Copy"}
                             </button>
                           </div>
                           <pre className="p-3 bg-gray-900 text-green-400 rounded-lg text-sm overflow-x-auto max-h-48">
-                            <code>{snippets.python.submit}</code>
+                            <code>{snippets[selectedLanguage].submit}</code>
                           </pre>
                         </div>
                       </div>
