@@ -106,6 +106,19 @@ class RegisteredAgent(Base):
     alert_recipients = Column(JSONB, default=list)      # ["admin@company.com"]
     webhook_url = Column(String(500), nullable=True)
 
+    # SEC-050: Heartbeat Monitoring
+    last_heartbeat = Column(DateTime, nullable=True)    # Last heartbeat timestamp
+    heartbeat_interval_seconds = Column(Integer, default=60, nullable=False)  # Expected interval
+    health_status = Column(String(50), default="unknown", nullable=False)  # online/degraded/offline/unknown
+    consecutive_missed_heartbeats = Column(Integer, default=0, nullable=False)
+
+    # SEC-050: Performance Metrics
+    avg_response_time_ms = Column(Float, nullable=True)  # Average response time
+    error_rate_percent = Column(Float, default=0.0, nullable=False)  # Error rate (24h)
+    total_requests_24h = Column(Integer, default=0, nullable=False)  # Request count (24h)
+    last_error = Column(Text, nullable=True)            # Last error message
+    last_error_at = Column(DateTime, nullable=True)     # Last error timestamp
+
     # Audit Fields
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     created_by = Column(String(255), nullable=True)

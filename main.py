@@ -1626,6 +1626,16 @@ except ImportError as e:
     logger.warning(f"Agent Registry routes not loaded: {e}")
 
 # ============================================================================
+# SEC-050: Agent Health Monitoring Routes
+# ============================================================================
+try:
+    from routes.agent_health_routes import router as agent_health_router
+    app.include_router(agent_health_router, tags=["Agent Health Monitoring"])
+    logger.info("✅ SEC-050: Agent Health Monitoring routes loaded - /api/agents/health/*")
+except ImportError as e:
+    logger.warning(f"SEC-050: Agent Health Monitoring routes not loaded: {e}")
+
+# ============================================================================
 # SEC-021: Self-Service Signup Routes (PUBLIC - No auth required)
 # ============================================================================
 try:
