@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import fetchWithAuth from "../utils/fetchWithAuth";
+import AgentHealthDashboard from "./AgentHealthDashboard";
 
 /**
  * Enterprise Agent Registry Management
@@ -589,6 +590,16 @@ const AgentRegistryManagement = () => {
           >
             SDK Integration
           </button>
+          <button
+            onClick={() => setActiveTab("health")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "health"
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400"
+            }`}
+          >
+            Health Monitoring
+          </button>
         </nav>
       </div>
 
@@ -934,6 +945,11 @@ if result.can_proceed:
             </div>
           </div>
         </div>
+      )}
+
+      {/* Health Monitoring Tab - SEC-050 */}
+      {activeTab === "health" && (
+        <AgentHealthDashboard />
       )}
 
       {/* Register Agent Modal */}
