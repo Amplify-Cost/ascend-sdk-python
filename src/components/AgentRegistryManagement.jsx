@@ -84,19 +84,132 @@ const AgentRegistryManagement = () => {
     tool_risk_overrides: ""      // JSON string for tool-specific risk overrides
   });
 
-  // Action types for multi-select
-  const actionTypes = [
-    { value: "query", label: "Query" },
-    { value: "data_access", label: "Data Access" },
-    { value: "data_modification", label: "Data Modification" },
-    { value: "transaction", label: "Transaction" },
-    { value: "recommendation", label: "Recommendation" },
-    { value: "communication", label: "Communication" },
-    { value: "report_generation", label: "Report Generation" },
-    { value: "data_export", label: "Data Export" },
-    { value: "system_operation", label: "System Operation" },
-    { value: "security_scan", label: "Security Scan" }
-  ];
+  // SEC-060: Enterprise Action Types with Risk Classification & Compliance Mappings
+  // Aligned with SEC-059 enrichment.py action type expansion
+  const ENTERPRISE_ACTION_TYPES = {
+    critical: {
+      label: "Critical Risk",
+      color: "red",
+      description: "Requires immediate approval - potential for significant impact",
+      actions: [
+        { value: "database_write", label: "Database Write", nist: "AC-3", mitre: "T1003" },
+        { value: "database_delete", label: "Database Delete", nist: "AC-3", mitre: "T1485" },
+        { value: "bulk_write", label: "Bulk Write", nist: "AC-3", mitre: "T1485" },
+        { value: "bulk_delete", label: "Bulk Delete", nist: "AC-3", mitre: "T1485" },
+        { value: "schema_change", label: "Schema Change", nist: "CM-3", mitre: "T1485" },
+        { value: "privilege_escalation", label: "Privilege Escalation", nist: "AC-6", mitre: "T1078" },
+        { value: "encryption_key_access", label: "Encryption Key Access", nist: "SC-12", mitre: "T1552.004" },
+        { value: "audit_log_modify", label: "Audit Log Modify", nist: "AU-9", mitre: "T1070" },
+        { value: "system_shutdown", label: "System Shutdown", nist: "CP-10", mitre: "T1529" },
+        { value: "firewall_modify", label: "Firewall Modify", nist: "SC-7", mitre: "T1562.004" },
+      ]
+    },
+    high: {
+      label: "High Risk",
+      color: "orange",
+      description: "Requires approval - sensitive operations with audit trail",
+      actions: [
+        { value: "data_export", label: "Data Export", nist: "AC-4", mitre: "T1041" },
+        { value: "data_exfiltration", label: "Data Exfiltration", nist: "AC-4", mitre: "T1041" },
+        { value: "data_update", label: "Data Update", nist: "AC-3", mitre: "T1565" },
+        { value: "record_update", label: "Record Update", nist: "AC-3", mitre: "T1565" },
+        { value: "user_create", label: "User Create", nist: "AC-2", mitre: "T1136" },
+        { value: "user_provision", label: "User Provision", nist: "AC-2", mitre: "T1136" },
+        { value: "permission_grant", label: "Permission Grant", nist: "AC-6", mitre: "T1098" },
+        { value: "access_grant", label: "Access Grant", nist: "AC-3", mitre: "T1098" },
+        { value: "secret_access", label: "Secret Access", nist: "IA-5", mitre: "T1552" },
+        { value: "credential_access", label: "Credential Access", nist: "IA-5", mitre: "T1552" },
+        { value: "shell_command", label: "Shell Command", nist: "AU-12", mitre: "T1059" },
+        { value: "process_execute", label: "Process Execute", nist: "AU-12", mitre: "T1059" },
+        { value: "script_run", label: "Script Run", nist: "AU-12", mitre: "T1059.006" },
+        { value: "admin_action", label: "Admin Action", nist: "AC-6", mitre: "T1078" },
+      ]
+    },
+    medium: {
+      label: "Medium Risk",
+      color: "yellow",
+      description: "Monitored operations - logged for compliance",
+      actions: [
+        { value: "data_access", label: "Data Access", nist: "AU-2", mitre: "T1005" },
+        { value: "data_read", label: "Data Read", nist: "AU-2", mitre: "T1005" },
+        { value: "database_read", label: "Database Read", nist: "AU-2", mitre: "T1005" },
+        { value: "database_query", label: "Database Query", nist: "AU-2", mitre: "T1005" },
+        { value: "file_read", label: "File Read", nist: "AC-4", mitre: "T1005" },
+        { value: "file_write", label: "File Write", nist: "AC-3", mitre: "T1059" },
+        { value: "file_delete", label: "File Delete", nist: "AC-3", mitre: "T1485" },
+        { value: "file_upload", label: "File Upload", nist: "AC-4", mitre: "T1105" },
+        { value: "file_download", label: "File Download", nist: "AC-4", mitre: "T1005" },
+        { value: "query_execute", label: "Query Execute", nist: "AU-2", mitre: "T1005" },
+        { value: "api_call", label: "API Call", nist: "SI-3", mitre: "T1059" },
+        { value: "external_api_call", label: "External API Call", nist: "SC-7", mitre: "T1071" },
+        { value: "webhook_trigger", label: "Webhook Trigger", nist: "SC-7", mitre: "T1071" },
+        { value: "integration_call", label: "Integration Call", nist: "SC-7", mitre: "T1071" },
+        { value: "email_send", label: "Email Send", nist: "AU-2", mitre: "T1048" },
+        { value: "notification_send", label: "Notification Send", nist: "AU-2", mitre: "T1048" },
+        { value: "report_generate", label: "Report Generate", nist: "AU-2", mitre: "T1005" },
+        { value: "backup_create", label: "Backup Create", nist: "CP-9", mitre: "T1005" },
+        { value: "log_write", label: "Log Write", nist: "AU-12", mitre: "T1070" },
+        { value: "system_modification", label: "System Modification", nist: "CM-3", mitre: "T1562" },
+        { value: "network_access", label: "Network Access", nist: "SC-7", mitre: "T1071" },
+        { value: "config_change", label: "Config Change", nist: "CM-3", mitre: "T1562" },
+        { value: "service_restart", label: "Service Restart", nist: "SI-12", mitre: "T1489" },
+      ]
+    },
+    low: {
+      label: "Low Risk",
+      color: "green",
+      description: "Standard operations - auto-approved based on policy",
+      actions: [
+        { value: "llm_call", label: "LLM Call", nist: "AU-2", mitre: "T1059.006" },
+        { value: "model_inference", label: "Model Inference", nist: "AU-2", mitre: "T1059.006" },
+        { value: "embedding_generate", label: "Embedding Generate", nist: "AU-2", mitre: "T1059.006" },
+        { value: "vector_search", label: "Vector Search", nist: "AU-2", mitre: "T1005" },
+        { value: "http_request", label: "HTTP Request", nist: "SC-7", mitre: "T1071" },
+        { value: "dns_lookup", label: "DNS Lookup", nist: "SC-7", mitre: "T1071" },
+        { value: "log_read", label: "Log Read", nist: "AU-2", mitre: "T1005" },
+        { value: "metrics_read", label: "Metrics Read", nist: "AU-2", mitre: "T1005" },
+        { value: "cache_read", label: "Cache Read", nist: "AU-2", mitre: "T1005" },
+        { value: "cache_write", label: "Cache Write", nist: "AU-2", mitre: "T1005" },
+        { value: "status_check", label: "Status Check", nist: "AU-2", mitre: "T1082" },
+        { value: "ping", label: "Ping", nist: "AU-2", mitre: "T1018" },
+        { value: "time_sync", label: "Time Sync", nist: "AU-8", mitre: "T1070.006" },
+        { value: "version_check", label: "Version Check", nist: "AU-2", mitre: "T1082" },
+        { value: "discovery", label: "Discovery", nist: "AU-2", mitre: "T1046" },
+      ]
+    }
+  };
+
+  // Flatten for backward compatibility with existing code
+  const actionTypes = Object.values(ENTERPRISE_ACTION_TYPES).flatMap(
+    category => category.actions.map(action => ({
+      value: action.value,
+      label: action.label,
+      nist: action.nist,
+      mitre: action.mitre,
+      risk: Object.keys(ENTERPRISE_ACTION_TYPES).find(
+        key => ENTERPRISE_ACTION_TYPES[key].actions.includes(action)
+      )
+    }))
+  );
+
+  // Risk level colors for badges (Wiz.io/Splunk enterprise style)
+  const getRiskLevelColor = (level) => {
+    const colors = {
+      critical: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-300",
+      high: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border-orange-300",
+      medium: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-300",
+      low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-300"
+    };
+    return colors[level] || colors.medium;
+  };
+
+  // Get risk level from score (enterprise standard thresholds)
+  const getRiskLevelFromScore = (score) => {
+    if (score >= 90) return "critical";
+    if (score >= 70) return "high";
+    if (score >= 40) return "medium";
+    return "low";
+  };
 
   // Fetch agents
   const fetchAgents = useCallback(async () => {
@@ -663,9 +776,30 @@ const AgentRegistryManagement = () => {
                           {agent.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                        <div>Auto: &lt;{agent.auto_approve_below}</div>
-                        <div>Max: {agent.max_risk_threshold}</div>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {/* SEC-060: Enterprise Risk Visualization */}
+                        <div className="space-y-1">
+                          {/* Risk Gauge Bar */}
+                          <div className="w-32 h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                agent.max_risk_threshold >= 90 ? "bg-red-500" :
+                                agent.max_risk_threshold >= 70 ? "bg-orange-500" :
+                                agent.max_risk_threshold >= 40 ? "bg-yellow-500" : "bg-green-500"
+                              }`}
+                              style={{ width: `${agent.max_risk_threshold}%` }}
+                            />
+                          </div>
+                          {/* Risk Level Badge */}
+                          <div className="flex items-center space-x-2 text-xs">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getRiskLevelColor(getRiskLevelFromScore(agent.max_risk_threshold))}`}>
+                              {getRiskLevelFromScore(agent.max_risk_threshold)}
+                            </span>
+                            <span className="text-gray-400">
+                              Auto: &lt;{agent.auto_approve_below}
+                            </span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         v{agent.version}
@@ -1066,26 +1200,71 @@ if result.can_proceed:
                 </div>
               </div>
 
-              {/* Allowed Action Types - Multi-select */}
+              {/* SEC-060: Enterprise Allowed Action Types - Categorized by Risk */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Allowed Action Types</h4>
-                <p className="text-xs text-gray-500 mb-2">Select which actions this agent is permitted to perform</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {actionTypes.map((action) => (
-                    <label key={action.value} className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={registerForm.allowed_action_types.includes(action.value)}
-                        onChange={(e) => {
-                          const newTypes = e.target.checked
-                            ? [...registerForm.allowed_action_types, action.value]
-                            : registerForm.allowed_action_types.filter(t => t !== action.value);
-                          setRegisterForm({ ...registerForm, allowed_action_types: newTypes });
-                        }}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                      />
-                      <span className="text-gray-700 dark:text-gray-300">{action.label}</span>
-                    </label>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-900 dark:text-white">Allowed Action Types</h4>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <span className="text-gray-500">Selected:</span>
+                    <span className="font-semibold text-blue-600">{registerForm.allowed_action_types.length}</span>
+                    <span className="text-gray-400">/ {actionTypes.length}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-3">Select actions by risk category - includes NIST SP 800-53 and MITRE ATT&CK mappings</p>
+
+                {/* Enterprise Risk Categories */}
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                  {Object.entries(ENTERPRISE_ACTION_TYPES).map(([riskLevel, category]) => (
+                    <div key={riskLevel} className={`border rounded-lg p-3 ${getRiskLevelColor(riskLevel)} border-opacity-50`}>
+                      {/* Category Header */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase ${getRiskLevelColor(riskLevel)}`}>
+                            {riskLevel}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{category.label}</span>
+                          <span className="text-xs text-gray-500">({category.actions.length})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const categoryValues = category.actions.map(a => a.value);
+                            const allSelected = categoryValues.every(v => registerForm.allowed_action_types.includes(v));
+                            const newTypes = allSelected
+                              ? registerForm.allowed_action_types.filter(t => !categoryValues.includes(t))
+                              : [...new Set([...registerForm.allowed_action_types, ...categoryValues])];
+                            setRegisterForm({ ...registerForm, allowed_action_types: newTypes });
+                          }}
+                          className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                        >
+                          {category.actions.every(a => registerForm.allowed_action_types.includes(a.value)) ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">{category.description}</p>
+
+                      {/* Action Items */}
+                      <div className="grid grid-cols-2 gap-1">
+                        {category.actions.map((action) => (
+                          <label key={action.value} className="flex items-center space-x-2 text-xs p-1 rounded hover:bg-white/50 dark:hover:bg-gray-800/50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={registerForm.allowed_action_types.includes(action.value)}
+                              onChange={(e) => {
+                                const newTypes = e.target.checked
+                                  ? [...registerForm.allowed_action_types, action.value]
+                                  : registerForm.allowed_action_types.filter(t => t !== action.value);
+                                setRegisterForm({ ...registerForm, allowed_action_types: newTypes });
+                              }}
+                              className="h-3 w-3 text-blue-600 border-gray-300 rounded"
+                            />
+                            <span className="text-gray-800 dark:text-gray-200 flex-1">{action.label}</span>
+                            <span className="text-gray-400 font-mono text-[10px]" title={`NIST: ${action.nist} | MITRE: ${action.mitre}`}>
+                              {action.nist}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -1242,29 +1421,93 @@ if result.can_proceed:
                 <p className="text-gray-600 dark:text-gray-400">{selectedAgent.description || "No description provided"}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Risk Configuration</h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Default Risk Score:</span>
-                      <span className="font-medium">{selectedAgent.risk_config?.default_risk_score}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Auto-Approve Below:</span>
-                      <span className="font-medium text-green-600">&lt;{selectedAgent.risk_config?.auto_approve_below}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Max Risk Threshold:</span>
-                      <span className="font-medium text-red-600">{selectedAgent.risk_config?.max_risk_threshold}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">MFA Required Above:</span>
-                      <span className="font-medium text-orange-600">{selectedAgent.risk_config?.requires_mfa_above}</span>
+              {/* SEC-060: Enterprise Risk Visualization */}
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-gray-900 dark:text-white">Risk Profile</h4>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold uppercase ${getRiskLevelColor(getRiskLevelFromScore(selectedAgent.risk_config?.max_risk_threshold || 50))}`}>
+                    {getRiskLevelFromScore(selectedAgent.risk_config?.max_risk_threshold || 50)} Risk
+                  </span>
+                </div>
+                {/* Risk Gauge */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                    <span>0</span>
+                    <span>Max Threshold: {selectedAgent.risk_config?.max_risk_threshold}</span>
+                    <span>100</span>
+                  </div>
+                  <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full flex">
+                      <div className="bg-green-500" style={{ width: "40%" }} />
+                      <div className="bg-yellow-500" style={{ width: "30%" }} />
+                      <div className="bg-orange-500" style={{ width: "20%" }} />
+                      <div className="bg-red-500" style={{ width: "10%" }} />
                     </div>
                   </div>
+                  <div
+                    className="relative -mt-4"
+                    style={{ marginLeft: `${selectedAgent.risk_config?.max_risk_threshold || 50}%` }}
+                  >
+                    <div className="w-0.5 h-5 bg-gray-800 dark:bg-white" />
+                  </div>
                 </div>
+                {/* Risk Config Grid */}
+                <div className="grid grid-cols-4 gap-4 text-center">
+                  <div className="bg-green-100 dark:bg-green-900/30 rounded-lg p-2">
+                    <div className="text-xs text-green-600 dark:text-green-400">Auto-Approve</div>
+                    <div className="text-lg font-bold text-green-700 dark:text-green-300">&lt;{selectedAgent.risk_config?.auto_approve_below}</div>
+                  </div>
+                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-2">
+                    <div className="text-xs text-blue-600 dark:text-blue-400">Default</div>
+                    <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{selectedAgent.risk_config?.default_risk_score}</div>
+                  </div>
+                  <div className="bg-orange-100 dark:bg-orange-900/30 rounded-lg p-2">
+                    <div className="text-xs text-orange-600 dark:text-orange-400">MFA Required</div>
+                    <div className="text-lg font-bold text-orange-700 dark:text-orange-300">&gt;{selectedAgent.risk_config?.requires_mfa_above}</div>
+                  </div>
+                  <div className="bg-red-100 dark:bg-red-900/30 rounded-lg p-2">
+                    <div className="text-xs text-red-600 dark:text-red-400">Max Threshold</div>
+                    <div className="text-lg font-bold text-red-700 dark:text-red-300">{selectedAgent.risk_config?.max_risk_threshold}</div>
+                  </div>
+                </div>
+              </div>
 
+              {/* SEC-060: Allowed Actions with Compliance Badges */}
+              {selectedAgent.allowed_action_types && selectedAgent.allowed_action_types.length > 0 && (
+                <div>
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-3">Allowed Actions & Compliance</h4>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                    {selectedAgent.allowed_action_types.map((actionValue) => {
+                      const actionInfo = actionTypes.find(a => a.value === actionValue);
+                      return (
+                        <div key={actionValue} className={`flex items-center justify-between p-2 rounded border ${actionInfo ? getRiskLevelColor(actionInfo.risk) : "bg-gray-100"} border-opacity-50`}>
+                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                            {actionInfo?.label || actionValue}
+                          </span>
+                          <div className="flex items-center space-x-1">
+                            {actionInfo?.nist && (
+                              <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[9px] rounded font-mono" title={`NIST SP 800-53: ${actionInfo.nist}`}>
+                                {actionInfo.nist}
+                              </span>
+                            )}
+                            {actionInfo?.mitre && (
+                              <span className="px-1.5 py-0.5 bg-purple-600 text-white text-[9px] rounded font-mono" title={`MITRE ATT&CK: ${actionInfo.mitre}`}>
+                                {actionInfo.mitre}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex items-center space-x-4 text-xs text-gray-500">
+                    <span className="flex items-center"><span className="w-2 h-2 bg-blue-600 rounded mr-1" /> NIST SP 800-53</span>
+                    <span className="flex items-center"><span className="w-2 h-2 bg-purple-600 rounded mr-1" /> MITRE ATT&CK</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium text-gray-900 dark:text-white mb-2">Audit Information</h4>
                   <div className="space-y-2 text-sm">
@@ -1288,20 +1531,20 @@ if result.can_proceed:
                     )}
                   </div>
                 </div>
-              </div>
 
-              {selectedAgent.tags && selectedAgent.tags.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Tags</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedAgent.tags.map((tag, idx) => (
-                      <span key={idx} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm">
-                        {tag}
-                      </span>
-                    ))}
+                {selectedAgent.tags && selectedAgent.tags.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 dark:text-white mb-2">Tags</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedAgent.tags.map((tag, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
               <button
@@ -1435,25 +1678,60 @@ if result.can_proceed:
                 </div>
               </div>
 
-              {/* Allowed Action Types */}
+              {/* SEC-060: Enterprise Allowed Action Types - Categorized by Risk */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Allowed Action Types</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  {actionTypes.map((action) => (
-                    <label key={action.value} className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={editForm.allowed_action_types.includes(action.value)}
-                        onChange={(e) => {
-                          const newTypes = e.target.checked
-                            ? [...editForm.allowed_action_types, action.value]
-                            : editForm.allowed_action_types.filter(t => t !== action.value);
-                          setEditForm({ ...editForm, allowed_action_types: newTypes });
-                        }}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded"
-                      />
-                      <span className="text-gray-700 dark:text-gray-300">{action.label}</span>
-                    </label>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-gray-900 dark:text-white">Allowed Action Types</h4>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <span className="text-gray-500">Selected:</span>
+                    <span className="font-semibold text-blue-600">{editForm.allowed_action_types.length}</span>
+                    <span className="text-gray-400">/ {actionTypes.length}</span>
+                  </div>
+                </div>
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-2">
+                  {Object.entries(ENTERPRISE_ACTION_TYPES).map(([riskLevel, category]) => (
+                    <div key={riskLevel} className={`border rounded-lg p-2 ${getRiskLevelColor(riskLevel)} border-opacity-50`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center space-x-2">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${getRiskLevelColor(riskLevel)}`}>
+                            {riskLevel}
+                          </span>
+                          <span className="text-xs font-medium text-gray-900 dark:text-white">{category.label}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const categoryValues = category.actions.map(a => a.value);
+                            const allSelected = categoryValues.every(v => editForm.allowed_action_types.includes(v));
+                            const newTypes = allSelected
+                              ? editForm.allowed_action_types.filter(t => !categoryValues.includes(t))
+                              : [...new Set([...editForm.allowed_action_types, ...categoryValues])];
+                            setEditForm({ ...editForm, allowed_action_types: newTypes });
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-800"
+                        >
+                          {category.actions.every(a => editForm.allowed_action_types.includes(a.value)) ? "Clear" : "All"}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1">
+                        {category.actions.map((action) => (
+                          <label key={action.value} className="flex items-center space-x-1 text-[11px] p-0.5 rounded hover:bg-white/50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={editForm.allowed_action_types.includes(action.value)}
+                              onChange={(e) => {
+                                const newTypes = e.target.checked
+                                  ? [...editForm.allowed_action_types, action.value]
+                                  : editForm.allowed_action_types.filter(t => t !== action.value);
+                                setEditForm({ ...editForm, allowed_action_types: newTypes });
+                              }}
+                              className="h-3 w-3 text-blue-600 border-gray-300 rounded"
+                            />
+                            <span className="text-gray-800 dark:text-gray-200">{action.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
