@@ -25,7 +25,8 @@ from datetime import datetime, UTC
 
 # revision identifiers
 revision: str = '20251202_sec044'
-down_revision: Union[str, None] = '20251201_agent_registry'
+# SEC-045: Fixed to point to correct head after merge
+down_revision: Union[str, None] = '20251201_signup'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

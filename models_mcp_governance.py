@@ -35,6 +35,9 @@ class MCPServerAction(Base):
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
+    # SEC-045: Multi-tenant isolation (required for enterprise_unified_loader.py)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+
     # 🏢 COMPATIBILITY FIELDS (for enterprise_unified_loader.py)
     agent_id = Column(String(255), nullable=False, index=True)  # Maps to mcp_server_name for compatibility
     action_type = Column(String(100), nullable=False, index=True)  # Maps to verb for compatibility

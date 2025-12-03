@@ -160,6 +160,8 @@ class AgentAction(Base):
     created_by = Column(String(255), nullable=True)
     policy_evaluated = Column(Boolean, default=False)
     policy_decision = Column(String(50), nullable=True)
+    # SEC-045: Decision column for analytics (ALLOW, DENY, PENDING)
+    decision = Column(String(50), nullable=True, index=True)
     policy_risk_score = Column(Integer, nullable=True)
     risk_fusion_formula = Column(Text, nullable=True)
     
@@ -235,6 +237,9 @@ class SmartRule(Base):
 
     # 🏢 ENTERPRISE: Multi-tenant isolation
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+
+    # SEC-045: Rule enabled status for filtering
+    is_enabled = Column(Boolean, default=True, nullable=False, index=True)
 
 class RuleFeedback(Base):
     __tablename__ = "rule_feedbacks"

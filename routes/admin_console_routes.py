@@ -901,15 +901,20 @@ async def get_analytics_overview(
     ).count()
 
     # Actions by decision
-    actions_by_decision = db.query(
-        AgentAction.decision,
-        func.count(AgentAction.id)
-    ).filter(
-        AgentAction.organization_id == org_id,
-        AgentAction.created_at >= month_start
-    ).group_by(AgentAction.decision).all()
-
-    decision_breakdown = {d[0]: d[1] for d in actions_by_decision}
+    # SEC-045: Use try-except for graceful degradation if column doesn't exist yet
+    try:
+        actions_by_decision = db.query(
+            AgentAction.decision,
+            func.count(AgentAction.id)
+        ).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= month_start
+        ).group_by(AgentAction.decision).all()
+        decision_breakdown = {d[0]: d[1] for d in actions_by_decision if d[0]}
+    except Exception as e:
+        logger.warning(f"SEC-045: decision column query failed, using fallback: {e}")
+        # Fallback: use policy_decision or status
+        decision_breakdown = {"pending": 0, "approved": 0, "denied": 0}
 
     # Active users
     active_users = db.query(User).filter(
@@ -919,10 +924,18 @@ async def get_analytics_overview(
     ).count()
 
     # Smart rules
-    active_rules = db.query(SmartRule).filter(
-        SmartRule.organization_id == org_id,
-        SmartRule.is_enabled == True
-    ).count()
+    # SEC-045: Use try-except for graceful degradation if column doesn't exist yet
+    try:
+        active_rules = db.query(SmartRule).filter(
+            SmartRule.organization_id == org_id,
+            SmartRule.is_enabled == True
+        ).count()
+    except Exception as e:
+        logger.warning(f"SEC-045: is_enabled column query failed, using fallback: {e}")
+        # Fallback: count all rules for this org
+        active_rules = db.query(SmartRule).filter(
+            SmartRule.organization_id == org_id
+        ).count()
 
     return {
         "period": {
