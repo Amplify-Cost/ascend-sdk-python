@@ -290,6 +290,224 @@ ENTERPRISE_TEMPLATES = {
             ]
         },
         "compliance_frameworks": ["PCI-DSS", "SOX", "SOC2"]
+    },
+
+    # SEC-053: Additional Enterprise Compliance Templates
+
+    "nist_access_control": {
+        "name": "NIST Access Control (AC-2/AC-3)",
+        "description": "Enforce NIST 800-53 access control requirements. Require approval for privileged operations and restrict access based on least privilege principle.",
+        "resource_types": ["iam:*", "role:*", "permission:*", "admin:*"],
+        "actions": ["create_user", "modify_permissions", "escalate_privileges", "grant_admin", "assume_role"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "HIGH",
+        "conditions": {
+            "any_of": [
+                {
+                    "field": "privilege_level",
+                    "operator": "in",
+                    "value": ["admin", "superuser", "root"],
+                    "required": False
+                },
+                {
+                    "field": "environment",
+                    "operator": "equals",
+                    "value": "production",
+                    "required": False
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "action_type",
+                            "operator": "contains",
+                            "value": "permission",
+                            "required": False
+                        },
+                        {
+                            "field": "scope",
+                            "operator": "equals",
+                            "value": "organization",
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["NIST", "FedRAMP", "SOC2"]
+    },
+
+    "hipaa_phi_protection": {
+        "name": "HIPAA PHI Data Protection",
+        "description": "Protect Protected Health Information (PHI) per HIPAA requirements. Block unauthorized access and require encryption for PHI data operations.",
+        "resource_types": ["pii:phi", "health:*", "medical:*", "patient:*"],
+        "actions": ["read", "write", "export", "download", "share", "transfer"],
+        "effect": "DENY",
+        "severity": "CRITICAL",
+        "conditions": {
+            "any_of": [
+                {
+                    "none_of": [
+                        {
+                            "field": "user_role",
+                            "operator": "in",
+                            "value": ["healthcare_provider", "hipaa_authorized", "compliance_officer"],
+                            "required": False
+                        }
+                    ]
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "action_type",
+                            "operator": "in",
+                            "value": ["export", "download", "share"],
+                            "required": False
+                        },
+                        {
+                            "none_of": [
+                                {
+                                    "field": "encryption_enabled",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "required": False
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "field": "destination",
+                    "operator": "contains",
+                    "value": "external",
+                    "required": False
+                }
+            ]
+        },
+        "compliance_frameworks": ["HIPAA", "HITECH", "SOC2"]
+    },
+
+    "pci_cardholder_data": {
+        "name": "PCI-DSS Cardholder Data Protection",
+        "description": "Protect cardholder data per PCI-DSS requirements. Enforce encryption, mask card numbers, and restrict access to payment data.",
+        "resource_types": ["payment:card", "pci:*", "cardholder:*", "pan:*"],
+        "actions": ["read", "write", "display", "log", "store", "transmit"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "CRITICAL",
+        "conditions": {
+            "any_of": [
+                {
+                    "all_of": [
+                        {
+                            "field": "data_type",
+                            "operator": "in",
+                            "value": ["pan", "cvv", "pin", "track_data"],
+                            "required": False
+                        },
+                        {
+                            "none_of": [
+                                {
+                                    "field": "is_masked",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "required": False
+                                },
+                                {
+                                    "field": "is_tokenized",
+                                    "operator": "equals",
+                                    "value": True,
+                                    "required": False
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "field": "storage_type",
+                    "operator": "not_equals",
+                    "value": "encrypted",
+                    "required": False
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "action_type",
+                            "operator": "equals",
+                            "value": "log",
+                            "required": False
+                        },
+                        {
+                            "field": "contains_pan",
+                            "operator": "equals",
+                            "value": True,
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["PCI-DSS", "SOC2", "ISO27001"]
+    },
+
+    "gdpr_data_retention": {
+        "name": "GDPR Data Retention & Deletion",
+        "description": "Enforce GDPR data retention policies. Require approval for data retention beyond policy limits and ensure right-to-deletion compliance.",
+        "resource_types": ["pii:*", "personal_data:*", "user_data:*", "eu_data:*"],
+        "actions": ["retain", "archive", "delete", "anonymize", "export"],
+        "effect": "REQUIRE_APPROVAL",
+        "severity": "HIGH",
+        "conditions": {
+            "any_of": [
+                {
+                    "all_of": [
+                        {
+                            "field": "data_subject_region",
+                            "operator": "in",
+                            "value": ["EU", "EEA", "UK"],
+                            "required": False
+                        },
+                        {
+                            "field": "retention_days",
+                            "operator": "greater_than",
+                            "value": 365,
+                            "required": False
+                        }
+                    ]
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "action_type",
+                            "operator": "equals",
+                            "value": "export",
+                            "required": False
+                        },
+                        {
+                            "field": "destination_region",
+                            "operator": "not_in",
+                            "value": ["EU", "EEA", "adequacy_country"],
+                            "required": False
+                        }
+                    ]
+                },
+                {
+                    "all_of": [
+                        {
+                            "field": "deletion_request",
+                            "operator": "equals",
+                            "value": True,
+                            "required": False
+                        },
+                        {
+                            "field": "action_type",
+                            "operator": "not_equals",
+                            "value": "delete",
+                            "required": False
+                        }
+                    ]
+                }
+            ]
+        },
+        "compliance_frameworks": ["GDPR", "CCPA", "SOC2"]
     }
 }
 
@@ -375,6 +593,10 @@ def get_template(template_id: str) -> PolicyTemplate:
     return PolicyTemplate(template_id, ENTERPRISE_TEMPLATES[template_id])
 
 def list_templates() -> List[Dict[str, Any]]:
+    """
+    SEC-053: Return complete template data for frontend display
+    Enterprise: Full template data enables compliance badge display and policy preview
+    """
     templates = []
     for tid, config in ENTERPRISE_TEMPLATES.items():
         templates.append({
@@ -382,7 +604,12 @@ def list_templates() -> List[Dict[str, Any]]:
             "name": config['name'],
             "severity": config['severity'],
             "effect": config['effect'],
-            "description": config['description']
+            "description": config['description'],
+            # SEC-053: Include complete data for frontend
+            "resource_types": config.get('resource_types', []),
+            "actions": config.get('actions', []),
+            "conditions": config.get('conditions', {}),
+            "compliance_frameworks": config.get('compliance_frameworks', [])
         })
     return templates
 

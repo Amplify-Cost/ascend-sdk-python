@@ -2576,13 +2576,16 @@ from services.enterprise_policy_templates import (
 
 @router.get("/policies/templates")
 async def get_policy_templates(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # SEC-053: Multi-tenant authorization
 ):
     """
     Get all available enterprise policy templates (Wiz-style)
+    SEC-053: Enterprise Policy Templates Library
     """
     try:
         templates = list_templates()
+        logger.info(f"SEC-053: Templates listed for org_id={org_id}")
         return {
             "success": True,
             "templates": templates,
@@ -2592,19 +2595,100 @@ async def get_policy_templates(
         logger.error(f"Failed to load templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/policies/templates/search")
+async def search_policy_templates(
+    compliance: Optional[str] = Query(None, description="Filter by compliance framework (SOC2, PCI-DSS, HIPAA, GDPR, SOX)"),
+    severity: Optional[str] = Query(None, description="Filter by severity (CRITICAL, HIGH, MEDIUM, LOW)"),
+    category: Optional[str] = Query(None, description="Filter by category (security, compliance, data-protection)"),
+    q: Optional[str] = Query(None, description="Search by name or description"),
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # SEC-053: Multi-tenant authorization
+):
+    """
+    SEC-053: Search and filter enterprise policy templates.
+
+    Datadog/Wiz.io-style template discovery with:
+    - Compliance framework filtering
+    - Severity filtering
+    - Text search
+    - Category filtering
+
+    Compliance: SOC 2 CC6.1, NIST AC-3
+    """
+    try:
+        templates = list_templates()
+        filtered = []
+
+        for template in templates:
+            # Compliance filter
+            if compliance:
+                template_frameworks = template.get("compliance_frameworks", [])
+                if compliance.upper() not in [f.upper() for f in template_frameworks]:
+                    continue
+
+            # Severity filter
+            if severity:
+                template_severity = template.get("severity", "").upper()
+                if template_severity != severity.upper():
+                    continue
+
+            # Category filter (derived from resource_types)
+            if category:
+                resource_types = template.get("resource_types", [])
+                category_match = False
+                if category.lower() == "security":
+                    category_match = any("credential" in r or "secret" in r for r in resource_types)
+                elif category.lower() == "compliance":
+                    category_match = any("financial" in r or "pii" in r for r in resource_types)
+                elif category.lower() == "data-protection":
+                    category_match = any("s3" in r or "database" in r or "data" in r for r in resource_types)
+                if not category_match:
+                    continue
+
+            # Text search
+            if q:
+                search_text = q.lower()
+                name_match = search_text in template.get("name", "").lower()
+                desc_match = search_text in template.get("description", "").lower()
+                if not (name_match or desc_match):
+                    continue
+
+            filtered.append(template)
+
+        logger.info(f"SEC-053: Template search for org_id={org_id}, found {len(filtered)} results")
+        return {
+            "success": True,
+            "templates": filtered,
+            "total": len(filtered),
+            "filters_applied": {
+                "compliance": compliance,
+                "severity": severity,
+                "category": category,
+                "search": q
+            }
+        }
+    except Exception as e:
+        logger.error(f"SEC-053: Template search failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/policies/templates/{template_id}")
 async def get_policy_template_detail(
     template_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)  # SEC-053: Multi-tenant authorization
 ):
     """
     Get detailed information about a specific template
+    SEC-053: Enterprise Policy Templates Library
     """
     try:
         if template_id not in ENTERPRISE_TEMPLATES:
             raise HTTPException(status_code=404, detail="Template not found")
-        
+
         template_config = ENTERPRISE_TEMPLATES[template_id]
+        logger.info(f"SEC-053: Template {template_id} retrieved for org_id={org_id}")
         return {
             "success": True,
             "template_id": template_id,
