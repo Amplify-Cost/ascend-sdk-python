@@ -714,15 +714,6 @@ const AdminConsole = () => {
           </div>
         </div>
 
-        {/* SEC-041: API Keys consolidated to Settings tab */}
-        <div className="stat-card" style={{ cursor: 'pointer' }} title="Manage API Keys in Settings → API Keys">
-          <div className="stat-icon">🔑</div>
-          <div className="stat-content">
-            <div className="stat-value" style={{ fontSize: '14px' }}>Settings</div>
-            <div className="stat-label">API Keys → Settings Tab</div>
-          </div>
-        </div>
-
         <div className="stat-card">
           <div className="stat-icon">📊</div>
           <div className="stat-content">
