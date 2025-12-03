@@ -166,6 +166,9 @@ class AgentAction(Base):
     tool_name = Column(String(255), nullable=True)
     summary = Column(Text, nullable=True)
     nist_control = Column(String(255), nullable=True)
+
+    # SEC-046: Performance tracking for analytics
+    processing_time_ms = Column(Integer, nullable=True, index=True)
     nist_description = Column(Text, nullable=True)
     mitre_tactic = Column(String(255), nullable=True)
     mitre_technique = Column(String(255), nullable=True)
