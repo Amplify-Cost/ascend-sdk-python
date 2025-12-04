@@ -1322,11 +1322,11 @@ async def get_ai_performance_metrics(
                 "cost_savings": f"${round(cost_savings, 2)}"
             },
             "roi_details": {
-                "annual_savings": round(cost_savings * 12, 2),  # Extrapolate monthly to annual
+                "annual_savings": round(float(cost_savings) * 12, 2),  # Extrapolate monthly to annual
                 "implementation_cost": 0,  # Not tracked
-                "roi_calculation": round((cost_savings * 12) / max(1, hours_saved * 75) * 100, 1) if hours_saved > 0 else 0,
-                "time_savings_hours": round(hours_saved * 12, 1),  # Annual projection
-                "false_positive_reduction": round(100 - false_positive_rate, 1)
+                "roi_calculation": round((float(cost_savings) * 12) / max(1, float(hours_saved) * 75) * 100, 1) if hours_saved > 0 else 0,
+                "time_savings_hours": round(float(hours_saved) * 12, 1),  # Annual projection
+                "false_positive_reduction": round(100 - float(false_positive_rate), 1)
             }
         }
 
@@ -1340,10 +1340,10 @@ async def get_ai_performance_metrics(
             }
             # SEC-065: Add trend analysis for frontend
             performance_metrics["trend_analysis"] = {
-                "alert_volume_change": f"{round(monthly_comparison[4] or 0, 1):+.1f}%",
-                "accuracy_improvement": f"{round(abs(monthly_comparison[5] or 0), 1):+.1f}%",
-                "response_time_improvement": f"{round(abs(monthly_comparison[5] or 0) * 0.5, 1):+.1f}%",
-                "roi_percentage": round((cost_savings * 12) / max(1, hours_saved * 75) * 100, 1) if hours_saved > 0 else 0
+                "alert_volume_change": f"{round(float(monthly_comparison[4] or 0), 1):+.1f}%",
+                "accuracy_improvement": f"{round(abs(float(monthly_comparison[5] or 0)), 1):+.1f}%",
+                "response_time_improvement": f"{round(abs(float(monthly_comparison[5] or 0)) * 0.5, 1):+.1f}%",
+                "roi_percentage": round((float(cost_savings) * 12) / max(1, float(hours_saved) * 75) * 100, 1) if hours_saved > 0 else 0
             }
 
         logger.info(f"📊 Real performance metrics calculated: {total_processed} alerts processed, "
