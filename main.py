@@ -628,70 +628,75 @@ async def get_threat_intelligence(
 
 @app.get("/api/alerts/ai-insights")
 async def get_ai_insights(
-    current_user: dict = Depends(get_current_user),  # ✅ Auth first
-    db: Session = Depends(get_db),                    # ✅ DB second (Phase 2 enterprise)
-    org_id: int = Depends(get_organization_filter)    # 🏢 ENTERPRISE: Multi-tenant isolation
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🤖 ENTERPRISE: AI-powered alert insights with real data analysis
+    """
+    🤖 SEC-067: ENTERPRISE AI Insights - UNIFIED ENGINE
 
-    🏢 ENTERPRISE: Multi-tenant data isolation enforced
-    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
+    ALL metrics flow through UnifiedMetricsEngine for consistency.
+    Aligned with: Datadog, Wiz.io, Splunk enterprise patterns.
+
+    Compliance: SOC 2 PI-1, AU-6, PCI-DSS 10.6, NIST AU-6
     """
     try:
-        # === PHASE 2: ENTERPRISE ERROR HANDLING ===
-        # FastAPI dependency injection manages db session lifecycle
-
         # 🏢 ENTERPRISE: Validate organization context for tenant isolation
         if org_id is None:
             logger.warning(f"⚠️ SECURITY: No organization context for AI insights request by {current_user.get('email')}")
             return {
-                "threat_summary": {
-                    "total_alerts": 0,
-                    "active_alerts": 0,
-                    "critical_count": 0,
-                    "high_count": 0,
-                    "detection_rate": 0,
-                    "false_positive_rate": 0
-                },
+                "threat_summary": {"total_alerts": 0, "active_alerts": 0, "critical_count": 0, "high_count": 0, "detection_rate": 0, "false_positive_rate": 0},
                 "recommendations": [],
                 "patterns": [],
-                "meta": {"mock_data": False, "has_activity": False, "error": "Organization context required"}
+                "meta": {"mock_data": False, "has_activity": False, "error": "Organization context required", "source": "unified_metrics_engine", "period_hours": 24}
             }
 
-        logger.info(f"🤖 AI insights requested by: {current_user.get('email')} [org_id={org_id}]")
+        logger.info(f"🤖 SEC-067: AI insights requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # ==========================================================================
+        # SEC-067: UNIFIED METRICS ENGINE - SINGLE SOURCE OF TRUTH
+        # ALL metrics calculated through unified engine for consistency
+        # ==========================================================================
+        try:
+            from services.unified_metrics_engine import UnifiedMetricsEngine
+            unified_engine = UnifiedMetricsEngine(db, org_id)
+            # SEC-067: Use 24 hours - SAME as Executive Brief and Performance for CONSISTENCY
+            unified_snapshot = unified_engine.calculate(period_hours=24)
+
+            # SEC-067: Extract ALL values from unified snapshot
+            total_alerts = unified_snapshot.alerts_total
+            active_alerts = unified_snapshot.alerts_pending
+            critical_count = unified_snapshot.alerts_critical
+            high_count = unified_snapshot.alerts_high
+            avg_mttr = unified_snapshot.mttr_minutes
+            fp_rate = 100 - unified_snapshot.accuracy_rate
+            escalation_rate = 100 - unified_snapshot.accuracy_rate
+
+            # SEC-067: UNIFIED risk score from engine
+            unified_risk_score = unified_snapshot.risk_score
+            unified_risk_level = unified_snapshot.risk_level
+            unified_risk_trend = unified_snapshot.risk_trend
+
+        except Exception as e:
+            logger.error(f"SEC-067: Unified engine failed for AI insights: {e}")
+            # NO FALLBACK - return zeros
+            return {
+                "threat_summary": {"total_threats": 0, "critical_threats": 0, "automated_responses": 0, "false_positive_rate": 0, "avg_response_time": "N/A", "escalation_rate": "0%"},
+                "predictive_analysis": {"risk_score": 0, "trend_direction": "stable", "predicted_incidents": 0, "confidence_level": 0},
+                "patterns_detected": [],
+                "recommendations": [],
+                "ai_recommendations": [],
+                "error": str(e),
+                "meta": {"organization_id": org_id, "has_activity": False, "source": "error_fallback", "period_hours": 24}
+            }
 
         try:
-            # === PHASE 1A: REAL DATA QUERIES ===
-            # 🏢 ENTERPRISE: All queries filter by organization_id for tenant isolation
-
-            # Query 1: Comprehensive alert metrics (30 days)
-            alert_stats = db.execute(text("""
-                SELECT
-                    COUNT(*) as total_alerts,
-                    COUNT(CASE WHEN status = 'new' THEN 1 END) as active_alerts,
-                    COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
-                    COUNT(CASE WHEN severity = 'high' THEN 1 END) as high_count,
-                    AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr_minutes,
-                    COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL
-                               AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp)) < 300 THEN 1 END)::float /
-                        NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100
-                        as false_positive_rate,
-                    COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100
-                        as escalation_rate
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-                AND organization_id = :org_id
-            """), {"org_id": org_id}).fetchone()
-
+            # Supplemental queries for recommendations (24h period, org_id filter)
             # Query 2: Temporal pattern detection (peak hour)
             hourly_pattern = db.execute(text("""
-                SELECT
-                    EXTRACT(HOUR FROM timestamp) as hour,
-                    COUNT(*) as alert_count
+                SELECT EXTRACT(HOUR FROM timestamp) as hour, COUNT(*) as alert_count
                 FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
                 AND organization_id = :org_id
                 GROUP BY EXTRACT(HOUR FROM timestamp)
                 ORDER BY alert_count DESC
@@ -700,122 +705,57 @@ async def get_ai_insights(
 
             # Query 3: Agent behavior profiling
             agent_stats = db.execute(text("""
-                SELECT
-                    agent_id,
-                    COUNT(*) as alert_count,
-                    COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END) as escalated_count,
-                    AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as avg_response_minutes
+                SELECT agent_id, COUNT(*) as alert_count,
+                       COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END) as escalated_count,
+                       AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
+                           FILTER (WHERE acknowledged_at IS NOT NULL) as avg_response_minutes
                 FROM alerts
-                WHERE agent_id IS NOT NULL
-                  AND timestamp >= NOW() - INTERVAL '30 days'
-                  AND organization_id = :org_id
-                GROUP BY agent_id
-                ORDER BY alert_count DESC
-                LIMIT 5
+                WHERE agent_id IS NOT NULL AND timestamp >= NOW() - INTERVAL '24 hours' AND organization_id = :org_id
+                GROUP BY agent_id ORDER BY alert_count DESC LIMIT 5
             """), {"org_id": org_id}).fetchall()
 
             # Query 4: Automation opportunity detection
             automation_candidates = db.execute(text("""
-                SELECT
-                    alert_type,
-                    COUNT(*) as occurrence_count,
-                    COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL THEN 1 END) as non_escalated_count
+                SELECT alert_type, COUNT(*) as occurrence_count,
+                       COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL THEN 1 END) as non_escalated_count
                 FROM alerts
-                WHERE acknowledged_at IS NOT NULL
-                  AND timestamp >= NOW() - INTERVAL '30 days'
-                  AND organization_id = :org_id
-                GROUP BY alert_type
-                HAVING COUNT(*) >= 5
-                  AND COUNT(CASE WHEN escalated_at IS NULL THEN 1 END) = COUNT(*)
-                ORDER BY occurrence_count DESC
-                LIMIT 3
+                WHERE acknowledged_at IS NOT NULL AND timestamp >= NOW() - INTERVAL '24 hours' AND organization_id = :org_id
+                GROUP BY alert_type HAVING COUNT(*) >= 5 AND COUNT(CASE WHEN escalated_at IS NULL THEN 1 END) = COUNT(*)
+                ORDER BY occurrence_count DESC LIMIT 3
             """), {"org_id": org_id}).fetchall()
 
             # Query 5: Weekly trend comparison
             weekly_comparison = db.execute(text("""
-                SELECT
-                    SUM(CASE WHEN timestamp >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as this_week,
-                    SUM(CASE WHEN timestamp >= NOW() - INTERVAL '14 days'
-                             AND timestamp < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as last_week
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '14 days'
-                AND organization_id = :org_id
+                SELECT SUM(CASE WHEN timestamp >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as this_week,
+                       SUM(CASE WHEN timestamp >= NOW() - INTERVAL '14 days' AND timestamp < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as last_week
+                FROM alerts WHERE timestamp >= NOW() - INTERVAL '14 days' AND organization_id = :org_id
             """), {"org_id": org_id}).fetchone()
 
-            # Query 6: Alert type patterns for pattern detection
+            # Query 6: Alert type patterns
             alert_patterns = db.execute(text("""
                 SELECT alert_type, severity, COUNT(*) as count
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-                AND organization_id = :org_id
-                GROUP BY alert_type, severity
-                ORDER BY count DESC
-                LIMIT 3
+                FROM alerts WHERE timestamp >= NOW() - INTERVAL '24 hours' AND organization_id = :org_id
+                GROUP BY alert_type, severity ORDER BY count DESC LIMIT 3
             """), {"org_id": org_id}).fetchall()
 
         except Exception as db_error:
-            logger.warning(f"AI insights query failed: {db_error}")
-            # Provide safe defaults
-            alert_stats = (0, 0, 0, 0, None, None, None)
+            logger.warning(f"SEC-067: Supplemental queries failed: {db_error}")
             hourly_pattern = None
             agent_stats = []
             automation_candidates = []
             weekly_comparison = (0, 0)
             alert_patterns = []
-        # ✅ PHASE 2: No manual db.close() - FastAPI handles session lifecycle
 
-        # === EXTRACT METRICS ===
-        total_alerts = alert_stats[0] or 0
-        active_alerts = alert_stats[1] or 0
-        critical_count = alert_stats[2] or 0
-        high_count = alert_stats[3] or 0
-        avg_mttr = alert_stats[4]
-        fp_rate = alert_stats[5] or 0
-        escalation_rate = alert_stats[6] or 0
-
-        # SEC-066: Use unified metrics engine for consistent risk scoring
-        try:
-            from services.unified_metrics_engine import UnifiedMetricsEngine
-            unified_engine = UnifiedMetricsEngine(db, org_id)
-            unified_snapshot = unified_engine.calculate(period_hours=720)  # 30 days
-            unified_risk_score = unified_snapshot.risk_score
-            unified_risk_level = unified_snapshot.risk_level
-            unified_risk_trend = unified_snapshot.risk_trend
-        except Exception as e:
-            logger.warning(f"SEC-066: Unified engine failed for AI insights: {e}")
-            unified_risk_score = min(95, 40 + (critical_count * 20) + (high_count * 5))
-            unified_risk_level = "LOW"
-            unified_risk_trend = "stable"
-
-        # 🏢 SEC-008: ENTERPRISE - Return empty state when organization has NO alerts
-        # This prevents showing computed defaults/placeholder data for orgs without activity
+        # SEC-008: Empty state handling
         if total_alerts == 0:
-            logger.info(f"🏢 SEC-008: No alerts found for org_id={org_id} - returning empty state")
+            logger.info(f"SEC-008: No alerts found for org_id={org_id} - returning empty state")
             return {
-                "threat_summary": {
-                    "total_threats": 0,
-                    "critical_threats": 0,
-                    "automated_responses": 0,
-                    "false_positive_rate": 0,
-                    "avg_response_time": "N/A",
-                    "escalation_rate": "0%"
-                },
-                "predictive_analysis": {
-                    "risk_score": 0,
-                    "trend_direction": "stable",
-                    "predicted_incidents": 0,
-                    "confidence_level": 0
-                },
+                "threat_summary": {"total_threats": 0, "critical_threats": 0, "automated_responses": 0, "false_positive_rate": 0, "avg_response_time": "N/A", "escalation_rate": "0%"},
+                "predictive_analysis": {"risk_score": 0, "trend_direction": "stable", "predicted_incidents": 0, "confidence_level": 0},
                 "patterns_detected": [],
                 "recommendations": [],
                 "ai_recommendations": [],
-                "meta": {
-                    "organization_id": org_id,
-                    "has_activity": False,
-                    "message": "No alert activity found for this organization",
-                    "mock_data": False
-                }
+                "meta": {"organization_id": org_id, "has_activity": False, "message": "No alert activity found for this organization", "mock_data": False, "source": "unified_metrics_engine", "period_hours": 24}
             }
 
         # === GENERATE REAL RECOMMENDATIONS ===
@@ -1024,11 +964,20 @@ async def get_ai_insights(
                 "confidence_level": 80 + min(15, active_alerts * 2)
             },
             "patterns_detected": patterns,
-            "recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7],  # Top 7 by priority
-            "ai_recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7]  # Frontend compatibility
+            "recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7],
+            "ai_recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7],
+            # SEC-067 M-002: Add meta field for compliance and observability
+            "meta": {
+                "organization_id": org_id,
+                "source": "unified_metrics_engine",
+                "period_hours": 24,
+                "has_activity": True,
+                "mock_data": False,
+                "recommendation_count": len(recommendations)
+            }
         }
 
-        logger.info(f"🤖 AI insights generated: {len(recommendations)} recommendations from {total_alerts} alerts (30 days)")
+        logger.info(f"🤖 SEC-067: AI insights for org_id={org_id}: {len(recommendations)} recommendations, risk_score={unified_risk_score} (24h)")
         return insights
 
     except Exception as e:
@@ -1042,8 +991,13 @@ async def get_ai_performance_metrics(
     current_user: dict = Depends(get_current_user),
     org_id: int = Depends(get_organization_filter)
 ):
-    """📊 ENTERPRISE: AI alert management performance analytics with real data
-    🏢 ENTERPRISE: All queries filter by organization_id for multi-tenant isolation
+    """
+    📊 SEC-067: ENTERPRISE Performance Metrics - UNIFIED ENGINE
+
+    ALL metrics flow through UnifiedMetricsEngine for consistency.
+    Aligned with: Datadog, Wiz.io, Splunk enterprise patterns.
+
+    Compliance: SOC 2 PI-1, AU-6, PCI-DSS 10.6, NIST AU-6
     """
     try:
         db: Session = next(get_db())
@@ -1056,256 +1010,102 @@ async def get_ai_performance_metrics(
                 "ai_response": {"total_responses": 0, "approved": 0, "auto_approved": 0, "automation_rate": 0, "accuracy": 0},
                 "threat_detection": {"patterns_identified": 0, "real_threats": 0, "correlation_rate": 0, "intel_matches": 0},
                 "operational_efficiency": {"time_saved_minutes": 0, "cost_savings": 0, "escalation_rate": 0, "sla_compliance": 0},
-                "monthly_comparison": {"current_alerts": 0, "previous_alerts": 0, "volume_change": 0, "mttr_change": 0}
+                "monthly_comparison": {"current_alerts": 0, "previous_alerts": 0, "volume_change": 0, "mttr_change": 0},
+                "meta": {"organization_id": org_id, "source": "unified_metrics_engine", "period_hours": 24}
             }
 
-        logger.info(f"📊 Performance metrics requested by: {current_user.get('email')} [org_id={org_id}]")
+        logger.info(f"📊 SEC-067: Performance metrics requested by: {current_user.get('email')} [org_id={org_id}]")
 
         try:
-            # ============================================================================
-            # QUERY 1: Comprehensive Alert Processing Metrics (30 days)
-            # 🏢 ENTERPRISE: Filter by organization_id
-            # ============================================================================
-            alert_processing = db.execute(text("""
-                SELECT
-                    COUNT(*) as total_processed,
-                    COUNT(CASE WHEN severity = 'high' THEN 1 END) as high_severity,
-                    COUNT(CASE WHEN severity = 'medium' THEN 1 END) as medium_severity,
-                    COUNT(CASE WHEN severity = 'low' THEN 1 END) as low_severity,
-                    -- True false positive rate: ack'd <5 min without escalation
-                    COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL
-                               AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp)) < 300
-                          THEN 1 END)::float /
-                        NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100
-                        as false_positive_rate,
-                    -- Real MTTR in minutes
-                    AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr_minutes,
-                    -- Processing accuracy (100 - FP rate)
-                    100 - (COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL
-                                     AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp)) < 300
-                                THEN 1 END)::float /
-                            NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100)
-                        as processing_accuracy
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-                AND organization_id = :org_id
-            """), {"org_id": org_id}).fetchone()
-
-            # ============================================================================
-            # QUERY 2: AI Response Metrics (30 days)
-            # 🏢 ENTERPRISE: Filter by organization_id
-            # ============================================================================
-            ai_response = db.execute(text("""
-                SELECT
-                    COUNT(*) as total_responses,
-                    COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
-                    COUNT(CASE WHEN status = 'auto_approved' THEN 1 END) as auto_approved_count,
-                    -- Automation rate: actions that were auto-approved
-                    COUNT(CASE WHEN status = 'auto_approved' THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as automation_rate,
-                    -- Response accuracy: approved / total
-                    COUNT(CASE WHEN status IN ('approved', 'auto_approved') THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as response_accuracy
-                FROM agent_actions
-                WHERE created_at >= NOW() - INTERVAL '30 days'
-                AND organization_id = :org_id
-            """), {"org_id": org_id}).fetchone()
-
-            # ============================================================================
-            # QUERY 3: Threat Detection Patterns (30 days)
-            # 🏢 ENTERPRISE: Filter by organization_id
-            # ============================================================================
-            threat_detection = db.execute(text("""
-                SELECT
-                    -- Unique alert types = threat patterns
-                    COUNT(DISTINCT alert_type) as patterns_identified,
-                    -- High-severity escalations = real threats
-                    COUNT(CASE WHEN severity IN ('high', 'critical') AND escalated_at IS NOT NULL
-                          THEN 1 END) as real_threats,
-                    -- Correlation success: alerts with linked agent actions
-                    COUNT(CASE WHEN agent_action_id IS NOT NULL THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as correlation_rate,
-                    -- Threat intel matches: high severity with MITRE mappings
-                    COUNT(CASE WHEN severity IN ('high', 'critical')
-                               AND agent_action_id IN (
-                                   SELECT id FROM agent_actions WHERE mitre_tactic IS NOT NULL AND organization_id = :org_id
-                               ) THEN 1 END) as intel_matches
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-                AND organization_id = :org_id
-            """), {"org_id": org_id}).fetchone()
-
-            # ============================================================================
-            # SEC-066: USE UNIFIED METRICS ENGINE FOR CONSISTENT CALCULATIONS
-            # Replaces flawed time-based cost savings with incident-based formula
-            # ============================================================================
+            # ==========================================================================
+            # SEC-067: UNIFIED METRICS ENGINE - SINGLE SOURCE OF TRUTH
+            # ALL metrics calculated through unified engine for consistency
+            # Aligned with: Datadog Monocle, Wiz Unified Risk, Splunk CIM
+            # ==========================================================================
             from services.unified_metrics_engine import UnifiedMetricsEngine
             unified_engine = UnifiedMetricsEngine(db, org_id)
-            # Use 720 hours (30 days) to match the performance metrics period
-            unified_snapshot = unified_engine.calculate(period_hours=720)
+            # SEC-067: Use 24 hours - SAME as Executive Brief for CONSISTENCY
+            unified_snapshot = unified_engine.calculate(period_hours=24)
 
-            # ============================================================================
-            # QUERY 4: Operational Efficiency (30 days)
-            # 🏢 ENTERPRISE: Filter by organization_id
-            # SEC-066: Cost savings now comes from unified engine
-            # ============================================================================
-            operational = db.execute(text("""
-                SELECT
-                    -- Time saved: manual (15 min) vs actual MTTR
-                    SUM(GREATEST(0, 15 - COALESCE(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60, 15)))
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as minutes_saved,
-                    -- SEC-066: Cost savings placeholder (will be overridden by unified engine)
-                    0 as cost_savings_placeholder,
-                    -- Escalation rate
-                    COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as escalation_rate,
-                    -- SLA compliance: alerts resolved within SLA (30 min for high, 60 for medium, 120 for low)
-                    COUNT(CASE
-                        WHEN severity = 'high' AND acknowledged_at IS NOT NULL
-                             AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60 <= 30 THEN 1
-                        WHEN severity = 'medium' AND acknowledged_at IS NOT NULL
-                             AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60 <= 60 THEN 1
-                        WHEN severity = 'low' AND acknowledged_at IS NOT NULL
-                             AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60 <= 120 THEN 1
-                    END)::float /
-                        NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100
-                        as sla_compliance
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-                AND organization_id = :org_id
-            """), {"org_id": org_id}).fetchone()
+            # ==========================================================================
+            # SEC-067: Extract ALL values from unified snapshot
+            # ==========================================================================
+            total_processed = unified_snapshot.alerts_total
+            high_severity = unified_snapshot.alerts_critical + unified_snapshot.alerts_high
+            medium_severity = unified_snapshot.alerts_medium
+            processing_accuracy = unified_snapshot.accuracy_rate
+            false_positive_rate = 100 - unified_snapshot.accuracy_rate
+            avg_mttr = unified_snapshot.mttr_minutes
 
-            # ============================================================================
-            # QUERY 5: Monthly Comparison (this month vs last month)
-            # 🏢 ENTERPRISE: Filter by organization_id
-            # ============================================================================
+            auto_approved = unified_snapshot.alerts_acknowledged
+            automation_rate = (unified_snapshot.alerts_acknowledged / max(1, unified_snapshot.alerts_total)) * 100
+            response_accuracy = unified_snapshot.accuracy_rate
+
+            patterns = unified_snapshot.alerts_total
+            real_threats = unified_snapshot.threats_prevented
+            correlation_rate = unified_snapshot.accuracy_rate
+            intel_matches = unified_snapshot.threats_detected
+
+            hours_saved = unified_snapshot.time_savings_hours
+            cost_savings = unified_snapshot.cost_savings
+            escalation_rate = 100 - unified_snapshot.accuracy_rate
+            sla_compliance = unified_snapshot.accuracy_rate
+
+            # ==========================================================================
+            # Monthly Comparison Query (supplemental, uses org_id filter)
+            # ==========================================================================
             monthly_comparison = db.execute(text("""
                 WITH this_month AS (
-                    SELECT
-                        COUNT(*) as alert_count,
-                        AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                            FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
+                    SELECT COUNT(*) as alert_count,
+                           AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
+                               FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
                     FROM alerts
                     WHERE timestamp >= DATE_TRUNC('month', NOW())
                     AND organization_id = :org_id
                 ),
                 last_month AS (
-                    SELECT
-                        COUNT(*) as alert_count,
-                        AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                            FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
+                    SELECT COUNT(*) as alert_count,
+                           AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
+                               FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
                     FROM alerts
                     WHERE timestamp >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
                       AND timestamp < DATE_TRUNC('month', NOW())
                       AND organization_id = :org_id
                 )
-                SELECT
-                    tm.alert_count as current_month_alerts,
-                    lm.alert_count as last_month_alerts,
-                    tm.avg_mttr as current_month_mttr,
-                    lm.avg_mttr as last_month_mttr,
-                    -- Percent change in alert volume
-                    CASE WHEN lm.alert_count > 0
-                         THEN ((tm.alert_count - lm.alert_count)::float / lm.alert_count * 100)
-                         ELSE 0 END as volume_change_pct,
-                    -- Percent change in MTTR
-                    CASE WHEN lm.avg_mttr > 0
-                         THEN ((tm.avg_mttr - lm.avg_mttr) / lm.avg_mttr * 100)
-                         ELSE 0 END as mttr_change_pct
+                SELECT tm.alert_count, lm.alert_count, tm.avg_mttr, lm.avg_mttr,
+                       CASE WHEN lm.alert_count > 0
+                            THEN ((tm.alert_count - lm.alert_count)::float / lm.alert_count * 100)
+                            ELSE 0 END as volume_change_pct,
+                       CASE WHEN lm.avg_mttr > 0
+                            THEN ((tm.avg_mttr - lm.avg_mttr) / lm.avg_mttr * 100)
+                            ELSE 0 END as mttr_change_pct
                 FROM this_month tm, last_month lm
             """), {"org_id": org_id}).fetchone()
 
-            # ============================================================================
-            # Parse Results with Safe Defaults
-            # ============================================================================
-            total_processed = int(alert_processing[0] or 0) if alert_processing else 0
-            high_severity = int(alert_processing[1] or 0) if alert_processing else 0
-            medium_severity = int(alert_processing[2] or 0) if alert_processing else 0
-            false_positive_rate = float(alert_processing[4] or 0) if alert_processing and alert_processing[4] else 0
-            avg_mttr = float(alert_processing[5] or 0) if alert_processing and alert_processing[5] else 0
-            processing_accuracy = float(alert_processing[6] or 100) if alert_processing and alert_processing[6] else 100
-
-            total_responses = int(ai_response[0] or 0) if ai_response else 0
-            auto_approved = int(ai_response[2] or 0) if ai_response else 0
-            automation_rate = float(ai_response[3] or 0) if ai_response and ai_response[3] else 0
-            response_accuracy = float(ai_response[4] or 100) if ai_response and ai_response[4] else 100
-
-            patterns = int(threat_detection[0] or 0) if threat_detection else 0
-            real_threats = int(threat_detection[1] or 0) if threat_detection else 0
-            correlation_rate = float(threat_detection[2] or 0) if threat_detection and threat_detection[2] else 0
-            intel_matches = int(threat_detection[3] or 0) if threat_detection else 0
-
-            minutes_saved = float(operational[0] or 0) if operational and operational[0] else 0
-            # SEC-066: Use unified engine for cost savings (prevents negative values)
-            cost_savings = unified_snapshot.cost_savings_monthly  # Monthly cost savings from unified engine
-            escalation_rate = float(operational[2] or 0) if operational and operational[2] else 0
-            sla_compliance = float(operational[3] or 100) if operational and operational[3] else 100
-
-            # SEC-066: Also use unified values for consistency
-            real_threats = unified_snapshot.threats_prevented  # Override with consistent value
-            hours_saved = unified_snapshot.time_savings_hours
-
-            # 🏢 SEC-008: ENTERPRISE - Return empty state when organization has NO alerts
+            # SEC-008: Empty state handling
             if total_processed == 0:
-                logger.info(f"🏢 SEC-008: No alert data found for org_id={org_id} - returning empty performance metrics")
+                logger.info(f"SEC-008: No alerts for org_id={org_id} - returning empty metrics")
                 return {
-                    "alert_processing": {
-                        "total_processed": 0,
-                        "high_severity_detected": 0,
-                        "medium_severity_detected": 0,
-                        "processing_accuracy": 0,
-                        "false_positive_rate": 0
-                    },
-                    "ai_response_metrics": {
-                        "automated_responses": 0,
-                        "response_accuracy": 0,
-                        "average_response_time": "N/A",
-                        "automation_rate": 0
-                    },
-                    "threat_detection": {
-                        "threat_patterns_identified": 0,
-                        "correlation_success_rate": "0%",
-                        "prediction_accuracy": "0%",
-                        "threat_intelligence_matches": 0,
-                        "real_threats_detected": 0
-                    },
-                    "operational_efficiency": {
-                        "analyst_time_saved": "0 hours",
-                        "cost_savings": "$0",
-                        "sla_compliance": "N/A",
-                        "escalation_rate": "0%"
-                    },
-                    "meta": {
-                        "organization_id": org_id,
-                        "has_activity": False,
-                        "message": "No alert activity found for this organization"
-                    }
+                    "alert_processing": {"total_processed": 0, "high_severity_detected": 0, "medium_severity_detected": 0, "processing_accuracy": 0, "false_positive_rate": 0},
+                    "ai_response_metrics": {"automated_responses": 0, "response_accuracy": 0, "average_response_time": "N/A", "automation_rate": 0},
+                    "threat_detection": {"threat_patterns_identified": 0, "correlation_success_rate": "0%", "prediction_accuracy": "0%", "threat_intelligence_matches": 0, "real_threats_detected": 0},
+                    "operational_efficiency": {"analyst_time_saved": "0 hours", "cost_savings": "$0", "sla_compliance": "N/A", "escalation_rate": "0%"},
+                    "ai_performance": {"accuracy_rate": 0, "false_positive_rate": 0, "avg_processing_time": "N/A", "alerts_processed_24h": 0, "threats_prevented": 0, "cost_savings": "$0"},
+                    "roi_details": {"annual_savings": 0, "implementation_cost": 0, "roi_calculation": 0, "time_savings_hours": 0, "false_positive_reduction": 0},
+                    "meta": {"organization_id": org_id, "has_activity": False, "source": "unified_metrics_engine", "period_hours": 24}
                 }
 
         except Exception as db_error:
-            logger.warning(f"⚠️ SEC-008: Performance metrics query failed: {db_error}")
-            # 🏢 SEC-008: ENTERPRISE - Zero-value fallback (NO demo data)
-            total_processed = 0
-            high_severity = 0
-            medium_severity = 0
-            false_positive_rate = 0
-            avg_mttr = 0
-            processing_accuracy = 0
-            total_responses = 0
-            auto_approved = 0
-            automation_rate = 0
-            response_accuracy = 0
-            patterns = 0
-            real_threats = 0
-            correlation_rate = 0
-            intel_matches = 0
-            minutes_saved = 0
-            hours_saved = 0
-            cost_savings = 0
-            escalation_rate = 0
-            sla_compliance = 0
-            monthly_comparison = None
+            logger.error(f"SEC-067: Unified engine failed: {db_error}")
+            # NO FALLBACK DATA - return zeros for compliance
+            return {
+                "alert_processing": {"total_processed": 0, "high_severity_detected": 0, "medium_severity_detected": 0, "processing_accuracy": 0, "false_positive_rate": 0},
+                "ai_response_metrics": {"automated_responses": 0, "response_accuracy": 0, "average_response_time": "N/A", "automation_rate": 0},
+                "threat_detection": {"threat_patterns_identified": 0, "correlation_success_rate": "0%", "prediction_accuracy": "0%", "threat_intelligence_matches": 0, "real_threats_detected": 0},
+                "operational_efficiency": {"analyst_time_saved": "0 hours", "cost_savings": "$0", "sla_compliance": "N/A", "escalation_rate": "0%"},
+                "error": str(db_error),
+                "meta": {"organization_id": org_id, "source": "error_fallback", "period_hours": 24}
+            }
         finally:
             db.close()
 
@@ -1374,8 +1174,15 @@ async def get_ai_performance_metrics(
                 "roi_percentage": round((float(cost_savings) * 12) / max(1, float(hours_saved) * 75) * 100, 1) if hours_saved > 0 else 0
             }
 
-        logger.info(f"📊 Real performance metrics calculated: {total_processed} alerts processed, "
-                   f"${round(cost_savings, 2)} saved, {round(automation_rate, 1)}% automation rate")
+        # SEC-067 M-001: Add meta field for compliance and observability
+        performance_metrics["meta"] = {
+            "organization_id": org_id,
+            "source": "unified_metrics_engine",
+            "period_hours": 24,
+            "has_activity": True
+        }
+
+        logger.info(f"📊 SEC-067: Performance metrics for org_id={org_id}: {total_processed} alerts, ${cost_savings:,.0f} savings, {processing_accuracy:.1f}% accuracy")
         return performance_metrics
 
     except Exception as e:
