@@ -1544,6 +1544,27 @@ except ImportError as e:
     logger.warning(f"ASCEND SDK routes not loaded: {e}")
 
 # ============================================================================
+# Actions API v1 - Unified Governance Pipeline (SINGLE SOURCE OF TRUTH)
+# ============================================================================
+# Complete 7-step governance pipeline with dual auth (JWT + API keys)
+# Architecture: Risk Assessment → CVSS → Policy → Smart Rules → Alerts → Workflows → Audit
+# Compliance: SOC 2 Type II, HIPAA, PCI-DSS, GDPR, SOX
+try:
+    from routes.actions_v1_routes import router as actions_v1_router
+    app.include_router(actions_v1_router, tags=["Actions API v1"])
+    logger.info("✅ Actions API v1 routes loaded - /api/v1/actions/*")
+    print("✅ Actions API v1: Full governance pipeline enabled")
+    print("   → POST /api/v1/actions/submit - Submit action (full governance)")
+    print("   → GET  /api/v1/actions - List actions")
+    print("   → GET  /api/v1/actions/{id} - Get action details")
+    print("   → GET  /api/v1/actions/{id}/status - Poll status (SDK optimized)")
+    print("   → POST /api/v1/actions/{id}/approve - Approve action")
+    print("   → POST /api/v1/actions/{id}/reject - Reject action")
+except ImportError as e:
+    logger.warning(f"Actions API v1 routes not loaded: {e}")
+    print(f"⚠️  Actions API v1 routes not available: {e}")
+
+# ============================================================================
 # SEC-065: Enterprise Executive Brief System
 # ============================================================================
 # Cached AI-generated executive briefings with rate limiting and audit trail

@@ -1,0 +1,39 @@
+# Source files (only ship compiled code)
+src/
+tests/
+*.test.ts
+
+# Configuration
+tsconfig.json
+.eslintrc.js
+.prettierrc
+
+# Development files
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# CI/CD
+.github/
+.travis.yml
+
+# Documentation (except README)
+docs/
+
+# IDE
+.vscode/
+.idea/
+
+# Test and coverage
+coverage/
+.nyc_output/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
