@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'sec077_governance'
-down_revision = 'sec076_diagnostics'
+down_revision = 'sec078_mcp_sessions'  # SEC-078: Depends on mcp_sessions table creation
 branch_labels = None
 depends_on = None
 
