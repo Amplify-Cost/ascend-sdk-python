@@ -6,7 +6,9 @@ import IntegrationManagement from "./IntegrationManagement";
 import IntegrationHealthDashboard from "./IntegrationHealthDashboard";
 import IntegrationWizard from "./IntegrationWizard";
 import InteractiveApiExplorer from "./InteractiveApiExplorer";
+import DiagnosticsDashboard from "./DiagnosticsDashboard";
 import fetchWithAuth from "../utils/fetchWithAuth";
+import { API_BASE_URL } from "../config/api";
 
 /**
  * Enterprise Settings with Full Integration Management
@@ -526,32 +528,17 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
         )}
       </div>
       
-      {/* System Diagnostics */}
+      {/* SEC-076: Enterprise Diagnostics Dashboard */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h4 className="text-lg font-semibold mb-4">📊 System Diagnostics</h4>
         <p className="text-gray-600 text-sm mb-4">
-          Run system health checks, performance diagnostics, and connectivity tests.
+          Run enterprise health checks with Splunk/Datadog-compatible audit logging and SIEM export.
         </p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button className="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 text-left">
-            <h5 className="font-medium text-gray-900">🔍 API Health Check</h5>
-            <p className="text-sm text-gray-600">Test all endpoint connectivity</p>
-          </button>
-          
-          <button className="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 text-left">
-            <h5 className="font-medium text-gray-900">🗄️ Database Status</h5>
-            <p className="text-sm text-gray-600">Check database performance</p>
-          </button>
-          
-          <button className="p-4 border border-gray-300 rounded-lg hover:bg-gray-50 text-left">
-            <h5 className="font-medium text-gray-900">🔗 Integration Tests</h5>
-            <p className="text-sm text-gray-600">Validate SIEM connections</p>
-          </button>
-        </div>
+
+        <DiagnosticsDashboard />
       </div>
 
-      {/* SEC-048: Developer Resources */}
+      {/* SEC-076: Developer Resources - Fixed URLs to point to backend */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h4 className="text-lg font-semibold mb-4">👨‍💻 Developer Resources</h4>
         <p className="text-gray-600 text-sm mb-4">
@@ -560,7 +547,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <a
-            href="/docs"
+            href={`${API_BASE_URL}/docs`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 border border-blue-200 bg-blue-50 rounded-lg hover:bg-blue-100 hover:border-blue-300 transition-colors group"
@@ -577,7 +564,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
           </a>
 
           <a
-            href="/redoc"
+            href={`${API_BASE_URL}/redoc`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors group"
@@ -594,7 +581,7 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
           </a>
 
           <a
-            href="/openapi.json"
+            href={`${API_BASE_URL}/openapi.json`}
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors group"
@@ -614,16 +601,16 @@ const EnterpriseSettings = ({ getAuthHeaders, user, API_BASE_URL }) => {
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
           <h5 className="font-medium text-gray-900 mb-2">🚀 Quick Links</h5>
           <div className="flex flex-wrap gap-3">
-            <a href="/docs#/Authorization" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+            <a href={`${API_BASE_URL}/docs#/Authorization`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
               Submit Agent Action →
             </a>
-            <a href="/docs#/API%20Key%20Management" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+            <a href={`${API_BASE_URL}/docs#/API%20Key%20Management`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
               API Key Endpoints →
             </a>
-            <a href="/docs#/Integration%20Wizard" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+            <a href={`${API_BASE_URL}/docs#/Integration%20Wizard`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
               Integration Wizard →
             </a>
-            <a href="/docs#/Enterprise%20Webhooks" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
+            <a href={`${API_BASE_URL}/docs#/Enterprise%20Webhooks`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:text-blue-800 hover:underline">
               Webhooks →
             </a>
           </div>
