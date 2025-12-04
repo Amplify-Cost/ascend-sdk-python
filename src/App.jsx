@@ -52,7 +52,7 @@ const LoadingScreen = () => {
       }`}
       role="status"
       aria-live="polite"
-      aria-label="Loading OW-AI Enterprise Platform"
+      aria-label="Loading Ascend Enterprise Platform"
     >
       <div className="text-center">
         <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-6 ${
@@ -61,7 +61,7 @@ const LoadingScreen = () => {
         <div className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
           isDarkMode ? 'text-white' : 'text-gray-900'
         }`}>
-          🛡️ OW-AI Enterprise Platform
+          🛡️ Ascend Enterprise Platform
         </div>
         <p className={`transition-colors duration-300 ${
           isDarkMode ? 'text-slate-300' : 'text-gray-600'
@@ -636,7 +636,7 @@ const App = () => {
   return (
     <AuthErrorBoundary>
       <AuthProvider>
-        <ErrorBoundary fallbackMessage="The OW-AI Enterprise Platform encountered an unexpected error. Our team has been notified.">
+        <ErrorBoundary fallbackMessage="The Ascend Enterprise Platform encountered an unexpected error. Our team has been notified.">
           <ThemeProvider>
             <AccessibilityProvider>
               <ToastProvider>

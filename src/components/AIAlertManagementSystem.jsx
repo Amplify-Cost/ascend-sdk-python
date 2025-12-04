@@ -1204,15 +1204,6 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                   </div>
                 )}
 
-                {/* Debug Info */}
-                <div className="mt-3 pt-3 border-t border-blue-200">
-                  <details className="text-xs text-blue-600">
-                    <summary className="cursor-pointer hover:text-blue-800">🔧 Debug: View Raw Brief Data</summary>
-                    <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
-                      {JSON.stringify(executiveBrief, null, 2)}
-                    </pre>
-                  </details>
-                </div>
               </div>
             )}
           </div>
@@ -1610,17 +1601,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       {/* Performance Metrics Tab */}
       {activeTab === "metrics" && performanceMetrics && (
         <div className="space-y-6">
-          {/* Debug Info */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <details className="text-sm">
-              <summary className="cursor-pointer font-medium text-yellow-800">🔧 Debug: Performance Metrics Structure</summary>
-              <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
-                {JSON.stringify(performanceMetrics, null, 2)}
-              </pre>
-            </details>
-          </div>
-
-          {/* SEC-028: AI Performance Overview - No Hardcoded Fallbacks */}
+          {/* AI Performance Overview */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">🤖 AI Performance Metrics</h3>
 

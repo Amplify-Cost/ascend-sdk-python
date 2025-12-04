@@ -55,7 +55,7 @@ const generateSOXReport = (reportData, analytics) => {
       return {
         columns: [
           {
-            text: '🏢 OW-AI Enterprise',
+            text: '🏢 Ascend Enterprise',
             style: 'header',
             margin: [60, 20, 0, 0]
           },
@@ -249,7 +249,7 @@ const generateSOXReport = (reportData, analytics) => {
           {
             text: [
               { text: 'Automated compliance monitoring: ', bold: true },
-              'Continue leveraging OW-AI platform for real-time compliance tracking and alerts.'
+              'Continue leveraging Ascend platform for real-time compliance tracking and alerts.'
             ],
             margin: [0, 5, 0, 5]
           }
@@ -268,7 +268,7 @@ const generateSOXReport = (reportData, analytics) => {
             ['Department:', reportData.department || 'Information Security'],
             ['Classification:', reportData.classification],
             ['Generated:', new Date().toLocaleString()],
-            ['Data Sources:', 'OW-AI Enterprise Analytics Platform'],
+            ['Data Sources:', 'Ascend Enterprise Analytics Platform'],
             ['Frameworks:', 'SOX, COSO, PCAOB'],
             ['Retention Period:', '7 years (per SOX requirements)']
           ]
@@ -285,7 +285,7 @@ const generateSOXReport = (reportData, analytics) => {
       },
       {
         text: [
-          'This report has been generated using live data from the OW-AI Enterprise Analytics Platform. ',
+          'This report has been generated using live data from the Ascend Enterprise Analytics Platform. ',
           'All metrics and statistics are based on real-time data as of the generation timestamp. ',
           'This document contains confidential information and should be handled according to company security policies.'
         ],
@@ -386,7 +386,7 @@ const generateExecutiveSummary = (reportData, analytics) => {
     },
     header: (currentPage, pageCount) => ({
       columns: [
-        { text: '🏢 OW-AI Enterprise', style: 'header', margin: [60, 20, 0, 0] },
+        { text: '🏢 Ascend Enterprise', style: 'header', margin: [60, 20, 0, 0] },
         { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'pageNumber', margin: [0, 20, 60, 0] }
       ]
     }),
@@ -527,7 +527,7 @@ const generateThreatBrief = (reportData, analytics) => {
     },
     header: (currentPage, pageCount) => ({
       columns: [
-        { text: '🏢 OW-AI Enterprise', style: 'header', margin: [60, 20, 0, 0] },
+        { text: '🏢 Ascend Enterprise', style: 'header', margin: [60, 20, 0, 0] },
         { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'pageNumber', margin: [0, 20, 60, 0] }
       ]
     }),
@@ -679,7 +679,7 @@ const generateThreatBrief = (reportData, analytics) => {
       { text: 'Intelligence Sources', style: 'sectionHeader' },
       {
         text: [
-          'This brief incorporates data from: OW-AI Enterprise Analytics Platform, Real-time User Behavior Analytics, ',
+          'This brief incorporates data from: Ascend Enterprise Analytics Platform, Real-time User Behavior Analytics, ',
           'Authentication Systems, Access Control Logs, and Compliance Monitoring Systems.'
         ],
         style: 'paragraph',
@@ -724,7 +724,7 @@ const generateRiskReport = (reportData, analytics) => {
     },
     header: (currentPage, pageCount) => ({
       columns: [
-        { text: '🏢 OW-AI Enterprise', style: 'header', margin: [60, 20, 0, 0] },
+        { text: '🏢 Ascend Enterprise', style: 'header', margin: [60, 20, 0, 0] },
         { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'pageNumber', margin: [0, 20, 60, 0] }
       ]
     }),
@@ -1041,7 +1041,7 @@ const generateHIPAAReport = (reportData, analytics) => {
     },
     header: (currentPage, pageCount) => ({
       columns: [
-        { text: '🏢 OW-AI Enterprise', style: 'header', margin: [60, 20, 0, 0] },
+        { text: '🏢 Ascend Enterprise', style: 'header', margin: [60, 20, 0, 0] },
         { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'pageNumber', margin: [0, 20, 60, 0] }
       ]
     }),
@@ -1451,7 +1451,7 @@ const generatePCIReport = (reportData, analytics) => {
     },
     header: (currentPage, pageCount) => ({
       columns: [
-        { text: '🏢 OW-AI Enterprise', style: 'header', margin: [60, 20, 0, 0] },
+        { text: '🏢 Ascend Enterprise', style: 'header', margin: [60, 20, 0, 0] },
         { text: `Page ${currentPage} of ${pageCount}`, alignment: 'right', style: 'pageNumber', margin: [0, 20, 60, 0] }
       ]
     }),

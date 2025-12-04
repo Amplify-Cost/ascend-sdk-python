@@ -556,7 +556,7 @@ const SignupFlow = () => {
           <p className="text-slate-500 text-xs">
             By signing up, you agree to our Terms of Service and Privacy Policy.
             <br />
-            &copy; 2025 OW-KAI Technologies, Inc. All rights reserved.
+            &copy; 2025 Ascend Technologies, Inc. All rights reserved.
           </p>
         </div>
       </div>

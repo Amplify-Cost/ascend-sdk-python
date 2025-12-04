@@ -168,8 +168,8 @@ const VerifyEmail = ({ onVerified, switchToLogin }) => {
                 isDarkMode ? 'text-slate-400' : 'text-gray-500'
               }`}>
                 Need help? Contact{' '}
-                <a href="mailto:support@ow-kai.com" className="text-blue-500 hover:text-blue-600">
-                  support@ow-kai.com
+                <a href="mailto:support@ascendowkai.com" className="text-blue-500 hover:text-blue-600">
+                  support@ascendowkai.com
                 </a>
               </p>
             </>
@@ -197,7 +197,7 @@ const VerifyEmail = ({ onVerified, switchToLogin }) => {
           isDarkMode ? 'border-slate-700 text-slate-500' : 'border-gray-200 text-gray-400'
         }`}>
           <p>ASCEND AI Governance Platform</p>
-          <p className="mt-1">OW-KAI Technologies, Inc.</p>
+          <p className="mt-1">Ascend Technologies, Inc.</p>
         </div>
       </div>
     </div>

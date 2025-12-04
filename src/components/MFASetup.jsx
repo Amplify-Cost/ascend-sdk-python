@@ -30,7 +30,7 @@ const MFASetup = ({ onComplete, onCancel, userEmail, accessToken }) => {
       setTotpSecret(result.secretCode);
 
       // Generate QR code
-      const otpAuthUrl = `otpauth://totp/OW-KAI:${userEmail}?secret=${result.secretCode}&issuer=OW-KAI`;
+      const otpAuthUrl = `otpauth://totp/Ascend:${userEmail}?secret=${result.secretCode}&issuer=Ascend`;
       const qrUrl = await QRCode.toDataURL(otpAuthUrl);
       setQrCodeUrl(qrUrl);
     } catch (err) {

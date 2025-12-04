@@ -383,7 +383,7 @@ const GlobalSearch = ({ onNavigate }) => {
                   isDarkMode ? 'text-slate-400' : 'text-gray-500'
                 }`}>
                   <div className="text-4xl mb-4" aria-hidden="true">🔍</div>
-                  <h2 id="search-title" className="text-lg font-medium mb-2">Search OW-AI Platform</h2>
+                  <h2 id="search-title" className="text-lg font-medium mb-2">Search Ascend Platform</h2>
                   <p className="text-sm mb-4">Find pages, agents, actions, and more...</p>
                   <div className="text-xs space-y-1">
                     <div>
@@ -474,7 +474,7 @@ const GlobalSearch = ({ onNavigate }) => {
                 <span>ESC Close</span>
               </div>
               <div>
-                Powered by OW-AI
+                Powered by Ascend
               </div>
             </div>
           </div>

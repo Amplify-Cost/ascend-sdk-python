@@ -426,7 +426,7 @@ const PolicyTemplateLibrary = ({ onSelectTemplate, onClose, getAuthHeaders, API_
         <div className="p-4 border-t border-gray-200 bg-white">
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-600">
-              <strong>SEC-053:</strong> Templates can be customized after selection. Compliance tags are preserved.
+              Templates can be customized after selection. Compliance tags are preserved.
             </p>
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span>Showing {templates.length} template{templates.length !== 1 ? 's' : ''}</span>

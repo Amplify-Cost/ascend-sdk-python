@@ -311,7 +311,7 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
             </div>
           )}
 
-          <h1 className="text-4xl font-bold text-white mb-2">OW-KAI Enterprise</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Ascend Enterprise</h1>
           <p className="text-blue-200">Secure Authentication Portal</p>
           <div className="mt-2 flex items-center justify-center gap-2 text-xs text-blue-300">
             <span className="inline-flex items-center gap-1">
@@ -507,7 +507,7 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-blue-200">
           <p>Protected by multi-factor authentication</p>
-          <p className="mt-1">© 2025 OW-KAI Enterprise. All rights reserved.</p>
+          <p className="mt-1">© 2025 Ascend Enterprise. All rights reserved.</p>
         </div>
       </div>
     </div>
