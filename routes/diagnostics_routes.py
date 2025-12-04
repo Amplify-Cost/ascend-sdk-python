@@ -23,7 +23,7 @@ import time
 import logging
 from datetime import datetime, UTC, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from pydantic import BaseModel
@@ -219,6 +219,7 @@ def save_diagnostic_audit(
 @limiter.limit("10/minute")  # SEC-076: Rate limit expensive diagnostic operations
 async def full_health_check(
     request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -359,6 +360,7 @@ async def full_health_check(
 @limiter.limit("20/minute")  # SEC-076: Rate limit diagnostic operations
 async def api_health_check(
     request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -430,6 +432,7 @@ async def api_health_check(
 @limiter.limit("20/minute")  # SEC-076: Rate limit diagnostic operations
 async def database_health_check(
     request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -515,6 +518,7 @@ async def database_health_check(
 @limiter.limit("20/minute")  # SEC-076: Rate limit diagnostic operations
 async def integration_test(
     request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -606,6 +610,7 @@ async def integration_test(
 @limiter.limit("30/minute")  # SEC-076: Rate limit read operations
 async def diagnostic_history(
     request: Request,
+    response: Response,
     limit: int = 20,
     diagnostic_type: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
@@ -669,6 +674,7 @@ async def diagnostic_history(
 async def export_to_siem(
     export_request: SIEMExportRequest,
     request: Request,
+    response: Response,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
