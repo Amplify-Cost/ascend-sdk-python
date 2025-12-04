@@ -19,6 +19,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config/api';
+import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 // Tab configuration
 // SEC-041: API Keys tab REMOVED - consolidated to Settings tab (single source of truth)
@@ -183,54 +185,75 @@ const AdminConsole = () => {
     setToast({ message, type });
   }, []);
 
-  // SEC-046: Get CSRF token from cookie (for double-submit protection)
-  const getCsrfToken = useCallback(() => {
-    const cookies = document.cookie.split('; ');
-    const csrfCookie = cookies.find(row => row.startsWith('owai_csrf='));
-    return csrfCookie ? csrfCookie.split('=')[1] : null;
+  // SEC-070: Extract CSRF token from cookie
+  const getCsrfTokenFromCookie = useCallback(() => {
+    try {
+      const cookies = document.cookie.split(';').map(c => c.trim());
+      const csrfCookie = cookies.find(c => c.startsWith('owai_csrf='));
+      if (csrfCookie) {
+        return csrfCookie.split('=')[1];
+      }
+      // Fallback to sessionStorage
+      return sessionStorage.getItem('owai_csrf_token');
+    } catch {
+      return null;
+    }
   }, []);
 
-  // API helper
-  // SEC-042: Fixed route prefix to match backend (/api/admin, not /api/admin-console)
-  // SEC-046: Added CSRF token for POST/PATCH/DELETE (double-submit pattern)
+  // SEC-070: Enterprise cookie-based API helper
+  // Uses cookie authentication + CSRF protection
+  // Compliance: SOC 2 CC6.1, PCI-DSS 8.3, HIPAA 164.312
   const apiCall = useCallback(async (endpoint, options = {}) => {
-    const token = localStorage.getItem('token');
+    const url = `${API_BASE_URL}/api/admin${endpoint}`;
     const method = (options.method || 'GET').toUpperCase();
 
-    // SEC-046: Include CSRF token for mutating requests
+    // Build headers with CSRF token for mutating requests
     const headers = {
-      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
     // Add CSRF token for POST/PATCH/DELETE/PUT requests
     if (['POST', 'PATCH', 'DELETE', 'PUT'].includes(method)) {
-      const csrfToken = getCsrfToken();
+      const csrfToken = getCsrfTokenFromCookie();
       if (csrfToken) {
         headers['X-CSRF-Token'] = csrfToken;
       }
     }
 
-    const response = await fetch(`/api/admin${endpoint}`, {
-      ...options,
-      headers,
-    });
+    try {
+      const response = await fetch(url, {
+        method,
+        headers,
+        credentials: 'include', // CRITICAL: Send cookies with request
+        body: options.body,
+      });
 
-    if (!response.ok) {
-      // SEC-058: Handle non-JSON error responses (e.g., "Internal Server Error")
-      let errorMessage = 'API request failed';
-      try {
-        const error = await response.json();
-        errorMessage = error.detail || errorMessage;
-      } catch {
-        errorMessage = `Server error (${response.status})`;
+      if (!response.ok) {
+        // Handle 401 - redirect to login
+        if (response.status === 401) {
+          console.warn('SEC-070: Session expired - redirecting to login');
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+
+        // SEC-058: Handle non-JSON error responses
+        let errorMessage = 'API request failed';
+        try {
+          const error = await response.json();
+          errorMessage = error.detail || errorMessage;
+        } catch {
+          errorMessage = `Server error (${response.status})`;
+        }
+        throw new Error(errorMessage);
       }
-      throw new Error(errorMessage);
-    }
 
-    return response.json();
-  }, [getCsrfToken]);
+      return response.json();
+    } catch (error) {
+      console.error('SEC-070: Admin Console API error:', error);
+      throw error;
+    }
+  }, [getCsrfTokenFromCookie]);
 
   // Load initial data
   useEffect(() => {
