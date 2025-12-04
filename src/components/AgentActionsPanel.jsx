@@ -20,7 +20,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
       const headers = await getAuthHeaders();
       console.log("🔑 Using auth headers:", Object.keys(headers));
       
-      const response = await fetch(`${API_BASE_URL}/agent-actions`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/actions`, {
         credentials: "include",
         method: "GET",
         headers
@@ -57,7 +57,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
       console.log("🔑 Auth headers for action:", Object.keys(headers));
       console.log(`📡 Making request to: ${API_BASE_URL}/agent-action/${id}/${statusType}`);
       
-      const response = await fetch(`${API_BASE_URL}/agent-action/${id}/${statusType}`, {
+      const response = await fetch(`${API_BASE_URL}/api/v1/actions/${id}/${statusType}`, {
         credentials: "include",
         method: "POST",
         headers: {

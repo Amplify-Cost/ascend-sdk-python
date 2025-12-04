@@ -92,11 +92,11 @@ class EnterpriseApiService {
 
   // Agent Actions endpoints
   async getAgentActions() {
-    return this.request('/agent-actions');
+    return this.request('/api/v1/actions');
   }
 
   async createAgentAction(actionData) {
-    return this.request('/agent-actions', {
+    return this.request('/api/v1/actions/submit', {
       method: 'POST',
       body: JSON.stringify(actionData),
     });
@@ -176,7 +176,7 @@ class EnterpriseApiService {
       { name: 'Health Check', endpoint: '/health' },
       { name: 'Dashboard', endpoint: '/api/authorization/dashboard' },
       { name: 'Pending Actions', endpoint: '/api/authorization/pending-actions' },
-      { name: 'Agent Actions', endpoint: '/agent-actions' },
+      { name: 'Agent Actions', endpoint: '/api/v1/actions' },
       { name: 'MCP Actions', endpoint: '/api/mcp-governance/actions' }
     ];
 

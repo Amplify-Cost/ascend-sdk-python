@@ -269,7 +269,7 @@ if (result.status === 'approved') {
 }`
       },
       curl: {
-        submit: `curl -X POST https://pilot.owkai.app/api/authorization/agent-action \\
+        submit: `curl -X POST https://pilot.owkai.app/api/v1/actions/submit \\
   -H "Authorization: Bearer ${key}" \\
   -H "Content-Type: application/json" \\
   -d '{

@@ -1281,12 +1281,12 @@ if result.can_proceed:
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   <tr>
                     <td className="px-4 py-2"><span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">POST</span></td>
-                    <td className="px-4 py-2 font-mono text-gray-700 dark:text-gray-300">/api/sdk/agent-action</td>
+                    <td className="px-4 py-2 font-mono text-gray-700 dark:text-gray-300">/api/v1/actions/submit</td>
                     <td className="px-4 py-2 text-gray-600 dark:text-gray-400">Submit action for authorization</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-2"><span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">GET</span></td>
-                    <td className="px-4 py-2 font-mono text-gray-700 dark:text-gray-300">/api/agent-action/status/{'{id}'}</td>
+                    <td className="px-4 py-2 font-mono text-gray-700 dark:text-gray-300">/api/v1/actions/{'{id}'}/status</td>
                     <td className="px-4 py-2 text-gray-600 dark:text-gray-400">Check action status</td>
                   </tr>
                   <tr>

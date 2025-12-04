@@ -627,8 +627,8 @@ const fetchWorkflowOrchestrations = async () => {
   // 🏢 ENTERPRISE: Fetch real-time automation activity feed
   const fetchActivityFeed = async () => {
     try {
-      // ENTERPRISE FIX: Use working /api/agent-activity endpoint
-      const response = await fetch(`${API_BASE_URL}/api/agent-activity?limit=5`, {
+      // ENTERPRISE FIX: Use working /api/v1/actions endpoint
+      const response = await fetch(`${API_BASE_URL}/api/v1/actions?limit=5`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         headers: {
           ...getAuthHeaders(),

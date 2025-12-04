@@ -39,7 +39,7 @@ const SubmitActionForm = ({ user, getAuthHeaders }) => {
 
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE_URL}/agent-action`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/actions/submit`, {
         credentials: "include",
         method: "POST",
         headers: {

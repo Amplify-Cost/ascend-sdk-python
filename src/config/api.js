@@ -16,10 +16,12 @@ export const API_ENDPOINTS = {
     updateProfile: "/auth/update-profile"
   },
   agentActions: {
-    list: "/agent-actions",
-    submit: "/agent-action",
-    approve: (id) => `/agent-action/${id}/approve`,
-    reject: (id) => `/agent-action/${id}/reject`
+    list: "/api/v1/actions",
+    submit: "/api/v1/actions/submit",
+    get: (id) => `/api/v1/actions/${id}`,
+    status: (id) => `/api/v1/actions/${id}/status`,
+    approve: (id) => `/api/v1/actions/${id}/approve`,
+    reject: (id) => `/api/v1/actions/${id}/reject`
   }
 };
 

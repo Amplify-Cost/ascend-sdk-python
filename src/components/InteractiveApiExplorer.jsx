@@ -28,7 +28,7 @@ const API_CATEGORIES = {
       {
         id: 'submit-action',
         method: 'POST',
-        path: '/api/authorization/agent-action',
+        path: '/api/v1/actions/submit',
         name: 'Submit Agent Action',
         description: 'Submit an AI agent action for authorization review',
         requiresAuth: true,
@@ -71,7 +71,7 @@ const API_CATEGORIES = {
       {
         id: 'action-status',
         method: 'GET',
-        path: '/api/agent-action/status/{action_id}',
+        path: '/api/v1/actions/{action_id}/status',
         name: 'Get Action Status',
         description: 'Check the current status of an action',
         requiresAuth: true,
@@ -196,7 +196,7 @@ const API_CATEGORIES = {
       {
         id: 'list-agents',
         method: 'GET',
-        path: '/api/agent-activity',
+        path: '/api/v1/actions',
         name: 'List Agent Activity',
         description: 'Get recent agent activity and actions',
         requiresAuth: true,
@@ -208,7 +208,7 @@ const API_CATEGORIES = {
       {
         id: 'agent-details',
         method: 'GET',
-        path: '/api/agent-action/{action_id}',
+        path: '/api/v1/actions/{action_id}',
         name: 'Get Action Details',
         description: 'Get detailed information about a specific action',
         requiresAuth: true,

@@ -43,8 +43,8 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
     try {
       const url =
         selectedRisk === "all"
-          ? `${API_BASE_URL}/api/agent-activity`
-          : `${API_BASE_URL}/api/agent-activity?risk=${selectedRisk}`;
+          ? `${API_BASE_URL}/api/v1/actions`
+          : `${API_BASE_URL}/api/v1/actions?risk=${selectedRisk}`;
 
       const res = await fetch(url, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to fetch agent activity`);
@@ -110,7 +110,7 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
     formData.append("file", file);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/agent-actions/upload-json`, {
+      const res = await fetch(`${API_BASE_URL}/api/v1/actions/upload-json`, {
         credentials: "include",
         method: "POST",
         headers: getAuthHeaders(),

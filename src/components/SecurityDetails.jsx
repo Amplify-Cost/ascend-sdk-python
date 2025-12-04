@@ -14,7 +14,7 @@ const SecurityDetails = ({ log, onClose }) => {
         setLoading(true);
         try {
           // ✅ Using fetchWithAuth for automatic token handling
-          const response = await fetchWithAuth(`${API_BASE_URL}/agent-action/${log.id}/audit`);
+          const response = await fetchWithAuth(`${API_BASE_URL}/api/v1/actions/${log.id}/audit`);
           
           if (!response.ok) {
             throw new Error("Failed to load audit trail");
