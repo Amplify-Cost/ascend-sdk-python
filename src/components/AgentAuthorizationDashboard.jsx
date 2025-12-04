@@ -1233,7 +1233,7 @@ const createWorkflow = async (workflowData) => {
     });
     
     try {
-      await fetch(`${API_BASE_URL}/api/authorization/workflows/create`, {
+      await fetch(`${API_BASE_URL}/api/authorization/workflow-config/create`, {  // SEC-076-FE: Fixed endpoint path
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 

@@ -16,7 +16,8 @@ export const PolicyAnalytics = ({ API_BASE_URL, getAuthHeaders }) => {
         { credentials: "include", headers: getAuthHeaders() }
       );
       const data = await response.json();
-      setMetrics(data);
+      // SEC-076-FE: Unwrap metrics from response structure {success, metrics, message}
+      setMetrics(data.metrics || data);
     } catch (error) {
       console.error('Failed to load metrics:', error);
     } finally {

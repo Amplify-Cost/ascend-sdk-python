@@ -13,26 +13,47 @@ export const PolicyImpactAnalysis = ({ policy, API_BASE_URL, getAuthHeaders }) =
 
   const analyzeImpact = async () => {
     setLoading(true);
-    
-    // Mock impact analysis - replace with actual API call
-    const mockAnalysis = {
-      affected_agents: 12,
-      affected_users: 45,
-      estimated_blocks_per_day: 8,
-      affected_resources: ['production_database', 's3_buckets', 'api_endpoints'],
-      risk_reduction: 35,
-      false_positive_risk: 'low',
-      recommendations: [
-        'Test in staging environment first',
-        'Set up approval workflow for exceptions',
-        'Monitor for 48 hours before full enforcement'
-      ]
-    };
 
-    setTimeout(() => {
-      setAnalysis(mockAnalysis);
+    try {
+      // SEC-076-FE: Call real backend API for impact analysis
+      const response = await fetch(
+        `${API_BASE_URL}/api/governance/policies/${policy?.id}/impact-analysis`,
+        { credentials: "include", headers: getAuthHeaders() }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysis(data.analysis || data);
+      } else {
+        // SEC-076-FE: Return empty state instead of hardcoded data
+        setAnalysis({
+          affected_agents: 0,
+          affected_users: 0,
+          estimated_blocks_per_day: 0,
+          affected_resources: [],
+          risk_reduction: 0,
+          false_positive_risk: 'unknown',
+          recommendations: [
+            'Impact analysis requires policy deployment history',
+            'Deploy to staging first to generate impact data'
+          ]
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load impact analysis:', error);
+      // SEC-076-FE: Empty state on error - NO hardcoded demo data
+      setAnalysis({
+        affected_agents: 0,
+        affected_users: 0,
+        estimated_blocks_per_day: 0,
+        affected_resources: [],
+        risk_reduction: 0,
+        false_positive_risk: 'unknown',
+        recommendations: ['Unable to analyze impact - API unavailable']
+      });
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   if (loading) {
