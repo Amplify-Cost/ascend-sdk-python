@@ -70,6 +70,44 @@ const AgentRegistryManagement = () => {
   // Edit form state (populated when editing)
   const [editForm, setEditForm] = useState(null);
 
+  // SEC-072: Agent Governance State - Enterprise Autonomous Agent Controls
+  const [governanceForm, setGovernanceForm] = useState({
+    // Rate Limits (SOC 2 CC6.2 / NIST SI-4)
+    max_actions_per_minute: null,
+    max_actions_per_hour: null,
+    max_actions_per_day: null,
+    // Budget Controls (PCI-DSS 7.1 / SOC 2 A1.1)
+    max_daily_budget_usd: null,
+    budget_alert_threshold_percent: 80,
+    auto_suspend_on_budget_exceeded: true,
+    // Time Windows (SOC 2 A1.1)
+    time_window_enabled: false,
+    time_window_start: "09:00",
+    time_window_end: "17:00",
+    time_window_timezone: "America/New_York",
+    time_window_days: [1, 2, 3, 4, 5], // Mon-Fri
+    // Data Classifications (HIPAA 164.312 / PCI-DSS 3.4 / GDPR)
+    allowed_data_classifications: [],
+    blocked_data_classifications: [],
+    // Auto-Suspension Rules (SOC 2 CC6.2 / NIST AC-2(3))
+    auto_suspend_enabled: false,
+    auto_suspend_on_error_rate: null,
+    auto_suspend_on_offline_minutes: null,
+    auto_suspend_on_budget: true,
+    auto_suspend_on_rate: false,
+    // Escalation (CR-003)
+    allow_queued_approval: false,
+    escalation_webhook_url: "",
+    escalation_email: ""
+  });
+  const [usageStats, setUsageStats] = useState(null);
+  const [anomalyData, setAnomalyData] = useState(null);
+  const [governanceLoading, setGovernanceLoading] = useState(false);
+  const [showEmergencySuspendModal, setShowEmergencySuspendModal] = useState(null);
+  const [emergencySuspendReason, setEmergencySuspendReason] = useState("");
+  const [emergencyConfirmText, setEmergencyConfirmText] = useState("");
+  const [detailsTab, setDetailsTab] = useState("overview"); // overview, governance, monitoring
+
   // MCP Server registration form - Enterprise configuration
   const [mcpForm, setMcpForm] = useState({
     server_name: "",
@@ -371,6 +409,147 @@ const AgentRegistryManagement = () => {
       alert("Failed to delete agent: " + (error.message || "Unknown error"));
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  // SEC-072: Load governance configuration for an agent
+  const loadGovernanceConfig = useCallback(async (agentId) => {
+    try {
+      setGovernanceLoading(true);
+      // Load usage stats and anomaly data in parallel
+      const [usageResponse, anomalyResponse] = await Promise.all([
+        fetchWithAuth(`/api/registry/agents/${agentId}/usage`).catch(() => null),
+        fetchWithAuth(`/api/registry/agents/${agentId}/anomalies`).catch(() => null)
+      ]);
+      setUsageStats(usageResponse);
+      setAnomalyData(anomalyResponse);
+    } catch (error) {
+      console.error("SEC-072: Failed to load governance config:", error);
+    } finally {
+      setGovernanceLoading(false);
+    }
+  }, []);
+
+  // SEC-072: Save governance configuration
+  const saveGovernanceConfig = async (agentId) => {
+    try {
+      setGovernanceLoading(true);
+
+      // Save all governance configs in parallel
+      await Promise.all([
+        // Rate Limits
+        fetchWithAuth(`/api/registry/agents/${agentId}/rate-limits`, {
+          method: "PUT",
+          body: JSON.stringify({
+            max_actions_per_minute: governanceForm.max_actions_per_minute,
+            max_actions_per_hour: governanceForm.max_actions_per_hour,
+            max_actions_per_day: governanceForm.max_actions_per_day
+          })
+        }),
+        // Budget Controls
+        fetchWithAuth(`/api/registry/agents/${agentId}/budget`, {
+          method: "PUT",
+          body: JSON.stringify({
+            max_daily_budget_usd: governanceForm.max_daily_budget_usd,
+            budget_alert_threshold_percent: governanceForm.budget_alert_threshold_percent,
+            auto_suspend_on_exceeded: governanceForm.auto_suspend_on_budget_exceeded
+          })
+        }),
+        // Time Windows
+        fetchWithAuth(`/api/registry/agents/${agentId}/time-window`, {
+          method: "PUT",
+          body: JSON.stringify({
+            enabled: governanceForm.time_window_enabled,
+            start_time: governanceForm.time_window_start,
+            end_time: governanceForm.time_window_end,
+            timezone: governanceForm.time_window_timezone,
+            allowed_days: governanceForm.time_window_days
+          })
+        }),
+        // Data Classifications
+        fetchWithAuth(`/api/registry/agents/${agentId}/data-classifications`, {
+          method: "PUT",
+          body: JSON.stringify({
+            allowed_classifications: governanceForm.allowed_data_classifications,
+            blocked_classifications: governanceForm.blocked_data_classifications
+          })
+        }),
+        // Auto-Suspension
+        fetchWithAuth(`/api/registry/agents/${agentId}/auto-suspend`, {
+          method: "PUT",
+          body: JSON.stringify({
+            enabled: governanceForm.auto_suspend_enabled,
+            on_error_rate: governanceForm.auto_suspend_on_error_rate,
+            on_offline_minutes: governanceForm.auto_suspend_on_offline_minutes,
+            on_budget_exceeded: governanceForm.auto_suspend_on_budget,
+            on_rate_exceeded: governanceForm.auto_suspend_on_rate
+          })
+        }),
+        // Escalation
+        fetchWithAuth(`/api/registry/agents/${agentId}/escalation`, {
+          method: "PUT",
+          body: JSON.stringify({
+            escalation_webhook_url: governanceForm.escalation_webhook_url || null,
+            escalation_email: governanceForm.escalation_email || null,
+            allow_queued_approval: governanceForm.allow_queued_approval
+          })
+        })
+      ]);
+
+      alert("SEC-072: Governance configuration saved successfully");
+      await loadGovernanceConfig(agentId);
+    } catch (error) {
+      console.error("SEC-072: Failed to save governance config:", error);
+      alert("Failed to save governance configuration: " + (error.message || "Unknown error"));
+    } finally {
+      setGovernanceLoading(false);
+    }
+  };
+
+  // SEC-072: Emergency Kill Switch - Immediate agent suspension
+  const handleEmergencySuspend = async () => {
+    if (!showEmergencySuspendModal || emergencySuspendReason.length < 10 || emergencyConfirmText !== "SUSPEND") {
+      return;
+    }
+
+    try {
+      setActionLoading(showEmergencySuspendModal.agent_id);
+      await fetchWithAuth(`/api/registry/agents/${showEmergencySuspendModal.agent_id}/emergency-suspend`, {
+        method: "POST",
+        body: JSON.stringify({ reason: emergencySuspendReason })
+      });
+
+      alert(`🛑 EMERGENCY SUSPENSION EXECUTED\n\nAgent: ${showEmergencySuspendModal.display_name}\nReason: ${emergencySuspendReason}\n\nAll stakeholders have been notified.`);
+      setShowEmergencySuspendModal(null);
+      setEmergencySuspendReason("");
+      setEmergencyConfirmText("");
+      fetchAgents();
+    } catch (error) {
+      console.error("SEC-072: Emergency suspend failed:", error);
+      alert("Emergency suspension failed: " + (error.message || "Unknown error"));
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // SEC-072: Set baselines for anomaly detection
+  const handleSetBaselines = async (agentId) => {
+    if (!window.confirm("This will capture current metrics as the baseline for anomaly detection.\n\nContinue?")) {
+      return;
+    }
+
+    try {
+      setGovernanceLoading(true);
+      await fetchWithAuth(`/api/registry/agents/${agentId}/set-baselines`, {
+        method: "POST"
+      });
+      alert("Baselines set successfully. Anomaly detection will use current metrics as reference.");
+      await loadGovernanceConfig(agentId);
+    } catch (error) {
+      console.error("SEC-072: Failed to set baselines:", error);
+      alert("Failed to set baselines: " + (error.message || "Unknown error"));
+    } finally {
+      setGovernanceLoading(false);
     }
   };
 
@@ -857,6 +1036,18 @@ const AgentRegistryManagement = () => {
                               title="Reactivate suspended agent"
                             >
                               {actionLoading === agent.agent_id ? "..." : "Reactivate"}
+                            </button>
+                          )}
+
+                          {/* SEC-072: Emergency Kill Switch - SOC 2 CC6.2 / NIST IR-4 */}
+                          {agent.status === "active" && (
+                            <button
+                              onClick={() => setShowEmergencySuspendModal(agent)}
+                              disabled={actionLoading === agent.agent_id}
+                              className="px-3 py-1 bg-red-700 hover:bg-red-800 text-white rounded-md transition-colors disabled:opacity-50 font-medium"
+                              title="Emergency suspension - immediate effect, all stakeholders notified"
+                            >
+                              🛑 Emergency
                             </button>
                           )}
 
@@ -1545,17 +1736,137 @@ if result.can_proceed:
                   </div>
                 )}
               </div>
+
+              {/* SEC-072: Usage & Monitoring Section */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-medium text-gray-900 dark:text-white">📊 Usage & Monitoring</h4>
+                  <button
+                    onClick={() => loadGovernanceConfig(selectedAgent.agent_id)}
+                    disabled={governanceLoading}
+                    className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 rounded-md"
+                  >
+                    {governanceLoading ? "Loading..." : "Refresh"}
+                  </button>
+                </div>
+
+                {usageStats ? (
+                  <div className="space-y-4">
+                    {/* Rate Limits Usage */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {["minute", "hour", "day"].map((period) => (
+                        <div key={period} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">Per {period}</div>
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">
+                            {usageStats.rate_limits?.[`per_${period}`]?.current || 0}
+                            <span className="text-sm font-normal text-gray-500">
+                              {usageStats.rate_limits?.[`per_${period}`]?.limit
+                                ? ` / ${usageStats.rate_limits[`per_${period}`].limit}`
+                                : ""}
+                            </span>
+                          </div>
+                          {usageStats.rate_limits?.[`per_${period}`]?.limit && (
+                            <div className="mt-1 bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
+                              <div
+                                className="bg-blue-600 rounded-full h-1.5"
+                                style={{
+                                  width: `${Math.min(100, (usageStats.rate_limits[`per_${period}`].current / usageStats.rate_limits[`per_${period}`].limit) * 100)}%`
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Budget & Health */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Daily Spend</div>
+                        <div className="text-lg font-bold text-gray-900 dark:text-white">
+                          ${usageStats.budget?.current_spend_usd?.toFixed(2) || "0.00"}
+                          {usageStats.budget?.max_daily_usd && (
+                            <span className="text-sm font-normal text-gray-500">
+                              {` / $${usageStats.budget.max_daily_usd.toFixed(2)}`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Health Status</div>
+                        <div className={`text-lg font-bold ${
+                          usageStats.health?.status === "online" ? "text-green-600" :
+                          usageStats.health?.status === "degraded" ? "text-yellow-600" : "text-red-600"
+                        }`}>
+                          {usageStats.health?.status?.toUpperCase() || "UNKNOWN"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Anomaly Alert */}
+                    {anomalyData?.anomaly_detection?.has_anomaly && (
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xl">🚨</span>
+                          <div>
+                            <div className="font-medium text-red-800 dark:text-red-200">
+                              Anomaly Detected - {anomalyData.anomaly_detection.severity?.toUpperCase()}
+                            </div>
+                            <div className="text-sm text-red-600 dark:text-red-300">
+                              {anomalyData.anomaly_detection.count_24h} anomalies in last 24h
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleSetBaselines(selectedAgent.agent_id)}
+                        disabled={governanceLoading}
+                        className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+                      >
+                        📏 Set Baselines
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <button
+                      onClick={() => loadGovernanceConfig(selectedAgent.agent_id)}
+                      disabled={governanceLoading}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+                    >
+                      {governanceLoading ? "Loading..." : "Load Usage Statistics"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
-              <button
-                onClick={() => {
-                  setShowAgentDetailsModal(false);
-                  handleEditAgent(selectedAgent.agent_id);
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-              >
-                Edit Agent
-              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => {
+                    setShowAgentDetailsModal(false);
+                    handleEditAgent(selectedAgent.agent_id);
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                >
+                  Edit Agent
+                </button>
+                {selectedAgent.status === "active" && (
+                  <button
+                    onClick={() => {
+                      setShowAgentDetailsModal(false);
+                      setShowEmergencySuspendModal(selectedAgent);
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
+                  >
+                    🛑 Emergency Suspend
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => setShowAgentDetailsModal(false)}
                 className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg"
@@ -2206,6 +2517,93 @@ if result.can_proceed:
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SEC-072: Emergency Suspend Modal - Banking-Level Confirmation */}
+      {showEmergencySuspendModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6 border-b border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+              <div className="flex items-center space-x-3">
+                <span className="text-3xl">🛑</span>
+                <div>
+                  <h3 className="text-xl font-bold text-red-800 dark:text-red-200">
+                    EMERGENCY SUSPENSION
+                  </h3>
+                  <p className="text-sm text-red-600 dark:text-red-300">
+                    {showEmergencySuspendModal.display_name || showEmergencySuspendModal.agent_id}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  ⚠️ This action will <strong>immediately suspend</strong> the agent.
+                  All pending actions will be blocked. Stakeholders will be notified.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Reason for Emergency Suspension *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe the security incident or policy violation (min 10 characters)..."
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={emergencySuspendReason}
+                  onChange={(e) => setEmergencySuspendReason(e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {emergencySuspendReason.length}/500 characters (minimum 10)
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Type "SUSPEND" to confirm
+                </label>
+                <input
+                  type="text"
+                  placeholder="SUSPEND"
+                  className="w-full px-3 py-2 border border-red-300 dark:border-red-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={emergencyConfirmText}
+                  onChange={(e) => setEmergencyConfirmText(e.target.value)}
+                />
+              </div>
+
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                <p>Compliance: SOC 2 CC6.2 | NIST IR-4 | Incident Response</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  setShowEmergencySuspendModal(null);
+                  setEmergencySuspendReason("");
+                  setEmergencyConfirmText("");
+                }}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEmergencySuspend}
+                disabled={
+                  actionLoading === showEmergencySuspendModal?.agent_id ||
+                  emergencySuspendReason.length < 10 ||
+                  emergencyConfirmText !== "SUSPEND"
+                }
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionLoading === showEmergencySuspendModal?.agent_id ? "Suspending..." : "🛑 Emergency Suspend"}
+              </button>
+            </div>
           </div>
         </div>
       )}
