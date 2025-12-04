@@ -1,9 +1,12 @@
 """
-OW-AI Enterprise Agent Registry API Routes
-==========================================
+Ascend Enterprise Agent Registry API Routes
+============================================
 
 RESTful API for managing AI agent registrations.
 Provides full CRUD operations with enterprise-grade security.
+
+Ascend Platform - Authored by Ascend Engineers
+© OW-kai Technologies Inc.
 
 Endpoints:
 - POST   /api/registry/agents              - Register new agent
@@ -18,6 +21,18 @@ Endpoints:
 - GET    /api/registry/agents/{id}/policies    - List policies
 - POST   /api/registry/agents/{id}/evaluate    - Evaluate policies
 
+SEC-068: Autonomous Agent Governance:
+- PUT    /api/registry/agents/{id}/rate-limits        - Configure rate limits
+- PUT    /api/registry/agents/{id}/budget             - Configure budget limits
+- PUT    /api/registry/agents/{id}/time-window        - Configure time restrictions
+- PUT    /api/registry/agents/{id}/data-classifications - Configure data access
+- PUT    /api/registry/agents/{id}/auto-suspend       - Configure auto-suspension
+- PUT    /api/registry/agents/{id}/escalation         - Configure escalation path (CR-003)
+- GET    /api/registry/agents/{id}/usage              - Get usage statistics
+- GET    /api/registry/agents/{id}/anomalies          - Get anomaly detection status
+- POST   /api/registry/agents/{id}/emergency-suspend  - Emergency kill switch
+- POST   /api/registry/agents/{id}/set-baselines      - Set anomaly baselines
+
 MCP Server Management:
 - POST   /api/registry/mcp-servers                      - Register MCP server
 - GET    /api/registry/mcp-servers                      - List MCP servers
@@ -30,15 +45,16 @@ MCP Server Management:
 Agent Management:
 - DELETE /api/registry/agents/{id}         - Delete agent (with audit trail)
 
-Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-53 AC-2
+Compliance: SOC 2 CC6.1/CC6.2/CC7.1, PCI-DSS 7.1/8.3, NIST 800-53 AC-2/AC-3/SI-4
 """
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
+import re
 
 from database import get_db
 from dependencies import get_current_user, require_admin, get_organization_filter
@@ -1113,3 +1129,645 @@ async def delete_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# ============================================================================
+# SEC-068: AUTONOMOUS AGENT GOVERNANCE
+# Enterprise-grade controls for autonomous AI agents
+# Ascend Platform - Authored by Ascend Engineers
+# © OW-kai Technologies Inc.
+# Compliance: SOC 2 CC6.1/CC6.2/CC7.1, NIST AC-3/SI-4, PCI-DSS 7.1
+# ============================================================================
+
+class RateLimitConfigRequest(BaseModel):
+    """SEC-068: Rate limit configuration for agents."""
+    max_actions_per_minute: Optional[int] = Field(None, ge=1, le=10000, description="Max actions per minute (None = unlimited)")
+    max_actions_per_hour: Optional[int] = Field(None, ge=1, le=100000, description="Max actions per hour")
+    max_actions_per_day: Optional[int] = Field(None, ge=1, le=1000000, description="Max actions per day")
+
+
+class BudgetConfigRequest(BaseModel):
+    """SEC-068: Budget configuration for agents."""
+    max_daily_budget_usd: Optional[float] = Field(None, ge=0, le=1000000, description="Max daily budget in USD")
+    budget_alert_threshold_percent: int = Field(80, ge=1, le=100, description="Alert when this % of budget is used")
+    auto_suspend_on_exceeded: bool = Field(True, description="Auto-suspend when budget exceeded")
+
+
+class TimeWindowConfigRequest(BaseModel):
+    """SEC-068: Time window restrictions for agents."""
+    enabled: bool = Field(True, description="Enable time window restrictions")
+    start_time: str = Field("09:00", description="Start time (HH:MM)")
+    end_time: str = Field("17:00", description="End time (HH:MM)")
+    timezone: str = Field("UTC", description="Timezone (e.g., 'America/New_York')")
+    allowed_days: List[int] = Field([1, 2, 3, 4, 5], description="Allowed days (1=Mon, 7=Sun)")
+
+    # CR-008: Validate time format (HH:MM) with proper hour/minute ranges
+    @field_validator('start_time', 'end_time')
+    @classmethod
+    def validate_time_format(cls, v: str) -> str:
+        """CR-008: Validate time is in HH:MM format with valid hour (00-23) and minute (00-59)."""
+        if not re.match(r'^([01]\d|2[0-3]):([0-5]\d)$', v):
+            raise ValueError(
+                f"Invalid time format '{v}'. Must be HH:MM with hours 00-23 and minutes 00-59"
+            )
+        return v
+
+    @field_validator('allowed_days')
+    @classmethod
+    def validate_days(cls, v: List[int]) -> List[int]:
+        """Validate days are 1-7 (Monday=1 to Sunday=7)."""
+        for day in v:
+            if day < 1 or day > 7:
+                raise ValueError(f"Invalid day {day}. Days must be 1-7 (Monday=1, Sunday=7)")
+        return v
+
+
+class DataClassificationConfigRequest(BaseModel):
+    """SEC-068: Data classification restrictions for agents."""
+    allowed_classifications: List[str] = Field([], description="Allowed data classifications")
+    blocked_classifications: List[str] = Field([], description="Blocked data classifications")
+
+
+class AutoSuspendConfigRequest(BaseModel):
+    """SEC-068: Auto-suspension trigger configuration."""
+    enabled: bool = Field(True, description="Enable auto-suspension")
+    on_error_rate: Optional[float] = Field(None, ge=0, le=1, description="Suspend if error rate exceeds (0-1)")
+    on_offline_minutes: Optional[int] = Field(None, ge=1, le=1440, description="Suspend if offline > N minutes")
+    on_budget_exceeded: bool = Field(True, description="Suspend when budget exceeded")
+    on_rate_exceeded: bool = Field(False, description="Suspend when rate limit exceeded")
+
+
+class EmergencySuspendRequest(BaseModel):
+    """SEC-068: Emergency suspension request."""
+    reason: str = Field(..., min_length=10, max_length=500, description="Reason for emergency suspension")
+
+
+@router.put("/agents/{agent_id}/rate-limits")
+async def configure_rate_limits(
+    agent_id: str,
+    config: RateLimitConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Configure rate limits for an agent.
+
+    Rate limits control how many actions an agent can perform per time period.
+    Exceeding rate limits blocks further actions until the window resets.
+
+    Compliance: NIST SI-4, Datadog rate limiting patterns
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Update rate limit configuration
+        agent.max_actions_per_minute = config.max_actions_per_minute
+        agent.max_actions_per_hour = config.max_actions_per_hour
+        agent.max_actions_per_day = config.max_actions_per_day
+
+        db.commit()
+
+        logger.info(f"SEC-068: Rate limits configured for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "rate_limits": {
+                "per_minute": config.max_actions_per_minute,
+                "per_hour": config.max_actions_per_hour,
+                "per_day": config.max_actions_per_day
+            },
+            "configured_by": current_user.get("email"),
+            "compliance": "SEC-068 / NIST SI-4"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Rate limit configuration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/agents/{agent_id}/budget")
+async def configure_budget(
+    agent_id: str,
+    config: BudgetConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Configure budget limits for an agent.
+
+    Budget limits control daily spending. When exceeded, the agent
+    can be automatically suspended if configured.
+
+    Compliance: PCI-DSS 7.1, SOC 2 A1.1
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Update budget configuration
+        agent.max_daily_budget_usd = config.max_daily_budget_usd
+        agent.budget_alert_threshold_percent = config.budget_alert_threshold_percent
+        agent.auto_suspend_on_budget_exceeded = config.auto_suspend_on_exceeded
+
+        db.commit()
+
+        logger.info(f"SEC-068: Budget configured for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "budget": {
+                "max_daily_usd": config.max_daily_budget_usd,
+                "alert_threshold_percent": config.budget_alert_threshold_percent,
+                "auto_suspend_on_exceeded": config.auto_suspend_on_exceeded
+            },
+            "current_spend_usd": agent.current_daily_spend_usd,
+            "configured_by": current_user.get("email"),
+            "compliance": "SEC-068 / PCI-DSS 7.1"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Budget configuration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/agents/{agent_id}/time-window")
+async def configure_time_window(
+    agent_id: str,
+    config: TimeWindowConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Configure time window restrictions for an agent.
+
+    Time windows restrict when an agent can operate.
+    Useful for business hours enforcement.
+
+    Compliance: SOC 2 A1.1
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Update time window configuration
+        agent.time_window_enabled = config.enabled
+        agent.time_window_start = config.start_time
+        agent.time_window_end = config.end_time
+        agent.time_window_timezone = config.timezone
+        agent.time_window_days = config.allowed_days
+
+        db.commit()
+
+        logger.info(f"SEC-068: Time window configured for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "time_window": {
+                "enabled": config.enabled,
+                "start": config.start_time,
+                "end": config.end_time,
+                "timezone": config.timezone,
+                "allowed_days": config.allowed_days
+            },
+            "configured_by": current_user.get("email"),
+            "compliance": "SEC-068 / SOC 2 A1.1"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Time window configuration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/agents/{agent_id}/data-classifications")
+async def configure_data_classifications(
+    agent_id: str,
+    config: DataClassificationConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Configure data classification restrictions for an agent.
+
+    Controls what types of data an agent can access.
+    Blocked classifications take precedence over allowed.
+
+    Compliance: HIPAA 164.312, PCI-DSS 3.4, GDPR
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Update data classification configuration
+        agent.allowed_data_classifications = config.allowed_classifications
+        agent.blocked_data_classifications = config.blocked_classifications
+
+        db.commit()
+
+        logger.info(f"SEC-068: Data classifications configured for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "data_classifications": {
+                "allowed": config.allowed_classifications,
+                "blocked": config.blocked_classifications
+            },
+            "configured_by": current_user.get("email"),
+            "compliance": "SEC-068 / HIPAA / PCI-DSS / GDPR"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Data classification configuration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/agents/{agent_id}/auto-suspend")
+async def configure_auto_suspend(
+    agent_id: str,
+    config: AutoSuspendConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Configure auto-suspension triggers for an agent.
+
+    Auto-suspension automatically disables agents when thresholds are exceeded.
+    Critical for autonomous agent safety.
+
+    Compliance: SOC 2 CC6.2, NIST AC-2(3)
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Update auto-suspend configuration
+        agent.auto_suspend_enabled = config.enabled
+        agent.auto_suspend_on_error_rate = config.on_error_rate
+        agent.auto_suspend_on_offline_minutes = config.on_offline_minutes
+        agent.auto_suspend_on_budget_exceeded = config.on_budget_exceeded
+        agent.auto_suspend_on_rate_exceeded = config.on_rate_exceeded
+
+        db.commit()
+
+        logger.info(f"SEC-068: Auto-suspend configured for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "auto_suspend": {
+                "enabled": config.enabled,
+                "on_error_rate": config.on_error_rate,
+                "on_offline_minutes": config.on_offline_minutes,
+                "on_budget_exceeded": config.on_budget_exceeded,
+                "on_rate_exceeded": config.on_rate_exceeded
+            },
+            "configured_by": current_user.get("email"),
+            "compliance": "SEC-068 / SOC 2 CC6.2"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Auto-suspend configuration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/agents/{agent_id}/usage")
+async def get_agent_usage(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Get usage statistics for an agent.
+
+    Returns rate limit usage, budget usage, and anomaly detection status.
+
+    Compliance: SOC 2 AU-6, NIST AU-6
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        return {
+            "agent_id": agent_id,
+            "agent_type": agent.agent_type,
+            "status": agent.status,
+            "rate_limits": {
+                "per_minute": {
+                    "limit": agent.max_actions_per_minute,
+                    "current": agent.current_minute_count,
+                    "remaining": (agent.max_actions_per_minute - agent.current_minute_count) if agent.max_actions_per_minute else None
+                },
+                "per_hour": {
+                    "limit": agent.max_actions_per_hour,
+                    "current": agent.current_hour_count,
+                    "remaining": (agent.max_actions_per_hour - agent.current_hour_count) if agent.max_actions_per_hour else None
+                },
+                "per_day": {
+                    "limit": agent.max_actions_per_day,
+                    "current": agent.current_day_count,
+                    "remaining": (agent.max_actions_per_day - agent.current_day_count) if agent.max_actions_per_day else None
+                }
+            },
+            "budget": {
+                "max_daily_usd": agent.max_daily_budget_usd,
+                "current_spend_usd": agent.current_daily_spend_usd,
+                "remaining_usd": (agent.max_daily_budget_usd - agent.current_daily_spend_usd) if agent.max_daily_budget_usd else None,
+                "alert_sent": agent.budget_alert_sent
+            },
+            "anomaly_detection": {
+                "enabled": agent.anomaly_detection_enabled,
+                "last_check": agent.last_anomaly_check.isoformat() if agent.last_anomaly_check else None,
+                "last_detected": agent.last_anomaly_detected.isoformat() if agent.last_anomaly_detected else None,
+                "count_24h": agent.anomaly_count_24h,
+                "threshold_percent": agent.anomaly_threshold_percent
+            },
+            "auto_suspend": {
+                "enabled": agent.auto_suspend_enabled,
+                "suspended_at": agent.auto_suspended_at.isoformat() if agent.auto_suspended_at else None,
+                "reason": agent.auto_suspend_reason
+            },
+            "health": {
+                "status": agent.health_status,
+                "last_heartbeat": agent.last_heartbeat.isoformat() if agent.last_heartbeat else None,
+                "error_rate_percent": agent.error_rate_percent
+            },
+            "compliance": "SEC-068 / SOC 2 AU-6"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Usage retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/agents/{agent_id}/anomalies")
+async def get_agent_anomalies(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Get anomaly detection status for an agent.
+
+    Compares current behavior against established baselines.
+
+    Compliance: SOC 2 CC7.1, NIST SI-4
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Run anomaly detection
+        anomaly_result = agent_registry_service.detect_anomalies(
+            db, agent,
+            current_action_rate=agent.current_hour_count,
+            current_error_rate=agent.error_rate_percent,
+            current_risk_score=agent.default_risk_score
+        )
+
+        return {
+            "agent_id": agent_id,
+            "anomaly_detection": {
+                "enabled": agent.anomaly_detection_enabled,
+                "has_anomaly": anomaly_result.get("has_anomaly", False),
+                "severity": anomaly_result.get("severity"),
+                "anomalies": anomaly_result.get("anomalies", []),
+                "count_24h": agent.anomaly_count_24h
+            },
+            "baselines": {
+                "actions_per_hour": agent.baseline_actions_per_hour,
+                "error_rate": agent.baseline_error_rate,
+                "avg_risk_score": agent.baseline_avg_risk_score,
+                "threshold_percent": agent.anomaly_threshold_percent
+            },
+            "current_values": {
+                "actions_this_hour": agent.current_hour_count,
+                "error_rate": agent.error_rate_percent,
+                "default_risk_score": agent.default_risk_score
+            },
+            "last_check": agent.last_anomaly_check.isoformat() if agent.last_anomaly_check else None,
+            "last_detected": agent.last_anomaly_detected.isoformat() if agent.last_anomaly_detected else None,
+            "compliance": "SEC-068 / SOC 2 CC7.1"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Anomaly detection failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/agents/{agent_id}/emergency-suspend")
+async def emergency_suspend_agent(
+    agent_id: str,
+    request: EmergencySuspendRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Emergency suspension of an agent.
+
+    Immediately suspends the agent, bypassing normal workflows.
+    Use for security incidents or policy violations.
+
+    Compliance: SOC 2 CC6.2, NIST IR-4
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        if agent.status == "suspended":
+            raise HTTPException(status_code=400, detail="Agent is already suspended")
+
+        # Perform emergency suspension
+        agent_registry_service.auto_suspend_agent(
+            db, agent,
+            reason=f"EMERGENCY: {request.reason}",
+            trigger="emergency_manual"
+        )
+
+        logger.warning(f"SEC-068 EMERGENCY: Agent {agent_id} suspended by {current_user.get('email')}: {request.reason}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "status": "suspended",
+            "reason": request.reason,
+            "suspended_by": current_user.get("email"),
+            "suspended_at": datetime.utcnow().isoformat(),
+            "alert": "EMERGENCY SUSPENSION - All stakeholders notified",
+            "compliance": "SEC-068 / SOC 2 CC6.2 / NIST IR-4"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Emergency suspension failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/agents/{agent_id}/set-baselines")
+async def set_agent_baselines(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    SEC-068: Set baseline metrics for anomaly detection.
+
+    Captures current metrics as the baseline for future anomaly detection.
+    Should be called after agent behavior stabilizes.
+
+    Compliance: SOC 2 CC7.1, NIST SI-4
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Set current values as baselines
+        agent.baseline_actions_per_hour = float(agent.current_hour_count) if agent.current_hour_count else 10.0
+        agent.baseline_error_rate = agent.error_rate_percent if agent.error_rate_percent else 0.0
+        agent.baseline_avg_risk_score = float(agent.default_risk_score)
+
+        # Reset anomaly counters
+        agent.anomaly_count_24h = 0
+        agent.last_anomaly_detected = None
+
+        db.commit()
+
+        logger.info(f"SEC-068: Baselines set for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "baselines": {
+                "actions_per_hour": agent.baseline_actions_per_hour,
+                "error_rate": agent.baseline_error_rate,
+                "avg_risk_score": agent.baseline_avg_risk_score,
+                "threshold_percent": agent.anomaly_threshold_percent
+            },
+            "set_by": current_user.get("email"),
+            "set_at": datetime.utcnow().isoformat(),
+            "compliance": "SEC-068 / SOC 2 CC7.1"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SEC-068: Baseline setting failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# CR-003: AUTONOMOUS AGENT ESCALATION CONFIGURATION
+# Ascend Platform - Authored by Ascend Engineers
+# © OW-kai Technologies Inc.
+# ============================================================================
+
+class EscalationConfigRequest(BaseModel):
+    """CR-003: Escalation configuration for autonomous agents."""
+    escalation_webhook_url: Optional[str] = Field(None, max_length=500, description="Webhook URL for escalation notifications")
+    escalation_email: Optional[str] = Field(None, max_length=255, description="Email for escalation fallback")
+    allow_queued_approval: bool = Field(False, description="Allow actions to be queued for human review")
+
+    @field_validator('escalation_email')
+    @classmethod
+    def validate_email(cls, v: Optional[str]) -> Optional[str]:
+        """Validate email format if provided."""
+        if v and not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', v):
+            raise ValueError(f"Invalid email format: {v}")
+        return v
+
+    @field_validator('escalation_webhook_url')
+    @classmethod
+    def validate_webhook_url(cls, v: Optional[str]) -> Optional[str]:
+        """Validate webhook URL if provided."""
+        if v and not v.startswith(('http://', 'https://')):
+            raise ValueError("Webhook URL must start with http:// or https://")
+        return v
+
+
+@router.put("/agents/{agent_id}/escalation")
+async def configure_escalation(
+    agent_id: str,
+    config: EscalationConfigRequest,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    CR-003: Configure escalation path for autonomous agents.
+
+    Enables autonomous agents to escalate high-risk actions instead of
+    being blocked. Options include:
+    - Webhook notification (real-time alerting)
+    - Email notification (fallback)
+    - Queued approval (async human review)
+
+    Compliance: SOC 2 CC6.2, NIST AC-3
+    """
+    try:
+        agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent not found: {agent_id}")
+
+        # Update escalation configuration
+        agent.autonomous_escalation_webhook_url = config.escalation_webhook_url
+        agent.autonomous_escalation_email = config.escalation_email
+        agent.autonomous_allow_queued_approval = config.allow_queued_approval
+
+        db.commit()
+
+        logger.info(f"CR-003: Escalation configured for agent {agent_id} by {current_user.get('email')}")
+
+        return {
+            "success": True,
+            "agent_id": agent_id,
+            "escalation": {
+                "webhook_url": config.escalation_webhook_url,
+                "email": config.escalation_email,
+                "allow_queued_approval": config.allow_queued_approval,
+                "is_configured": bool(config.escalation_webhook_url or config.escalation_email or config.allow_queued_approval)
+            },
+            "configured_by": current_user.get("email"),
+            "compliance": "CR-003 / SOC 2 CC6.2"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CR-003: Escalation configuration failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

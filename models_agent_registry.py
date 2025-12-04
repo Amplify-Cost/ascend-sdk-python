@@ -119,6 +119,77 @@ class RegisteredAgent(Base):
     last_error = Column(Text, nullable=True)            # Last error message
     last_error_at = Column(DateTime, nullable=True)     # Last error timestamp
 
+    # =========================================================================
+    # SEC-068: AUTONOMOUS AGENT GOVERNANCE
+    # Enterprise-grade controls for autonomous AI agents
+    # Compliance: SOC 2 CC6.1/CC6.2/CC7.1, NIST AC-3/SI-4, PCI-DSS 7.1
+    # Aligned with: Datadog, Wiz.io, Splunk enterprise patterns
+    # =========================================================================
+
+    # SEC-068: Rate Limiting
+    max_actions_per_minute = Column(Integer, nullable=True)      # None = unlimited
+    max_actions_per_hour = Column(Integer, nullable=True)
+    max_actions_per_day = Column(Integer, nullable=True)
+    current_minute_count = Column(Integer, default=0, nullable=False)
+    current_hour_count = Column(Integer, default=0, nullable=False)
+    current_day_count = Column(Integer, default=0, nullable=False)
+    rate_limit_window_start = Column(DateTime, nullable=True)    # Window tracking
+
+    # SEC-068: Budget Controls
+    max_daily_budget_usd = Column(Float, nullable=True)          # None = unlimited
+    current_daily_spend_usd = Column(Float, default=0.0, nullable=False)
+    budget_reset_at = Column(DateTime, nullable=True)
+    budget_alert_threshold_percent = Column(Integer, default=80, nullable=False)
+    budget_alert_sent = Column(Boolean, default=False, nullable=False)
+
+    # SEC-068: Session Limits
+    max_concurrent_actions = Column(Integer, nullable=True)
+    current_concurrent_actions = Column(Integer, default=0, nullable=False)
+    max_session_duration_minutes = Column(Integer, nullable=True)
+    current_session_start = Column(DateTime, nullable=True)
+
+    # SEC-068: Time Window Restrictions
+    time_window_enabled = Column(Boolean, default=False, nullable=False)
+    time_window_start = Column(String(5), nullable=True)         # "09:00" (HH:MM)
+    time_window_end = Column(String(5), nullable=True)           # "17:00" (HH:MM)
+    time_window_timezone = Column(String(50), default="UTC", nullable=True)
+    time_window_days = Column(JSONB, default=list)               # [1,2,3,4,5] = Mon-Fri
+
+    # SEC-068: Data Classification Restrictions
+    allowed_data_classifications = Column(JSONB, default=list)   # ["public", "internal"]
+    blocked_data_classifications = Column(JSONB, default=list)   # ["pii", "financial", "secret"]
+
+    # SEC-068: Auto-Suspension Triggers
+    # CR-015: Default to FALSE to avoid unexpectedly suspending existing agents
+    auto_suspend_enabled = Column(Boolean, default=False, nullable=False)
+    auto_suspend_on_error_rate = Column(Float, nullable=True)    # e.g., 0.10 = 10% error rate
+    auto_suspend_on_offline_minutes = Column(Integer, nullable=True)  # Suspend if offline > N minutes
+    auto_suspend_on_budget_exceeded = Column(Boolean, default=True, nullable=False)
+    auto_suspend_on_rate_exceeded = Column(Boolean, default=False, nullable=False)
+    auto_suspended_at = Column(DateTime, nullable=True)
+    auto_suspend_reason = Column(Text, nullable=True)
+
+    # SEC-068: Anomaly Detection
+    anomaly_detection_enabled = Column(Boolean, default=True, nullable=False)
+    baseline_actions_per_hour = Column(Float, nullable=True)     # Normal action rate
+    baseline_error_rate = Column(Float, nullable=True)           # Normal error rate
+    baseline_avg_risk_score = Column(Float, nullable=True)       # Normal risk score
+    anomaly_threshold_percent = Column(Float, default=50.0, nullable=False)  # Alert if 50% deviation
+    last_anomaly_check = Column(DateTime, nullable=True)
+    last_anomaly_detected = Column(DateTime, nullable=True)
+    anomaly_count_24h = Column(Integer, default=0, nullable=False)
+
+    # SEC-068: Autonomous-Specific Thresholds (stricter than supervised)
+    autonomous_max_risk_threshold = Column(Integer, default=60, nullable=False)  # vs 80 for supervised
+    autonomous_auto_approve_below = Column(Integer, default=40, nullable=False)  # vs 30 for supervised
+    autonomous_require_dual_approval = Column(Boolean, default=False, nullable=False)
+
+    # CR-003: Autonomous Escalation Path
+    # When autonomous agents hit high-risk actions, notify this webhook instead of blocking
+    autonomous_escalation_webhook_url = Column(String(500), nullable=True)
+    autonomous_escalation_email = Column(String(255), nullable=True)  # Fallback escalation email
+    autonomous_allow_queued_approval = Column(Boolean, default=False, nullable=False)  # Queue for human review
+
     # Audit Fields
     created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     created_by = Column(String(255), nullable=True)
