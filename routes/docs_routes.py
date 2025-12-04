@@ -54,6 +54,22 @@ async def get_integration_docs_index():
             "filename": "README.md"
         },
         {
+            "id": "agent_registry",
+            "title": "Agent Registry - Technical Documentation",
+            "description": "Complete technical guide for AI agent registration and governance",
+            "path": "/api/docs/integration/agent-registry",
+            "filename": "AGENT_REGISTRY.md",
+            "audience": "engineers"
+        },
+        {
+            "id": "agent_governance",
+            "title": "AI Agent Governance Guide",
+            "description": "Business guide for governing autonomous AI agents",
+            "path": "/api/docs/integration/agent-governance",
+            "filename": "AGENT_GOVERNANCE.md",
+            "audience": "clients"
+        },
+        {
             "id": "risk_scoring",
             "title": "Risk Scoring System",
             "description": "Deep dive into Ascend's multi-layer risk scoring architecture",
@@ -127,6 +143,34 @@ async def get_architecture_doc():
     return PlainTextResponse(content, media_type="text/markdown")
 
 
+@router.get("/integration/agent-registry")
+async def get_agent_registry_doc():
+    """
+    Get the Agent Registry technical documentation.
+
+    Comprehensive guide for engineers on AI agent registration,
+    configuration, and governance controls (SEC-068).
+
+    Audience: Engineers, Developers
+    """
+    content = get_doc_content("AGENT_REGISTRY.md")
+    return PlainTextResponse(content, media_type="text/markdown")
+
+
+@router.get("/integration/agent-governance")
+async def get_agent_governance_doc():
+    """
+    Get the AI Agent Governance guide.
+
+    Business-focused guide for understanding and configuring
+    autonomous AI agent governance controls.
+
+    Audience: Clients, Business Users, Administrators
+    """
+    content = get_doc_content("AGENT_GOVERNANCE.md")
+    return PlainTextResponse(content, media_type="text/markdown")
+
+
 @router.get("/integration/{doc_name}")
 async def get_integration_doc_by_name(doc_name: str):
     """
@@ -141,7 +185,9 @@ async def get_integration_doc_by_name(doc_name: str):
         "risk-scoring": "RISK_SCORING.md",
         "api-reference": "API_REFERENCE.md",
         "sdk-guide": "SDK_GUIDE.md",
-        "architecture": "ARCHITECTURE.md"
+        "architecture": "ARCHITECTURE.md",
+        "agent-registry": "AGENT_REGISTRY.md",
+        "agent-governance": "AGENT_GOVERNANCE.md"
     }
 
     filename = doc_map.get(doc_name.lower())
