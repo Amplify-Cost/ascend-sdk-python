@@ -1611,7 +1611,7 @@ authorization_api_router = api_router  # Alias for backward compatibility
 @router.post("/policies/create-from-natural-language")
 async def create_policy_from_natural_language(
     request: dict,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create enterprise policy from natural language description"""
@@ -1619,10 +1619,10 @@ async def create_policy_from_natural_language(
         if not POLICY_ENGINE_AVAILABLE:
             raise ImportError("Policy Engine not available")
         policy_engine = PolicyEngine(db)
-        
+
         policy = policy_engine.create_policy_from_natural_language(
             description=request["description"],
-            creator=current_user.username,
+            creator=current_user.get("email"),  # SEC-078: Use email as username fallback
             policy_name=request["policy_name"]
         )
         
@@ -1640,7 +1640,7 @@ async def create_policy_from_natural_language(
 @router.post("/policies/{policy_id}/deploy")
 async def deploy_policy(
     policy_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Deploy approved policy to production"""
@@ -1648,12 +1648,12 @@ async def deploy_policy(
         if not POLICY_ENGINE_AVAILABLE:
             raise ImportError("Policy Engine not available")
         policy_engine = PolicyEngine(db)
-        
-        if policy_engine.deploy_policy(policy_id, current_user.username):
+
+        if policy_engine.deploy_policy(policy_id, current_user.get("email")):
             return {
                 "success": True,
                 "message": "Policy deployed successfully",
-                "deployed_by": current_user.username,
+                "deployed_by": current_user.get("email"),  # SEC-078: Use email as username fallback
                 "deployment_time": datetime.now(UTC).isoformat()
             }
         else:
@@ -1668,7 +1668,7 @@ async def deploy_policy(
 async def rollback_policy(
     policy_id: str,
     target_version_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Rollback policy to previous version"""
@@ -1676,12 +1676,12 @@ async def rollback_policy(
         if not POLICY_ENGINE_AVAILABLE:
             raise ImportError("Policy Engine not available")
         policy_engine = PolicyEngine(db)
-        
+
         if policy_engine.rollback_policy(policy_id, target_version_id):
             return {
                 "success": True,
                 "message": "Policy rollback completed successfully",
-                "rolled_back_by": current_user.username,
+                "rolled_back_by": current_user.get("email"),  # SEC-078: Use email as username fallback
                 "rollback_time": datetime.now(UTC).isoformat()
             }
         else:
@@ -1695,7 +1695,7 @@ async def rollback_policy(
 
 @router.post("/mcp-discovery/scan-network")
 async def scan_network_for_mcp_servers(
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Enterprise MCP server network discovery"""
@@ -1717,7 +1717,7 @@ async def scan_network_for_mcp_servers(
 
 @router.get("/mcp-discovery/server-status")
 async def get_discovery_server_status(
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get status of discovered MCP servers"""
@@ -1736,7 +1736,7 @@ async def get_discovery_server_status(
 
 @router.get("/mcp-discovery/health-monitor")
 async def monitor_mcp_server_health(
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Enterprise MCP server health monitoring"""

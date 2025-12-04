@@ -21,7 +21,7 @@ import logging
 from database import get_db
 from dependencies import get_current_user, get_organization_filter
 from dependencies_api_keys import get_current_user_or_api_key
-from models import User
+# SEC-078: current_user is a dict, not User object
 from services.agent_health_service import AgentHealthService, HealthStatus
 
 logger = logging.getLogger(__name__)
@@ -131,7 +131,7 @@ class UpdateIntervalRequest(BaseModel):
 )
 async def receive_heartbeat(
     request: HeartbeatRequest,
-    current_user: User = Depends(get_current_user_or_api_key),
+    current_user: dict = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db)
 ):
     """
@@ -147,9 +147,9 @@ async def receive_heartbeat(
         service = AgentHealthService(db)
         result = service.process_heartbeat(
             agent_id=request.agent_id,
-            organization_id=current_user.organization_id,
+            organization_id=current_user.get("organization_id"),
             metrics=request.metrics,
-            performed_by=f"sdk:{current_user.email}"
+            performed_by=f"sdk:{current_user.get("email")}"
         )
 
         return HeartbeatResponse(**result)
@@ -172,7 +172,7 @@ async def receive_heartbeat(
 )
 async def receive_batch_heartbeat(
     heartbeats: List[HeartbeatRequest],
-    current_user: User = Depends(get_current_user_or_api_key),
+    current_user: dict = Depends(get_current_user_or_api_key),
     db: Session = Depends(get_db)
 ):
     """Process multiple heartbeats in a single request."""
@@ -182,9 +182,9 @@ async def receive_batch_heartbeat(
     for hb in heartbeats[:50]:  # Limit to 50 per batch
         result = service.process_heartbeat(
             agent_id=hb.agent_id,
-            organization_id=current_user.organization_id,
+            organization_id=current_user.get("organization_id"),
             metrics=hb.metrics,
-            performed_by=f"sdk:{current_user.email}"
+            performed_by=f"sdk:{current_user.get("email")}"
         )
         results.append(result)
 
@@ -284,7 +284,7 @@ async def get_agent_health(
 async def update_heartbeat_interval(
     agent_id: str,
     request: UpdateIntervalRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     org_id: int = Depends(get_organization_filter),
     db: Session = Depends(get_db)
 ):
@@ -295,7 +295,7 @@ async def update_heartbeat_interval(
         agent_id=agent_id,
         organization_id=org_id,
         interval_seconds=request.interval_seconds,
-        updated_by=current_user.email
+        updated_by=current_user.get("email")
     )
 
     if not success:
@@ -323,7 +323,7 @@ async def update_heartbeat_interval(
 )
 async def trigger_health_check(
     org_id: int = Depends(get_organization_filter),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Manually trigger health check for all agents."""
@@ -331,12 +331,12 @@ async def trigger_health_check(
     changes = service.check_agent_health(org_id)
 
     logger.info(
-        f"SEC-050: Manual health check triggered by {current_user.email}, "
+        f"SEC-050: Manual health check triggered by {current_user.get("email")}, "
         f"{len(changes)} status changes detected"
     )
 
     return {
-        "checked_by": current_user.email,
+        "checked_by": current_user.get("email"),
         "status_changes": changes,
         "changes_count": len(changes)
     }

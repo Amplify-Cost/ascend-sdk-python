@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from database import get_db
 from dependencies import get_current_user, get_organization_filter
-from models import User
+# SEC-078: current_user is a dict, not User object
 from models_webhooks import (
     WebhookSubscription,
     WebhookDelivery,
@@ -46,7 +46,7 @@ router = APIRouter(prefix="/api/webhooks", tags=["Enterprise Webhooks"])
 
 @router.get("/events", response_model=WebhookEventListResponse)
 async def list_webhook_events(
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     List all available webhook event types.
@@ -78,7 +78,7 @@ async def list_webhook_events(
 async def create_webhook_subscription(
     request: WebhookSubscriptionCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -99,7 +99,7 @@ async def create_webhook_subscription(
     Requires: Admin role
     """
     # Role check - only admins can create webhooks
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to manage webhooks"
@@ -113,7 +113,7 @@ async def create_webhook_subscription(
             name=request.name,
             target_url=str(request.target_url),
             event_types=request.event_types,
-            created_by=current_user.id,
+            created_by=current_user.get("user_id"),
             description=request.description,
             event_filters=request.event_filters,
             custom_headers=request.custom_headers,
@@ -122,7 +122,7 @@ async def create_webhook_subscription(
         )
 
         logger.info(
-            f"Webhook subscription created: {subscription.id} by user {current_user.id} "
+            f"Webhook subscription created: {subscription.id} by user {current_user.get("user_id")} "
             f"for org {organization_id}"
         )
 
@@ -152,7 +152,7 @@ async def create_webhook_subscription(
 async def list_webhook_subscriptions(
     include_inactive: bool = Query(False, description="Include inactive subscriptions"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -191,7 +191,7 @@ async def list_webhook_subscriptions(
 async def get_webhook_subscription(
     subscription_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -228,7 +228,7 @@ async def update_webhook_subscription(
     subscription_id: int,
     request: WebhookSubscriptionUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -238,7 +238,7 @@ async def update_webhook_subscription(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to manage webhooks"
@@ -262,7 +262,7 @@ async def update_webhook_subscription(
     if not subscription:
         raise HTTPException(status_code=404, detail="Webhook subscription not found")
 
-    logger.info(f"Webhook subscription {subscription_id} updated by user {current_user.id}")
+    logger.info(f"Webhook subscription {subscription_id} updated by user {current_user.get("user_id")}")
 
     return WebhookSubscriptionResponse(
         id=subscription.id,
@@ -284,7 +284,7 @@ async def update_webhook_subscription(
 async def delete_webhook_subscription(
     subscription_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -294,7 +294,7 @@ async def delete_webhook_subscription(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to manage webhooks"
@@ -306,7 +306,7 @@ async def delete_webhook_subscription(
     if not success:
         raise HTTPException(status_code=404, detail="Webhook subscription not found")
 
-    logger.info(f"Webhook subscription {subscription_id} deleted by user {current_user.id}")
+    logger.info(f"Webhook subscription {subscription_id} deleted by user {current_user.get("user_id")}")
     return None
 
 
@@ -323,7 +323,7 @@ class RotateSecretResponse(BaseModel):
 async def rotate_webhook_secret(
     subscription_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -334,7 +334,7 @@ async def rotate_webhook_secret(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to manage webhooks"
@@ -346,7 +346,7 @@ async def rotate_webhook_secret(
     if not subscription:
         raise HTTPException(status_code=404, detail="Webhook subscription not found")
 
-    logger.info(f"Webhook secret rotated for subscription {subscription_id} by user {current_user.id}")
+    logger.info(f"Webhook secret rotated for subscription {subscription_id} by user {current_user.get("user_id")}")
 
     return RotateSecretResponse(
         subscription_id=subscription_id,
@@ -362,7 +362,7 @@ async def test_webhook(
     subscription_id: int,
     request: WebhookTestRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -373,7 +373,7 @@ async def test_webhook(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to test webhooks"
@@ -414,7 +414,7 @@ async def get_webhook_deliveries(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -475,7 +475,7 @@ async def get_dlq_entries(
     resolved: bool = Query(False, description="Include resolved entries"),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -486,7 +486,7 @@ async def get_dlq_entries(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to view DLQ"
@@ -524,7 +524,7 @@ async def resolve_dlq_entry(
     dlq_id: int,
     request: ResolveDLQRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -535,7 +535,7 @@ async def resolve_dlq_entry(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to manage DLQ"
@@ -545,14 +545,14 @@ async def resolve_dlq_entry(
     entry = service.resolve_dlq_entry(
         dlq_id=dlq_id,
         organization_id=organization_id,
-        resolved_by=current_user.id,
+        resolved_by=current_user.get("user_id"),
         notes=request.notes if request else None
     )
 
     if not entry:
         raise HTTPException(status_code=404, detail="DLQ entry not found")
 
-    logger.info(f"DLQ entry {dlq_id} resolved by user {current_user.id}")
+    logger.info(f"DLQ entry {dlq_id} resolved by user {current_user.get("user_id")}")
 
     return {"message": "DLQ entry resolved", "dlq_id": dlq_id}
 
@@ -561,7 +561,7 @@ async def resolve_dlq_entry(
 async def retry_dlq_entry(
     dlq_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """
@@ -572,7 +572,7 @@ async def retry_dlq_entry(
 
     Requires: Admin role
     """
-    if current_user.role not in ['admin', 'platform_admin']:
+    if current_user.get("role") not in ['admin', 'platform_admin']:
         raise HTTPException(
             status_code=403,
             detail="Admin role required to manage DLQ"
@@ -590,7 +590,7 @@ async def retry_dlq_entry(
             detail="DLQ entry not found or subscription inactive"
         )
 
-    logger.info(f"DLQ entry {dlq_id} retried as delivery {delivery_id} by user {current_user.id}")
+    logger.info(f"DLQ entry {dlq_id} retried as delivery {delivery_id} by user {current_user.get("user_id")}")
 
     return {
         "message": "Webhook retry initiated",
@@ -616,7 +616,7 @@ class WebhookMetricsResponse(BaseModel):
 @router.get("/metrics", response_model=WebhookMetricsResponse)
 async def get_webhook_metrics(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     organization_id: int = Depends(get_organization_filter)
 ):
     """

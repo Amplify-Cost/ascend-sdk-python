@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 from database import get_db
 from dependencies import get_current_user
+# SEC-078: current_user is a dict, not User object. User import kept for Organization/Alert queries.
 from models import User, Organization, Alert, AgentAction
 from security.rate_limiter import limiter, RATE_LIMITS
 
@@ -218,7 +219,7 @@ def save_diagnostic_audit(
 @limiter.limit("10/minute")  # SEC-076: Rate limit expensive diagnostic operations
 async def full_health_check(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -358,7 +359,7 @@ async def full_health_check(
 @limiter.limit("20/minute")  # SEC-076: Rate limit diagnostic operations
 async def api_health_check(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -429,7 +430,7 @@ async def api_health_check(
 @limiter.limit("20/minute")  # SEC-076: Rate limit diagnostic operations
 async def database_health_check(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -514,7 +515,7 @@ async def database_health_check(
 @limiter.limit("20/minute")  # SEC-076: Rate limit diagnostic operations
 async def integration_test(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -607,7 +608,7 @@ async def diagnostic_history(
     request: Request,
     limit: int = 20,
     diagnostic_type: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -668,7 +669,7 @@ async def diagnostic_history(
 async def export_to_siem(
     export_request: SIEMExportRequest,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
