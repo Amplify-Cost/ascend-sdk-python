@@ -36,6 +36,8 @@ import SignupFlow from './components/SignupFlow';
 import VerifyEmail from './components/VerifyEmail';
 // SEC-022: Admin Console
 import AdminConsole from './components/AdminConsole';
+// DOC-003: Enterprise Documentation Viewer
+import DocumentationViewer from './components/DocumentationViewer';
 import { API_BASE_URL } from './config/api';
 import logger from './utils/logger.js';
 
@@ -497,6 +499,9 @@ const AppContent = () => {
         return (user?.role === "admin" || user?.role === "org_admin") ?
           contentWithTransition(<AdminConsole />) :
           adminRequiredMessage;
+      // DOC-003: Enterprise Documentation Viewer
+      case "documentation":
+        return contentWithTransition(<DocumentationViewer getAuthHeaders={getAuthHeaders} user={user} />);
       default:
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${

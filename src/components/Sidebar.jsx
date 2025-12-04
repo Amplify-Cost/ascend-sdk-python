@@ -27,6 +27,8 @@ const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
     Robot: "🤖",
     // SEC-022: Admin Console icon
     Building: "🏛️",
+    // DOC-003: Documentation icon
+    Book: "📚",
   };
 
   return (
@@ -83,11 +85,19 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       tab: "reports",
       description: "Security reports and documentation"
     },
-    { 
-      label: "Support", 
-      icon: <SafeIcon iconName="LifeBuoy" size={18} ariaLabel="Life buoy support" />, 
+    {
+      label: "Support",
+      icon: <SafeIcon iconName="LifeBuoy" size={18} ariaLabel="Life buoy support" />,
       tab: "support",
       description: "Help and support center"
+    },
+    // DOC-003: Enterprise Documentation - Available to all users
+    {
+      label: "Documentation",
+      icon: <SafeIcon iconName="Book" size={18} ariaLabel="Documentation book" />,
+      tab: "documentation",
+      badge: "Docs",
+      description: "Integration guides and API documentation"
     },
   ];
 
