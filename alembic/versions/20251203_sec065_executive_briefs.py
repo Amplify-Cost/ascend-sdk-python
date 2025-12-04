@@ -19,8 +19,8 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = 'sec065_exec_briefs'
-down_revision = None
-branch_labels = ('sec065',)
+down_revision = 'sec050_heartbeat'  # SEC-065: Fixed to extend from current head
+branch_labels = None
 depends_on = None
 
 
