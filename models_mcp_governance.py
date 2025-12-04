@@ -33,10 +33,10 @@ class MCPServerAction(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)  # Sequential ID for compatibility
     uuid = Column(UUID(as_uuid=True), unique=True, nullable=False, default=uuid.uuid4, index=True)  # Enterprise UUID
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
-    # SEC-045: Multi-tenant isolation (required for enterprise_unified_loader.py)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     # 🏢 COMPATIBILITY FIELDS (for enterprise_unified_loader.py)
     agent_id = Column(String(255), nullable=False, index=True)  # Maps to mcp_server_name for compatibility
@@ -154,6 +154,9 @@ class MCPServer(Base):
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Server Identity
     server_id = Column(String(100), nullable=False, unique=True, index=True)  # Unique server identifier
     server_name = Column(String(200), nullable=False)
@@ -192,11 +195,14 @@ class MCPSession(Base):
     MCP Session Tracking - Tracks active MCP client sessions
     """
     __tablename__ = "mcp_sessions"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-    
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Session Identity
     session_id = Column(String(100), nullable=False, unique=True, index=True)
     client_id = Column(String(100), nullable=False, index=True)
@@ -237,11 +243,14 @@ class MCPPolicy(Base):
     Integrates with existing smart rules engine
     """
     __tablename__ = "mcp_policies"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
-    
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Policy Identity
     policy_name = Column(String(200), nullable=False)
     policy_description = Column(Text)

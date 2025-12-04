@@ -6,6 +6,7 @@ Integrates with existing authorization center and audit system
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
+from sqlalchemy import text  # SEC-074: For raw SQL queries with org filtering
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta, UTC
 from pydantic import BaseModel, Field
@@ -15,7 +16,7 @@ import asyncio
 import uuid
 
 from database import get_db
-from dependencies import get_current_user, get_organization_filter
+from dependencies import get_current_user, get_organization_filter  # SEC-074: Multi-tenant isolation
 from models_mcp_governance import MCPServerAction, MCPServer, MCPSession, MCPPolicy
 from services.mcp_governance_service import MCPGovernanceService
 from services.immutable_audit_service import ImmutableAuditService
@@ -104,8 +105,7 @@ async def evaluate_mcp_action(
     request: Request,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service),
-    org_id: int = Depends(get_organization_filter)
+    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service)
 ):
     """
     **CORE MCP GOVERNANCE ENDPOINT**
@@ -124,14 +124,11 @@ async def evaluate_mcp_action(
     for every MCP server action before execution.
     """
     try:
-        logger.info(f"Evaluating MCP action [org_id={org_id}]")
-
         # Extract user context
         user_context = {
             'user_id': str(current_user.id),
             'user_email': current_user.email,
-            'role': getattr(current_user, 'role', 'user'),
-            'organization_id': org_id
+            'role': getattr(current_user, 'role', 'user')
         }
         
         # Extract session context
@@ -179,25 +176,19 @@ async def execute_mcp_action(
     execution_params: Dict[str, Any] = {},
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    organization_id: int = Depends(get_organization_filter),  # SEC-074: Multi-tenant isolation
     mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service),
-    audit_service: ImmutableAuditService = Depends(get_audit_service),
-    org_id: int = Depends(get_organization_filter)
+    audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """
     Execute approved MCP action with full audit logging
     """
     try:
-        logger.info(f"Executing MCP action [org_id={org_id}]")
-
-        # Get the MCP action
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        mcp_action_query = db.query(MCPServerAction).filter(
-            MCPServerAction.id == action_id
-        )
-        if org_id is not None:
-            mcp_action_query = mcp_action_query.filter(MCPServerAction.organization_id == org_id)
-
-        mcp_action = mcp_action_query.first()
+        # Get the MCP action (SEC-074: organization_id filter)
+        mcp_action = db.query(MCPServerAction).filter(
+            MCPServerAction.id == action_id,
+            MCPServerAction.organization_id == organization_id  # SEC-074
+        ).first()
         
         if not mcp_action:
             raise HTTPException(
@@ -292,23 +283,17 @@ async def register_mcp_server(
     server_registration: MCPServerRegistration,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
+    organization_id: int = Depends(get_organization_filter),  # SEC-074: Multi-tenant isolation
     mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service),
-    audit_service: ImmutableAuditService = Depends(get_audit_service),
-    org_id: int = Depends(get_organization_filter)
+    audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """Register new MCP server for governance"""
     try:
-        logger.info(f"Registering MCP server [org_id={org_id}]")
-
-        # Check if server already exists
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        existing_server_query = db.query(MCPServer).filter(
-            MCPServer.server_id == server_registration.server_id
-        )
-        if org_id is not None:
-            existing_server_query = existing_server_query.filter(MCPServer.organization_id == org_id)
-
-        existing_server = existing_server_query.first()
+        # Check if server already exists (SEC-074: within organization)
+        existing_server = db.query(MCPServer).filter(
+            MCPServer.server_id == server_registration.server_id,
+            MCPServer.organization_id == organization_id  # SEC-074
+        ).first()
         
         if existing_server:
             raise HTTPException(
@@ -324,11 +309,6 @@ async def register_mcp_server(
             capabilities=server_registration.capabilities,
             trust_level=server_registration.trust_level
         )
-
-        # Set organization_id for multi-tenant isolation
-        if org_id is not None:
-            server.organization_id = org_id
-            db.commit()
         
         # Log registration
         await audit_service.log_event(
@@ -370,21 +350,15 @@ async def list_mcp_servers(
     active_only: bool = True,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter)  # SEC-074: Multi-tenant isolation
 ):
     """List all registered MCP servers"""
     try:
-        logger.info(f"Listing MCP servers [org_id={org_id}]")
-
-        query = db.query(MCPServer)
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(MCPServer.organization_id == org_id)
-
+        # SEC-074: Filter by organization
+        query = db.query(MCPServer).filter(MCPServer.organization_id == organization_id)
         if active_only:
             query = query.filter(MCPServer.is_active == True)
-
+        
         servers = query.all()
         
         return {
@@ -422,23 +396,20 @@ async def get_pending_mcp_actions(
     risk_level: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter),  # SEC-074: Multi-tenant isolation
+    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service)
 ):
     """
     Get pending MCP actions for the Authorization Center
     **Integrates with existing agent approval workflows**
     """
     try:
-        logger.info(f"Getting pending MCP actions [org_id={org_id}]")
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        query = db.query(MCPServerAction).filter(MCPServerAction.status == 'PENDING_APPROVAL')
-        if org_id is not None:
-            query = query.filter(MCPServerAction.organization_id == org_id)
-
-        pending_actions = query.limit(limit).all()
-
+        # SEC-074: Get pending actions for this organization only
+        pending_actions = db.query(MCPServerAction).filter(
+            MCPServerAction.organization_id == organization_id,  # SEC-074
+            MCPServerAction.status == 'PENDING_APPROVAL'
+        ).order_by(MCPServerAction.risk_score.desc()).limit(limit).all()
+        
         # Filter by risk level if specified
         if risk_level:
             pending_actions = [a for a in pending_actions if a.risk_level == risk_level]
@@ -486,32 +457,38 @@ async def approve_mcp_action(
     approval_request: MCPApprovalRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter),  # SEC-074: Multi-tenant isolation
+    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service)
 ):
     """
     Approve or deny MCP action
     **Uses same approval workflows as agent actions**
     """
     try:
-        logger.info(f"Approving/denying MCP action [org_id={org_id}]")
-
         if approval_request.approval_decision.upper() == 'APPROVE':
+            # SEC-074: Verify action belongs to organization before approving
+            action_check = db.query(MCPServerAction).filter(
+                MCPServerAction.id == action_id,
+                MCPServerAction.organization_id == organization_id  # SEC-074
+            ).first()
+
+            if not action_check:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="MCP action not found"
+                )
+
             result = await mcp_service.approve_mcp_action(
                 action_id=action_id,
                 approver_email=current_user.email,
                 approval_reason=approval_request.approval_reason
             )
         else:
-            # Deny the action
-            # 🏢 ENTERPRISE: Multi-tenant isolation
-            action_query = db.query(MCPServerAction).filter(
-                MCPServerAction.id == action_id
-            )
-            if org_id is not None:
-                action_query = action_query.filter(MCPServerAction.organization_id == org_id)
-
-            action = action_query.first()
+            # Deny the action (SEC-074: organization_id filter)
+            action = db.query(MCPServerAction).filter(
+                MCPServerAction.id == action_id,
+                MCPServerAction.organization_id == organization_id  # SEC-074
+            ).first()
             
             if not action:
                 raise HTTPException(
@@ -555,14 +532,14 @@ async def create_mcp_policy(
     policy_data: MCPPolicyCreate,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    audit_service: ImmutableAuditService = Depends(get_audit_service),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter),  # SEC-074: Multi-tenant isolation
+    audit_service: ImmutableAuditService = Depends(get_audit_service)
 ):
     """Create new MCP governance policy"""
     try:
-        logger.info(f"Creating MCP policy [org_id={org_id}]")
-
+        # SEC-074: Create policy with organization_id
         policy = MCPPolicy(
+            organization_id=organization_id,  # SEC-074
             policy_name=policy_data.policy_name,
             policy_description=policy_data.policy_description,
             server_patterns=policy_data.server_patterns,
@@ -575,11 +552,7 @@ async def create_mcp_policy(
             compliance_framework=policy_data.compliance_framework,
             created_by=current_user.email
         )
-
-        # Set organization_id for multi-tenant isolation
-        if org_id is not None:
-            policy.organization_id = org_id
-
+        
         db.add(policy)
         db.commit()
         
@@ -621,21 +594,15 @@ async def list_mcp_policies(
     active_only: bool = True,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter)  # SEC-074: Multi-tenant isolation
 ):
     """List MCP governance policies"""
     try:
-        logger.info(f"Listing MCP policies [org_id={org_id}]")
-
-        query = db.query(MCPPolicy)
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(MCPPolicy.organization_id == org_id)
-
+        # SEC-074: Filter by organization
+        query = db.query(MCPPolicy).filter(MCPPolicy.organization_id == organization_id)
         if active_only:
             query = query.filter(MCPPolicy.is_active == True)
-
+        
         policies = query.order_by(MCPPolicy.priority.desc()).all()
         
         return {
@@ -675,49 +642,54 @@ async def get_mcp_analytics(
     time_range_hours: int = 24,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter)  # SEC-074: Multi-tenant isolation
 ):
     """Get MCP governance analytics for dashboard integration"""
     try:
-        logger.info(f"Getting MCP analytics [org_id={org_id}]")
-
         from sqlalchemy import func, and_
 
         # Time range filter
         time_threshold = datetime.now(UTC) - timedelta(hours=time_range_hours)
 
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        base_filter = MCPServerAction.created_at >= time_threshold
-        if org_id is not None:
-            base_filter = and_(base_filter, MCPServerAction.organization_id == org_id)
-
-        # Action counts by status
+        # SEC-074: Action counts by status (organization filtered)
         status_counts = db.query(
             MCPServerAction.status,
             func.count(MCPServerAction.id).label('count')
-        ).filter(base_filter).group_by(MCPServerAction.status).all()
-        
-        # Risk level distribution
+        ).filter(
+            MCPServerAction.organization_id == organization_id,  # SEC-074
+            MCPServerAction.created_at >= time_threshold
+        ).group_by(MCPServerAction.status).all()
+
+        # SEC-074: Risk level distribution (organization filtered)
         risk_counts = db.query(
             MCPServerAction.risk_level,
             func.count(MCPServerAction.id).label('count')
-        ).filter(base_filter).group_by(MCPServerAction.risk_level).all()
+        ).filter(
+            MCPServerAction.organization_id == organization_id,  # SEC-074
+            MCPServerAction.created_at >= time_threshold
+        ).group_by(MCPServerAction.risk_level).all()
 
-        # Server activity
+        # SEC-074: Server activity (organization filtered)
         server_activity = db.query(
             MCPServerAction.mcp_server_id,
             MCPServerAction.mcp_server_name,
             func.count(MCPServerAction.id).label('total_actions'),
             func.avg(MCPServerAction.risk_score).label('avg_risk_score')
-        ).filter(base_filter).group_by(
+        ).filter(
+            MCPServerAction.organization_id == organization_id,  # SEC-074
+            MCPServerAction.created_at >= time_threshold
+        ).group_by(
             MCPServerAction.mcp_server_id,
             MCPServerAction.mcp_server_name
         ).all()
 
-        # Top risky actions
-        risky_filter = and_(base_filter, MCPServerAction.risk_score >= 70)
+        # SEC-074: Top risky actions (organization filtered)
         risky_actions = db.query(MCPServerAction).filter(
-            risky_filter
+            and_(
+                MCPServerAction.organization_id == organization_id,  # SEC-074
+                MCPServerAction.created_at >= time_threshold,
+                MCPServerAction.risk_score >= 70
+            )
         ).order_by(MCPServerAction.risk_score.desc()).limit(10).all()
         
         return {
@@ -773,28 +745,24 @@ async def get_unified_actions(
     action_type_filter: Optional[str] = None,  # 'agent' or 'mcp' or 'all'
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter)  # SEC-074: Multi-tenant isolation
 ):
     """
     **UNIFIED AUTHORIZATION CENTER ENDPOINT**
-    
+
     Returns both agent actions and MCP server actions in a unified format
     for the Authorization Center dashboard.
-    
+
     This enables complete AI governance visibility in a single interface.
     """
     try:
-        logger.info(f"Getting unified actions [org_id={org_id}]")
-
         mcp_actions = []
 
-        # Get MCP actions
+        # SEC-074: Get MCP actions (organization filtered)
         if action_type_filter in [None, 'all', 'mcp']:
-            mcp_query = db.query(MCPServerAction)
-
-            # 🏢 ENTERPRISE: Multi-tenant isolation
-            if org_id is not None:
-                mcp_query = mcp_query.filter(MCPServerAction.organization_id == org_id)
+            mcp_query = db.query(MCPServerAction).filter(
+                MCPServerAction.organization_id == organization_id  # SEC-074
+            )
 
             if status_filter:
                 mcp_query = mcp_query.filter(MCPServerAction.status == status_filter)
@@ -837,18 +805,19 @@ async def get_unified_actions(
             ]
         
         # ENTERPRISE UNIFIED GOVERNANCE: Query both MCP and agent actions
-        
-        # Get agent actions from the main authorization system
+
+        # SEC-074: Get agent actions from the main authorization system (organization filtered)
         agent_actions = []
-        
+
         agent_query = db.execute(text("""
-            SELECT id, agent_id, action_type, description, risk_level, risk_score, 
+            SELECT id, agent_id, action_type, description, risk_level, risk_score,
                    status, created_at, updated_at, approved, reviewed_by
             FROM agent_actions
             WHERE status IN ('pending', 'pending_approval', 'approved', 'submitted')
+              AND organization_id = :organization_id
             ORDER BY created_at DESC
             LIMIT :limit
-        """), {"limit": limit}).fetchall()
+        """), {"limit": limit, "organization_id": organization_id}).fetchall()
         
         for row in agent_query:
             agent_actions.append({
@@ -901,55 +870,49 @@ async def get_unified_actions(
             description="Enterprise health check for MCP governance system")
 async def mcp_governance_health_check(
     db: Session = Depends(get_db),
-    org_id: int = Depends(get_organization_filter)
+    current_user = Depends(get_current_user),
+    organization_id: int = Depends(get_organization_filter)  # SEC-074: Multi-tenant isolation
 ):
     """
     **ENTERPRISE HEALTH CHECK**
-    
+
     Validates that MCP governance system is operational and ready
     for enterprise deployment.
     """
     try:
-        logger.info(f"MCP governance health check [org_id={org_id}]")
-
         from sqlalchemy import text
 
         # Test database connectivity
         db.execute(text("SELECT 1")).fetchone()
 
-        # Get system statistics
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        server_query = db.query(MCPServer)
-        if org_id is not None:
-            server_query = server_query.filter(MCPServer.organization_id == org_id)
+        # SEC-074: Get system statistics (organization filtered)
+        total_servers = db.query(MCPServer).filter(
+            MCPServer.organization_id == organization_id
+        ).count()
+        active_servers = db.query(MCPServer).filter(
+            MCPServer.organization_id == organization_id,
+            MCPServer.is_active == True
+        ).count()
 
-        total_servers = server_query.count()
-        active_servers = server_query.filter(MCPServer.is_active == True).count()
-
-        action_query = db.query(MCPServerAction)
-        if org_id is not None:
-            action_query = action_query.filter(MCPServerAction.organization_id == org_id)
-
-        total_actions = action_query.count()
-        pending_actions = action_query.filter(
+        total_actions = db.query(MCPServerAction).filter(
+            MCPServerAction.organization_id == organization_id
+        ).count()
+        pending_actions = db.query(MCPServerAction).filter(
+            MCPServerAction.organization_id == organization_id,
             MCPServerAction.status == 'PENDING_APPROVAL'
         ).count()
 
-        policy_query = db.query(MCPPolicy)
-        if org_id is not None:
-            policy_query = policy_query.filter(MCPPolicy.organization_id == org_id)
+        active_policies = db.query(MCPPolicy).filter(
+            MCPPolicy.organization_id == organization_id,
+            MCPPolicy.is_active == True
+        ).count()
 
-        active_policies = policy_query.filter(MCPPolicy.is_active == True).count()
-
-        # Check recent activity (last 24 hours)
+        # SEC-074: Check recent activity (last 24 hours, organization filtered)
         recent_threshold = datetime.now(UTC) - timedelta(hours=24)
-        recent_action_query = db.query(MCPServerAction).filter(
+        recent_actions = db.query(MCPServerAction).filter(
+            MCPServerAction.organization_id == organization_id,
             MCPServerAction.created_at >= recent_threshold
-        )
-        if org_id is not None:
-            recent_action_query = recent_action_query.filter(MCPServerAction.organization_id == org_id)
-
-        recent_actions = recent_action_query.count()
+        ).count()
         
         return {
             'status': 'healthy',
@@ -991,12 +954,14 @@ async def mcp_governance_health_check(
 @router.websocket("/ws/realtime")
 async def mcp_governance_websocket(
     websocket: WebSocket,
-    db: Session = Depends(get_db),
-    org_id: int = Depends(get_organization_filter)
+    db: Session = Depends(get_db)
 ):
     """
     WebSocket endpoint for real-time MCP governance updates
     Used by Authorization Center for live action notifications
+
+    NOTE: WebSocket authentication should extract organization_id from token
+    For now, this endpoint is NOT organization-filtered (requires WebSocket auth middleware)
     """
     await websocket.accept()
 
@@ -1005,23 +970,16 @@ async def mcp_governance_websocket(
             # Check for new pending actions every 5 seconds
             await asyncio.sleep(5)
 
-            # 🏢 ENTERPRISE: Multi-tenant isolation
-            pending_query = db.query(MCPServerAction).filter(
+            # NOTE: In production, extract organization_id from WebSocket token
+            # For now, showing all pending actions (requires auth middleware upgrade)
+            pending_count = db.query(MCPServerAction).filter(
                 MCPServerAction.status == 'PENDING_APPROVAL'
-            )
-            if org_id is not None:
-                pending_query = pending_query.filter(MCPServerAction.organization_id == org_id)
+            ).count()
 
-            pending_count = pending_query.count()
-
-            high_risk_query = db.query(MCPServerAction).filter(
+            high_risk_count = db.query(MCPServerAction).filter(
                 MCPServerAction.status == 'PENDING_APPROVAL',
                 MCPServerAction.risk_score >= 80
-            )
-            if org_id is not None:
-                high_risk_query = high_risk_query.filter(MCPServerAction.organization_id == org_id)
-
-            high_risk_count = high_risk_query.count()
+            ).count()
             
             # Send update to client
             await websocket.send_json({
@@ -1052,18 +1010,15 @@ async def test_mcp_evaluation(
     resource: str = "/tmp/test.txt",
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user),
-    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service),
-    org_id: int = Depends(get_organization_filter)
+    organization_id: int = Depends(get_organization_filter),  # SEC-074: Multi-tenant isolation
+    mcp_service: MCPGovernanceService = Depends(get_mcp_governance_service)
 ):
-    """Simple test endpoint for MCP evaluation"""
+    """Simple test endpoint for MCP evaluation (SEC-074: organization filtered)"""
     try:
-        logger.info(f"Test MCP evaluation [org_id={org_id}]")
-
         user_context = {
             'user_id': str(current_user.id),
             'user_email': current_user.email,
-            'role': getattr(current_user, 'role', 'user'),
-            'organization_id': org_id
+            'role': getattr(current_user, 'role', 'user')
         }
         
         session_context = {

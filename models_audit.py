@@ -2,7 +2,7 @@
 Enterprise Immutable Audit Models
 Implements WORM (Write-Once-Read-Many) design with hash-chaining
 """
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Index, Boolean, LargeBinary
+from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Index, Boolean, LargeBinary, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, UTC
@@ -17,11 +17,15 @@ class ImmutableAuditLog(Base):
     Each entry is cryptographically linked to the previous entry
     """
     __tablename__ = "immutable_audit_logs"
-    
+
     # Primary identifiers
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sequence_number = Column(Integer, nullable=False, unique=True, autoincrement=True)
-    
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    # NOTE: organization_id is NOT part of content_hash to preserve hash chain integrity
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Timestamp and source
     timestamp = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     source_system = Column(String(100), nullable=False, default="ow-ai")
@@ -94,11 +98,14 @@ class EvidencePack(Base):
     Contains cryptographically verified audit trails
     """
     __tablename__ = "evidence_packs"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
     created_by = Column(String(100), nullable=False)
-    
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Evidence metadata
     title = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
@@ -132,10 +139,13 @@ class AuditIntegrityCheck(Base):
     Validates hash chains and detects tampering
     """
     __tablename__ = "audit_integrity_checks"
-    
+
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     check_time = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC))
-    
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Check scope
     start_sequence = Column(Integer, nullable=False)
     end_sequence = Column(Integer, nullable=False)

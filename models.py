@@ -688,6 +688,9 @@ class AutomationPlaybook(Base):
     id = Column(String(255), primary_key=True, index=True)  # e.g., "pb-001", "pb-high-risk-auto"
     name = Column(String(255), nullable=False, index=True)
     description = Column(Text)
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
     
     # Status and risk management
     status = Column(String(50), default='active', index=True)  # active|inactive|disabled|maintenance
@@ -735,10 +738,13 @@ class PlaybookExecution(Base):
     
     # Primary key
     id = Column(Integer, primary_key=True, index=True)
-    
+
+    # SEC-074: Enterprise Multi-Tenant Isolation
+    organization_id = Column(Integer, ForeignKey('organizations.id'), nullable=True, index=True)
+
     # Playbook reference
     playbook_id = Column(String(255), ForeignKey('automation_playbooks.id'), nullable=False, index=True)
-    
+
     # Execution context
     executed_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     execution_context = Column(String(50), default='manual')  # manual|automatic|scheduled|trigger
