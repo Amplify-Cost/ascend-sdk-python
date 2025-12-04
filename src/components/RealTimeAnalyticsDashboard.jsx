@@ -32,7 +32,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
         method: 'GET',
         headers: {
           ...headers,
-          'X-Enterprise-Client': 'OW-AI-Platform',
+          'X-Enterprise-Client': 'Ascend-Platform',
           'X-Request-ID': `analytics-${Date.now()}`
         },
         credentials: 'include'

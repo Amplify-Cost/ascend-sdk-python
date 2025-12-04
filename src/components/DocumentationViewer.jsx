@@ -14,7 +14,7 @@
  *
  * Document ID: ASCEND-DOCS-VIEWER-001
  * Author: Ascend Engineering Team
- * Publisher: OW-kai Technologies Inc.
+ * Publisher: Ascend Technologies Inc.
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -509,7 +509,7 @@ const DocNavigation = ({ documents, activeDoc, onSelectDoc, isDarkMode, searchQu
       <div className={`p-4 border-t ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
         <div className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>
           <p>Ascend Platform Documentation</p>
-          <p className="mt-1">© OW-kai Technologies Inc.</p>
+          <p className="mt-1">© Ascend Technologies Inc.</p>
         </div>
       </div>
     </nav>
@@ -773,7 +773,7 @@ const DocumentationViewer = ({ user }) => {
         }`}>
           <div className="flex items-center justify-between">
             <span>Ascend Enterprise Platform - Integration Documentation</span>
-            <span>Version 2.0.0 | © OW-kai Technologies Inc.</span>
+            <span>Version 2.0.0 | © Ascend Technologies Inc.</span>
           </div>
         </footer>
       </main>

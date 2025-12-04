@@ -190,11 +190,11 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className={`text-xl font-bold transition-all duration-300 ${
-              isDarkMode 
+              isDarkMode
                 ? 'bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent'
                 : 'bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent'
             }`}>
-              OW AI Platform
+              Ascend
             </h1>
             <p className={`text-sm mt-1 transition-colors duration-300 ${
               isDarkMode ? 'text-slate-200' : 'text-blue-200'
@@ -258,7 +258,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       </div>
 
       {/* ✅ ENHANCED: Navigation with Real-Time Analytics */}
-      <nav className="flex-1 py-4" role="navigation" aria-label="Platform sections">
+      <nav className="flex-1 py-4 overflow-y-auto" role="navigation" aria-label="Platform sections">
         <ul className="space-y-1 px-3">
           {menuItems.map((item) => (
             <li key={item.tab}>
@@ -337,7 +337,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
               ? 'text-slate-200 hover:bg-red-600/20 hover:text-red-300 focus:ring-red-400' 
               : 'text-blue-100 hover:bg-red-600/20 hover:text-white focus:ring-red-400'
           }`}
-          aria-label="Log out of OW AI Platform"
+          aria-label="Log out of Ascend"
         >
           <SafeIcon 
             iconName="LogOut" 
