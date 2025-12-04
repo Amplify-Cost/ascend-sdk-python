@@ -79,10 +79,15 @@ class User(Base):
     last_logout = Column(DateTime, nullable=True)
     last_active_at = Column(DateTime, nullable=True)
 
+    # SEC-071: Admin Console - MFA Status Tracking
+    # Compliance: SOC 2 CC6.1, NIST IA-2, PCI-DSS 8.3
+    mfa_enabled = Column(Boolean, default=False, nullable=False)
+
     # Relationships
 
     logs = relationship("Log", back_populates="user")
-    organization = relationship("Organization", back_populates="users")
+    # SEC-071: Explicit foreign_keys to disambiguate from Organization.owner_user_id
+    organization = relationship("Organization", back_populates="users", foreign_keys=[organization_id])
     # SEC-066: Enterprise Unified Metrics audit relationship
     metric_audits = relationship("MetricCalculationAudit", back_populates="user")
 
@@ -946,8 +951,13 @@ class Organization(Base):
     # Example: ['acme.com', 'acme.net'] -> Acme Corp organization
     email_domains = Column(postgresql.ARRAY(String(255)), nullable=True)
 
+    # SEC-071: Admin Console - Organization Owner Tracking
+    # Used for permission enforcement in admin_console_routes.py
+    owner_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
     # Relationships
-    users = relationship("User", back_populates="organization")
+    # SEC-071: Explicit foreign_keys to disambiguate from owner_user_id
+    users = relationship("User", back_populates="organization", foreign_keys="[User.organization_id]")
     # SEC-023: Phase 4 Compliance Export relationship (required by models_compliance_export.py)
     compliance_exports = relationship("ComplianceExportJob", back_populates="organization")
     # SEC-066: Enterprise Unified Metrics relationships
