@@ -416,13 +416,47 @@ const AgentRegistryManagement = () => {
   const loadGovernanceConfig = useCallback(async (agentId) => {
     try {
       setGovernanceLoading(true);
-      // Load usage stats and anomaly data in parallel
-      const [usageResponse, anomalyResponse] = await Promise.all([
+      // SEC-074: Load usage stats, anomaly data, and governance config in parallel
+      const [usageResponse, anomalyResponse, governanceConfigResponse] = await Promise.all([
         fetchWithAuth(`/api/registry/agents/${agentId}/usage`).catch(() => null),
-        fetchWithAuth(`/api/registry/agents/${agentId}/anomalies`).catch(() => null)
+        fetchWithAuth(`/api/registry/agents/${agentId}/anomalies`).catch(() => null),
+        fetchWithAuth(`/api/registry/agents/${agentId}/governance`).catch(() => null)
       ]);
       setUsageStats(usageResponse);
       setAnomalyData(anomalyResponse);
+
+      // SEC-074: Populate governance form with fetched config
+      if (governanceConfigResponse) {
+        setGovernanceForm({
+          // Rate Limits
+          max_actions_per_minute: governanceConfigResponse.rate_limits?.max_actions_per_minute || null,
+          max_actions_per_hour: governanceConfigResponse.rate_limits?.max_actions_per_hour || null,
+          max_actions_per_day: governanceConfigResponse.rate_limits?.max_actions_per_day || null,
+          // Budget Controls
+          max_daily_budget_usd: governanceConfigResponse.budget?.max_daily_budget_usd || null,
+          budget_alert_threshold_percent: governanceConfigResponse.budget?.budget_alert_threshold_percent || 80,
+          auto_suspend_on_budget_exceeded: governanceConfigResponse.budget?.auto_suspend_on_exceeded || true,
+          // Time Windows
+          time_window_enabled: governanceConfigResponse.time_window?.enabled || false,
+          time_window_start: governanceConfigResponse.time_window?.start_time || "09:00",
+          time_window_end: governanceConfigResponse.time_window?.end_time || "17:00",
+          time_window_timezone: governanceConfigResponse.time_window?.timezone || "America/New_York",
+          time_window_days: governanceConfigResponse.time_window?.allowed_days || [1, 2, 3, 4, 5],
+          // Data Classifications
+          allowed_data_classifications: governanceConfigResponse.data_classifications?.allowed_classifications || [],
+          blocked_data_classifications: governanceConfigResponse.data_classifications?.blocked_classifications || [],
+          // Auto-Suspension Rules
+          auto_suspend_enabled: governanceConfigResponse.auto_suspend?.enabled || false,
+          auto_suspend_on_error_rate: governanceConfigResponse.auto_suspend?.on_error_rate || null,
+          auto_suspend_on_offline_minutes: governanceConfigResponse.auto_suspend?.on_offline_minutes || null,
+          auto_suspend_on_budget: governanceConfigResponse.auto_suspend?.on_budget_exceeded || true,
+          auto_suspend_on_rate: governanceConfigResponse.auto_suspend?.on_rate_exceeded || false,
+          // Escalation
+          allow_queued_approval: governanceConfigResponse.escalation?.allow_queued_approval || false,
+          escalation_webhook_url: governanceConfigResponse.escalation?.escalation_webhook_url || "",
+          escalation_email: governanceConfigResponse.escalation?.escalation_email || ""
+        });
+      }
     } catch (error) {
       console.error("SEC-072: Failed to load governance config:", error);
     } finally {
@@ -1606,11 +1640,59 @@ if result.can_proceed:
                 {selectedAgent.status}
               </span>
             </div>
-            <div className="p-6 space-y-6">
-              <div>
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Description</h4>
-                <p className="text-gray-600 dark:text-gray-400">{selectedAgent.description || "No description provided"}</p>
+
+            {/* SEC-074: Tab Navigation for Agent Details */}
+            <div className="border-b border-gray-200 dark:border-gray-700">
+              <div className="flex space-x-6 px-6">
+                <button
+                  onClick={() => setDetailsTab("overview")}
+                  className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    detailsTab === "overview"
+                      ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  Overview
+                </button>
+                <button
+                  onClick={() => {
+                    setDetailsTab("governance");
+                    loadGovernanceConfig(selectedAgent.agent_id);
+                  }}
+                  className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    detailsTab === "governance"
+                      ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  Governance
+                  <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded">
+                    SOC 2
+                  </span>
+                </button>
+                <button
+                  onClick={() => {
+                    setDetailsTab("monitoring");
+                    loadGovernanceConfig(selectedAgent.agent_id);
+                  }}
+                  className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    detailsTab === "monitoring"
+                      ? "border-blue-600 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+                >
+                  Monitoring
+                </button>
               </div>
+            </div>
+
+            {/* Overview Tab */}
+            {detailsTab === "overview" && (
+              <div className="p-6 space-y-6">
+                <div>
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">Description</h4>
+                  <p className="text-gray-600 dark:text-gray-400">{selectedAgent.description || "No description provided"}</p>
+                </div>
 
               {/* SEC-060: Enterprise Risk Visualization */}
               <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
@@ -1736,9 +1818,476 @@ if result.can_proceed:
                   </div>
                 )}
               </div>
+              </div>
+            )}
 
-              {/* SEC-072: Usage & Monitoring Section */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+            {/* SEC-074: Governance Configuration Tab */}
+            {detailsTab === "governance" && (
+              <div className="p-6 space-y-6">
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-2xl">🛡️</span>
+                    <div>
+                      <h3 className="font-semibold text-blue-900 dark:text-blue-100">Enterprise Governance Controls</h3>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Configure autonomous agent safety controls with banking-level compliance
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {governanceLoading ? (
+                  <div className="text-center py-12">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600"></div>
+                    <p className="mt-4 text-gray-600 dark:text-gray-400">Loading governance configuration...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    {/* A. Rate Limits */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-lg">⏱️ Rate Limits</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Control action frequency per time period</p>
+                        </div>
+                        <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded font-semibold">
+                          SOC 2 CC6.2 / NIST SI-4
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Max per Minute
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={governanceForm.max_actions_per_minute || ""}
+                            onChange={(e) => setGovernanceForm({...governanceForm, max_actions_per_minute: parseInt(e.target.value) || null})}
+                            placeholder="No limit"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Max per Hour
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={governanceForm.max_actions_per_hour || ""}
+                            onChange={(e) => setGovernanceForm({...governanceForm, max_actions_per_hour: parseInt(e.target.value) || null})}
+                            placeholder="No limit"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Max per Day
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={governanceForm.max_actions_per_day || ""}
+                            onChange={(e) => setGovernanceForm({...governanceForm, max_actions_per_day: parseInt(e.target.value) || null})}
+                            placeholder="No limit"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* B. Budget Controls */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-lg">💰 Budget Controls</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Set spending limits and alerts</p>
+                        </div>
+                        <span className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs rounded font-semibold">
+                          PCI-DSS 7.1 / SOC 2 A1.1
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Max Daily Budget (USD)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={governanceForm.max_daily_budget_usd || ""}
+                            onChange={(e) => setGovernanceForm({...governanceForm, max_daily_budget_usd: parseFloat(e.target.value) || null})}
+                            placeholder="No limit"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Budget Alert Threshold (%)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={governanceForm.budget_alert_threshold_percent || ""}
+                            onChange={(e) => setGovernanceForm({...governanceForm, budget_alert_threshold_percent: parseInt(e.target.value) || 80})}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={governanceForm.auto_suspend_on_budget_exceeded}
+                            onChange={(e) => setGovernanceForm({...governanceForm, auto_suspend_on_budget_exceeded: e.target.checked})}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Auto-suspend agent when budget exceeded
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* C. Time Windows */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-lg">🕐 Time Windows</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Restrict agent activity to specific time periods</p>
+                        </div>
+                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-xs rounded font-semibold">
+                          SOC 2 A1.1
+                        </span>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={governanceForm.time_window_enabled}
+                            onChange={(e) => setGovernanceForm({...governanceForm, time_window_enabled: e.target.checked})}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Enable time window restrictions
+                          </span>
+                        </label>
+
+                        {governanceForm.time_window_enabled && (
+                          <>
+                            <div className="grid grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  Start Time
+                                </label>
+                                <input
+                                  type="time"
+                                  value={governanceForm.time_window_start}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, time_window_start: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  End Time
+                                </label>
+                                <input
+                                  type="time"
+                                  value={governanceForm.time_window_end}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, time_window_end: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  Timezone
+                                </label>
+                                <select
+                                  value={governanceForm.time_window_timezone}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, time_window_timezone: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="America/New_York">Eastern (ET)</option>
+                                  <option value="America/Chicago">Central (CT)</option>
+                                  <option value="America/Denver">Mountain (MT)</option>
+                                  <option value="America/Los_Angeles">Pacific (PT)</option>
+                                  <option value="UTC">UTC</option>
+                                  <option value="Europe/London">London (GMT)</option>
+                                  <option value="Europe/Paris">Paris (CET)</option>
+                                  <option value="Asia/Tokyo">Tokyo (JST)</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Active Days
+                              </label>
+                              <div className="flex space-x-2">
+                                {[
+                                  { label: "Mon", value: 1 },
+                                  { label: "Tue", value: 2 },
+                                  { label: "Wed", value: 3 },
+                                  { label: "Thu", value: 4 },
+                                  { label: "Fri", value: 5 },
+                                  { label: "Sat", value: 6 },
+                                  { label: "Sun", value: 7 }
+                                ].map((day) => (
+                                  <label key={day.value} className="flex items-center cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={governanceForm.time_window_days.includes(day.value)}
+                                      onChange={(e) => {
+                                        const days = e.target.checked
+                                          ? [...governanceForm.time_window_days, day.value]
+                                          : governanceForm.time_window_days.filter(d => d !== day.value);
+                                        setGovernanceForm({...governanceForm, time_window_days: days});
+                                      }}
+                                      className="sr-only"
+                                    />
+                                    <span className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                                      governanceForm.time_window_days.includes(day.value)
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                    }`}>
+                                      {day.label}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* D. Data Classifications */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-lg">🔐 Data Classifications</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Control which data types agent can access</p>
+                        </div>
+                        <span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs rounded font-semibold">
+                          HIPAA 164.312 / PCI-DSS 3.4 / GDPR
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Allowed Classifications
+                          </label>
+                          <div className="space-y-2">
+                            {["public", "internal", "confidential", "pii", "financial", "secret", "top_secret"].map((classification) => (
+                              <label key={classification} className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={governanceForm.allowed_data_classifications.includes(classification)}
+                                  onChange={(e) => {
+                                    const classifications = e.target.checked
+                                      ? [...governanceForm.allowed_data_classifications, classification]
+                                      : governanceForm.allowed_data_classifications.filter(c => c !== classification);
+                                    setGovernanceForm({...governanceForm, allowed_data_classifications: classifications});
+                                  }}
+                                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">
+                                  {classification.replace("_", " ")}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Blocked Classifications
+                          </label>
+                          <div className="space-y-2">
+                            {["public", "internal", "confidential", "pii", "financial", "secret", "top_secret"].map((classification) => (
+                              <label key={classification} className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={governanceForm.blocked_data_classifications.includes(classification)}
+                                  onChange={(e) => {
+                                    const classifications = e.target.checked
+                                      ? [...governanceForm.blocked_data_classifications, classification]
+                                      : governanceForm.blocked_data_classifications.filter(c => c !== classification);
+                                    setGovernanceForm({...governanceForm, blocked_data_classifications: classifications});
+                                  }}
+                                  className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300 capitalize">
+                                  {classification.replace("_", " ")}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* E. Auto-Suspension Rules */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-lg">🚨 Auto-Suspension Rules</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Automatically suspend agent on policy violations</p>
+                        </div>
+                        <span className="px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 text-xs rounded font-semibold">
+                          NIST AC-2(3)
+                        </span>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={governanceForm.auto_suspend_enabled}
+                            onChange={(e) => setGovernanceForm({...governanceForm, auto_suspend_enabled: e.target.checked})}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Enable automatic suspension
+                          </span>
+                        </label>
+
+                        {governanceForm.auto_suspend_enabled && (
+                          <>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  Error Rate Threshold (%)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={governanceForm.auto_suspend_on_error_rate || ""}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, auto_suspend_on_error_rate: parseInt(e.target.value) || null})}
+                                  placeholder="No limit"
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                  Offline Threshold (minutes)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={governanceForm.auto_suspend_on_offline_minutes || ""}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, auto_suspend_on_offline_minutes: parseInt(e.target.value) || null})}
+                                  placeholder="No limit"
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                />
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={governanceForm.auto_suspend_on_budget}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, auto_suspend_on_budget: e.target.checked})}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                  Suspend on budget exceeded
+                                </span>
+                              </label>
+                              <label className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={governanceForm.auto_suspend_on_rate}
+                                  onChange={(e) => setGovernanceForm({...governanceForm, auto_suspend_on_rate: e.target.checked})}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                  Suspend on rate limit exceeded
+                                </span>
+                              </label>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* F. Escalation */}
+                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-lg">📢 Escalation</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Configure approval workflows and notifications</p>
+                        </div>
+                        <span className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs rounded font-semibold">
+                          CR-003
+                        </span>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={governanceForm.allow_queued_approval}
+                            onChange={(e) => setGovernanceForm({...governanceForm, allow_queued_approval: e.target.checked})}
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Allow queued approval for high-risk actions
+                          </span>
+                        </label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Escalation Webhook URL
+                          </label>
+                          <input
+                            type="url"
+                            value={governanceForm.escalation_webhook_url}
+                            onChange={(e) => setGovernanceForm({...governanceForm, escalation_webhook_url: e.target.value})}
+                            placeholder="https://your-webhook.com/escalations"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Escalation Email
+                          </label>
+                          <input
+                            type="email"
+                            value={governanceForm.escalation_email}
+                            onChange={(e) => setGovernanceForm({...governanceForm, escalation_email: e.target.value})}
+                            placeholder="security-team@company.com"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => setDetailsTab("overview")}
+                        className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => saveGovernanceConfig(selectedAgent.agent_id)}
+                        disabled={governanceLoading}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 flex items-center space-x-2"
+                      >
+                        <span>💾</span>
+                        <span>{governanceLoading ? "Saving..." : "Save Governance Config"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* SEC-072: Monitoring Tab (Usage & Statistics) */}
+            {detailsTab === "monitoring" && (
+              <div className="p-6">
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="font-medium text-gray-900 dark:text-white">📊 Usage & Monitoring</h4>
                   <button
@@ -1843,7 +2392,10 @@ if result.can_proceed:
                   </div>
                 )}
               </div>
-            </div>
+              </div>
+            )}
+
+            {/* Modal Footer - Action Buttons */}
             <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
               <div className="flex space-x-2">
                 <button
