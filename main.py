@@ -1555,6 +1555,20 @@ except Exception as e:
     logger.warning(f"SEC-065: Executive Brief routes not loaded: {e}")
     print(f"⚠️  SEC-065: Executive Brief routes failed to load: {e}")
 
+# ============================================================================
+# SEC-076: Enterprise Diagnostics Routes
+# ============================================================================
+# Industry-aligned health monitoring (Wiz.io, Splunk, Datadog patterns)
+# Compliance: SOC 2 CC7.2, PCI-DSS 10.2, HIPAA 164.312, NIST AU-6
+try:
+    from routes.diagnostics_routes import router as diagnostics_router
+    app.include_router(diagnostics_router, tags=["Enterprise Diagnostics"])
+    logger.info("✅ SEC-076: Diagnostics routes loaded - /api/diagnostics/*")
+    print("✅ SEC-076: Enterprise Diagnostics System enabled")
+except ImportError as e:
+    logger.warning(f"SEC-076: Diagnostics routes not loaded: {e}")
+    print(f"⚠️  SEC-076: Diagnostics routes not available: {e}")
+
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
 
