@@ -419,6 +419,10 @@ class ExecutiveBriefService:
     def _calculate_metrics(self, alerts: List[Alert]) -> Dict[str, Any]:
         """
         Calculate key metrics from alerts.
+
+        SEC-066: Uses UnifiedMetricsEngine for consistent calculations
+        across all platform components (Executive Brief, Performance Metrics,
+        AI Insights, etc.)
         """
         if not alerts:
             return {
@@ -435,6 +439,46 @@ class ExecutiveBriefService:
                 "system_accuracy": "N/A"
             }
 
+        # SEC-066: Use unified metrics engine for consistent calculations
+        try:
+            from services.unified_metrics_engine import UnifiedMetricsEngine
+            from services.metric_definitions import OrgMetricConfig
+
+            # Create org config from executive brief config
+            org_config = OrgMetricConfig(
+                organization_id=self.org_id,
+                cost_per_incident_usd=self.config.COST_PER_INCIDENT_USD,
+                hourly_analyst_rate_usd=75.0,  # Default
+                default_analysis_period_hours=self.config.TIME_PERIOD_DAYS.get("24h", 1) * 24,
+            )
+
+            # Get unified metrics (24h for executive brief)
+            unified_engine = UnifiedMetricsEngine(self.db, self.org_id, org_config)
+            snapshot = unified_engine.calculate(period_hours=24)
+
+            return {
+                "total_alerts": snapshot.alerts_total,
+                "critical_count": snapshot.alerts_critical,
+                "high_count": snapshot.alerts_high,
+                "medium_count": snapshot.alerts_medium,
+                "low_count": snapshot.alerts_low,
+                "acknowledged_count": snapshot.alerts_acknowledged,
+                "pending_count": snapshot.alerts_pending,
+                "threats_detected": snapshot.threats_detected,
+                "threats_prevented": snapshot.threats_prevented,
+                "cost_savings": f"${snapshot.cost_savings:,.0f}",
+                "system_accuracy": f"{snapshot.accuracy_rate:.1f}%" if snapshot.alerts_total > 0 else "N/A"
+            }
+
+        except Exception as e:
+            # Fallback to legacy calculation if unified engine fails
+            logger.warning(f"SEC-066: Unified engine failed, using fallback: {e}")
+            return self._calculate_metrics_legacy(alerts)
+
+    def _calculate_metrics_legacy(self, alerts: List[Alert]) -> Dict[str, Any]:
+        """
+        Legacy metric calculation - fallback if unified engine unavailable.
+        """
         severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         acknowledged = 0
         pending = 0
@@ -451,12 +495,9 @@ class ExecutiveBriefService:
 
         # Calculate derived metrics
         total = len(alerts)
-        high_priority = severity_counts["critical"] + severity_counts["high"]
         prevented = acknowledged  # Acknowledged = handled = prevented
 
         # Cost savings estimate (configurable per organization)
-        # Uses COST_PER_INCIDENT_USD from config (default: $50K)
-        # Set to 0 in config to disable cost savings calculation
         if self.config.COST_PER_INCIDENT_USD > 0:
             cost_savings = prevented * self.config.COST_PER_INCIDENT_USD
         else:

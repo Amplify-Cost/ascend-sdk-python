@@ -83,6 +83,8 @@ class User(Base):
 
     logs = relationship("Log", back_populates="user")
     organization = relationship("Organization", back_populates="users")
+    # SEC-066: Enterprise Unified Metrics audit relationship
+    metric_audits = relationship("MetricCalculationAudit", back_populates="user")
 
 class Alert(Base):
     __tablename__ = "alerts"
@@ -948,6 +950,9 @@ class Organization(Base):
     users = relationship("User", back_populates="organization")
     # SEC-023: Phase 4 Compliance Export relationship (required by models_compliance_export.py)
     compliance_exports = relationship("ComplianceExportJob", back_populates="organization")
+    # SEC-066: Enterprise Unified Metrics relationships
+    metric_audits = relationship("MetricCalculationAudit", back_populates="organization")
+    metric_config = relationship("OrgMetricConfig", back_populates="organization", uselist=False)
 
     def __repr__(self):
         return f"<Organization(id={self.id}, name={self.name}, tier={self.subscription_tier})>"
@@ -1111,3 +1116,8 @@ try:
     from models_compliance_export import ComplianceExportJob
 except ImportError:
     pass  # Model module may not exist in older deployments
+
+try:
+    from models_metrics import MetricCalculationAudit, OrgMetricConfig
+except ImportError:
+    pass  # SEC-066: Model module may not exist in older deployments

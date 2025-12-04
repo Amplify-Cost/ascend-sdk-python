@@ -774,6 +774,20 @@ async def get_ai_insights(
         fp_rate = alert_stats[5] or 0
         escalation_rate = alert_stats[6] or 0
 
+        # SEC-066: Use unified metrics engine for consistent risk scoring
+        try:
+            from services.unified_metrics_engine import UnifiedMetricsEngine
+            unified_engine = UnifiedMetricsEngine(db, org_id)
+            unified_snapshot = unified_engine.calculate(period_hours=720)  # 30 days
+            unified_risk_score = unified_snapshot.risk_score
+            unified_risk_level = unified_snapshot.risk_level
+            unified_risk_trend = unified_snapshot.risk_trend
+        except Exception as e:
+            logger.warning(f"SEC-066: Unified engine failed for AI insights: {e}")
+            unified_risk_score = min(95, 40 + (critical_count * 20) + (high_count * 5))
+            unified_risk_level = "LOW"
+            unified_risk_trend = "stable"
+
         # 🏢 SEC-008: ENTERPRISE - Return empty state when organization has NO alerts
         # This prevents showing computed defaults/placeholder data for orgs without activity
         if total_alerts == 0:
@@ -1002,8 +1016,10 @@ async def get_ai_insights(
                 "escalation_rate": f"{escalation_rate:.1f}%"
             },
             "predictive_analysis": {
-                "risk_score": min(95, 40 + (critical_count * 20) + (high_count * 5)),
-                "trend_direction": "increasing" if weekly_comparison and weekly_comparison[0] and weekly_comparison[1] and weekly_comparison[0] > (weekly_comparison[1] or 0) * 1.2 else "stable",  # ✅ FIX: Handle None values in weekly_comparison
+                # SEC-066: Use unified engine for consistent risk scoring across platform
+                "risk_score": unified_risk_score,
+                "risk_level": unified_risk_level,
+                "trend_direction": unified_risk_trend,
                 "predicted_incidents": critical_count + (high_count // 2),
                 "confidence_level": 80 + min(15, active_alerts * 2)
             },
@@ -1121,17 +1137,26 @@ async def get_ai_performance_metrics(
             """), {"org_id": org_id}).fetchone()
 
             # ============================================================================
+            # SEC-066: USE UNIFIED METRICS ENGINE FOR CONSISTENT CALCULATIONS
+            # Replaces flawed time-based cost savings with incident-based formula
+            # ============================================================================
+            from services.unified_metrics_engine import UnifiedMetricsEngine
+            unified_engine = UnifiedMetricsEngine(db, org_id)
+            # Use 720 hours (30 days) to match the performance metrics period
+            unified_snapshot = unified_engine.calculate(period_hours=720)
+
+            # ============================================================================
             # QUERY 4: Operational Efficiency (30 days)
             # 🏢 ENTERPRISE: Filter by organization_id
+            # SEC-066: Cost savings now comes from unified engine
             # ============================================================================
             operational = db.execute(text("""
                 SELECT
                     -- Time saved: manual (15 min) vs actual MTTR
-                    SUM(15 - COALESCE(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60, 15))
+                    SUM(GREATEST(0, 15 - COALESCE(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60, 15)))
                         FILTER (WHERE acknowledged_at IS NOT NULL) as minutes_saved,
-                    -- Cost savings: time saved * $75/hour
-                    SUM((15 - COALESCE(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60, 15)) / 60 * 75)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as cost_savings,
+                    -- SEC-066: Cost savings placeholder (will be overridden by unified engine)
+                    0 as cost_savings_placeholder,
                     -- Escalation rate
                     COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END)::float /
                         NULLIF(COUNT(*), 0)::float * 100 as escalation_rate,
@@ -1212,11 +1237,14 @@ async def get_ai_performance_metrics(
             intel_matches = int(threat_detection[3] or 0) if threat_detection else 0
 
             minutes_saved = float(operational[0] or 0) if operational and operational[0] else 0
-            cost_savings = float(operational[1] or 0) if operational and operational[1] else 0
+            # SEC-066: Use unified engine for cost savings (prevents negative values)
+            cost_savings = unified_snapshot.cost_savings_monthly  # Monthly cost savings from unified engine
             escalation_rate = float(operational[2] or 0) if operational and operational[2] else 0
             sla_compliance = float(operational[3] or 100) if operational and operational[3] else 100
 
-            hours_saved = minutes_saved / 60
+            # SEC-066: Also use unified values for consistency
+            real_threats = unified_snapshot.threats_prevented  # Override with consistent value
+            hours_saved = unified_snapshot.time_savings_hours
 
             # 🏢 SEC-008: ENTERPRISE - Return empty state when organization has NO alerts
             if total_processed == 0:
