@@ -2336,11 +2336,21 @@ async def fix_database_schema():
             "message": f"Failed to fix schema: {str(e)}"
         }
 
-# ================== YOUR AGENT ACTION SUBMISSION ENDPOINT ==================
+# ================== LEGACY AGENT ACTION SUBMISSION ENDPOINT ==================
+# SEC-064 DEPRECATION NOTICE: This endpoint uses legacy raw SQL patterns.
+# For enterprise-grade risk assessment with the full 9-service pipeline, use:
+#   - /api/sdk/agent-action (SDK integration)
+#   - /api/authorization/agent-action (Auth API integration)
+# Both use services/enterprise_risk_pipeline.py for consistent risk scoring.
 
 @app.post("/api/agent-actions")
 async def submit_agent_action_fixed(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Fixed with raw SQL like other working endpoints"""
+    """
+    Submit new agent action - Legacy endpoint with raw SQL.
+
+    DEPRECATED: Use /api/sdk/agent-action or /api/authorization/agent-action
+    for full enterprise risk assessment pipeline.
+    """
     try:
         data = await request.json()
         logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
@@ -2978,12 +2988,21 @@ Note: This summary was generated using enterprise security protocols. For detail
             detail=f"Enterprise alert summary generation failed: {str(e)}"
         )    
     
-# ================== ENTERPRISE FIX: ADD MISSING /agent-action ENDPOINT ==================
-# Add this endpoint to your main.py right after your existing /agent-actions endpoints
+# ================== LEGACY AGENT ACTION SINGULAR ENDPOINT ==================
+# SEC-064 DEPRECATION NOTICE: This endpoint uses legacy raw SQL patterns.
+# For enterprise-grade risk assessment with the full 9-service pipeline, use:
+#   - /api/sdk/agent-action (SDK integration)
+#   - /api/authorization/agent-action (Auth API integration)
+# Both use services/enterprise_risk_pipeline.py for consistent risk scoring.
 
 @app.post("/api/agent-action")
 async def submit_agent_action_singular(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Enterprise database-compatible endpoint"""
+    """
+    Submit new agent action - Legacy endpoint with raw SQL.
+
+    DEPRECATED: Use /api/sdk/agent-action or /api/authorization/agent-action
+    for full enterprise risk assessment pipeline.
+    """
     try:
         data = await request.json()
         
@@ -3273,11 +3292,19 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-#Authorization Endpoints
+# ================== LEGACY AUTHORIZATION REQUEST ENDPOINT ==================
+# SEC-064 DEPRECATION NOTICE: This endpoint uses legacy patterns.
+# For enterprise-grade risk assessment with the full 9-service pipeline, use:
+#   - /api/authorization/agent-action (Auth API integration)
+# This uses services/enterprise_risk_pipeline.py for consistent risk scoring.
 
 @app.post("/api/agent-control/request-authorization")
 async def request_authorization(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """🏢 ENTERPRISE: Request authorization for high-risk agent actions"""
+    """
+    🏢 ENTERPRISE: Request authorization for high-risk agent actions.
+
+    DEPRECATED: Use /api/authorization/agent-action for full enterprise risk pipeline.
+    """
     try:
         data = await request.json()
         
