@@ -20,7 +20,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { API_BASE_URL } from '../config/api';
-import { fetchWithAuth } from '../utils/fetchWithAuth';
 
 // Security: Maximum search query length to prevent abuse
 const MAX_SEARCH_LENGTH = 100;
@@ -520,7 +519,7 @@ const DocNavigation = ({ documents, activeDoc, onSelectDoc, isDarkMode, searchQu
 /**
  * Main Documentation Viewer Component
  */
-const DocumentationViewer = ({ getAuthHeaders, user }) => {
+const DocumentationViewer = ({ user }) => {
   const { isDarkMode } = useTheme();
   const [documents, setDocuments] = useState([]);
   const [activeDoc, setActiveDoc] = useState(null);
@@ -530,6 +529,38 @@ const DocumentationViewer = ({ getAuthHeaders, user }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
 
+  // SEC-071: Cookie-based API helper for documentation
+  // Handles both JSON (index) and text (markdown) responses
+  // Compliance: SOC 2 CC6.1, PCI-DSS 8.3, HIPAA 164.312
+  const docApiCall = useCallback(async (endpoint, expectJson = true) => {
+    const url = `${API_BASE_URL}${endpoint}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': expectJson ? 'application/json' : 'text/markdown, text/plain, */*',
+        },
+        credentials: 'include', // CRITICAL: Cookie-based auth
+      });
+
+      if (!response.ok) {
+        // Handle 401 - session expired
+        if (response.status === 401) {
+          console.warn('SEC-071: Session expired - redirecting to login');
+          window.location.href = '/login';
+          throw new Error('Authentication required');
+        }
+        throw new Error(`Request failed: ${response.status}`);
+      }
+
+      return expectJson ? response.json() : response.text();
+    } catch (error) {
+      console.error('SEC-071: Documentation API error:', error);
+      throw error;
+    }
+  }, []);
+
   // Load document index
   useEffect(() => {
     const loadDocumentIndex = async () => {
@@ -537,16 +568,8 @@ const DocumentationViewer = ({ getAuthHeaders, user }) => {
         setLoading(true);
         setError(null);
 
-        const response = await fetchWithAuth(`${API_BASE_URL}/api/docs/integration`, {
-          method: 'GET',
-          headers: getAuthHeaders(),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to load documentation index: ${response.status}`);
-        }
-
-        const data = await response.json();
+        // SEC-071: Use docApiCall which returns parsed JSON directly
+        const data = await docApiCall('/api/docs/integration', true);
         setDocuments(data.documents || []);
 
         // Auto-select first document
@@ -554,7 +577,7 @@ const DocumentationViewer = ({ getAuthHeaders, user }) => {
           setActiveDoc(data.documents[0].id);
         }
       } catch (err) {
-        console.error('DOC-003: Failed to load documentation index:', err);
+        console.error('SEC-071: Failed to load documentation index:', err);
         setError('Failed to load documentation. Please try again.');
       } finally {
         setLoading(false);
@@ -562,7 +585,7 @@ const DocumentationViewer = ({ getAuthHeaders, user }) => {
     };
 
     loadDocumentIndex();
-  }, [getAuthHeaders]);
+  }, [docApiCall]);
 
   // Load active document content
   useEffect(() => {
@@ -576,22 +599,11 @@ const DocumentationViewer = ({ getAuthHeaders, user }) => {
         const doc = documents.find(d => d.id === activeDoc);
         if (!doc) return;
 
-        const response = await fetchWithAuth(
-          `${API_BASE_URL}${doc.path}`,
-          {
-            method: 'GET',
-            headers: getAuthHeaders(),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Failed to load document: ${response.status}`);
-        }
-
-        const content = await response.text();
+        // SEC-071: Use docApiCall with expectJson=false for markdown content
+        const content = await docApiCall(doc.path, false);
         setDocContent(content);
       } catch (err) {
-        console.error('DOC-003: Failed to load document content:', err);
+        console.error('SEC-071: Failed to load document content:', err);
         setError('Failed to load document content. Please try again.');
       } finally {
         setLoading(false);
@@ -599,7 +611,7 @@ const DocumentationViewer = ({ getAuthHeaders, user }) => {
     };
 
     loadDocContent();
-  }, [activeDoc, documents, getAuthHeaders]);
+  }, [activeDoc, documents, docApiCall]);
 
   // Search functionality
   useEffect(() => {

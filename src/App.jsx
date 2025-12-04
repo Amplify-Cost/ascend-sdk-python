@@ -500,8 +500,9 @@ const AppContent = () => {
           contentWithTransition(<AdminConsole />) :
           adminRequiredMessage;
       // DOC-003: Enterprise Documentation Viewer
+      // SEC-071: Removed getAuthHeaders - uses cookie-based auth internally
       case "documentation":
-        return contentWithTransition(<DocumentationViewer getAuthHeaders={getAuthHeaders} user={user} />);
+        return contentWithTransition(<DocumentationViewer user={user} />);
       default:
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
