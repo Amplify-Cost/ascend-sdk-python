@@ -122,7 +122,7 @@ async def create_webhook_subscription(
         )
 
         logger.info(
-            f"Webhook subscription created: {subscription.id} by user {current_user.get("user_id")} "
+            f"Webhook subscription created: {subscription.id} by user {current_user.get('user_id')} "
             f"for org {organization_id}"
         )
 
@@ -262,7 +262,7 @@ async def update_webhook_subscription(
     if not subscription:
         raise HTTPException(status_code=404, detail="Webhook subscription not found")
 
-    logger.info(f"Webhook subscription {subscription_id} updated by user {current_user.get("user_id")}")
+    logger.info(f"Webhook subscription {subscription_id} updated by user {current_user.get('user_id')}")
 
     return WebhookSubscriptionResponse(
         id=subscription.id,
@@ -306,7 +306,7 @@ async def delete_webhook_subscription(
     if not success:
         raise HTTPException(status_code=404, detail="Webhook subscription not found")
 
-    logger.info(f"Webhook subscription {subscription_id} deleted by user {current_user.get("user_id")}")
+    logger.info(f"Webhook subscription {subscription_id} deleted by user {current_user.get('user_id')}")
     return None
 
 
@@ -346,7 +346,7 @@ async def rotate_webhook_secret(
     if not subscription:
         raise HTTPException(status_code=404, detail="Webhook subscription not found")
 
-    logger.info(f"Webhook secret rotated for subscription {subscription_id} by user {current_user.get("user_id")}")
+    logger.info(f"Webhook secret rotated for subscription {subscription_id} by user {current_user.get('user_id')}")
 
     return RotateSecretResponse(
         subscription_id=subscription_id,
@@ -552,7 +552,7 @@ async def resolve_dlq_entry(
     if not entry:
         raise HTTPException(status_code=404, detail="DLQ entry not found")
 
-    logger.info(f"DLQ entry {dlq_id} resolved by user {current_user.get("user_id")}")
+    logger.info(f"DLQ entry {dlq_id} resolved by user {current_user.get('user_id')}")
 
     return {"message": "DLQ entry resolved", "dlq_id": dlq_id}
 
@@ -590,7 +590,7 @@ async def retry_dlq_entry(
             detail="DLQ entry not found or subscription inactive"
         )
 
-    logger.info(f"DLQ entry {dlq_id} retried as delivery {delivery_id} by user {current_user.get("user_id")}")
+    logger.info(f"DLQ entry {dlq_id} retried as delivery {delivery_id} by user {current_user.get('user_id')}")
 
     return {
         "message": "Webhook retry initiated",

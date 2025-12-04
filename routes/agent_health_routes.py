@@ -149,7 +149,7 @@ async def receive_heartbeat(
             agent_id=request.agent_id,
             organization_id=current_user.get("organization_id"),
             metrics=request.metrics,
-            performed_by=f"sdk:{current_user.get("email")}"
+            performed_by=f"sdk:{current_user.get('email')}"
         )
 
         return HeartbeatResponse(**result)
@@ -184,7 +184,7 @@ async def receive_batch_heartbeat(
             agent_id=hb.agent_id,
             organization_id=current_user.get("organization_id"),
             metrics=hb.metrics,
-            performed_by=f"sdk:{current_user.get("email")}"
+            performed_by=f"sdk:{current_user.get('email')}"
         )
         results.append(result)
 
@@ -331,7 +331,7 @@ async def trigger_health_check(
     changes = service.check_agent_health(org_id)
 
     logger.info(
-        f"SEC-050: Manual health check triggered by {current_user.get("email")}, "
+        f"SEC-050: Manual health check triggered by {current_user.get('email')}, "
         f"{len(changes)} status changes detected"
     )
 
