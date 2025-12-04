@@ -31,13 +31,13 @@ Welcome to the Ascend Enterprise AI Agent Governance Platform by OW-kai. This gu
 1. Log into the Ascend dashboard
 2. Navigate to **Settings > API Keys**
 3. Click **Generate New Key**
-4. Copy and securely store your API key (format: `ascend_<prefix>_<secret>`)
+4. Copy and securely store your API key (format: `owkai_<role>_<secret>`)
 
 ### Step 2: Submit Your First Action
 
 ```bash
-curl -X POST https://your-domain.ascendowkai.com/api/authorization/agent-action \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X POST https://pilot.owkai.app/api/authorization/agent-action \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_id": "your-agent-001",
@@ -83,8 +83,8 @@ Before submitting actions, register your AI agent with the platform:
 ### Register an Agent
 
 ```bash
-curl -X POST https://your-domain.ascendowkai.com/api/registry/agents \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X POST https://pilot.owkai.app/api/registry/agents \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_id": "your-agent-001",
@@ -114,8 +114,8 @@ Configure comprehensive controls for autonomous AI agents:
 ### Rate Limits (SOC 2 CC6.2 / NIST SI-4)
 
 ```bash
-curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/rate-limits \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X PUT https://pilot.owkai.app/api/registry/agents/{agent_id}/rate-limits \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "max_actions_per_minute": 10,
@@ -128,8 +128,8 @@ curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/r
 ### Budget Controls (PCI-DSS 7.1 / SOC 2 A1.1)
 
 ```bash
-curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/budget \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X PUT https://pilot.owkai.app/api/registry/agents/{agent_id}/budget \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "max_daily_budget_usd": 100.00,
@@ -141,8 +141,8 @@ curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/b
 ### Time Window Restrictions (SOC 2 A1.1)
 
 ```bash
-curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/time-window \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X PUT https://pilot.owkai.app/api/registry/agents/{agent_id}/time-window \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "start_time": "09:00",
@@ -155,8 +155,8 @@ curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/t
 ### Data Classification Controls (HIPAA 164.312 / PCI-DSS 3.4 / GDPR)
 
 ```bash
-curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/data-classifications \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X PUT https://pilot.owkai.app/api/registry/agents/{agent_id}/data-classifications \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "allowed_classifications": ["public", "internal"],
@@ -167,8 +167,8 @@ curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/d
 ### Auto-Suspension Rules (NIST AC-2(3))
 
 ```bash
-curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/auto-suspend \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X PUT https://pilot.owkai.app/api/registry/agents/{agent_id}/auto-suspend \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "on_error_rate": 0.10,
@@ -181,8 +181,8 @@ curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/a
 ### Escalation & Webhooks (CR-003)
 
 ```bash
-curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/escalation \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X PUT https://pilot.owkai.app/api/registry/agents/{agent_id}/escalation \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "allow_queued_approval": true,
@@ -198,7 +198,7 @@ curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/e
 ### Get Usage Statistics
 
 ```bash
-curl -X GET https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/usage \
+curl -X GET https://pilot.owkai.app/api/registry/agents/{agent_id}/usage \
   -H "Authorization: Bearer ascend_your_api_key"
 ```
 
@@ -217,14 +217,14 @@ Response:
 ### Get Anomaly Detection Alerts
 
 ```bash
-curl -X GET https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/anomalies \
+curl -X GET https://pilot.owkai.app/api/registry/agents/{agent_id}/anomalies \
   -H "Authorization: Bearer ascend_your_api_key"
 ```
 
 ### Set Baselines for Anomaly Detection
 
 ```bash
-curl -X POST https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/set-baselines \
+curl -X POST https://pilot.owkai.app/api/registry/agents/{agent_id}/set-baselines \
   -H "Authorization: Bearer ascend_your_api_key"
 ```
 
@@ -235,8 +235,8 @@ curl -X POST https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/
 Immediately suspend an agent in case of security incident:
 
 ```bash
-curl -X POST https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/emergency-suspend \
-  -H "Authorization: Bearer ascend_your_api_key" \
+curl -X POST https://pilot.owkai.app/api/registry/agents/{agent_id}/emergency-suspend \
+  -H "Authorization: Bearer owkai_your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
     "reason": "Detected unauthorized data access pattern - immediate investigation required"
@@ -261,9 +261,9 @@ pip install ascend-sdk
 ```
 
 ```python
-from ascend_sdk import AscendClient
+from owkai_sdk import AscendClient, FailMode, Decision
 
-client = AscendClient(api_key="ascend_your_api_key")
+client = AscendClient(api_key="owkai_your_api_key")
 
 # Register agent
 agent = client.register_agent(
@@ -295,12 +295,14 @@ else:
 
 ```bash
 npm install @ascend/sdk
+# or
+yarn add @ascend/sdk
 ```
 
 ```typescript
-import { AscendClient } from '@ascend/sdk';
+import { AscendClient, FailMode, Decision } from '@ascend/sdk';
 
-const client = new AscendClient({ apiKey: 'ascend_your_api_key' });
+const client = new AscendClient({ apiKey: 'owkai_your_api_key' });
 
 // Evaluate an action
 const result = await client.evaluateAction({
@@ -459,7 +461,7 @@ Final Risk Score = (Policy Risk × 80%) + (Hybrid Risk × 20%)
 
 ### API Key Authentication
 ```bash
-Authorization: Bearer ascend_your_api_key_here
+Authorization: Bearer owkai_your_api_key_here
 ```
 
 ### JWT Authentication (Dashboard Users)
@@ -510,10 +512,10 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ## Support
 
-- **Documentation**: https://docs.ascendowkai.com
+- **Documentation**: https://pilot.owkai.app/api/docs
 - **Support Email**: support@ascendowkai.com
-- **Status Page**: https://status.ascendowkai.com
-- **API Reference**: /api/docs (Swagger UI)
+- **Status Page**: https://status.owkai.app
+- **API Reference**: https://pilot.owkai.app/api/docs (Swagger UI)
 
 ---
 
