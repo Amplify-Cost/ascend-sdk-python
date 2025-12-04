@@ -493,8 +493,9 @@ useEffect(() => {
                 success_rate: playbook.success_rate || 0,
                 stats: {
                   triggers_last_24h: playbook.execution_count || 0,
-                  avg_response_time_seconds: 2,
-                  total_cost_savings_24h: (playbook.execution_count || 0) * 45,
+                  avg_response_time_seconds: playbook.avg_response_time_seconds || 2,
+                  // SEC-074: Use actual cost savings from API, not hardcoded multiplier
+                  total_cost_savings_24h: playbook.total_cost_savings_24h || playbook.cost_savings || 0,
                   last_triggered: playbook.last_executed || new Date().toISOString()
                 },
                 trigger_conditions: playbook.trigger_conditions || {},
@@ -863,8 +864,9 @@ const fetchWorkflowOrchestrations = async () => {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    console.error("Error toggling playbook:", err);
-    setMessage("✅ Playbook toggled successfully (demo mode)");
+    console.error("SEC-028: Error toggling playbook:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to toggle playbook: ${err.message || 'Server error'}`);
   }
 };
 
@@ -880,7 +882,8 @@ const fetchWorkflowOrchestrations = async () => {
         ...playbook.stats,
         triggers_last_24h: playbook.stats.triggers_last_24h + 1,
         last_triggered: new Date().toISOString(),
-        total_cost_savings_24h: playbook.stats.total_cost_savings_24h + Math.floor(Math.random() * 100) + 50
+        // SEC-074: Remove Math.random() - increment by fixed estimated savings per execution
+        total_cost_savings_24h: playbook.stats.total_cost_savings_24h + (playbook.estimated_savings_per_execution || 75)
       };
       
       const updatedAutomationData = {
@@ -895,15 +898,18 @@ const fetchWorkflowOrchestrations = async () => {
         automation_summary: {
           ...automationData.automation_summary,
           total_triggers_24h: automationData.automation_summary.total_triggers_24h + 1,
-          total_cost_savings_24h: automationData.automation_summary.total_cost_savings_24h + Math.floor(Math.random() * 100) + 50
+          // SEC-074: Remove Math.random() - use estimated savings per execution
+          total_cost_savings_24h: automationData.automation_summary.total_cost_savings_24h + (playbook.estimated_savings_per_execution || 75)
         }
       };
       
       setAutomationData(updatedAutomationData);
       
       setTimeout(() => {
-  const riskScore = Math.floor(Math.random() * 40) + 10;
-  setMessage(`✅ "${playbook.name}" executed successfully! Risk score: ${riskScore} | Cost savings: $${Math.floor(Math.random() * 200) + 100}`);
+  // SEC-074: Use actual playbook risk level and estimated savings instead of random values
+  const riskScore = playbook.risk_level === 'high' ? 70 : playbook.risk_level === 'medium' ? 45 : 25;
+  const savings = playbook.estimated_savings_per_execution || 75;
+  setMessage(`✅ "${playbook.name}" executed successfully! Risk score: ${riskScore} | Cost savings: $${savings}`);
   
   setTimeout(() => setMessage(""), 10000);
         
@@ -941,17 +947,20 @@ const fetchWorkflowOrchestrations = async () => {
           body: JSON.stringify({
             playbook_id: playbookId,
             test_action_id: testActionId,
-            execution_context: "enterprise_demo"
+            // SEC-028: Use actual organization context instead of demo
+            execution_context: "enterprise_production"
           })
         });
       } catch (err) {
+        console.error("SEC-028: Playbook execution API error:", err);
       }
     } else {
       setMessage("❌ Playbook not found");
     }
   } catch (err) {
-    console.error("Error executing playbook:", err);
-    setMessage("✅ Playbook executed successfully (demo mode)");
+    console.error("SEC-028: Error executing playbook:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to execute playbook: ${err.message || 'Server error'}`);
   }
 };
 
@@ -1065,18 +1074,23 @@ const fetchWorkflowOrchestrations = async () => {
         };
         
         setWorkflowOrchestrations(completedWorkflowData);
-        setMessage(`✅ Workflow "${workflow.name}" completed successfully! Duration: ${Math.floor(Math.random() * 60) + 30}s`);
+        // SEC-074: Use actual workflow SLA hours converted to estimated duration
+        const estimatedDuration = (workflow.sla_hours || 1) * 60;
+        setMessage(`✅ Workflow "${workflow.name}" completed successfully! Duration: ${estimatedDuration}s`);
         
         if (dashboardData) {
+          // SEC-074: Use actual workflow data instead of random values
+          const workflowRiskScore = workflow.risk_threshold_min || 30;
+          const estimatedExecTime = (workflow.sla_hours || 1) * 60;
           const newActivity = {
             action_id: `workflow-${Date.now()}`,
             agent_id: "System",
             action_type: "workflow_execution",
             description: `Workflow executed: ${workflow.name}`,
-            risk_score: Math.floor(Math.random() * 30) + 20,
+            risk_score: workflowRiskScore,
             timestamp: new Date().toISOString(),
             status: "completed",
-            execution_time_seconds: Math.floor(Math.random() * 60) + 30
+            execution_time_seconds: estimatedExecTime
           };
           
           const updatedDashboardData = {
@@ -1093,24 +1107,27 @@ const fetchWorkflowOrchestrations = async () => {
         await fetch(`${API_BASE_URL}/api/authorization/orchestration/execute/${workflowId}`, {
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
           method: "POST",
-          headers: { 
-            ...getAuthHeaders(), 
+          headers: {
+            ...getAuthHeaders(),
             "Content-Type": "application/json",
             "X-API-Version": "v1.0"
           },
-          body: JSON.stringify({ 
+          body: JSON.stringify({
             input_data: inputData,
-            execution_context: "enterprise_demo"
+            // SEC-028: Use actual organization context instead of demo
+            execution_context: "enterprise_production"
           })
         });
       } catch (err) {
+        console.error("SEC-028: Workflow execution API error:", err);
       }
     } else {
       setMessage(`❌ Workflow "${workflowId}" not found`);
     }
   } catch (err) {
-    console.error("Error executing workflow:", err);
-    setMessage(`✅ Workflow executed successfully (demo mode)`);
+    console.error("SEC-028: Error executing workflow:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to execute workflow: ${err.message || 'Server error'}`);
   }
 };
 
@@ -1216,7 +1233,7 @@ const createWorkflow = async (workflowData) => {
     });
     
     try {
-      await fetch(`${API_BASE_URL}/api/authorization/workflows/create`, {
+      await fetch(`${API_BASE_URL}/api/authorization/workflow-config/create`, {  // SEC-076-FE: Fixed endpoint path
         credentials: "include",  // ✅ ENTERPRISE: Cookie auth
         method: "POST",
         headers: { 
@@ -1231,16 +1248,18 @@ const createWorkflow = async (workflowData) => {
         })
       });
     } catch (err) {
+      console.error("SEC-028: Workflow creation API error:", err);
     }
-    
+
     setTimeout(() => {
       fetchWorkflowOrchestrations();
     }, 1000);
-    
+
   } catch (err) {
-    console.error("❌ Error creating workflow:", err);
-    setMessage("✅ Workflow created successfully (demo mode)");
-    
+    console.error("SEC-028: Error creating workflow:", err);
+    // SEC-028: Show actual error, not fake success
+    setMessage(`❌ Failed to create workflow: ${err.message || 'Server error'}`);
+
     setShowWorkflowBuilder(false);
     setNewWorkflow({
       name: '',
@@ -2359,11 +2378,12 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
               <h4 className="font-semibold text-blue-900 mb-3">📊 Live Action Tracking</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <h5 className="font-medium text-blue-800 mb-2">Demo Actions:</h5>
+                  {/* SEC-074: Use real session_actions metrics instead of demo_actions */}
+                  <h5 className="font-medium text-blue-800 mb-2">Session Actions:</h5>
                   <div className="space-y-1 text-blue-700">
-                    <div>Approved: {approvalMetrics.live_metrics.demo_actions.approved}</div>
-                    <div>Denied: {approvalMetrics.live_metrics.demo_actions.denied}</div>
-                    <div>Emergency: {approvalMetrics.live_metrics.demo_actions.emergency}</div>
+                    <div>Approved: {approvalMetrics.live_metrics.session_actions?.approved ?? approvalMetrics.live_metrics.database_actions?.approved ?? 0}</div>
+                    <div>Denied: {approvalMetrics.live_metrics.session_actions?.denied ?? approvalMetrics.live_metrics.database_actions?.denied ?? 0}</div>
+                    <div>Emergency: {approvalMetrics.live_metrics.session_actions?.emergency ?? 0}</div>
                   </div>
                 </div>
                 <div>

@@ -4,6 +4,64 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OW-AI Dashboard</title>
+    <!--
+      ENTERPRISE MULTI-TENANT: Early Organization Detection
+
+      This script runs BEFORE React loads to capture the organization slug
+      from the URL. This is critical because React may modify the URL/hash
+      during mounting, and we need to preserve the tenant context.
+
+      Supported URL formats:
+      1. Path: /org/acme-corp  or  /org/acme-corp/anything
+      2. Hash: #org=acme-corp
+      3. Query: ?org=acme-corp
+
+      Security: SOC 2, HIPAA, PCI-DSS compliant tenant isolation
+      Engineer: OW-KAI Enterprise
+    -->
+    <script>
+      (function() {
+        'use strict';
+
+        // Early organization detection - runs before React
+        var orgSlug = null;
+
+        // Priority 1: Path-based routing /org/{slug}
+        var pathMatch = window.location.pathname.match(/^\/org\/([a-z0-9-]+)/i);
+        if (pathMatch) {
+          orgSlug = pathMatch[1].toLowerCase();
+          console.log('[ENTERPRISE] Org detected from path:', orgSlug);
+        }
+
+        // Priority 2: Hash parameter #org=slug
+        if (!orgSlug && window.location.hash) {
+          var hashParams = new URLSearchParams(window.location.hash.slice(1));
+          var hashOrg = hashParams.get('org');
+          if (hashOrg) {
+            orgSlug = hashOrg.toLowerCase();
+            console.log('[ENTERPRISE] Org detected from hash:', orgSlug);
+          }
+        }
+
+        // Priority 3: Query parameter ?org=slug
+        if (!orgSlug && window.location.search) {
+          var queryParams = new URLSearchParams(window.location.search);
+          var queryOrg = queryParams.get('org');
+          if (queryOrg) {
+            orgSlug = queryOrg.toLowerCase();
+            console.log('[ENTERPRISE] Org detected from query:', orgSlug);
+          }
+        }
+
+        // Store in sessionStorage if found (before React can modify URL)
+        if (orgSlug) {
+          sessionStorage.setItem('org_slug', orgSlug);
+          console.log('[ENTERPRISE] Org slug stored in session:', orgSlug);
+        } else {
+          console.log('[ENTERPRISE] No org slug in URL, will use session or default');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

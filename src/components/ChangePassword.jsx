@@ -62,7 +62,7 @@ const ChangePassword = ({ onClose, onSuccess }) => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Enterprise-Client": "OW-AI-Platform",
+          "X-Enterprise-Client": "Ascend-Platform",
         },
         credentials: "include", // Include cookies for authentication
         body: JSON.stringify({

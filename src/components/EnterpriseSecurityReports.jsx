@@ -7,8 +7,11 @@
  * - PCI-DSS: Cardholder data environment reports
  * - GDPR: Data protection impact assessments
  *
- * Engineer: Donald King (OW-AI Enterprise)
- * Updated: 2025-11-25 (Migrated to centralized toast system)
+ * SEC-028: Removed all hardcoded demo data
+ * Banking-Level Security: All data from API or shows "N/A"
+ *
+ * Authored-By: OW-KAI Engineer
+ * Updated: 2025-11-30 (SEC-028 - Removed hardcoded data)
  */
 
 import React, { useState, useEffect } from "react";
@@ -27,12 +30,8 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [sortBy, setSortBy] = useState("date");
-  const [stats, setStats] = useState({
-    total_reports: 47,
-    compliance_reports: 12,
-    scheduled_reports: 8,
-    confidential_reports: 23
-  });
+  // SEC-028: Initialize with null to indicate "not loaded" state
+  const [stats, setStats] = useState(null);
 
   // Donald King: Enhanced state management for scheduled reports CRUD operations
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -76,16 +75,19 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
         const reportsData = await reportsResponse.json();
         console.log("✅ Reports loaded from your analytics system:", reportsData);
         setReports(reportsData.reports || []);
+        // SEC-028: Only set stats from actual API data, no hardcoded fallbacks
         if (reportsData.summary) {
           setStats({
-            total_reports: reportsData.summary.total_reports || 47,
-            compliance_reports: reportsData.summary.compliance_reports || 12,
-            scheduled_reports: 8,
-            confidential_reports: reportsData.summary.confidential_reports || 23
+            total_reports: reportsData.summary.total_reports ?? 0,
+            compliance_reports: reportsData.summary.compliance_reports ?? 0,
+            scheduled_reports: reportsData.summary.scheduled_reports ?? 0,
+            confidential_reports: reportsData.summary.confidential_reports ?? 0
           });
         }
       } else {
-        console.log("📊 Backend not connected, using demo stats");
+        console.log("SEC-028: Reports endpoint returned non-OK status");
+        // SEC-028: Set empty stats, not demo data
+        setStats({ total_reports: 0, compliance_reports: 0, scheduled_reports: 0, confidential_reports: 0 });
       }
 
       // Get scheduled reports using your system
@@ -98,15 +100,17 @@ const EnterpriseSecurityReports = ({ getAuthHeaders, user }) => {
         const scheduledData = await scheduledResponse.json();
         console.log("✅ Scheduled reports loaded:", scheduledData);
         setScheduledReports(scheduledData.scheduled_reports || []);
+        // SEC-028: Update scheduled reports count from actual data
         setStats(prev => ({
           ...prev,
-          scheduled_reports: scheduledData.scheduled_reports?.length || 8
+          scheduled_reports: scheduledData.scheduled_reports?.length ?? 0
         }));
       }
       
     } catch (error) {
-      console.error("❌ Error loading reports:", error);
-      console.log("📊 Using demo data");
+      console.error("SEC-028: Error loading reports:", error);
+      // SEC-028: Set empty state on error, not demo data
+      setStats({ total_reports: 0, compliance_reports: 0, scheduled_reports: 0, confidential_reports: 0 });
     } finally {
       setLoading(false);
     }
@@ -162,13 +166,9 @@ Classification: ${result.classification}`);
       }
       
     } catch (error) {
-      console.error("❌ Error generating report:", error);
-      alert(`✅ ${template} generated successfully! (Demo mode)`);
-      // Update stats for demo
-      setStats(prev => ({
-        ...prev,
-        total_reports: prev.total_reports + 1
-      }));
+      console.error("SEC-028: Error generating report:", error);
+      // SEC-028: Show actual error, not fake success
+      toast.error(`Report generation failed: ${error.message || 'Unable to connect to server'}`);
     } finally {
       setGeneratingReport(false);
     }
@@ -257,54 +257,9 @@ Classification: ${result.classification}`);
 
     } catch (error) {
       console.error("❌ Download error:", error);
-      console.log("📊 Generating PDF with default analytics data...");
-
-      // Fallback: Generate PDF with default data
-      const reportData = {
-        report_id: reportId,
-        title: reportTitle,
-        classification: report?.classification || "Internal",
-        author: user?.email || "System",
-        department: "Information Security"
-      };
-
-      const defaultAnalytics = {
-        user_statistics: {
-          total_users: 150,
-          active_users: 142,
-          mfa_enabled: 128,
-          mfa_percentage: 85.3,
-          high_risk_users: 8,
-          risk_percentage: 5.3
-        },
-        compliance_metrics: {
-          sox_compliance: 94.5,
-          hipaa_compliance: 97.2,
-          pci_compliance: 91.8,
-          iso27001_compliance: 89.3
-        },
-        security_score: 92.5,
-        department_distribution: [
-          { department: "IT", count: 45 },
-          { department: "Finance", count: 30 },
-          { department: "HR", count: 25 },
-          { department: "Operations", count: 30 },
-          { department: "Other", count: 20 }
-        ],
-        role_distribution: [
-          { role: "user", count: 98 },
-          { role: "manager", count: 37 },
-          { role: "admin", count: 15 }
-        ]
-      };
-
-      const filename = `${reportTitle.replace(/[^a-z0-9]/gi, '_')}_${new Date().getTime()}.pdf`;
-      downloadPDF(reportData, defaultAnalytics, reportTitle, filename);
-
-      alert(`✅ ${reportTitle} downloaded successfully!
-
-⚠️ Note: Generated with sample analytics data
-📥 PDF file saved to your downloads`);
+      // SEC-028: Cannot generate PDF without real data - show error
+      console.error("SEC-028: Cannot download report - backend data unavailable");
+      toast.error(`Unable to download ${reportTitle}: Analytics data not available. Please ensure the backend is connected.`);
     }
   };
 

@@ -25,9 +25,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import MFAVerification from './MFAVerification';
 import MFASetupChallenge from './MFASetupChallenge'; // 🏦 ENTERPRISE: Handle MFA_SETUP challenge
+import NewPasswordRequired from './NewPasswordRequired'; // SEC-030: Handle NEW_REDACTED-CREDENTIAL_REQUIRED challenge
 import { detectOrganizationFromURL, getPoolConfigBySlug } from '../services/cognitoAuth';
 
-const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword }) => {
+const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword, switchToSignup }) => {
   // Form state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -48,12 +49,16 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
   const { login, mfaChallenge, setMfaChallenge } = useAuth();
 
   // ENTERPRISE: Detect organization on mount
+  // NOTE: Early detection happens in index.html before React loads
+  // This ensures the org_slug is available in sessionStorage
   useEffect(() => {
     const detectOrganization = async () => {
       try {
         setOrgLoading(true);
+
+        // Get org slug - early detection in index.html should have captured it
         const orgSlug = detectOrganizationFromURL();
-        console.log('🏢 [LOGIN] Detected org slug:', orgSlug);
+        console.log('🏢 [LOGIN] Using org slug:', orgSlug);
 
         // Fetch organization info for display
         const poolConfig = await getPoolConfigBySlug(orgSlug);
@@ -73,6 +78,23 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
     };
 
     detectOrganization();
+
+    // Listen for hash changes (in case user navigates between orgs)
+    const handleHashChange = () => {
+      // Re-run early detection logic for new hash
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const hashOrg = hashParams.get('org');
+      if (hashOrg) {
+        sessionStorage.setItem('org_slug', hashOrg.toLowerCase());
+        console.log('🏢 [LOGIN] Hash changed, new org:', hashOrg);
+        detectOrganization();
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, []);
 
   // Lockout timer countdown
@@ -230,6 +252,21 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
 
   // If MFA challenge is active, route to appropriate component
   if (mfaChallenge) {
+    // SEC-030: Handle NEW_REDACTED-CREDENTIAL_REQUIRED challenge separately
+    // This occurs when user logs in with a temporary password
+    if (mfaChallenge.challengeName === 'NEW_REDACTED-CREDENTIAL_REQUIRED') {
+      return (
+        <NewPasswordRequired
+          session={mfaChallenge.session}
+          poolConfig={mfaChallenge.poolConfig}
+          username={email}
+          challengeParameters={mfaChallenge.challengeParameters}
+          onPasswordChanged={handleMFAVerified}
+          onCancel={handleMFACancel}
+        />
+      );
+    }
+
     // 🏦 ENTERPRISE: MFA_SETUP challenge requires different flow
     // MFA_SETUP = First-time setup with QR code
     // SMS_MFA / SOFTWARE_TOKEN_MFA = Verification for existing MFA
@@ -274,7 +311,7 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
             </div>
           )}
 
-          <h1 className="text-4xl font-bold text-white mb-2">OW-KAI Enterprise</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Ascend Enterprise</h1>
           <p className="text-blue-200">Secure Authentication Portal</p>
           <div className="mt-2 flex items-center justify-center gap-2 text-xs text-blue-300">
             <span className="inline-flex items-center gap-1">
@@ -439,6 +476,21 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
             </button>
           </div>
 
+          {/* SEC-021: Self-Service Signup - Start Free Trial */}
+          {switchToSignup && (
+            <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+              <p className="text-sm text-gray-600 mb-2">New to ASCEND?</p>
+              <button
+                onClick={switchToSignup}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-lg font-semibold hover:from-emerald-600 hover:to-cyan-600 transition-all duration-200 shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <span>🚀</span>
+                Start Your 14-Day Free Trial
+              </button>
+              <p className="text-xs text-gray-500 mt-2">No credit card required</p>
+            </div>
+          )}
+
           {/* Security Notice */}
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="flex items-start gap-2 text-xs text-gray-600">
@@ -455,7 +507,7 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-blue-200">
           <p>Protected by multi-factor authentication</p>
-          <p className="mt-1">© 2025 OW-KAI Enterprise. All rights reserved.</p>
+          <p className="mt-1">© 2025 Ascend Enterprise. All rights reserved.</p>
         </div>
       </div>
     </div>

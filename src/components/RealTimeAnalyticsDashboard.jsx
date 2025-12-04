@@ -32,7 +32,7 @@ const RealTimeAnalyticsDashboard = ({ getAuthHeaders, user }) => {
         method: 'GET',
         headers: {
           ...headers,
-          'X-Enterprise-Client': 'OW-AI-Platform',
+          'X-Enterprise-Client': 'Ascend-Platform',
           'X-Request-ID': `analytics-${Date.now()}`
         },
         credentials: 'include'
@@ -362,16 +362,6 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
               </button>
             </div>
 
-            {/* 🎯 MASTER PROMPT: Debug information for troubleshooting */}
-            <div className="mt-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-              <h4 className="text-sm font-bold text-gray-700 mb-4">Debug Information:</h4>
-              <div className="text-xs text-gray-600 space-y-2">
-                <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
-                <p><strong>Auth Headers:</strong> {getAuthHeaders ? 'Available' : 'Not available'}</p>
-                <p><strong>User Role:</strong> {user?.role || 'Unknown'}</p>
-                <p><strong>Endpoints:</strong> /api/analytics/realtime/metrics, /api/analytics/predictive/trends, /api/analytics/performance/system</p>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -751,30 +741,20 @@ if (import.meta.env.VITE_ENABLE_WEBSOCKET === 'true') {
           </div>
         )}
 
-        {/* 🎯 MASTER PROMPT: Debug Info when no data loads */}
+        {/* No Data State */}
         {!realTimeMetrics && !predictiveData && !systemPerformance && !loading && !error && (
-          <div className="bg-white rounded-lg border border-yellow-200 p-6">
-            <h3 className="text-lg font-semibold text-yellow-800 mb-4 flex items-center">
-              <AlertTriangle className="h-5 w-5 mr-2" />
-              Diagnostic Information
+          <div className="bg-white rounded-lg border border-gray-200 p-6 text-center">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">
+              No Analytics Data Available
             </h3>
-            <div className="space-y-2 text-sm">
-              <p><strong>User:</strong> {user?.email || 'Not authenticated'}</p>
-              <p><strong>Role:</strong> {user?.role || 'Unknown'}</p>
-              <p><strong>Auth Headers:</strong> {!!getAuthHeaders ? 'Available' : 'Not available'}</p>
-              <p><strong>API URL:</strong> {import.meta.env.VITE_API_URL || 'http://localhost:8000'}</p>
-              <p><strong>Expected Endpoints:</strong></p>
-              <ul className="ml-4 text-xs text-gray-600">
-                <li>• /api/analytics/realtime/metrics</li>
-                <li>• /api/analytics/predictive/trends</li>
-                <li>• /api/analytics/performance/system</li>
-              </ul>
-            </div>
-            <button 
+            <p className="text-sm text-gray-500 mb-4">
+              Analytics data will appear here once your agents start generating activity.
+            </p>
+            <button
               onClick={fetchAnalyticsData}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Retry Data Loading
+              Refresh Data
             </button>
           </div>
         )}

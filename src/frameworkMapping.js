@@ -1,7 +1,7 @@
 const frameworkMapping = [
     {
       framework: "NIST AI RMF",
-      description: "Mapping OW-AI activities to NIST AI Risk Management Framework categories.",
+      description: "Mapping Ascend activities to NIST AI Risk Management Framework categories.",
       controls: [
         { control: "Data Provenance", feature: "Logs agent actions with timestamps" },
         { control: "Access Control", feature: "JWT token-based authentication" },

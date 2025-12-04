@@ -16,7 +16,7 @@ const Compliance = () => {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="p-2 border text-left">Control</th>
-                  <th className="p-2 border text-left">Mapped Feature in OW-AI</th>
+                  <th className="p-2 border text-left">Mapped Feature in Ascend</th>
                 </tr>
               </thead>
               <tbody>

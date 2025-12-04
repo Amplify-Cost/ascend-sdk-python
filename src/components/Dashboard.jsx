@@ -211,10 +211,9 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
   const timeChange = avgResponseTime !== "N/A" ? avgResponseTime : "N/A";
 
 
-  // Mock trend data for metric cards
-  const mockTrendData = [
-    { value: 45 }, { value: 52 }, { value: 48 }, { value: 61 }, { value: 55 }, { value: 67 }, { value: 73 }
-  ];
+  // SEC-028: Use actual trend data from API, or empty array if not available
+  // No hardcoded mock data - visualization only shows if real data exists
+  const trendData = trends?.trend_data || [];
 
   // ✅ Real Recent Activities from database
   const recentActivities = trends?.enriched_actions?.slice(0, 4).map(action => {
@@ -368,7 +367,7 @@ const Dashboard = ({ getAuthHeaders, setActiveTab, user }) => {
           changeType="positive"
           icon="🤖"
           color="bg-blue-100 text-blue-600"
-          trend={mockTrendData}
+          trend={trendData}
         />
         <MetricCard
           title="Actions Today"

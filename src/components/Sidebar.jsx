@@ -23,6 +23,12 @@ const SafeIcon = ({ iconName, size = 18, className = "", ariaLabel }) => {
     Moon: "🌙",
     // 🚀 NEW: Real-Time Analytics icon
     Radar: "📡",
+    // SEC-024: Agent Registry icon
+    Robot: "🤖",
+    // SEC-022: Admin Console icon
+    Building: "🏛️",
+    // DOC-003: Documentation icon
+    Book: "📚",
   };
 
   return (
@@ -79,52 +85,71 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       tab: "reports",
       description: "Security reports and documentation"
     },
-    { 
-      label: "Support", 
-      icon: <SafeIcon iconName="LifeBuoy" size={18} ariaLabel="Life buoy support" />, 
+    {
+      label: "Support",
+      icon: <SafeIcon iconName="LifeBuoy" size={18} ariaLabel="Life buoy support" />,
       tab: "support",
       description: "Help and support center"
     },
+    // DOC-003: Enterprise Documentation - Available to all users
+    {
+      label: "Documentation",
+      icon: <SafeIcon iconName="Book" size={18} ariaLabel="Documentation book" />,
+      tab: "documentation",
+      badge: "Docs",
+      description: "Integration guides and API documentation"
+    },
   ];
 
-  // ✅ PRESERVED: Add admin-only features (unchanged)
+  // SEC-040: Consolidated admin features with single Admin Console entry point
   if (user?.role === "admin") {
     menuItems.push(
-      { 
-        label: "Authorization Center", 
-        icon: <SafeIcon iconName="Shield" size={18} ariaLabel="Security shield" />, 
+      {
+        label: "Authorization Center",
+        icon: <SafeIcon iconName="Shield" size={18} ariaLabel="Security shield" />,
         tab: "auth",
         description: "Agent authorization and approval system",
         adminOnly: true
       },
-      { 
-        label: "🧠 AI Alert Management", 
-        icon: <SafeIcon iconName="AlertCircle" size={18} ariaLabel="Alert warning" />, 
+      {
+        label: "🧠 AI Alert Management",
+        icon: <SafeIcon iconName="AlertCircle" size={18} ariaLabel="Alert warning" />,
         tab: "ai-alerts",
         description: "AI-powered alert management system",
         adminOnly: true
       },
-      { 
-        label: "🧠 AI Rule Engine", 
-        icon: <SafeIcon iconName="Zap" size={18} ariaLabel="Lightning bolt" />, 
+      {
+        label: "🧠 AI Rule Engine",
+        icon: <SafeIcon iconName="Zap" size={18} ariaLabel="Lightning bolt" />,
         tab: "smartRules",
         badge: "Enterprise",
         description: "AI-powered rule generation and management",
         adminOnly: true
       },
-      { 
-        label: "👥 User Management", 
-        icon: <SafeIcon iconName="Users" size={18} ariaLabel="Users group" />, 
-        tab: "users",
-        badge: "RBAC",
-        description: "Role-based access control and user management",
-        adminOnly: true
-      },
-      { 
-        label: "Settings", 
-        icon: <SafeIcon iconName="Settings" size={18} ariaLabel="Settings gear" />, 
+      {
+        label: "Settings",
+        icon: <SafeIcon iconName="Settings" size={18} ariaLabel="Settings gear" />,
         tab: "settings",
         description: "Enterprise platform configuration",
+        adminOnly: true
+      },
+      // SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
+      {
+        label: "🤖 Agent Registry",
+        icon: <SafeIcon iconName="Robot" size={18} ariaLabel="Agent robot" />,
+        tab: "agent-registry",
+        badge: "Enterprise",
+        description: "Enterprise AI agent registration, MCP server governance, and SDK integration",
+        adminOnly: true
+      },
+      // SEC-040: Unified Admin Console - Consolidated Organization & User Management
+      // Replaces separate "User Management" tab - now single entry point for all admin functions
+      {
+        label: "🏛️ Admin Console",
+        icon: <SafeIcon iconName="Building" size={18} ariaLabel="Admin building" />,
+        tab: "admin-console",
+        badge: "Admin",
+        description: "Unified administration: users, RBAC, billing, compliance, and organization settings",
         adminOnly: true
       }
     );
@@ -165,11 +190,11 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className={`text-xl font-bold transition-all duration-300 ${
-              isDarkMode 
+              isDarkMode
                 ? 'bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent'
                 : 'bg-gradient-to-r from-blue-200 to-white bg-clip-text text-transparent'
             }`}>
-              OW AI Platform
+              Ascend
             </h1>
             <p className={`text-sm mt-1 transition-colors duration-300 ${
               isDarkMode ? 'text-slate-200' : 'text-blue-200'
@@ -233,7 +258,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
       </div>
 
       {/* ✅ ENHANCED: Navigation with Real-Time Analytics */}
-      <nav className="flex-1 py-4" role="navigation" aria-label="Platform sections">
+      <nav className="flex-1 py-4 overflow-y-auto" role="navigation" aria-label="Platform sections">
         <ul className="space-y-1 px-3">
           {menuItems.map((item) => (
             <li key={item.tab}>
@@ -312,7 +337,7 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
               ? 'text-slate-200 hover:bg-red-600/20 hover:text-red-300 focus:ring-red-400' 
               : 'text-blue-100 hover:bg-red-600/20 hover:text-white focus:ring-red-400'
           }`}
-          aria-label="Log out of OW AI Platform"
+          aria-label="Log out of Ascend"
         >
           <SafeIcon 
             iconName="LogOut" 

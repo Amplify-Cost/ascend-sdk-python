@@ -227,7 +227,7 @@ const ResetPassword = ({ email, switchToLogin, organizationSlug = 'owai-internal
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">OW-KAI Enterprise</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">Ascend Enterprise</h1>
           <p className="text-blue-200">Reset Your Password</p>
         </div>
 

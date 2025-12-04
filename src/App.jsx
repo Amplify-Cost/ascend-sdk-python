@@ -22,13 +22,22 @@ import EnterpriseSettings from "./components/EnterpriseSettings";
 import EnterpriseSecurityReports from "./components/EnterpriseSecurityReports";
 import AgentAuthorizationDashboard from "./components/AgentAuthorizationDashboard";
 import AIAlertManagementSystem from "./components/AIAlertManagementSystem";
-import { fetchWithAuth, logout, getCurrentUser } from "./utils/fetchWithAuth";
+import { fetchWithAuth, logout, getCurrentUser, storeCsrfToken } from "./utils/fetchWithAuth";
 import { useTheme } from "./contexts/ThemeContext";
 import RealTimeAnalyticsDashboard from './components/RealTimeAnalyticsDashboard';
 import SmartAlertManagement from './components/SmartAlertManagement';
 import Profile from './components/Profile';
 import ErrorBoundary from './components/ErrorBoundary';
 import ErrorBoundaryTest from './components/ErrorBoundaryTest';
+// SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
+import AgentRegistryManagement from './components/AgentRegistryManagement';
+// SEC-021: Self-Service Signup Flow
+import SignupFlow from './components/SignupFlow';
+import VerifyEmail from './components/VerifyEmail';
+// SEC-022: Admin Console
+import AdminConsole from './components/AdminConsole';
+// DOC-003: Enterprise Documentation Viewer
+import DocumentationViewer from './components/DocumentationViewer';
 import { API_BASE_URL } from './config/api';
 import logger from './utils/logger.js';
 
@@ -45,7 +54,7 @@ const LoadingScreen = () => {
       }`}
       role="status"
       aria-live="polite"
-      aria-label="Loading OW-AI Enterprise Platform"
+      aria-label="Loading Ascend Enterprise Platform"
     >
       <div className="text-center">
         <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-6 ${
@@ -54,7 +63,7 @@ const LoadingScreen = () => {
         <div className={`text-2xl font-bold mb-2 transition-colors duration-300 ${
           isDarkMode ? 'text-white' : 'text-gray-900'
         }`}>
-          🛡️ OW-AI Enterprise Platform
+          🛡️ Ascend Enterprise Platform
         </div>
         <p className={`transition-colors duration-300 ${
           isDarkMode ? 'text-slate-300' : 'text-gray-600'
@@ -105,6 +114,25 @@ const AppContent = () => {
       try {
         logger.debug("🔍 Checking enterprise authentication status...");
         setLoading(true);
+
+        // SEC-021: Check for public paths (no auth required)
+        const pathname = window.location.pathname;
+
+        // SEC-021: /signup path for self-service signup
+        // DISABLED: Self-signup disabled - redirect to login instead
+        if (pathname === '/signup' || pathname.startsWith('/signup')) {
+          logger.debug("SEC-021: Signup disabled - redirecting to login");
+          window.location.href = '/login';
+          return;
+        }
+
+        // SEC-021: /verify-email path for email verification
+        if (pathname === '/verify-email' || pathname.startsWith('/verify-email')) {
+          logger.debug("SEC-021: Detected /verify-email path, showing verification view");
+          setView("verify-email");
+          setLoading(false);
+          return;
+        }
 
         // 🍪 COOKIE-BASED AUTH: Simply try to get current user
         // If cookies are valid, this will succeed
@@ -187,6 +215,12 @@ const AppContent = () => {
       const sessionData = await response.json();
 
       logger.debug("✅ Server session created:", sessionData);
+
+      // SEC-027: Store CSRF token from response for immediate use
+      if (sessionData.csrf_token) {
+        storeCsrfToken(sessionData.csrf_token);
+        logger.debug("🔐 SEC-027: CSRF token stored for immediate use");
+      }
 
       // Validate session response
       if (!sessionData.user || !sessionData.enterprise_validated) {
@@ -455,6 +489,20 @@ const AppContent = () => {
             <ErrorBoundaryTest />
           </ErrorBoundary>
         );
+      // SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
+      case "agent-registry":
+        return user?.role === "admin" ?
+          contentWithTransition(<AgentRegistryManagement getAuthHeaders={getAuthHeaders} user={user} />) :
+          adminRequiredMessage;
+      // SEC-022: Admin Console - Organization Management
+      case "admin-console":
+        return (user?.role === "admin" || user?.role === "org_admin") ?
+          contentWithTransition(<AdminConsole />) :
+          adminRequiredMessage;
+      // DOC-003: Enterprise Documentation Viewer
+      // SEC-071: Removed getAuthHeaders - uses cookie-based auth internally
+      case "documentation":
+        return contentWithTransition(<DocumentationViewer user={user} />);
       default:
         return contentWithTransition(
           <div className={`p-6 text-center transition-colors duration-300 ${
@@ -480,6 +528,7 @@ const AppContent = () => {
           onLoginSuccess={handleLoginSuccess}
           switchToRegister={() => setView("register")}
           switchToForgotPassword={() => setView("forgot")}
+          switchToSignup={() => setView("signup")}
         />
       )}
       {view === "register" && (
@@ -489,6 +538,26 @@ const AppContent = () => {
         />
       )}
       {view === "forgot" && <ForgotPasswordEnterpriseV3 switchToLogin={() => setView("login")} />}
+      {/* SEC-021: Self-Service Signup Flow (PUBLIC - No auth required) */}
+      {view === "signup" && (
+        <SignupFlow
+          onSignupComplete={() => {
+            toast.success("Account created! Please check your email to verify.");
+            setView("login");
+          }}
+          switchToLogin={() => setView("login")}
+        />
+      )}
+      {/* SEC-021: Email Verification (PUBLIC - No auth required) */}
+      {view === "verify-email" && (
+        <VerifyEmail
+          onVerified={() => {
+            toast.success("Email verified! You can now log in.");
+            setView("login");
+          }}
+          switchToLogin={() => setView("login")}
+        />
+      )}
       {view === "app" && (
         <>
           <Sidebar
@@ -573,7 +642,7 @@ const App = () => {
   return (
     <AuthErrorBoundary>
       <AuthProvider>
-        <ErrorBoundary fallbackMessage="The OW-AI Enterprise Platform encountered an unexpected error. Our team has been notified.">
+        <ErrorBoundary fallbackMessage="The Ascend Enterprise Platform encountered an unexpected error. Our team has been notified.">
           <ThemeProvider>
             <AccessibilityProvider>
               <ToastProvider>

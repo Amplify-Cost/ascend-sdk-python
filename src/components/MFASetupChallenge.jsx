@@ -79,7 +79,7 @@ const MFASetupChallenge = ({ session, poolConfig, username, onSetupComplete, onC
       setCurrentSession(newSession); // 🏦 CRITICAL: Update session for verification
 
       // Generate QR code for authenticator apps
-      const otpAuthUrl = `otpauth://totp/OW-KAI:${username}?secret=${secretCode}&issuer=OW-KAI`;
+      const otpAuthUrl = `otpauth://totp/Ascend:${username}?secret=${secretCode}&issuer=Ascend`;
       const qrUrl = await QRCode.toDataURL(otpAuthUrl);
       setQrCodeUrl(qrUrl);
 

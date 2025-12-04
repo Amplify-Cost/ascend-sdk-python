@@ -71,10 +71,11 @@ const RuleEditor = ({ getAuthHeaders }) => {
   const generateSmartRule = async () => {
     setGenerating(true);
     try {
+      // SEC-028: Use "system-agent" for AI-generated rules (enterprise standard)
       const response = await fetchWithAuth(`${API_BASE_URL}/smart-rules/generate`, {
         method: "POST",
         body: JSON.stringify({
-          agent_id: "demo-agent",
+          agent_id: "system-agent",
           action_type: "suspicious_activity",
           description: "Generate a smart rule based on common security patterns"
         }),

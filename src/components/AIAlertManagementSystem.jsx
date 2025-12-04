@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
 
+/**
+ * SEC-028: AI Alert Management System
+ * Banking-Level Security: No hardcoded demo data
+ * All metrics come from backend API or show "N/A"
+ * Authored-By: OW-KAI Engineer
+ */
 const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
   const [alerts, setAlerts] = useState([]);
   const [correlatedGroups, setCorrelatedGroups] = useState([]);
@@ -326,79 +332,153 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
     }
   };
 
-  const generateExecutiveBrief = async () => {
-    console.log("🔄 Generating executive brief...");
+  /**
+   * SEC-065: Fetch Cached Executive Brief
+   *
+   * Enterprise-grade cached brief retrieval:
+   * - Uses GET /api/executive-briefs/latest for instant cached response (<100ms)
+   * - Falls back to legacy endpoint if new endpoint unavailable
+   * - Handles expired briefs gracefully
+   *
+   * Compliance: SOC 2 AU-6, AU-7, PCI-DSS 10.6
+   */
+  const fetchExecutiveBrief = async () => {
+    console.log("🔄 Fetching cached executive brief...");
     setBriefLoading(true);
-    
+
+    try {
+      // SEC-065: Try new cached endpoint first (instant response)
+      const response = await fetch(`${API_BASE_URL}/api/executive-briefs/latest`, {
+        credentials: "include",
+        method: "GET",
+        headers: getAuthHeaders()
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Cached executive brief received:", data);
+        setExecutiveBrief(data);
+        return;
+      }
+
+      // Fallback to legacy endpoint if new one not available
+      console.log("⚠️ New endpoint unavailable, trying legacy...");
+      await generateExecutiveBriefLegacy();
+
+    } catch (err) {
+      console.error("❌ Error fetching executive brief:", err);
+      // Try legacy as fallback
+      await generateExecutiveBriefLegacy();
+    } finally {
+      setBriefLoading(false);
+    }
+  };
+
+  /**
+   * SEC-065: Regenerate Executive Brief
+   *
+   * Force regeneration with rate limiting:
+   * - Uses POST /api/executive-briefs/regenerate
+   * - 5-minute cooldown between regenerations
+   * - Returns 429 if rate limited
+   *
+   * Compliance: SOC 2 AU-6, PCI-DSS 10.6
+   */
+  const regenerateExecutiveBrief = async () => {
+    console.log("🔄 Regenerating executive brief...");
+    setBriefLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/executive-briefs/regenerate`, {
+        credentials: "include",
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          time_period: "24h"
+        })
+      });
+
+      if (response.status === 429) {
+        // Rate limited - show message
+        const errorData = await response.json();
+        setMessage(`⏱️ ${errorData.detail || "Please wait before regenerating. Briefs are cached for efficiency."}`);
+        setTimeout(() => setMessage(null), 5000);
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Executive brief regenerated:", data);
+        setExecutiveBrief(data);
+        setMessage("✅ Executive brief regenerated successfully");
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        console.error("Brief regeneration failed");
+        setError("Failed to regenerate executive brief");
+      }
+
+    } catch (err) {
+      console.error("❌ Error regenerating executive brief:", err);
+      setError("Failed to regenerate executive brief");
+    } finally {
+      setBriefLoading(false);
+    }
+  };
+
+  /**
+   * SEC-065: Legacy Executive Brief Generator
+   *
+   * Maintained for backward compatibility with older backend versions.
+   * New implementations should use fetchExecutiveBrief() and regenerateExecutiveBrief()
+   */
+  const generateExecutiveBriefLegacy = async () => {
+    console.log("🔄 Using legacy executive brief endpoint...");
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/alerts/executive-brief`, {
         credentials: "include",
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           time_period: "24h",
-          include_predictions: true 
+          include_predictions: true
         })
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Executive brief received from backend:", data);
-        
-        // Handle different possible response formats from your OpenAI backend
-        let processedBrief;
-        
-        if (data.brief || data.summary || data.executive_summary) {
-          // 🏢 ENTERPRISE: Use ONLY real data from backend - NO hardcoded fallbacks
-          processedBrief = {
-            summary: data.brief || data.summary || data.executive_summary || data.content,
-            key_metrics: data.key_metrics || data.metrics || data.statistics || {
-              // 🏢 ENTERPRISE: Show real counts from backend or 0 if not available
-              threats_detected: data.threats_detected ?? data.alert_count ?? 0,
-              threats_prevented: data.threats_prevented ?? 0,
-              cost_savings: data.cost_savings || "$0",
-              system_accuracy: data.accuracy || data.system_accuracy || data.confidence_level ? `${data.confidence_level}%` : "N/A"
-            },
-            recommendations: data.recommendations || data.actions || [],
-            risk_assessment: data.risk_assessment || data.risk_level || "NO_DATA",
-            next_review: data.next_review || new Date(Date.now() + 24*60*60*1000).toISOString(),
-            alert_count: data.alert_count || 0,
-            high_priority_count: data.high_priority_count || 0
-          };
-        } else {
-          // 🏢 ENTERPRISE: No hardcoded demo data - show real data only
-          processedBrief = {
-            summary: typeof data === 'string' ? data : (data.message || "Executive brief generated - awaiting data"),
-            key_metrics: {
-              threats_detected: data.alert_count || 0,
-              threats_prevented: data.high_priority_count || 0,
-              cost_savings: "$0",
-              system_accuracy: data.confidence_level ? `${data.confidence_level}%` : "N/A"
-            },
-            recommendations: [],
-            risk_assessment: "NO_DATA",
-            next_review: new Date(Date.now() + 24*60*60*1000).toISOString(),
-            raw_response: data
-          };
-        }
-        
-        console.log("📊 Processed executive brief:", processedBrief);
+        console.log("✅ Legacy executive brief received:", data);
+
+        // Process response - new system returns consistent format
+        const processedBrief = {
+          summary: data.summary || data.brief || data.executive_summary || "Executive brief generated",
+          key_metrics: data.key_metrics || {
+            threats_detected: data.alert_count || 0,
+            threats_prevented: data.high_priority_count || 0,
+            cost_savings: data.cost_savings || "$0",
+            system_accuracy: data.system_accuracy || "N/A"
+          },
+          recommendations: data.recommendations || [],
+          risk_assessment: data.risk_assessment || "NO_DATA",
+          expires_at: data.expires_at,
+          is_expired: data.is_expired,
+          generation_method: data.generation_method,
+          meta: data.meta || { organization_id: null, has_activity: false }
+        };
+
         setExecutiveBrief(processedBrief);
-        
       } else {
-        // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
-        console.error("Backend brief generation failed - API returned non-OK status");
+        console.error("Legacy brief generation failed");
         setExecutiveBrief(null);
       }
-
     } catch (err) {
-      console.error("❌ Error generating executive brief:", err);
-      // 🏢 ENTERPRISE FIX (2025-11-19): No demo data - show empty state
+      console.error("❌ Error with legacy brief generation:", err);
       setExecutiveBrief(null);
-    } finally {
-      setBriefLoading(false);
     }
   };
+
+  // Backward compatibility alias
+  const generateExecutiveBrief = fetchExecutiveBrief;
 
   // Helper functions
   // 🏢 DELETED (2025-11-19): Removed hardcoded data generators
@@ -1110,17 +1190,39 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       {/* AI Insights Tab - FIXED VERSION */}
       {activeTab === "insights" && aiInsights?.threat_summary && (
         <div className="space-y-6">
-          {/* Executive Brief Section - FIXED */}
+          {/* SEC-065: Executive Brief Section - Enterprise Cached System */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">📋 Executive Security Brief</h3>
-              <button
-                onClick={generateExecutiveBrief}
-                disabled={briefLoading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
-              >
-                {briefLoading ? "🔄 Generating..." : "📊 Generate AI Brief"}
-              </button>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Executive Security Brief</h3>
+                {executiveBrief?.generated_at && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Generated: {new Date(executiveBrief.generated_at).toLocaleString()}
+                    {executiveBrief.is_expired && <span className="text-amber-600 ml-2">(Expired)</span>}
+                    {executiveBrief.generation_method === 'llm' && <span className="text-green-600 ml-2">AI Generated</span>}
+                    {executiveBrief.generation_method === 'fallback' && <span className="text-amber-600 ml-2">Fallback</span>}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={fetchExecutiveBrief}
+                  disabled={briefLoading}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50 text-sm"
+                >
+                  {briefLoading ? "Loading..." : executiveBrief ? "Refresh" : "Load Brief"}
+                </button>
+                {executiveBrief && (
+                  <button
+                    onClick={regenerateExecutiveBrief}
+                    disabled={briefLoading}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md disabled:opacity-50 text-sm"
+                    title="Generate fresh brief with latest data (5 min cooldown)"
+                  >
+                    {briefLoading ? "..." : "Regenerate"}
+                  </button>
+                )}
+              </div>
             </div>
             
             {executiveBrief && (
@@ -1170,43 +1272,63 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                   </div>
                 </div>
 
-                {/* Additional Brief Content */}
-                {executiveBrief.recommendations && (
+                {/* SEC-065: Enhanced Recommendations Display */}
+                {executiveBrief.recommendations && executiveBrief.recommendations.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-blue-200">
                     <h5 className="font-semibold text-blue-900 mb-2">Key Recommendations:</h5>
-                    <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-                      {(Array.isArray(executiveBrief.recommendations) ? 
-                        executiveBrief.recommendations : 
+                    <div className="space-y-2">
+                      {(Array.isArray(executiveBrief.recommendations) ?
+                        executiveBrief.recommendations :
                         [executiveBrief.recommendations]).map((rec, idx) => (
-                        <li key={idx}>{rec}</li>
+                        <div key={idx} className={`p-2 rounded text-sm ${
+                          rec.priority === 'CRITICAL' ? 'bg-red-100 border-l-4 border-red-500' :
+                          rec.priority === 'HIGH' ? 'bg-orange-100 border-l-4 border-orange-500' :
+                          rec.priority === 'MEDIUM' ? 'bg-yellow-100 border-l-4 border-yellow-500' :
+                          'bg-gray-100 border-l-4 border-gray-400'
+                        }`}>
+                          {typeof rec === 'string' ? (
+                            <span className="text-blue-800">{rec}</span>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-start">
+                                <span className="font-medium text-gray-900">{rec.action}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${
+                                  rec.priority === 'CRITICAL' ? 'bg-red-200 text-red-800' :
+                                  rec.priority === 'HIGH' ? 'bg-orange-200 text-orange-800' :
+                                  'bg-gray-200 text-gray-700'
+                                }`}>{rec.priority}</span>
+                              </div>
+                              {rec.timeframe && <p className="text-xs text-gray-600 mt-1">Timeframe: {rec.timeframe}</p>}
+                              {rec.owner && <p className="text-xs text-gray-500">Owner: {rec.owner}</p>}
+                            </>
+                          )}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
 
-                {/* Risk Assessment */}
+                {/* SEC-065: Risk Assessment with CRITICAL support */}
                 {executiveBrief.risk_assessment && (
-                  <div className="mt-3">
+                  <div className="mt-3 flex items-center gap-2">
                     <span className="text-sm font-medium text-blue-900">Risk Level: </span>
                     <span className={`px-2 py-1 rounded text-xs font-bold ${
-                      executiveBrief.risk_assessment === 'ELEVATED' ? 'bg-yellow-200 text-yellow-800' : 
-                      executiveBrief.risk_assessment === 'HIGH' ? 'bg-red-200 text-red-800' : 
-                      'bg-green-200 text-green-800'
+                      executiveBrief.risk_assessment === 'CRITICAL' ? 'bg-purple-200 text-purple-800' :
+                      executiveBrief.risk_assessment === 'HIGH' ? 'bg-red-200 text-red-800' :
+                      executiveBrief.risk_assessment === 'MEDIUM' || executiveBrief.risk_assessment === 'ELEVATED' ? 'bg-yellow-200 text-yellow-800' :
+                      executiveBrief.risk_assessment === 'LOW' ? 'bg-green-200 text-green-800' :
+                      'bg-gray-200 text-gray-700'
                     }`}>
                       {executiveBrief.risk_assessment}
                     </span>
+                    {executiveBrief.expires_at && (
+                      <span className="text-xs text-gray-500">
+                        Expires: {new Date(executiveBrief.expires_at).toLocaleTimeString()}
+                      </span>
+                    )}
                   </div>
                 )}
 
-                {/* Debug Info */}
-                <div className="mt-3 pt-3 border-t border-blue-200">
-                  <details className="text-xs text-blue-600">
-                    <summary className="cursor-pointer hover:text-blue-800">🔧 Debug: View Raw Brief Data</summary>
-                    <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
-                      {JSON.stringify(executiveBrief, null, 2)}
-                    </pre>
-                  </details>
-                </div>
               </div>
             )}
           </div>
@@ -1604,132 +1726,147 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       {/* Performance Metrics Tab */}
       {activeTab === "metrics" && performanceMetrics && (
         <div className="space-y-6">
-          {/* Debug Info */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <details className="text-sm">
-              <summary className="cursor-pointer font-medium text-yellow-800">🔧 Debug: Performance Metrics Structure</summary>
-              <pre className="mt-2 p-2 bg-white rounded text-xs overflow-auto max-h-32">
-                {JSON.stringify(performanceMetrics, null, 2)}
-              </pre>
-            </details>
-          </div>
-
           {/* AI Performance Overview */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">🤖 AI Performance Metrics</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="text-3xl font-bold text-green-600">
-                  {performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate || '94.2'}%
+
+            {!performanceMetrics ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>Performance metrics not available</p>
+                <p className="text-sm mt-2">Data will appear once AI processes alerts for your organization</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600">
+                    {performanceMetrics.ai_performance?.accuracy_rate ?? performanceMetrics.accuracy_rate ?? 'N/A'}
+                    {(performanceMetrics.ai_performance?.accuracy_rate || performanceMetrics.accuracy_rate) && '%'}
+                  </div>
+                  <div className="text-sm text-green-700">Detection Accuracy</div>
+                  <div className="text-xs text-green-600 mt-1">
+                    Industry benchmark: 89%
+                  </div>
                 </div>
-                <div className="text-sm text-green-700">Detection Accuracy</div>
-                <div className="text-xs text-green-600 mt-1">
-                  Industry benchmark: 89%
+
+                <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-3xl font-bold text-blue-600">
+                    {performanceMetrics.ai_performance?.false_positive_rate ?? performanceMetrics.false_positive_rate ?? 'N/A'}
+                    {(performanceMetrics.ai_performance?.false_positive_rate || performanceMetrics.false_positive_rate) && '%'}
+                  </div>
+                  <div className="text-sm text-blue-700">False Positive Rate</div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    Target: &lt;8%
+                  </div>
+                </div>
+
+                <div className="text-center p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="text-3xl font-bold text-purple-600">
+                    {performanceMetrics.ai_performance?.avg_processing_time ?? performanceMetrics.avg_processing_time ?? 'N/A'}
+                  </div>
+                  <div className="text-sm text-purple-700">Avg Processing Time</div>
+                  <div className="text-xs text-purple-600 mt-1">
+                    Per alert analysis
+                  </div>
                 </div>
               </div>
-              
-              <div className="text-center p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="text-3xl font-bold text-blue-600">
-                  {performanceMetrics.ai_performance?.false_positive_rate || performanceMetrics.false_positive_rate || '5.8'}%
-                </div>
-                <div className="text-sm text-blue-700">False Positive Rate</div>
-                <div className="text-xs text-blue-600 mt-1">
-                  Target: &lt;8%
-                </div>
-              </div>
-              
-              <div className="text-center p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                <div className="text-3xl font-bold text-purple-600">
-                  {performanceMetrics.ai_performance?.avg_processing_time || performanceMetrics.avg_processing_time || '1.3 seconds'}
-                </div>
-                <div className="text-sm text-purple-700">Avg Processing Time</div>
-                <div className="text-xs text-purple-600 mt-1">
-                  Per alert analysis
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* ROI Analysis */}
+          {/* SEC-028: ROI Analysis - No Hardcoded Fallbacks */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">💰 ROI Analysis</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Cost Savings Breakdown</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Annual Savings:</span>
-                    <span className="font-bold text-green-600">
-                      ${(performanceMetrics.roi_details?.annual_savings || performanceMetrics.annual_savings || 450000).toLocaleString()}
-                    </span>
+
+            {!performanceMetrics?.roi_details && !performanceMetrics?.annual_savings ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>ROI analysis not available</p>
+                <p className="text-sm mt-2">Configure your organization's cost parameters to enable ROI tracking</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-4">Cost Savings Breakdown</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Annual Savings:</span>
+                      <span className="font-bold text-green-600">
+                        {performanceMetrics.roi_details?.annual_savings ?? performanceMetrics.annual_savings
+                          ? `$${(performanceMetrics.roi_details?.annual_savings || performanceMetrics.annual_savings).toLocaleString()}`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Implementation Cost:</span>
+                      <span className="font-bold text-gray-900">
+                        {performanceMetrics.roi_details?.implementation_cost ?? performanceMetrics.implementation_cost
+                          ? `$${(performanceMetrics.roi_details?.implementation_cost || performanceMetrics.implementation_cost).toLocaleString()}`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t">
+                      <span className="text-gray-600 font-medium">Net ROI:</span>
+                      <span className="font-bold text-green-600 text-xl">
+                        {performanceMetrics.roi_details?.roi_calculation ?? performanceMetrics.roi_calculation ?? performanceMetrics.trend_analysis?.roi_percentage ?? 'N/A'}
+                        {(performanceMetrics.roi_details?.roi_calculation || performanceMetrics.roi_calculation || performanceMetrics.trend_analysis?.roi_percentage) && '%'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Implementation Cost:</span>
-                    <span className="font-bold text-gray-900">
-                      ${(performanceMetrics.roi_details?.implementation_cost || performanceMetrics.implementation_cost || 132000).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-gray-600 font-medium">Net ROI:</span>
-                    <span className="font-bold text-green-600 text-xl">
-                      {performanceMetrics.roi_details?.roi_calculation || performanceMetrics.roi_calculation || performanceMetrics.trend_analysis?.roi_percentage || 340}%
-                    </span>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-4">Efficiency Gains</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Time Savings (Annual):</span>
+                      <span className="font-bold text-blue-600">
+                        {performanceMetrics.roi_details?.time_savings_hours ?? performanceMetrics.time_savings_hours
+                          ? `${(performanceMetrics.roi_details?.time_savings_hours || performanceMetrics.time_savings_hours).toLocaleString()} hours`
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">False Positive Reduction:</span>
+                      <span className="font-bold text-orange-600">
+                        {performanceMetrics.roi_details?.false_positive_reduction ?? performanceMetrics.false_positive_reduction ?? 'N/A'}
+                        {(performanceMetrics.roi_details?.false_positive_reduction || performanceMetrics.false_positive_reduction) && '%'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Threats Prevented (24h):</span>
+                      <span className="font-bold text-red-600">
+                        {performanceMetrics.ai_performance?.threats_prevented ?? performanceMetrics.threats_prevented ?? 'N/A'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-              
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Efficiency Gains</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Time Savings (Annual):</span>
-                    <span className="font-bold text-blue-600">
-                      {(performanceMetrics.roi_details?.time_savings_hours || performanceMetrics.time_savings_hours || 2400).toLocaleString()} hours
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">False Positive Reduction:</span>
-                    <span className="font-bold text-orange-600">
-                      {performanceMetrics.roi_details?.false_positive_reduction || performanceMetrics.false_positive_reduction || 67}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Threats Prevented (24h):</span>
-                    <span className="font-bold text-red-600">
-                      {performanceMetrics.ai_performance?.threats_prevented || performanceMetrics.threats_prevented || 23}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Trend Analysis */}
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">📈 Performance Trends</h3>
             
+            {/* SEC-065: Performance Trends - Real data only, no hardcoded fallbacks */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 bg-gray-50 rounded-lg">
                 <div className="text-2xl font-bold text-gray-900">
-                  {performanceMetrics.trend_analysis?.alert_volume_change || performanceMetrics.alert_volume_change || '+15%'}
+                  {performanceMetrics.trend_analysis?.alert_volume_change || performanceMetrics.alert_volume_change || 'N/A'}
                 </div>
                 <div className="text-sm text-gray-600">Alert Volume</div>
                 <div className="text-xs text-gray-500 mt-1">vs. last month</div>
               </div>
-              
+
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">
-                  {performanceMetrics.trend_analysis?.accuracy_improvement || performanceMetrics.accuracy_improvement || '+8%'}
+                  {performanceMetrics.trend_analysis?.accuracy_improvement || performanceMetrics.accuracy_improvement || 'N/A'}
                 </div>
                 <div className="text-sm text-green-700">Accuracy Improvement</div>
                 <div className="text-xs text-green-600 mt-1">vs. last month</div>
               </div>
-              
+
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">
-                  {performanceMetrics.trend_analysis?.response_time_improvement || performanceMetrics.response_time_improvement || '-23%'}
+                  {performanceMetrics.trend_analysis?.response_time_improvement || performanceMetrics.response_time_improvement || 'N/A'}
                 </div>
                 <div className="text-sm text-blue-700">Response Time</div>
                 <div className="text-xs text-blue-600 mt-1">improvement</div>

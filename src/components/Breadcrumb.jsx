@@ -9,54 +9,54 @@ const Breadcrumb = ({ activeTab, user }) => {
   const getBreadcrumbPath = (tab) => {
     const paths = {
       dashboard: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Security Command Center', path: '/dashboard' }
       ],
       analytics: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Analytics & Insights', path: '/analytics' }
       ],
       activity: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Agent Activity', path: '/activity' }
       ],
       reports: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Security Reports', path: '/reports' }
       ],
       support: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Support Center', path: '/support' }
       ],
       auth: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Admin', path: '/admin' },
         { label: 'Authorization Center', path: '/auth' }
       ],
       'ai-alerts': [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Admin', path: '/admin' },
         { label: 'AI Alert Management', path: '/ai-alerts' }
       ],
       smartRules: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Admin', path: '/admin' },
         { label: 'AI Rule Engine', path: '/smart-rules' }
       ],
       users: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Admin', path: '/admin' },
         { label: 'User Management', path: '/users' }
       ],
       settings: [
-        { label: 'OW-AI Platform', path: '/' },
+        { label: 'Ascend Platform', path: '/' },
         { label: 'Admin', path: '/admin' },
         { label: 'Enterprise Settings', path: '/settings' }
       ]
     };
 
     return paths[tab] || [
-      { label: 'OW-AI Platform', path: '/' },
+      { label: 'Ascend Platform', path: '/' },
       { label: 'Unknown', path: '/' }
     ];
   };

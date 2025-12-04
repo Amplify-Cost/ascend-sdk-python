@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Shield, Plus, X, Code2, Eye, ChevronDown } from 'lucide-react';
+import { Shield, Plus, X, Code2, Eye, ChevronDown, BookOpen } from 'lucide-react';
+import PolicyTemplateLibrary from './PolicyTemplateLibrary';
 
 /**
  * 🏢 SEC-012: Enterprise Policy Builder with Conditions Support
@@ -25,6 +26,8 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
   // 🏢 SEC-012: State for condition selector
   const [selectedConditionKey, setSelectedConditionKey] = useState('');
   const [selectedConditionValue, setSelectedConditionValue] = useState('');
+  // 🏢 SEC-053: State for template library modal
+  const [showTemplateLibrary, setShowTemplateLibrary] = useState(false);
 
   const actionOptions = [
     { value: 'read', label: 'Read', icon: '👁️' },
@@ -112,6 +115,49 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
     }));
   };
 
+  /**
+   * SEC-053: Handle template selection from PolicyTemplateLibrary
+   * Populates the form with template data while allowing customization
+   */
+  const handleSelectTemplate = (templateData) => {
+    // Convert template conditions object to array format
+    const conditionsArray = templateData.conditions
+      ? Object.entries(templateData.conditions).map(([key, value]) => ({
+          key,
+          value: String(value)
+        }))
+      : [];
+
+    // Map template effect to policy builder format
+    const effectMap = {
+      'DENY': 'deny',
+      'ALLOW': 'permit',
+      'REQUIRE_APPROVAL': 'require_approval',
+      'AUDIT': 'permit'
+    };
+
+    // Map template severity to risk level
+    const riskMap = {
+      'CRITICAL': 'high',
+      'HIGH': 'high',
+      'MEDIUM': 'medium',
+      'LOW': 'low'
+    };
+
+    setPolicy({
+      policy_name: templateData.name,
+      effect: effectMap[templateData.effect] || 'require_approval',
+      actions: templateData.actions || [],
+      resources: templateData.resource_types || [],
+      conditions: conditionsArray,
+      natural_language: templateData.description || '',
+      risk_level: riskMap[templateData.severity] || 'medium'
+    });
+
+    // Close template library after selection
+    setShowTemplateLibrary(false);
+  };
+
   const compilePreview = async () => {
     try {
       const response = await fetch(
@@ -195,13 +241,24 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
           <Shield className="h-6 w-6 text-blue-600" />
           Advanced Policy Builder
         </h3>
-        <button
-          onClick={compilePreview}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-        >
-          <Eye className="h-4 w-4" />
-          Preview
-        </button>
+        <div className="flex items-center gap-3">
+          {/* SEC-053: Template Library Button */}
+          <button
+            onClick={() => setShowTemplateLibrary(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            aria-label="Open policy template library"
+          >
+            <BookOpen className="h-4 w-4" />
+            From Template
+          </button>
+          <button
+            onClick={compilePreview}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+          >
+            <Eye className="h-4 w-4" />
+            Preview
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-6">
@@ -439,6 +496,16 @@ export const VisualPolicyBuilderAdvanced = ({ onSave, onCancel, API_BASE_URL, ge
           Cancel
         </button>
       </div>
+
+      {/* SEC-053: Policy Template Library Modal */}
+      {showTemplateLibrary && (
+        <PolicyTemplateLibrary
+          onSelectTemplate={handleSelectTemplate}
+          onClose={() => setShowTemplateLibrary(false)}
+          getAuthHeaders={getAuthHeaders}
+          API_BASE_URL={API_BASE_URL}
+        />
+      )}
     </div>
   );
 };
