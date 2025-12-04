@@ -17,7 +17,7 @@ Enterprise-grade AI governance SDK for Python applications.
 ## Installation
 
 ```bash
-pip install owkai-sdk
+pip install ascend-sdk
 ```
 
 Or from source:
