@@ -1,10 +1,11 @@
 # OW-kai Enterprise Platform - Progress Tracking & Documentation
 
 ## Current Project Status
-**Last Updated:** 2025-11-26
+**Last Updated:** 2025-12-03
 **Project:** OW AI Enterprise Authorization Center
 **Production Status:** LIVE - Banking-Level Security Enabled
 **Demo Readiness:** 10/10 - PRODUCTION READY
+**Latest Enhancement:** SEC-066 Unified Metrics Architecture (Splunk/Datadog/Wiz aligned)
 
 ---
 
@@ -228,6 +229,402 @@ psycopg2.errors.NotNullViolation: null value in column "organization_id" of rela
 - `ow-ai-backend/routes/api_key_routes.py` - Set organization_id in constructor
 
 **Compliance:** PCI-DSS 8.3.1, SOC 2 CC6.1
+
+#### SEC-029: Cross-Module Model Registration (Medium - RESOLVED)
+**Date:** 2025-11-30
+**Severity:** Medium
+**Issue:** Onboarding script failing with `ComplianceExportJob` not found error
+**Root Cause:** `Organization` model had relationship to `ComplianceExportJob` but the class wasn't imported
+**Resolution:** Added import at end of `models.py` to register cross-module models
+
+**Files Modified:**
+- `ow-ai-backend/models.py` - Added import for ComplianceExportJob
+
+#### SEC-030: NEW_REDACTED-CREDENTIAL_REQUIRED Challenge UI Bug (Medium - PENDING)
+**Date:** 2025-11-30
+**Severity:** Medium
+**Issue:** First-time login with temporary password shows MFA verification screen instead of password change form
+**Root Cause:** `CognitoLogin.jsx` routes `NEW_REDACTED-CREDENTIAL_REQUIRED` challenge to `MFAVerification` component
+**Status:** PENDING - Workaround: Use `admin-set-user-password --permanent` to bypass
+
+**Files to Fix:**
+- `owkai-pilot-frontend/src/components/CognitoLogin.jsx` - Add NEW_REDACTED-CREDENTIAL_REQUIRED handler
+- `owkai-pilot-frontend/src/components/NewPasswordChallenge.jsx` - Create new component
+
+#### SEC-031: SES Email Sending in Sandbox Mode (Medium - PENDING)
+**Date:** 2025-11-30
+**Severity:** Medium
+**Issue:** Welcome emails fail with "Email address is not verified" error
+**Root Cause:** AWS SES is in sandbox mode - requires recipient email verification
+**Status:** PENDING - Workaround: Manual email via generated template
+
+**Resolution Options:**
+1. Request SES production access (requires AWS support ticket)
+2. Verify recipient emails in SES console before onboarding
+3. Use alternative email service (SendGrid, Mailgun)
+
+#### SEC-032: Organization Name Not Displayed After Login (Low - PENDING)
+**Date:** 2025-11-30
+**Severity:** Low
+**Issue:** After logging in, the organization/company name is not displayed in the UI header
+**Root Cause:** Dashboard/header component not fetching or displaying organization name
+**Status:** PENDING
+
+**Files to Investigate:**
+- `owkai-pilot-frontend/src/components/Dashboard.jsx` - Main dashboard header
+- `owkai-pilot-frontend/src/contexts/AuthContext.jsx` - Auth context may need org name
+- `owkai-pilot-frontend/src/components/Sidebar.jsx` - Navigation sidebar
+
+#### SEC-033: X-API-Key Header Not Working for SDK Auth (Medium - PENDING)
+**Date:** 2025-11-30
+**Severity:** Medium
+**Issue:** API key authentication only works with `Authorization: Bearer` header, not `X-API-Key`
+**Expected:** Both headers should be supported for SDK flexibility
+**Status:** PENDING
+
+**Current Behavior:**
+- `X-API-Key: owkai_...` → "Authentication required"
+- `Authorization: Bearer owkai_...` → Works
+
+**Files to Fix:**
+- `ow-ai-backend/dependencies_api_keys.py` - Add X-API-Key header support
+
+#### SEC-034: User Invitation Not Creating Cognito User (High - PENDING)
+**Date:** 2025-11-30
+**Severity:** High
+**Issue:** User invitation flow creates database record but doesn't create Cognito user
+**Root Cause:** Invite endpoint missing Cognito AdminCreateUser call
+**Status:** PENDING
+
+**Expected Flow:**
+1. Admin invites user via UI
+2. Backend creates database record
+3. Backend creates Cognito user with temp password
+4. User receives invite email
+5. User logs in and sets new password
+
+**Current Flow (Broken):**
+1. Admin invites user ✅
+2. Database record created ✅
+3. Cognito user NOT created ❌
+4. User cannot login
+
+**Files to Fix:**
+- `ow-ai-backend/routes/enterprise_user_management_routes.py` - Add Cognito user creation
+
+#### SEC-035: MFA Setup Screen Missing QR Code (High - PENDING)
+**Date:** 2025-11-30
+**Severity:** High
+**Issue:** MFA setup screen shows "Verify your identity" but no QR code or setup key displayed
+**Root Cause:** MFASetupChallenge component not receiving/displaying TOTP secret
+**Status:** PENDING
+
+**Symptoms:**
+- MFA screen appears during login
+- No QR code visible
+- No manual setup key visible
+- User cannot complete MFA enrollment
+
+**Files to Fix:**
+- `owkai-pilot-frontend/src/components/MFASetupChallenge.jsx` - Fix QR code display
+- `owkai-pilot-frontend/src/services/cognitoAuth.js` - Ensure TOTP secret returned
+
+#### SEC-036: Cognito Audit Log Dict Serialization Error (Low - PENDING)
+**Date:** 2025-11-30
+**Severity:** Low
+**Issue:** Audit log INSERT fails with "can't adapt type 'dict'" error
+**Root Cause:** `details` column expects JSON string but receives Python dict
+**Status:** PENDING - Non-blocking, onboarding continues
+
+**Fix:**
+```python
+import json
+details_json = json.dumps(details_dict)
+```
+
+**Files to Fix:**
+- `ow-ai-backend/services/cognito_pool_provisioner.py` - Serialize details to JSON
+
+#### SEC-037: MFA Cannot Be Disabled Per-User or Per-Pool (Medium - PENDING)
+**Date:** 2025-11-30
+**Severity:** Medium
+**Issue:** MFA prompt appears even after disabling at user and pool level
+**Status:** PENDING
+
+**Attempted Fixes (None Worked):**
+- `admin-set-user-mfa-preference` with Enabled=false
+- `set-user-pool-mfa-config` with OFF
+- Delete and recreate user
+
+**Investigation Needed:**
+1. Check for Cognito Lambda triggers enforcing MFA
+2. Check app client-level MFA enforcement
+3. Review advanced security settings
+4. Check frontend code forcing MFA flow
+
+#### SEC-038: API Key Prefix Length Inconsistency (Low - PENDING)
+**Date:** 2025-11-30
+**Severity:** Low
+**Issue:** Working API keys use 16-char prefix, but manually created 12-char prefix fails
+**Status:** PENDING
+
+**Evidence:**
+- Working: `owkai_admin_tUsL` (16 chars)
+- Failed: `owkai_test_4` (12 chars)
+
+**Fix:**
+- Add validation in key generation for consistent prefix length
+- Document 16-char requirement
+
+#### SEC-066: Enterprise Unified Metrics Architecture (Critical - RESOLVED)
+**Date:** 2025-12-03
+**Severity:** Critical
+**Issue:** Platform-wide metric inconsistency causing data integrity issues
+- Executive Brief showed: $150,000 cost savings, 6 threats, 50% accuracy
+- Performance Metrics showed: -$119,568 cost savings (NEGATIVE!), 27 alerts, 48.1% accuracy
+- AI Recommendations showed: 24 high-risk alerts
+
+**Root Cause:** Multiple independent calculation methods across 15+ services with different formulas:
+- Executive Brief: `prevented × $50,000` (correct)
+- Performance Metrics: `(15 - MTTR) × $75/hour` (produces negative when MTTR > 15 min)
+- Different time periods (24h vs 30 days) without normalization
+
+**Resolution:** Implemented industry-leader aligned Unified Metrics Architecture
+
+**Industry Alignment:**
+| Pattern | Industry Leader | OW-kai Implementation |
+|---------|-----------------|----------------------|
+| Common Information Model | Splunk CIM | `services/metric_definitions.py` |
+| Metric Registry | Datadog Metrics Summary | `services/metric_registry.py` |
+| Unified Risk Engine | Wiz Security Graph | `services/unified_metrics_engine.py` |
+| Audit Trail | SOC 2 AU-6 | `metric_calculation_audit` table |
+
+**Files Created:**
+- `ow-ai-backend/services/metric_definitions.py` - 657 lines
+- `ow-ai-backend/services/metric_registry.py` - 377 lines
+- `ow-ai-backend/services/unified_metrics_engine.py` - 735 lines
+- `ow-ai-backend/models_metrics.py` - 143 lines
+- `ow-ai-backend/alembic/versions/20251203_sec066_metric_audit.py` - 157 lines
+
+**Files Modified:**
+- `ow-ai-backend/main.py` - Performance Metrics, AI Insights endpoints
+- `ow-ai-backend/services/executive_brief_service.py` - Unified engine integration
+- `ow-ai-backend/models.py` - Relationship additions
+
+**Compliance:** SOC 2 PI-1, SOC 2 AU-6, PCI-DSS 10.2, PCI-DSS 10.6, NIST AU-6
+
+---
+
+## SEC-066: Unified Metrics Architecture (Enterprise Reference)
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         UNIFIED METRICS ARCHITECTURE                         │
+│                    Industry-Leader Aligned (Splunk/Datadog/Wiz)             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐                   │
+│  │   alerts     │    │ agent_actions│    │   users      │                   │
+│  │   table      │    │    table     │    │   table      │                   │
+│  └──────┬───────┘    └──────┬───────┘    └──────────────┘                   │
+│         │                   │                                                │
+│         └─────────┬─────────┘                                                │
+│                   ▼                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                    UnifiedMetricsEngine                              │    │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                  │    │
+│  │  │ MetricCIM   │  │MetricRegistry│  │ MetricCache │                  │    │
+│  │  │ (Splunk)    │  │ (Datadog)   │  │ (5min TTL)  │                  │    │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘                  │    │
+│  │                                                                      │    │
+│  │  Single SQL Query → Calculate → Validate → Cache → Audit Trail      │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                   │                                                          │
+│                   ▼                                                          │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                       MetricSnapshot                                 │    │
+│  │  (Immutable calculation result - same values for all consumers)     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                   │                                                          │
+│         ┌─────────┼─────────┬─────────────┐                                 │
+│         ▼         ▼         ▼             ▼                                 │
+│  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐                   │
+│  │ Executive │ │Performance│ │    AI     │ │  Smart    │                   │
+│  │   Brief   │ │  Metrics  │ │ Insights  │ │   Rules   │                   │
+│  └───────────┘ └───────────┘ └───────────┘ └───────────┘                   │
+│       ▲              ▲             ▲             ▲                          │
+│       └──────────────┴─────────────┴─────────────┘                          │
+│                    ALL SHOW IDENTICAL VALUES                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Metric Calculation Formulas
+
+#### Financial Metrics
+```python
+# UNIFIED COST SAVINGS FORMULA
+# Industry standard: Each prevented incident saves breach cost
+cost_savings = threats_prevented × COST_PER_INCIDENT_USD
+
+# Default: $50,000 per incident (configurable per organization)
+# Example: 3 prevented × $50,000 = $150,000
+
+# VALIDATION: Cost savings can NEVER be negative
+cost_savings = max(0, cost_savings)  # Enforced by MetricRegistry
+```
+
+#### Threat Metrics
+```python
+# Threats Detected = Total alerts in period
+threats_detected = COUNT(alerts WHERE timestamp >= period_start)
+
+# Threats Prevented = Acknowledged alerts (reviewed and handled)
+threats_prevented = COUNT(alerts WHERE acknowledged_at IS NOT NULL)
+
+# Threats Pending = Unacknowledged alerts
+threats_pending = COUNT(alerts WHERE acknowledged_at IS NULL)
+```
+
+#### Performance Metrics
+```python
+# System Accuracy = Resolution rate
+accuracy_rate = (acknowledged_count / total_count) × 100
+# Validation: 0% - 100%
+
+# False Positive Rate = Dismissed alerts
+false_positive_rate = (dismissed_count / total_count) × 100
+# Validation: 0% - 100%
+
+# Mean Time to Resolve (MTTR)
+mttr_minutes = AVG(acknowledged_at - timestamp) in minutes
+# Validation: >= 0
+
+# SLA Compliance = Resolved within thresholds
+sla_compliance = (resolved_within_sla / total_resolved) × 100
+# Thresholds: Critical=15min, High=30min, Medium=60min, Low=120min
+```
+
+#### Risk Metrics
+```python
+# Composite Risk Score (0-100)
+severity_score = (critical × 10) + (high × 5) + (medium × 2) + (low × 1)
+pending_ratio = (pending_count / total_count) × 100
+risk_score = (severity_normalized × 0.5) + (pending_ratio × 0.3) + critical_bonus
+
+# Risk Level Thresholds
+CRITICAL: risk_score >= 80
+HIGH:     risk_score >= 60
+MEDIUM:   risk_score >= 40
+LOW:      risk_score < 40
+
+# Risk Trend (comparing current vs previous period)
+increasing: current_count > previous_count × 1.1
+decreasing: current_count < previous_count × 0.9
+stable:     otherwise
+```
+
+### Organization Configuration
+
+Each organization can customize metric calculations via `org_metric_configs` table:
+
+| Setting | Default | Valid Range | Description |
+|---------|---------|-------------|-------------|
+| `cost_per_incident_usd` | $50,000 | $100 - $10,000,000 | Cost of a security incident |
+| `hourly_analyst_rate_usd` | $75 | $10 - $1,000 | Analyst hourly rate for time savings |
+| `sla_critical_minutes` | 15 | 1 - 1,440 | SLA for critical alerts |
+| `sla_high_minutes` | 30 | 1 - 1,440 | SLA for high alerts |
+| `sla_medium_minutes` | 60 | 1 - 1,440 | SLA for medium alerts |
+| `sla_low_minutes` | 120 | 1 - 1,440 | SLA for low alerts |
+
+### Validation Rules
+
+The `MetricRegistry` enforces these constraints:
+
+| Metric | Type | Min | Max | Validation |
+|--------|------|-----|-----|------------|
+| `cost_savings` | currency | 0 | ∞ | Never negative |
+| `accuracy_rate` | percentage | 0 | 100 | Clamped to range |
+| `false_positive_rate` | percentage | 0 | 100 | Clamped to range |
+| `sla_compliance` | percentage | 0 | 100 | Clamped to range |
+| `automation_rate` | percentage | 0 | 100 | Clamped to range |
+| `risk_score` | score | 0 | 100 | Clamped to range |
+| `mttr_minutes` | minutes | 0 | ∞ | Never negative |
+
+### Audit Trail (SOC 2 AU-6)
+
+Every metric calculation is logged to `metric_calculation_audit`:
+
+```sql
+-- Audit record structure
+calculation_id:       "metrics_4_20251203_143052_a1b2c3d4"
+organization_id:      4
+calculation_type:     "unified_metrics"
+calculated_at:        "2025-12-03T14:30:52Z"
+period_hours:         24
+calculation_duration_ms: 45
+input_data_hash:      "sha256:abc123..."  -- For reproducibility
+config_snapshot:      {"cost_per_incident_usd": 50000, ...}
+metrics_snapshot:     {"threats_prevented": 3, "cost_savings": 150000, ...}
+engine_version:       "1.0.0"
+cim_version:          "1.0.0"
+validation_passed:    true
+validation_warnings:  []
+```
+
+### Caching Strategy
+
+```python
+# MetricCache - 5-minute TTL, thread-safe
+cache_key = (organization_id, period_hours)
+
+# Cache flow:
+1. Check cache for existing snapshot
+2. If valid (< 5 min old): return cached snapshot
+3. If expired/missing: calculate fresh, store in cache, return
+
+# Cache invalidation:
+- Automatic after TTL expires
+- Manual via cache.invalidate(org_id) when data changes
+- Full clear via cache.clear()
+```
+
+### API Usage Examples
+
+```python
+# Getting unified metrics in any endpoint
+from services.unified_metrics_engine import UnifiedMetricsEngine
+
+engine = UnifiedMetricsEngine(db, org_id)
+snapshot = engine.calculate(period_hours=24)
+
+# Access consistent values
+snapshot.threats_prevented    # 3
+snapshot.cost_savings         # 150000.0
+snapshot.accuracy_rate        # 50.0
+snapshot.risk_score           # 45.0
+snapshot.risk_level           # "MEDIUM"
+
+# Formatted for display
+formatted = snapshot.format_for_display()
+# {
+#   "financial": {"cost_savings": "$150,000", ...},
+#   "performance": {"accuracy_rate": "50.0%", ...},
+#   "risk": {"score": 45.0, "level": "MEDIUM", ...}
+# }
+```
+
+### Compliance Mapping
+
+| Requirement | Standard | SEC-066 Implementation |
+|-------------|----------|------------------------|
+| Processing Integrity | SOC 2 PI-1 | Single calculation engine |
+| Audit Record Review | SOC 2 AU-6 | `metric_calculation_audit` table |
+| Audit Trail Generation | PCI-DSS 10.2 | Immutable calculation records |
+| Review Security Events | PCI-DSS 10.6 | Unified reporting |
+| Audit Review & Analysis | NIST AU-6 | CIM standardization |
+| Reliable Audit Metrics | NIST AU-7 | Versioned calculations |
 
 ---
 
