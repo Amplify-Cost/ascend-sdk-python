@@ -649,12 +649,17 @@ const DocumentationViewer = ({ user }) => {
   const handleSelectDoc = useCallback((docId) => {
     setActiveDoc(docId);
     setSearchQuery(''); // Clear search when switching documents
+    // SEC-075: Scroll content to top when switching documents
+    const contentArea = document.querySelector('[data-doc-content]');
+    if (contentArea) {
+      contentArea.scrollTo({ top: 0, behavior: 'instant' });
+    }
   }, []);
 
   const activeDocument = documents.find(d => d.id === activeDoc);
 
   return (
-    <div className={`flex h-[calc(100vh-180px)] rounded-xl overflow-hidden shadow-lg ${
+    <div className={`flex h-[calc(100vh-180px)] rounded-xl shadow-lg ${
       isDarkMode ? 'bg-slate-800' : 'bg-white'
     }`}>
       {/* Navigation Sidebar */}
@@ -703,7 +708,7 @@ const DocumentationViewer = ({ user }) => {
             <h2 className={`text-sm font-medium mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
               Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
             </h2>
-            <ul className="space-y-1 max-h-32 overflow-y-auto">
+            <ul className="space-y-1 max-h-48 overflow-y-auto">
               {searchResults.slice(0, 5).map((result, idx) => (
                 <li
                   key={idx}
@@ -722,7 +727,7 @@ const DocumentationViewer = ({ user }) => {
         )}
 
         {/* Document Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div data-doc-content className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
