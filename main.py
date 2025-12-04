@@ -438,9 +438,10 @@ app = FastAPI(
     title="Ascend AI Governance Platform",
     description=API_DESCRIPTION,
     version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    # SEC-077: Serve docs under /api prefix to match frontend API_BASE_URL
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
     openapi_tags=API_TAGS_METADATA,
     contact={
         "name": "Ascend Support",
