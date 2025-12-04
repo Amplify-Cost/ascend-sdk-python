@@ -96,6 +96,14 @@ async def get_integration_docs_index():
             "description": "Technical architecture and component overview",
             "path": "/api/docs/integration/architecture",
             "filename": "ARCHITECTURE.md"
+        },
+        {
+            "id": "governance_controls",
+            "title": "Governance Controls Configuration Guide",
+            "description": "Configure rate limits, budgets, time windows, and auto-suspension for AI agents",
+            "path": "/api/docs/integration/governance-controls",
+            "filename": "GOVERNANCE_CONTROLS.md",
+            "audience": "clients"
         }
     ]
 
@@ -171,6 +179,22 @@ async def get_agent_governance_doc():
     return PlainTextResponse(content, media_type="text/markdown")
 
 
+@router.get("/integration/governance-controls")
+async def get_governance_controls_doc():
+    """
+    Get the Governance Controls Configuration Guide.
+
+    Comprehensive guide for configuring rate limits, budget controls,
+    time windows, data classifications, auto-suspension rules, and
+    escalation for autonomous AI agents (SEC-075).
+
+    Audience: Clients, Administrators, Engineers
+    Compliance: SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST AC-2/SI-4
+    """
+    content = get_doc_content("GOVERNANCE_CONTROLS.md")
+    return PlainTextResponse(content, media_type="text/markdown")
+
+
 @router.get("/integration/{doc_name}")
 async def get_integration_doc_by_name(doc_name: str):
     """
@@ -187,7 +211,8 @@ async def get_integration_doc_by_name(doc_name: str):
         "sdk-guide": "SDK_GUIDE.md",
         "architecture": "ARCHITECTURE.md",
         "agent-registry": "AGENT_REGISTRY.md",
-        "agent-governance": "AGENT_GOVERNANCE.md"
+        "agent-governance": "AGENT_GOVERNANCE.md",
+        "governance-controls": "GOVERNANCE_CONTROLS.md"
     }
 
     filename = doc_map.get(doc_name.lower())
