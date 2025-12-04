@@ -73,16 +73,18 @@ class SIEMExportRequest(BaseModel):
 # Helper Functions
 # =============================================================================
 
-def get_organization_id(current_user: User) -> int:
+def get_organization_id(current_user: dict) -> int:
     """Extract organization_id with validation"""
-    if not current_user.organization_id:
+    org_id = current_user.get("organization_id")
+    if not org_id:
         raise HTTPException(status_code=403, detail="User has no organization")
-    return current_user.organization_id
+    return org_id
 
 
-def check_admin_access(current_user: User):
+def check_admin_access(current_user: dict):
     """Verify user has admin access for diagnostics"""
-    if current_user.role not in ["admin", "platform_admin", "org_admin"]:
+    role = current_user.get("role", "user")
+    if role not in ["admin", "platform_admin", "org_admin"]:
         raise HTTPException(
             status_code=403,
             detail="Diagnostics access requires admin privileges"
@@ -325,7 +327,7 @@ async def full_health_check(
     save_diagnostic_audit(
         db=db,
         org_id=org_id,
-        user_id=current_user.id,
+        user_id=current_user.get("user_id"),
         correlation_id=correlation_id,
         diagnostic_type="full_diagnostic",
         status=status,
@@ -399,7 +401,7 @@ async def api_health_check(
     save_diagnostic_audit(
         db=db,
         org_id=org_id,
-        user_id=current_user.id,
+        user_id=current_user.get("user_id"),
         correlation_id=correlation_id,
         diagnostic_type="api_health",
         status=status,
@@ -484,7 +486,7 @@ async def database_health_check(
     save_diagnostic_audit(
         db=db,
         org_id=org_id,
-        user_id=current_user.id,
+        user_id=current_user.get("user_id"),
         correlation_id=correlation_id,
         diagnostic_type="database_status",
         status=status,
@@ -575,7 +577,7 @@ async def integration_test(
     save_diagnostic_audit(
         db=db,
         org_id=org_id,
-        user_id=current_user.id,
+        user_id=current_user.get("user_id"),
         correlation_id=correlation_id,
         diagnostic_type="integration_test",
         status=status,
