@@ -27,7 +27,7 @@ Security:
 Compliance: SOC 2 Type II, HIPAA, PCI-DSS, GDPR, SOX, NIST 800-53
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, desc, or_, case
@@ -531,6 +531,7 @@ async def get_organization_details(
 @limiter.limit(RATE_LIMITS["api_write"])  # SEC-046: Rate limit (30/min per IP)
 async def update_organization(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     update_data: OrganizationUpdate,
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db),
@@ -688,6 +689,7 @@ def _compute_user_status(user) -> str:
 @limiter.limit("10/minute")  # SEC-046: Strict rate limit for user creation
 async def invite_user(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     invite_data: UserInviteRequest,
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db),
@@ -814,6 +816,7 @@ async def invite_user(
 @limiter.limit(RATE_LIMITS["api_write"])  # SEC-046: Rate limit (30/min per IP)
 async def update_user_role(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     role_update: UserRoleUpdate,
     admin: dict = Depends(require_org_admin),
@@ -868,6 +871,7 @@ async def update_user_role(
 @limiter.limit("10/minute")  # SEC-046: Strict rate limit for user deletion
 async def remove_user(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db),
@@ -925,6 +929,7 @@ async def remove_user(
 @limiter.limit("10/minute")
 async def suspend_or_reactivate_user(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     suspend_data: UserSuspendRequest,
     admin: dict = Depends(require_org_admin),
@@ -1001,6 +1006,7 @@ async def suspend_or_reactivate_user(
 @limiter.limit(RATE_LIMITS["api_write"])
 async def update_user_profile(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     profile_data: UserProfileUpdate,
     admin: dict = Depends(require_org_admin),
@@ -1094,6 +1100,7 @@ async def update_user_profile(
 @limiter.limit("5/minute")  # Strict limit for password operations
 async def reset_user_password(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     reset_data: PasswordResetRequest,
     admin: dict = Depends(require_org_admin),
@@ -1197,6 +1204,7 @@ async def reset_user_password(
 @limiter.limit("10/minute")
 async def force_logout_user(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     logout_data: ForceLogoutRequest,
     admin: dict = Depends(require_org_admin),
@@ -1574,6 +1582,7 @@ async def get_billing_details(
 @limiter.limit("5/minute")  # SEC-046: Strict rate limit for billing operations
 async def upgrade_subscription(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     upgrade_data: BillingUpdateRequest,
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db),
@@ -1900,6 +1909,27 @@ async def get_analytics_overview(
     except Exception:
         pass
 
+    # ========================================
+    # SEC-072: Pre-compute legacy metrics (prevent InFailedSqlTransaction)
+    # ========================================
+    last_7_days_count = 0
+    try:
+        last_7_days_count = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= week_ago
+        ).count()
+    except Exception as e:
+        logger.warning(f"SEC-072: last_7_days_count query failed: {e}")
+
+    last_24_hours_count = 0
+    try:
+        last_24_hours_count = db.query(AgentAction).filter(
+            AgentAction.organization_id == org_id,
+            AgentAction.created_at >= day_ago
+        ).count()
+    except Exception as e:
+        logger.warning(f"SEC-072: last_24_hours_count query failed: {e}")
+
     # SEC-046: Return flat field names for frontend compatibility
     return {
         # Flat fields expected by frontend
@@ -1930,14 +1960,8 @@ async def get_analytics_overview(
         # Legacy nested format (backward compatibility)
         "api_calls": {
             "total_this_month": api_calls_this_month,
-            "last_7_days": db.query(AgentAction).filter(
-                AgentAction.organization_id == org_id,
-                AgentAction.created_at >= week_ago
-            ).count(),
-            "last_24_hours": db.query(AgentAction).filter(
-                AgentAction.organization_id == org_id,
-                AgentAction.created_at >= day_ago
-            ).count()
+            "last_7_days": last_7_days_count,
+            "last_24_hours": last_24_hours_count
         }
     }
 
@@ -2233,6 +2257,7 @@ async def get_users_by_access_level(
 @limiter.limit(RATE_LIMITS["api_write"])  # SEC-046: Rate limit (30/min per IP)
 async def update_user_access_level(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     user_id: int,
     update_data: UserAccessLevelUpdate,
     admin: dict = Depends(require_org_admin),
@@ -2629,6 +2654,7 @@ class BulkUserOperation(BaseModel):
 @limiter.limit("10/minute")
 async def bulk_user_operation(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     operation_data: BulkUserOperation,
     admin: dict = Depends(require_org_admin),
     db: Session = Depends(get_db),
@@ -2997,6 +3023,7 @@ async def get_analytics_chart_data(
 @limiter.limit("5/minute")
 async def export_audit_log(
     request: Request,
+    response: Response,  # SEC-072: Required for slowapi rate limit headers
     format: str = Query("json", description="Export format: json, csv"),
     days: int = Query(30, ge=1, le=365),
     admin: dict = Depends(require_org_admin),
