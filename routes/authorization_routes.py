@@ -1298,10 +1298,11 @@ async def authorize_action_api(
 async def get_execution_history_api(
     limit: int = 50,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)  # SEC-076-FE: Multi-tenant isolation
 ):
     """API version of execution history for Authorization Center frontend compatibility."""
-    return await get_execution_history(limit, current_user, db)
+    return await get_execution_history(limit, current_user, db, org_id)
 
 
 @api_router.post("/test-action")
