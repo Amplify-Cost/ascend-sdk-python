@@ -1,7 +1,7 @@
 # Ascend Enterprise Integration Guide
 
 **Document ID:** ASCEND-INT-001
-**Version:** 2.0.0
+**Version:** 2.1.0
 **Classification:** Customer Documentation
 **Compliance:** SOC 2 Type II, PCI-DSS, HIPAA, GDPR
 **Publisher:** OW-kai Corporation
@@ -19,6 +19,8 @@ Welcome to the Ascend Enterprise AI Agent Governance Platform by OW-kai. This gu
 - **Compliance Mapping**: Automatic NIST 800-53 and MITRE ATT&CK mapping for all actions
 - **Multi-Tenant Isolation**: Banking-level data isolation between organizations
 - **Automation Workflows**: Playbook-based auto-approval and orchestration
+- **Agent Registry & Governance**: Full lifecycle management for autonomous AI agents (SEC-068)
+- **Emergency Controls**: Kill switch, rate limits, budget caps, and time window restrictions
 
 ---
 
@@ -74,14 +76,287 @@ curl -X POST https://your-domain.ascendowkai.com/api/authorization/agent-action 
 
 ---
 
+## Agent Registration (SEC-068)
+
+Before submitting actions, register your AI agent with the platform:
+
+### Register an Agent
+
+```bash
+curl -X POST https://your-domain.ascendowkai.com/api/registry/agents \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "your-agent-001",
+    "name": "Customer Service Bot",
+    "description": "Handles customer inquiries and ticket routing",
+    "agent_type": "autonomous",
+    "version": "1.0.0",
+    "capabilities": ["database.read", "email.send", "ticket.create"]
+  }'
+```
+
+### Agent Types
+
+| Type | Description | Risk Level | Approval Required |
+|------|-------------|------------|-------------------|
+| `supervised` | Human approval for high-risk actions | Medium | Yes (risk > 60) |
+| `autonomous` | Operates independently with stricter controls | High | Configurable |
+| `advisory` | Recommendations only, no execution | Low | No |
+| `mcp_server` | Model Context Protocol server integration | Variable | Policy-based |
+
+---
+
+## Agent Governance Controls (SEC-068)
+
+Configure comprehensive controls for autonomous AI agents:
+
+### Rate Limits (SOC 2 CC6.2 / NIST SI-4)
+
+```bash
+curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/rate-limits \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_actions_per_minute": 10,
+    "max_actions_per_hour": 100,
+    "max_actions_per_day": 1000,
+    "auto_suspend_on_exceeded": true
+  }'
+```
+
+### Budget Controls (PCI-DSS 7.1 / SOC 2 A1.1)
+
+```bash
+curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/budget \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "max_daily_budget_usd": 100.00,
+    "budget_alert_threshold_percent": 80,
+    "auto_suspend_on_exceeded": true
+  }'
+```
+
+### Time Window Restrictions (SOC 2 A1.1)
+
+```bash
+curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/time-window \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "timezone": "America/New_York",
+    "allowed_days": [1, 2, 3, 4, 5]
+  }'
+```
+
+### Data Classification Controls (HIPAA 164.312 / PCI-DSS 3.4 / GDPR)
+
+```bash
+curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/data-classifications \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allowed_classifications": ["public", "internal"],
+    "blocked_classifications": ["pii", "financial", "secret"]
+  }'
+```
+
+### Auto-Suspension Rules (NIST AC-2(3))
+
+```bash
+curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/auto-suspend \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "on_error_rate": 0.10,
+    "on_offline_minutes": 30,
+    "on_budget_exceeded": true,
+    "on_rate_exceeded": true
+  }'
+```
+
+### Escalation & Webhooks (CR-003)
+
+```bash
+curl -X PUT https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/escalation \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allow_queued_approval": true,
+    "escalation_webhook_url": "https://your-app.com/webhooks/agent-escalation",
+    "escalation_email": "security-team@your-company.com"
+  }'
+```
+
+---
+
+## Agent Monitoring
+
+### Get Usage Statistics
+
+```bash
+curl -X GET https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/usage \
+  -H "Authorization: Bearer ascend_your_api_key"
+```
+
+Response:
+```json
+{
+  "actions_this_minute": 5,
+  "actions_this_hour": 45,
+  "actions_this_day": 320,
+  "current_daily_spend_usd": 25.50,
+  "health_status": "online",
+  "last_heartbeat": "2025-12-03T10:30:00Z"
+}
+```
+
+### Get Anomaly Detection Alerts
+
+```bash
+curl -X GET https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/anomalies \
+  -H "Authorization: Bearer ascend_your_api_key"
+```
+
+### Set Baselines for Anomaly Detection
+
+```bash
+curl -X POST https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/set-baselines \
+  -H "Authorization: Bearer ascend_your_api_key"
+```
+
+---
+
+## Emergency Kill Switch (SOC 2 CC6.2 / NIST IR-4)
+
+Immediately suspend an agent in case of security incident:
+
+```bash
+curl -X POST https://your-domain.ascendowkai.com/api/registry/agents/{agent_id}/emergency-suspend \
+  -H "Authorization: Bearer ascend_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Detected unauthorized data access pattern - immediate investigation required"
+  }'
+```
+
+**Effects:**
+- Agent status immediately set to `suspended`
+- All pending actions blocked
+- Audit log entry created
+- Webhook notification sent (if configured)
+- Manual reactivation required via dashboard
+
+---
+
+## SDK Integration
+
+### Python SDK
+
+```bash
+pip install ascend-sdk
+```
+
+```python
+from ascend_sdk import AscendClient
+
+client = AscendClient(api_key="ascend_your_api_key")
+
+# Register agent
+agent = client.register_agent(
+    agent_id="my-agent-001",
+    name="Customer Service Bot",
+    agent_type="autonomous"
+)
+
+# Evaluate an action (handles risk scoring + approval flow)
+result = client.evaluate_action(
+    agent_id="my-agent-001",
+    action_type="database.read",
+    tool_name="postgres_query",
+    description="Query customer records"
+)
+
+if result.approved:
+    # Proceed with action
+    pass
+elif result.requires_approval:
+    # Wait for manual approval or poll status
+    status = client.poll_action_status(result.action_id, timeout=300)
+else:
+    # Action denied
+    print(f"Denied: {result.denial_reason}")
+```
+
+### Node.js SDK
+
+```bash
+npm install @ascend/sdk
+```
+
+```typescript
+import { AscendClient } from '@ascend/sdk';
+
+const client = new AscendClient({ apiKey: 'ascend_your_api_key' });
+
+// Evaluate an action
+const result = await client.evaluateAction({
+  agentId: 'my-agent-001',
+  actionType: 'database.read',
+  toolName: 'postgres_query',
+  description: 'Query customer records'
+});
+
+if (result.approved) {
+  // Proceed with action
+} else if (result.requiresApproval) {
+  // Poll for approval
+  const status = await client.pollActionStatus(result.actionId, { timeout: 300000 });
+}
+```
+
+---
+
 ## Integration Endpoints
+
+### Action Submission
 
 | Endpoint | Purpose | Authentication | Use Case |
 |----------|---------|----------------|----------|
 | `POST /api/authorization/agent-action` | Full enterprise pipeline | API Key or JWT | Production integrations |
-| `POST /api/sdk/agent-action` | SDK-optimized endpoint | API Key | OW-kai SDK users |
+| `POST /api/sdk/agent-action` | SDK-optimized endpoint | API Key | SDK users |
 | `GET /api/agent-action/status/{id}` | Poll action status | API Key or JWT | Async workflows |
 | `POST /api/authorization/approve/{id}` | Approve pending action | JWT (Admin) | Manual approvals |
+
+### Agent Registry (SEC-068)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/registry/agents` | POST | Register new agent |
+| `/api/registry/agents` | GET | List all agents |
+| `/api/registry/agents/{id}` | GET | Get agent details |
+| `/api/registry/agents/{id}` | PUT | Update agent |
+| `/api/registry/agents/{id}` | DELETE | Delete agent |
+| `/api/registry/agents/{id}/activate` | POST | Activate agent |
+| `/api/registry/agents/{id}/suspend` | POST | Suspend agent |
+
+### Agent Governance Controls (SEC-068)
+
+| Endpoint | Method | Purpose | Compliance |
+|----------|--------|---------|------------|
+| `/api/registry/agents/{id}/rate-limits` | PUT | Configure rate limits | SOC 2 CC6.2 |
+| `/api/registry/agents/{id}/budget` | PUT | Set budget controls | PCI-DSS 7.1 |
+| `/api/registry/agents/{id}/time-window` | PUT | Set operating hours | SOC 2 A1.1 |
+| `/api/registry/agents/{id}/data-classifications` | PUT | Data access controls | HIPAA 164.312 |
+| `/api/registry/agents/{id}/auto-suspend` | PUT | Auto-suspension rules | NIST AC-2(3) |
+| `/api/registry/agents/{id}/escalation` | PUT | Webhook/email config | CR-003 |
+| `/api/registry/agents/{id}/usage` | GET | Usage statistics | SOC 2 CC6.2 |
+| `/api/registry/agents/{id}/anomalies` | GET | Anomaly alerts | NIST SI-4 |
+| `/api/registry/agents/{id}/emergency-suspend` | POST | Emergency kill switch | NIST IR-4 |
+| `/api/registry/agents/{id}/set-baselines` | POST | Set anomaly baselines | NIST SI-4 |
 
 ### Recommended Endpoint Selection
 
@@ -244,11 +519,18 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ## Next Steps
 
-1. [Risk Scoring Deep Dive](./RISK_SCORING.md)
-2. [API Reference](./API_REFERENCE.md)
-3. [SDK Guide](./SDK_GUIDE.md)
-4. [Architecture Overview](./ARCHITECTURE.md)
+### Essential Reading
+
+1. [Agent Registry - Technical Documentation](./AGENT_REGISTRY.md) - Complete technical guide for agent registration, governance controls, and API reference
+2. [Agent Governance Guide](./AGENT_GOVERNANCE.md) - Business guide for governing autonomous AI agents
+3. [SDK Integration Guide](./SDK_GUIDE.md) - Python and Node.js SDK usage with evaluate_action()
+4. [API Reference](./API_REFERENCE.md) - Complete endpoint documentation
+
+### Advanced Topics
+
+5. [Risk Scoring Deep Dive](./RISK_SCORING.md) - Multi-layer risk scoring architecture
+6. [Architecture Overview](./ARCHITECTURE.md) - Platform components and data flow
 
 ---
 
-*Document Version: 2.0.0 | Last Updated: December 2025 | Compliance: SOC 2 CC6.1, PCI-DSS 7.1, NIST 800-53*
+*Document Version: 2.1.0 | Last Updated: December 2025 | Compliance: SOC 2 CC6.1, PCI-DSS 7.1, NIST 800-53, HIPAA, GDPR*
