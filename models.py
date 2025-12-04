@@ -553,8 +553,14 @@ class Workflow(Base):
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
 
 class WorkflowExecution(Base):
+    """
+    Workflow Execution tracking model.
+
+    SEC-076: Added organization_id for multi-tenant isolation.
+    Compliance: SOC 2 CC6.1, PCI-DSS 7.1, HIPAA 164.312
+    """
     __tablename__ = "workflow_executions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     workflow_id = Column(String, ForeignKey('workflows.id'))
     executed_by = Column(String)
@@ -567,10 +573,19 @@ class WorkflowExecution(Base):
     started_at = Column(DateTime, default=datetime.now(UTC))
     completed_at = Column(DateTime, nullable=True)
     execution_time_seconds = Column(Integer, nullable=True)
+    # SEC-076: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+
 
 class WorkflowStep(Base):
+    """
+    Workflow Step definition model.
+
+    SEC-076: Added organization_id for multi-tenant isolation.
+    Compliance: SOC 2 CC6.1, PCI-DSS 7.1, HIPAA 164.312
+    """
     __tablename__ = "workflow_steps"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     workflow_id = Column(String, ForeignKey('workflows.id'))
     step_order = Column(Integer)
@@ -578,7 +593,9 @@ class WorkflowStep(Base):
     step_type = Column(String)
     timeout_hours = Column(Integer, default=24)
     conditions = Column(JSON)
-    created_at = Column(DateTime, default=datetime.now(UTC))    
+    created_at = Column(DateTime, default=datetime.now(UTC))
+    # SEC-076: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)    
 class EnterprisePolicy(Base):
     """
     Enterprise Policy Model for MCP Governance
@@ -655,6 +672,9 @@ class PolicyEvaluation(Base):
     # Additional Context
     context = Column(JSONB, nullable=True)  # Full request context for forensic analysis
     error_message = Column(Text, nullable=True)  # If evaluation failed
+
+    # SEC-076: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     # Relationships
     policy = relationship("EnterprisePolicy", foreign_keys=[policy_id])
@@ -1137,3 +1157,8 @@ try:
     from models_metrics import MetricCalculationAudit, OrgMetricConfig
 except ImportError:
     pass  # SEC-066: Model module may not exist in older deployments
+
+try:
+    from models_diagnostics import DiagnosticAuditLog, DiagnosticThreshold
+except ImportError:
+    pass  # SEC-076: Diagnostics module may not exist in older deployments

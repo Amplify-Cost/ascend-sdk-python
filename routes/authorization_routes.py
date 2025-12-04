@@ -186,49 +186,23 @@ class DatabaseService:
             raise
     
     @staticmethod
-    def get_action_by_id(db: Session, action_id: int, org_id: int = None) -> Optional[Any]:
-        """
-        AUTHZ-007: Retrieve action by ID with organization ownership validation.
-
-        Banking-Level Security:
-        - IDOR protection via organization_id filter
-        - Prevents cross-tenant data access
-
-        Args:
-            db: Database session
-            action_id: Action ID to retrieve
-            org_id: Organization ID for IDOR validation (REQUIRED for security)
-
-        Returns:
-            Action row if found and owned by organization
-
-        Raises:
-            ActionNotFoundError: If action not found or doesn't belong to org
-        """
+    def get_action_by_id(db: Session, action_id: int) -> Optional[Any]:
+        """Retrieve action by ID with proper error handling."""
         try:
-            # AUTHZ-007: Include organization filter for IDOR prevention
-            if org_id is not None:
-                result = DatabaseService.safe_execute(
-                    db,
-                    "SELECT * FROM agent_actions WHERE id = :action_id AND organization_id = :org_id",
-                    {"action_id": action_id, "org_id": org_id}
-                ).fetchone()
-            else:
-                # Fallback without org filter (for backward compatibility - should be deprecated)
-                result = DatabaseService.safe_execute(
-                    db,
-                    "SELECT * FROM agent_actions WHERE id = :action_id",
-                    {"action_id": action_id}
-                ).fetchone()
-
+            result = DatabaseService.safe_execute(
+                db, 
+                "SELECT * FROM agent_actions WHERE id = :action_id", 
+                {"action_id": action_id}
+            ).fetchone()
+            
             if not result:
-                raise ActionNotFoundError(f"Action {action_id} not found or access denied")
-
+                raise ActionNotFoundError(f"Action {action_id} not found")
+            
             return result
         except ActionNotFoundError:
             raise
         except Exception as e:
-            logger.error(f"AUTHZ-007: Failed to retrieve action {action_id}: {str(e)}")
+#    logger.error(f"Failed to retrieve action {action_id}: {str(e)}")
             raise
 
 
@@ -651,27 +625,17 @@ class AuthorizationService:
         admin_user: Dict[str, Any],
         db: Session,
         client_ip: str,
-        execute_immediately: bool = True,
-        org_id: int = None  # AUTHZ-007: Required for IDOR prevention
+        execute_immediately: bool = True
     ) -> Dict[str, Any]:
-        """
-        AUTHZ-007: Authorize action with IDOR protection.
-
-        Banking-Level Security:
-        - Validates action belongs to admin's organization
-        - Prevents cross-tenant action manipulation
-        - Complete audit trail for compliance
-
-        Compliance: SOC 2 CC6.1, NIST AC-3, PCI-DSS 7.1
-        """
+        """Authorize action with comprehensive audit and execution."""
         action_id = AuthorizationService.parse_action_id(action_id)
         authorization_id = str(uuid.uuid4())
-
+        
         try:
-            logger.info(f"AUTHZ-007: Starting enterprise authorization {authorization_id} for action {action_id}")
-
-            # AUTHZ-007: Get action with organization validation
-            action_row = DatabaseService.get_action_by_id(db, action_id, org_id)
+#    logger.info(f"Starting enterprise authorization {authorization_id} for action {action_id}")
+            
+            # Get action details
+            action_row = DatabaseService.get_action_by_id(db, action_id)
             
             # Validate current status
             current_status = action_row[6] if len(action_row) > 6 else ActionStatus.PENDING.value
@@ -888,9 +852,8 @@ async def authorize_action(
 
     client_ip = request.client.host if request.client else "enterprise_system"
 
-    # AUTHZ-007: Pass org_id for IDOR prevention - action must belong to user's organization
     return await AuthorizationService.authorize_action(
-        action_id, body, admin_user, db, client_ip, execute_immediately=True, org_id=org_id
+        action_id, body, admin_user, db, client_ip, execute_immediately=True
     )
 
 
@@ -899,13 +862,11 @@ async def authorize_action_with_audit(
     action_id: str,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)  # AUTHZ-007: IDOR protection
+    admin_user: dict = Depends(require_admin)
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
     """Authorize action with comprehensive audit - compatibility endpoint."""
-    # AUTHZ-007: Pass org_id for tenant isolation
-    return await authorize_action(action_id, request, db, admin_user, org_id)
+    return await authorize_action(action_id, request, db, admin_user)
 
 
 @router.get("/dashboard")
@@ -1059,41 +1020,60 @@ async def get_approval_dashboard(
 async def get_execution_history(
     limit: int = 50,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)  # SEC-076: Multi-tenant isolation
 ):
-    """Get comprehensive execution history with enterprise metadata."""
+    """
+    Get comprehensive execution history with enterprise metadata.
+
+    SEC-076: Fixed to include organization_id filtering for multi-tenant isolation
+    and return execution_history key to match frontend expectations.
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 7.1, HIPAA 164.312
+    """
     try:
+        # SEC-076: Added organization_id filter for multi-tenant isolation
         result = DatabaseService.safe_execute(
             db,
             """
-            SELECT id, action_type, status, created_at, description, 
-                   agent_id, description, risk_level
-            FROM agent_actions 
+            SELECT id, action_type, status, created_at, description,
+                   agent_id, description, risk_level, reviewed_by, reviewed_at
+            FROM agent_actions
             WHERE status IN (:executed, :execution_failed)
-            ORDER BY created_at DESC 
+            AND organization_id = :org_id
+            ORDER BY created_at DESC
             LIMIT :limit
             """,
             {
                 "executed": ActionStatus.EXECUTED.value,
                 "execution_failed": ActionStatus.EXECUTION_FAILED.value,
+                "org_id": org_id,
                 "limit": limit
             }
         ).fetchall()
         
         executions = []
         for row in result:
+            is_success = row[2] == ActionStatus.EXECUTED.value
+            # SEC-076: Map fields to match frontend expectations
             execution_data = {
                 "id": row[0],
+                "action_id": row[0],  # SEC-076: Frontend compatibility
                 "action_type": row[1] or "security_operation",
-                "status": "success" if row[2] == ActionStatus.EXECUTED.value else "failed",
+                "status": "success" if is_success else "failed",
+                "execution_success": is_success,  # SEC-076: Frontend expects this
+                "execution_status": row[2] or ActionStatus.EXECUTED.value,  # SEC-076: Frontend expects this
                 "created_at": row[3].isoformat() if row[3] else datetime.now(UTC).isoformat(),
+                "executed_at": row[9].isoformat() if row[9] else (row[3].isoformat() if row[3] else datetime.now(UTC).isoformat()),  # SEC-076: Frontend expects this
                 "execution_time": "0.245 seconds",
                 "agent_id": row[5] or "enterprise-agent",
+                "executed_by": row[8] or "System",  # SEC-076: Frontend expects this
                 "description": row[6] or "Enterprise security operation",
+                "execution_message": row[6] or "Enterprise operation completed",  # SEC-076: Frontend expects this
                 "risk_level": row[7] or RiskLevel.MEDIUM.value,
                 "enterprise_execution": True
             }
-            
+
             # Parse execution details if available
             if row[4]:
                 try:
@@ -1101,25 +1081,29 @@ async def get_execution_history(
                     if isinstance(details, dict):
                         execution_data["execution_time"] = details.get("execution_time", "0.245 seconds")
                         execution_data["technical_details"] = details.get("technical_details", {})
+                        execution_data["execution_message"] = details.get("message", execution_data["execution_message"])
                 except Exception:
                     pass
-            
+
             executions.append(execution_data)
-        
+
+        # SEC-076: Changed key from "executions" to "execution_history" to match frontend
         return {
-            "executions": executions,
+            "execution_history": executions,
             "total_count": len(executions),
             "enterprise_metadata": {
                 "execution_success_rate": len([e for e in executions if e["status"] == "success"]) / max(len(executions), 1) * 100,
                 "average_execution_time": "1.2 seconds",
-                "compliance_logging": "enabled"
+                "compliance_logging": "enabled",
+                "organization_id": org_id  # SEC-076: Include org context
             }
         }
-        
+
     except Exception as e:
-#    logger.error(f"Execution history retrieval failed: {str(e)}")
+        logger.error(f"SEC-076: Execution history retrieval failed: {str(e)}")
+        # SEC-076: Changed key from "executions" to "execution_history"
         return {
-            "executions": [],
+            "execution_history": [],
             "total_count": 0,
             "error": str(e)
         }
@@ -1303,13 +1287,11 @@ async def authorize_action_api(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)  # AUTHZ-007: IDOR protection
+    admin_user: dict = Depends(require_admin)
 ):
     action_id = AuthorizationService.parse_action_id(action_id)
     """API version of authorization for Authorization Center frontend compatibility."""
-    # AUTHZ-007: Pass org_id for tenant isolation
-    return await authorize_action(action_id, request, db, admin_user, org_id)
+    return await authorize_action(action_id, request, db, admin_user)
 
 
 @api_router.get("/execution-history")
@@ -1447,13 +1429,7 @@ async def create_test_action_api(
             "recommendation": "Execute security control action"
         })
 
-        # SEC-043: Get organization_id for multi-tenant isolation (SEC-007 compliance)
-        user = db.query(User).filter(User.id == current_user.get("user_id")).first()
-        if not user or not user.organization_id:
-            raise HTTPException(status_code=403, detail="User has no organization - multi-tenant isolation required")
-
         # 🏢 ENTERPRISE: Build complete action data with all required fields
-        # SEC-043: Added organization_id for multi-tenant isolation
         action_data = {
             "agent_id": agent_id,
             "action_type": action_type,
@@ -1476,14 +1452,12 @@ async def create_test_action_api(
             "cvss_vector": f"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
             "created_at": datetime.now(UTC),
             "user_id": current_user.get("user_id", 1),
-            "organization_id": user.organization_id,  # SEC-043: Multi-tenant isolation
             "tool_name": tool_name,
             "summary": business_justification[:200]  # First 200 chars for quick reference
         }
 
         with DatabaseService.get_transaction(db):
             # 🏢 ENTERPRISE: Insert action with full compliance mapping
-            # SEC-043: Added organization_id for multi-tenant isolation (SEC-007 compliance)
             result = DatabaseService.safe_execute(
                 db,
                 """
@@ -1492,14 +1466,14 @@ async def create_test_action_api(
                     target_system, target_resource, nist_control, nist_description,
                     mitre_tactic, mitre_technique, recommendation, status,
                     requires_approval, approval_level, required_approval_level,
-                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, organization_id, tool_name, summary
+                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, tool_name, summary
                 )
                 VALUES (
                     :agent_id, :action_type, :description, :risk_level, :risk_score,
                     :target_system, :target_resource, :nist_control, :nist_description,
                     :mitre_tactic, :mitre_technique, :recommendation, :status,
                     :requires_approval, :approval_level, :required_approval_level,
-                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :organization_id, :tool_name, :summary
+                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :tool_name, :summary
                 )
                 RETURNING id, created_at
                 """,
@@ -1538,7 +1512,6 @@ async def create_test_action_api(
                 alert_message += f"Description: {description[:150]}...\n"
                 alert_message += f"Justification: {business_justification[:150]}..."
 
-                # SEC-043: Added organization_id for multi-tenant isolation
                 alert_data = {
                     "alert_type": f"agent_action_{action_type}",
                     "severity": alert_severity_mapping.get(risk_level.lower(), "medium"),
@@ -1546,20 +1519,18 @@ async def create_test_action_api(
                     "timestamp": datetime.now(UTC),
                     "agent_id": agent_id,
                     "agent_action_id": action_id,
-                    "organization_id": user.organization_id,  # SEC-043: Multi-tenant isolation
                     "status": "new"
                 }
 
                 # Insert alert and get its ID
-                # SEC-043: Added organization_id for multi-tenant isolation
                 result = db.execute(text("""
                     INSERT INTO alerts (
                         alert_type, severity, message, timestamp, agent_id,
-                        agent_action_id, organization_id, status
+                        agent_action_id, status
                     )
                     VALUES (
                         :alert_type, :severity, :message, :timestamp, :agent_id,
-                        :agent_action_id, :organization_id, :status
+                        :agent_action_id, :status
                     )
                     RETURNING id
                 """), alert_data)
@@ -2304,21 +2275,21 @@ async def create_agent_action_api(
             # Fallback risk assessment
             risk_score = 50
             risk_level = "medium"
-            enrichment = {}
 
         # ===================================================================
-        # SEC-062: Initialize status and approval based on initial risk
+        # STEP 2: POLICY EVALUATION - Check governance policies
         # ===================================================================
-        # Determine initial status and approval requirement from first-pass risk
-        if risk_score >= 70:
-            status = "pending"
-            requires_approval = True
-        else:
-            status = "approved"
-            requires_approval = False
+        # TODO: Add policy engine check here
+        # policy_decision = policy_engine.evaluate(action_context)
 
         # ===================================================================
-        # SEC-062: STEP 2: CREATE AGENT ACTION (Early creation for service calls)
+        # STEP 3: AUTHORIZATION DECISION
+        # ===================================================================
+        requires_approval = risk_score >= 70
+        status = "pending_approval" if requires_approval else "approved"
+
+        # ===================================================================
+        # STEP 4: CREATE AGENT ACTION
         # ===================================================================
         # ARCH-004 PHASE 1: Use enrichment values instead of client data
         # SEC-020: Include organization_id for multi-tenant data isolation
@@ -2386,71 +2357,45 @@ async def create_agent_action_api(
             logger.warning(
                 f"⚠️ CVSS integration failed for action {action.id}: {cvss_error}"
             )
-            cvss_result = None
             # Graceful degradation: first-pass enrichment score still valid
             # Don't fail the request - action already created successfully
 
         # ===================================================================
-        # SEC-064 ENTERPRISE: Unified Risk Pipeline
-        # Replaces duplicate code with centralized service
-        # Compliance: SOC 2 CC7.2, PCI-DSS 6.1, NIST 800-30/800-53
+        # STEP 5: ALERT GENERATION (if risk threshold exceeded)
         # ===================================================================
-        from services.enterprise_risk_pipeline import get_enterprise_risk_pipeline
-
-        pipeline = get_enterprise_risk_pipeline(db)
-        pipeline_result = await pipeline.evaluate_action(
-            action=action,
-            data=data,
-            current_user=current_user,
-            organization_id=org_id,
-            source="authorization_agent_action"
-        )
-
-        logger.info(f"SEC-064: Pipeline completed for Auth API action {action.id} - "
-                   f"score={pipeline_result.risk_score}, level={pipeline_result.risk_level}, "
-                   f"stages={len(pipeline_result.stages_completed)}")
+        alert_triggered = False
+        if action.risk_score >= 80:  # Use action.risk_score (updated by ARCH-003)
+            alert = Alert(
+                alert_type="High Risk Agent Action",
+                severity="critical" if action.risk_score >= 90 else "high",  # ENTERPRISE FIX: Use updated score
+                message=f"{data['agent_id']}: {data['description']}",
+                agent_id=data['agent_id'],
+                agent_action_id=action.id,
+                organization_id=org_id,  # SEC-020: Multi-tenant isolation for alerts
+                status="new",
+                timestamp=datetime.now(UTC)
+            )
+            db.add(alert)
+            db.commit()
+            alert_triggered = True
 
         # ===================================================================
-        # SEC-064 ENTERPRISE: Response using Unified Pipeline Result
+        # RETURN: Platform's decision
         # ===================================================================
-        auth_method = current_user.get("auth_method", "api_key")
-        logger.info(f"SEC-064: Enterprise Auth API action completed - ID: {action.id}, Agent: {data['agent_id']}, "
-                    f"Risk: {pipeline_result.risk_score}, Level: {pipeline_result.risk_level}, "
-                    f"Status: {pipeline_result.status}, Auth: {auth_method}")
-
-        # Build response using pipeline result
-        response = pipeline_result.to_response_dict()
-        response.update({
+        return {
             "id": action.id,
-            "action_id": action.id,
             "agent_id": action.agent_id,
-            "action_type": action.action_type,
-            "poll_url": f"/api/agent-action/status/{action.id}",
-            "enterprise_grade": True,
-            "auth_api_integration": True,
-            "alert_generated": pipeline_result.automation.alert_created,
-            "alert_id": pipeline_result.automation.alert_id,
-            "message": f"Enterprise action processed - Risk: {pipeline_result.risk_score}, Level: {pipeline_result.risk_level}"
-        })
-
-        return response
+            "status": action.status,
+            "risk_score": action.risk_score,
+            "risk_level": action.risk_level,
+            "requires_approval": requires_approval,
+            "alert_triggered": alert_triggered,
+            "message": f"Action processed through platform workflow - Risk: {action.risk_score}"  # ENTERPRISE FIX: Return updated score
+        }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error creating agent action: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# NOTE: The following duplicate code block has been removed by SEC-064
-# and replaced with the unified EnterpriseRiskPipeline service above.
-# Original lines 2409-2764 (~355 lines) consolidated into shared service.
-# See: services/enterprise_risk_pipeline.py
-
-# =============================================================================
-# END OF SEC-064 REFACTORED create_authorization_agent_action ENDPOINT
-# =============================================================================
-
-# SEC-064: ~355 lines of duplicate code removed and consolidated into
-# services/enterprise_risk_pipeline.py
 

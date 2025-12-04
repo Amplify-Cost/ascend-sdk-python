@@ -20,10 +20,13 @@ logger = logging.getLogger(__name__)
 class PolicyAnalyticsService:
     """
     Tracks and analyzes policy evaluations for compliance and performance monitoring.
+
+    SEC-076: Updated for multi-tenant isolation - all queries filter by organization_id.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, organization_id: Optional[int] = None):
         self.db = db
+        self.organization_id = organization_id  # SEC-076: Multi-tenant isolation
 
     async def log_evaluation(self,
                             evaluation_result: Dict[str, Any],
@@ -121,22 +124,30 @@ class PolicyAnalyticsService:
         try:
             start_time = datetime.now(UTC) - timedelta(hours=time_range_hours)
 
+            # SEC-076: Base filter for all queries - multi-tenant isolation
+            org_filter = []
+            if self.organization_id:
+                org_filter = [PolicyEvaluation.organization_id == self.organization_id]
+
             # Query: Total evaluations in time range
             total_evaluations = self.db.query(func.count(PolicyEvaluation.id)).filter(
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             ).scalar() or 0
 
             # Query: Evaluations today
             today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
             evaluations_today = self.db.query(func.count(PolicyEvaluation.id)).filter(
-                PolicyEvaluation.evaluated_at >= today_start
+                PolicyEvaluation.evaluated_at >= today_start,
+                *org_filter  # SEC-076: Multi-tenant filter
             ).scalar() or 0
 
             # Query: Denials count
             denials = self.db.query(func.count(PolicyEvaluation.id)).filter(
                 and_(
                     PolicyEvaluation.evaluated_at >= start_time,
-                    PolicyEvaluation.decision == "DENY"
+                    PolicyEvaluation.decision == "DENY",
+                    *org_filter  # SEC-076: Multi-tenant filter
                 )
             ).scalar() or 0
 
@@ -144,7 +155,8 @@ class PolicyAnalyticsService:
             approvals_required = self.db.query(func.count(PolicyEvaluation.id)).filter(
                 and_(
                     PolicyEvaluation.evaluated_at >= start_time,
-                    PolicyEvaluation.decision == "REQUIRE_APPROVAL"
+                    PolicyEvaluation.decision == "REQUIRE_APPROVAL",
+                    *org_filter  # SEC-076: Multi-tenant filter
                 )
             ).scalar() or 0
 
@@ -152,19 +164,22 @@ class PolicyAnalyticsService:
             avg_response_time = self.db.query(func.avg(PolicyEvaluation.evaluation_time_ms)).filter(
                 and_(
                     PolicyEvaluation.evaluated_at >= start_time,
-                    PolicyEvaluation.evaluation_time_ms.isnot(None)
+                    PolicyEvaluation.evaluation_time_ms.isnot(None),
+                    *org_filter  # SEC-076: Multi-tenant filter
                 )
-            ).scalar() or 0.2
+            ).scalar() or 0.0
 
             # Query: Cache hit rate
             total_with_cache_data = self.db.query(func.count(PolicyEvaluation.id)).filter(
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             ).scalar() or 1
 
             cache_hits = self.db.query(func.count(PolicyEvaluation.id)).filter(
                 and_(
                     PolicyEvaluation.evaluated_at >= start_time,
-                    PolicyEvaluation.cache_hit == True
+                    PolicyEvaluation.cache_hit == True,
+                    *org_filter  # SEC-076: Multi-tenant filter
                 )
             ).scalar() or 0
 
@@ -174,19 +189,28 @@ class PolicyAnalyticsService:
             errors = self.db.query(func.count(PolicyEvaluation.id)).filter(
                 and_(
                     PolicyEvaluation.evaluated_at >= start_time,
-                    PolicyEvaluation.error_message.isnot(None)
+                    PolicyEvaluation.error_message.isnot(None),
+                    *org_filter  # SEC-076: Multi-tenant filter
                 )
             ).scalar() or 0
 
-            success_rate = ((total_evaluations - errors) / total_evaluations * 100) if total_evaluations > 0 else 100.0
+            success_rate = ((total_evaluations - errors) / total_evaluations * 100) if total_evaluations > 0 else 0.0
+
+            # SEC-076: Policy queries also filter by organization
+            policy_org_filter = []
+            if self.organization_id:
+                policy_org_filter = [EnterprisePolicy.organization_id == self.organization_id]
 
             # Query: Active policies
             active_policies = self.db.query(func.count(EnterprisePolicy.id)).filter(
-                EnterprisePolicy.status == 'active'
+                EnterprisePolicy.status == 'active',
+                *policy_org_filter  # SEC-076: Multi-tenant filter
             ).scalar() or 0
 
             # Query: Total policies
-            total_policies = self.db.query(func.count(EnterprisePolicy.id)).scalar() or 0
+            total_policies = self.db.query(func.count(EnterprisePolicy.id)).filter(
+                *policy_org_filter  # SEC-076: Multi-tenant filter
+            ).scalar() or 0
 
             # Calculate: Throughput (evaluations per hour)
             evaluation_throughput = int(total_evaluations / time_range_hours) if time_range_hours > 0 else 0
@@ -229,6 +253,8 @@ class PolicyAnalyticsService:
         """
         Analyze effectiveness of a specific policy.
 
+        SEC-076: Updated for multi-tenant isolation.
+
         Args:
             policy_id: Policy to analyze
             time_range_days: Analysis period
@@ -248,11 +274,17 @@ class PolicyAnalyticsService:
         """
         start_time = datetime.now(UTC) - timedelta(days=time_range_days)
 
+        # SEC-076: Base filter for all queries - multi-tenant isolation
+        org_filter = []
+        if self.organization_id:
+            org_filter = [PolicyEvaluation.organization_id == self.organization_id]
+
         # Evaluations where this policy was primary
         evaluations = self.db.query(func.count(PolicyEvaluation.id)).filter(
             and_(
                 PolicyEvaluation.policy_id == policy_id,
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             )
         ).scalar() or 0
 
@@ -261,7 +293,8 @@ class PolicyAnalyticsService:
             and_(
                 PolicyEvaluation.policy_id == policy_id,
                 PolicyEvaluation.decision == "DENY",
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             )
         ).scalar() or 0
 
@@ -270,7 +303,8 @@ class PolicyAnalyticsService:
             and_(
                 PolicyEvaluation.policy_id == policy_id,
                 PolicyEvaluation.decision == "ALLOW",
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             )
         ).scalar() or 0
 
@@ -279,7 +313,8 @@ class PolicyAnalyticsService:
             and_(
                 PolicyEvaluation.policy_id == policy_id,
                 PolicyEvaluation.decision == "REQUIRE_APPROVAL",
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             )
         ).scalar() or 0
 
@@ -287,7 +322,8 @@ class PolicyAnalyticsService:
         avg_time = self.db.query(func.avg(PolicyEvaluation.evaluation_time_ms)).filter(
             and_(
                 PolicyEvaluation.policy_id == policy_id,
-                PolicyEvaluation.evaluated_at >= start_time
+                PolicyEvaluation.evaluated_at >= start_time,
+                *org_filter  # SEC-076: Multi-tenant filter
             )
         ).scalar() or 0.0
 
@@ -307,7 +343,18 @@ class PolicyAnalyticsService:
         }
 
 
-# Singleton instance
-def get_policy_analytics_service(db: Session) -> PolicyAnalyticsService:
-    """Factory function to create PolicyAnalyticsService instance"""
-    return PolicyAnalyticsService(db)
+# SEC-076: Updated factory function for multi-tenant isolation
+def get_policy_analytics_service(db: Session, organization_id: Optional[int] = None) -> PolicyAnalyticsService:
+    """
+    Factory function to create PolicyAnalyticsService instance.
+
+    SEC-076: Updated to accept organization_id for multi-tenant isolation.
+
+    Args:
+        db: Database session
+        organization_id: Organization ID for tenant isolation
+
+    Returns:
+        PolicyAnalyticsService instance configured for the organization
+    """
+    return PolicyAnalyticsService(db, organization_id)

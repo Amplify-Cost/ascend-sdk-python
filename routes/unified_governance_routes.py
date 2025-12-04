@@ -6,7 +6,7 @@ from services.immutable_audit_service import ImmutableAuditService
 # 🏢 ENTERPRISE: Unified AI Governance Routes - CORRECT Model Imports
 # Uses ONLY models that exist in your models.py file
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, desc, text
 from dependencies import get_db, get_current_user, require_admin, require_manager_or_admin, get_organization_filter
@@ -584,28 +584,12 @@ async def get_unified_governance_stats(
     except Exception as e:
         logger.error(f"❌ Error fetching unified governance stats: {str(e)}")
 
-        # 🏢 ENTERPRISE: NO demo data - return empty stats on error
-        # Banking-level security: Only return REAL data from database
-        return {
-            "success": False,
-            "stats": {
-                "total_actions": 0,
-                "pending_actions": 0,
-                "agent_actions": 0,
-                "mcp_actions": 0,
-                "high_risk_actions": 0,
-                "approved_today": 0,
-                "emergency_actions": 0,
-                "governance_health": "error",
-                "last_updated": datetime.now(UTC).isoformat(),
-                "user_info": {
-                    "email": current_user.get("email") if current_user else "unknown",
-                    "role": current_user.get("role") if current_user else "unknown",
-                    "max_risk_approval": 0
-                }
-            },
-            "error": str(e)
-        }
+        # SEC-076: Return error state - NO hardcoded demo data
+        # Enterprise customers should see real data or error state, never fake numbers
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch governance stats: {str(e)}"
+        )
 
 # 🏢 ENTERPRISE: Unified pending actions
 @router.get("/unified-actions")
@@ -763,15 +747,12 @@ def _old_get_unified_pending_actions_DEPRECATED(
     except Exception as e:
         logger.error(f"❌ Error fetching unified pending actions: {str(e)}")
 
-        # 🏢 ENTERPRISE: NO demo data - return empty list on error
-        # Banking-level security: Only return REAL data from database
-        return {
-            "success": False,
-            "actions": [],
-            "total": 0,
-            "has_more": False,
-            "error": str(e)
-        }
+        # SEC-076: Return error state - NO hardcoded demo data
+        # Enterprise customers should see real data or error state, never fake numbers
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch pending actions: {str(e)}"
+        )
 
 # 🔗 ENTERPRISE: URL Alias for frontend compatibility
 # Supports both /unified-actions and /unified/actions
@@ -1456,7 +1437,8 @@ async def check_policy_conflicts(
     policy_id: int,
     policy_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Check for conflicts when creating or updating a policy
@@ -1511,7 +1493,8 @@ async def check_policy_conflicts(
 @router.get("/policies/conflicts/analyze")
 async def analyze_all_policy_conflicts(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: System-wide policy conflict analysis
@@ -1550,7 +1533,8 @@ async def export_policies(
     format: str = "json",
     filter_status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Export policies to JSON/YAML/Cedar format
@@ -1601,7 +1585,8 @@ async def export_policies(
 async def import_policies(
     import_request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Import policies from JSON/YAML format
@@ -1669,7 +1654,8 @@ async def import_policies(
 @router.get("/policies/import/template")
 async def get_import_template(
     format: str = "json",
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Get import template with example policies
@@ -1707,7 +1693,8 @@ async def get_import_template(
 async def create_policy_backup(
     backup_request: Dict[str, Any] = {},
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Create full backup of all policies
@@ -1752,7 +1739,8 @@ async def create_policy_backup(
 async def bulk_update_policy_status(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Bulk enable/disable policies
@@ -1788,7 +1776,8 @@ async def bulk_update_policy_status(
 async def bulk_delete_policies(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Bulk delete policies (admin only)
@@ -1824,7 +1813,8 @@ async def bulk_delete_policies(
 async def bulk_update_policy_priority(
     request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🏢 ENTERPRISE: Bulk update policy priorities
@@ -1859,7 +1849,8 @@ async def bulk_update_policy_priority(
 async def evaluate_policy_realtime(
     test_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Real-time policy evaluation for testing
@@ -1944,7 +1935,8 @@ async def evaluate_policy_realtime(
 @router.get("/policies/engine-metrics")
 async def get_policy_engine_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1: Get policy engine performance metrics (REAL DATA)
@@ -1957,16 +1949,19 @@ async def get_policy_engine_metrics(
     try:
         logger.info(f"Policy engine metrics requested by {current_user.get('email', 'unknown')}")
 
-        # Use new PolicyAnalyticsService for real metrics
+        # SEC-076: Use PolicyAnalyticsService with organization_id for multi-tenant isolation
         from services.policy_analytics_service import PolicyAnalyticsService
-        analytics_service = PolicyAnalyticsService(db)
+        analytics_service = PolicyAnalyticsService(db, organization_id=org_id)
 
-        # Get real-time metrics from database
+        # Get real-time metrics from database (SEC-076: filtered by org_id)
         base_metrics = await analytics_service.get_engine_metrics(time_range_hours=24)
 
-        # Get individual policy performance from real data
+        # SEC-076: Get individual policy performance from real data (filtered by org)
         from models import EnterprisePolicy
-        policies = db.query(EnterprisePolicy).filter(EnterprisePolicy.status == 'active').limit(10).all()
+        policies = db.query(EnterprisePolicy).filter(
+            EnterprisePolicy.status == 'active',
+            EnterprisePolicy.organization_id == org_id  # SEC-076: Multi-tenant isolation
+        ).limit(10).all()
 
         policy_performance = []
         for policy in policies:
@@ -1983,9 +1978,11 @@ async def get_policy_engine_metrics(
             }
             policy_performance.append(perf)
 
-        # 🏢 ENTERPRISE: NO demo data - return empty list for new organizations
-        # Banking-level security: Only return REAL policies from database
-        # (policy_performance will be empty list if no real policies exist)
+        # SEC-076: Return empty array if no policies exist - NO hardcoded demo data
+        # Enterprise customers see their actual policy data or empty state
+        if not policy_performance:
+            logger.info(f"SEC-076: No active policies for org_id={org_id} - returning empty state")
+            # Return empty array - frontend should handle empty state gracefully
 
         # Build comprehensive metrics response
         metrics = {
@@ -2011,7 +2008,8 @@ async def get_policy_engine_metrics(
 async def deploy_policy(
     policy_id: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Deploy policy to production
@@ -2071,7 +2069,8 @@ async def deploy_policy(
 async def evaluate_action_with_policies(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Evaluate action against all active policies
@@ -2232,7 +2231,8 @@ async def evaluate_action_with_policies(
 @router.get("/authorization/policies/engine-metrics")
 async def get_authorization_policy_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     🚀 PHASE 1.3: Get authorization-specific policy metrics
@@ -2241,7 +2241,8 @@ async def get_authorization_policy_metrics(
     try:
         # This endpoint provides the same metrics as the main engine-metrics
         # but formatted specifically for authorization center display
-        metrics_response = await get_policy_engine_metrics(db, current_user)
+        # 🏢 ENTERPRISE: Pass org_id for multi-tenant isolation
+        metrics_response = await get_policy_engine_metrics(db, current_user, org_id)
         
         if metrics_response["success"]:
             # Reformat for authorization center
@@ -2321,7 +2322,8 @@ async def get_authorization_policy_metrics(
 async def compile_policy(
     policy_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Compile natural language policy to Cedar-style structured rules
@@ -2382,7 +2384,8 @@ async def compile_policy(
 async def enforce_policy(
     action_data: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Evaluate an action against active policies - REAL ENFORCEMENT
@@ -2504,7 +2507,8 @@ async def enforce_policy(
 
 @router.get("/policies/enforcement-stats")
 async def get_enforcement_stats(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get policy engine performance metrics
@@ -2523,7 +2527,8 @@ async def get_enforcement_stats(
 async def pre_execute_check(
     action_request: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Pre-execution policy check - CRITICAL INTERCEPTION POINT
@@ -2531,8 +2536,9 @@ async def pre_execute_check(
     """
     try:
         # This is the middleware interception point
-        enforcement_result = await enforce_policy(action_request, db, current_user)
-        
+        # 🏢 ENTERPRISE: Pass org_id for multi-tenant isolation
+        enforcement_result = await enforce_policy(action_request, db, current_user, org_id)
+
         if not enforcement_result.get("allowed"):
             return {
                 "success": False,
@@ -2577,15 +2583,13 @@ from services.enterprise_policy_templates import (
 @router.get("/policies/templates")
 async def get_policy_templates(
     current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)  # SEC-053: Multi-tenant authorization
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get all available enterprise policy templates (Wiz-style)
-    SEC-053: Enterprise Policy Templates Library
     """
     try:
         templates = list_templates()
-        logger.info(f"SEC-053: Templates listed for org_id={org_id}")
         return {
             "success": True,
             "templates": templates,
@@ -2595,100 +2599,20 @@ async def get_policy_templates(
         logger.error(f"Failed to load templates: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/policies/templates/search")
-async def search_policy_templates(
-    compliance: Optional[str] = Query(None, description="Filter by compliance framework (SOC2, PCI-DSS, HIPAA, GDPR, SOX)"),
-    severity: Optional[str] = Query(None, description="Filter by severity (CRITICAL, HIGH, MEDIUM, LOW)"),
-    category: Optional[str] = Query(None, description="Filter by category (security, compliance, data-protection)"),
-    q: Optional[str] = Query(None, description="Search by name or description"),
-    current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)  # SEC-053: Multi-tenant authorization
-):
-    """
-    SEC-053: Search and filter enterprise policy templates.
-
-    Datadog/Wiz.io-style template discovery with:
-    - Compliance framework filtering
-    - Severity filtering
-    - Text search
-    - Category filtering
-
-    Compliance: SOC 2 CC6.1, NIST AC-3
-    """
-    try:
-        templates = list_templates()
-        filtered = []
-
-        for template in templates:
-            # Compliance filter
-            if compliance:
-                template_frameworks = template.get("compliance_frameworks", [])
-                if compliance.upper() not in [f.upper() for f in template_frameworks]:
-                    continue
-
-            # Severity filter
-            if severity:
-                template_severity = template.get("severity", "").upper()
-                if template_severity != severity.upper():
-                    continue
-
-            # Category filter (derived from resource_types)
-            if category:
-                resource_types = template.get("resource_types", [])
-                category_match = False
-                if category.lower() == "security":
-                    category_match = any("credential" in r or "secret" in r for r in resource_types)
-                elif category.lower() == "compliance":
-                    category_match = any("financial" in r or "pii" in r for r in resource_types)
-                elif category.lower() == "data-protection":
-                    category_match = any("s3" in r or "database" in r or "data" in r for r in resource_types)
-                if not category_match:
-                    continue
-
-            # Text search
-            if q:
-                search_text = q.lower()
-                name_match = search_text in template.get("name", "").lower()
-                desc_match = search_text in template.get("description", "").lower()
-                if not (name_match or desc_match):
-                    continue
-
-            filtered.append(template)
-
-        logger.info(f"SEC-053: Template search for org_id={org_id}, found {len(filtered)} results")
-        return {
-            "success": True,
-            "templates": filtered,
-            "total": len(filtered),
-            "filters_applied": {
-                "compliance": compliance,
-                "severity": severity,
-                "category": category,
-                "search": q
-            }
-        }
-    except Exception as e:
-        logger.error(f"SEC-053: Template search failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/policies/templates/{template_id}")
 async def get_policy_template_detail(
     template_id: str,
     current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)  # SEC-053: Multi-tenant authorization
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get detailed information about a specific template
-    SEC-053: Enterprise Policy Templates Library
     """
     try:
         if template_id not in ENTERPRISE_TEMPLATES:
             raise HTTPException(status_code=404, detail="Template not found")
-
+        
         template_config = ENTERPRISE_TEMPLATES[template_id]
-        logger.info(f"SEC-053: Template {template_id} retrieved for org_id={org_id}")
         return {
             "success": True,
             "template_id": template_id,
@@ -2705,11 +2629,10 @@ async def create_policy_from_template(
     request_data: Dict[str, Any],
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_manager_or_admin),
-    org_id: int = Depends(get_organization_filter)  # SEC-015: Multi-tenant isolation
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Create a policy from a pre-built template
-    SEC-015: Enterprise multi-tenant isolation (Banking-Level: SOC 2 CC6.1)
     """
     try:
         template_id = request_data.get("template_id")
@@ -2726,9 +2649,7 @@ async def create_policy_from_template(
             template_config.update(customizations)
 
         # Create policy in CORRECT table (EnterprisePolicy)
-        # SEC-015: ENTERPRISE Multi-tenant isolation
         new_policy = EnterprisePolicy(
-            organization_id=org_id,  # SEC-015: Required for multi-tenant isolation
             policy_name=template_config['name'],
             description=template_config['description'],
             effect=template_config['effect'],
@@ -2765,7 +2686,8 @@ async def create_policy_from_template(
 async def build_custom_policy(
     policy_spec: Dict[str, Any],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_manager_or_admin)
+    current_user: dict = Depends(require_manager_or_admin),
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Build a custom policy using the structured builder
@@ -2872,7 +2794,8 @@ async def build_custom_policy(
 
 @router.get("/policies/resources/types")
 async def get_resource_types(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Get valid resource types for custom policies"""
     return {
@@ -2882,7 +2805,8 @@ async def get_resource_types(
 
 @router.get("/policies/actions/types")
 async def get_action_types(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
     """Get valid action types for custom policies"""
     return {
