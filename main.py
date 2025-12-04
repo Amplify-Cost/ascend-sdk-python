@@ -40,6 +40,7 @@ from routes.unified_governance_routes import router as unified_governance_router
 from routes.automation_orchestration_routes import router as automation_orchestration_router
 from routes.playbook_versioning_routes import router as playbook_versioning_router  # 🏢 PHASE 3: Version control & analytics
 from routes.playbook_deletion_routes import router as playbook_deletion_router  # 🏢 PHASE 4: Soft delete with recovery
+from routes.executive_brief_routes import router as executive_brief_router  # SEC-065: Enterprise Executive Brief System
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -1682,7 +1683,18 @@ try:
 except ImportError as e:
     logger.warning(f"ASCEND SDK routes not loaded: {e}")
 
-
+# ============================================================================
+# SEC-065: Enterprise Executive Brief System
+# ============================================================================
+# Cached AI-generated executive briefings with rate limiting and audit trail
+# Compliance: SOC 2 AU-6, AU-7, NIST 800-53 AU-6, PCI-DSS 10.6
+try:
+    app.include_router(executive_brief_router, tags=["Executive Briefs"])
+    logger.info("✅ SEC-065: Executive Brief routes loaded - /api/executive-briefs/*")
+    print("✅ SEC-065: Enterprise Executive Brief System enabled")
+except Exception as e:
+    logger.warning(f"SEC-065: Executive Brief routes not loaded: {e}")
+    print(f"⚠️  SEC-065: Executive Brief routes failed to load: {e}")
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
@@ -4143,151 +4155,66 @@ async def correlate_alerts_ai(
         raise HTTPException(status_code=500, detail="Failed to correlate alerts")
 
 @app.post("/api/alerts/executive-brief")
-async def generate_executive_brief_ai(
+async def generate_executive_brief_ai_legacy(
     request: Request,
     current_user: dict = Depends(get_current_user),
-    org_id: int = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter),
+    db: Session = Depends(get_db)
 ):
-    """👔 ENTERPRISE: AI-generated executive security briefing
-    🏢 SEC-009: Multi-tenant isolation enforced
     """
+    SEC-065: DEPRECATED - Legacy Executive Brief Endpoint
+
+    This endpoint is maintained for backward compatibility.
+    New implementations should use:
+    - GET /api/executive-briefs/latest (cached, <100ms)
+    - POST /api/executive-briefs/regenerate (rate limited)
+
+    This legacy endpoint now redirects to the new cached system.
+
+    Compliance: SOC 2 AU-6, AU-7, NIST 800-53 AU-6, PCI-DSS 10.6
+    """
+    from services.executive_brief_service import get_executive_brief_service
+
+    logger.info(f"SEC-065: Legacy /api/alerts/executive-brief called, redirecting to new system [org_id={org_id}]")
+
     try:
+        # Parse request for time_period if provided
         data = await request.json()
-        alert_data = data.get("alerts", [])
+        time_period = data.get("time_period", "24h")
 
-        # 🏢 SEC-009: ENTERPRISE - Return empty state for orgs with no alerts
-        if not alert_data or len(alert_data) == 0:
-            logger.info(f"🏢 SEC-009: No alerts for executive brief [org_id={org_id}]")
-            return {
-                "brief_id": f"exec-brief-{int(datetime.now(UTC).timestamp())}",
-                "generated_at": datetime.now(UTC).isoformat(),
-                "generated_by": current_user.get("email", "system"),
-                "alert_count": 0,
-                "high_priority_count": 0,
-                "summary": "No security events detected for this organization.",
-                "key_metrics": {
-                    "threats_detected": 0,
-                    "threats_prevented": 0,
-                    "cost_savings": "$0",
-                    "system_accuracy": "N/A"
-                },
-                "recommendations": [],
-                "risk_assessment": "NO_DATA",
-                "next_review": (datetime.now(UTC) + timedelta(hours=12)).isoformat(),
-                "meta": {
-                    "organization_id": org_id,
-                    "has_activity": False,
-                    "message": "No alert activity found for this organization"
-                }
-            }
-        
-        # Use existing LLM infrastructure if available
+        # SEC-065: Use new cached executive brief service
+        service = get_executive_brief_service(db, org_id)
+
+        # Try to get cached brief first (fast path)
+        brief = service.get_cached_brief()
+
+        if brief and brief.is_valid():
+            logger.info(f"SEC-065: Returning cached brief for org_id={org_id}")
+            return brief.to_api_response()
+
+        # No valid cached brief - generate new one
         try:
-            from llm_utils import generate_summary
-            
-            # Prepare executive-focused prompt
-            executive_prompt = f"""
-EXECUTIVE SECURITY BRIEFING - {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}
-
-Alert Summary: {len(alert_data)} security events detected
-High-Priority Alerts: {len([a for a in alert_data if a.get('severity') == 'high'])}
-
-Please provide an executive-level security briefing including:
-1. EXECUTIVE SUMMARY (2-3 sentences for C-level)
-2. KEY SECURITY RISKS & BUSINESS IMPACT
-3. IMMEDIATE ACTIONS REQUIRED (prioritized)
-4. RESOURCE & BUDGET IMPLICATIONS
-5. RECOMMENDED STRATEGIC RESPONSE
-
-Focus on business impact, risk mitigation, and strategic decision-making.
-"""
-            
-            # Generate using existing LLM infrastructure
-            ai_brief = generate_summary(
-                agent_id="executive_security_system",
-                action_type="executive_briefing",
-                description=executive_prompt
+            brief = service.generate_brief(
+                time_period=time_period,
+                user_email=current_user.get("email", "system")
             )
-            
-            logger.info("👔 Executive brief generated using AI/LLM")
-            
-        except Exception as llm_error:
-            logger.warning(f"LLM brief generation failed: {llm_error}")
-            
-            # Enterprise fallback brief
-            high_priority_count = len([a for a in alert_data if a.get('severity') == 'high'])
-            total_alerts = len(alert_data)
-            
-            ai_brief = f"""
-🏢 EXECUTIVE SECURITY BRIEFING
-Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}
+            return brief.to_api_response()
 
-EXECUTIVE SUMMARY:
-Your enterprise security monitoring systems detected {total_alerts} security events in the past 24 hours, with {high_priority_count} classified as high-priority threats requiring immediate executive attention. Our AI-powered security operations center has analyzed these events and determined potential coordinated threat activity targeting critical business systems.
+        except ValueError as rate_limit_error:
+            # Rate limit hit - return last cached brief even if expired
+            logger.warning(f"SEC-065: Rate limit hit, returning stale brief: {rate_limit_error}")
+            stale_brief = service.get_brief_history(limit=1)
+            if stale_brief:
+                response = stale_brief[0].to_api_response()
+                response["meta"]["is_stale"] = True
+                response["meta"]["rate_limited"] = True
+                return response
+            raise HTTPException(status_code=429, detail=str(rate_limit_error))
 
-KEY SECURITY RISKS & BUSINESS IMPACT:
-• {high_priority_count} high-severity security incidents pose immediate risk to business operations
-• Potential for service disruption, data exposure, or compliance violations
-• Estimated business impact: ${high_priority_count * 50000} if incidents escalate
-• Customer trust and regulatory compliance at risk if not addressed promptly
-
-IMMEDIATE ACTIONS REQUIRED:
-1. CRITICAL: Activate enterprise incident response procedures within 2 hours
-2. HIGH: Security team to implement immediate containment measures
-3. MEDIUM: Legal and compliance teams to assess regulatory notification requirements
-4. LOW: Prepare executive communication strategy for stakeholders
-
-RESOURCE & BUDGET IMPLICATIONS:
-• Additional security personnel may be required for 24/7 monitoring
-• Consider emergency cybersecurity consulting engagement ($75K-150K)
-• Potential legal and regulatory costs if incidents escalate ($200K+)
-• Business continuity planning activation may be necessary
-
-RECOMMENDED STRATEGIC RESPONSE:
-1. Convene emergency executive security committee within 4 hours
-2. Authorize additional cybersecurity budget for enhanced monitoring tools
-3. Consider engaging external threat intelligence services
-4. Review and update enterprise security policies and procedures
-5. Implement enhanced employee security awareness training program
-
-NEXT REVIEW: 12 hours or upon significant status change
-
-This briefing was generated by your enterprise AI security operations center. For detailed technical analysis, please consult with your Chief Information Security Officer.
-"""
-
-        # 🏢 SEC-009: Calculate confidence based on actual data quality
-        data_quality = min(95, 60 + (total_alerts * 2) + (high_priority_count * 5))
-
-        brief_result = {
-            "brief_id": f"exec-brief-{int(datetime.now(UTC).timestamp())}",
-            "generated_at": datetime.now(UTC).isoformat(),
-            "generated_by": current_user.get("email", "system"),
-            "alert_count": len(alert_data),
-            "high_priority_count": high_priority_count,
-            "summary": ai_brief,
-            "key_metrics": {
-                "threats_detected": total_alerts,
-                "threats_prevented": high_priority_count,
-                "cost_savings": f"${high_priority_count * 50000}" if high_priority_count > 0 else "$0",
-                "system_accuracy": f"{data_quality}%" if total_alerts > 0 else "N/A"
-            },
-            "recommendations": [],
-            "risk_assessment": "HIGH" if high_priority_count > 5 else "MEDIUM" if high_priority_count > 0 else "LOW",
-            "next_review": (datetime.now(UTC) + timedelta(hours=12)).isoformat(),
-            "distribution_list": [
-                "CEO", "CISO", "CTO", "Legal Counsel", "Board of Directors"
-            ],
-            "meta": {
-                "organization_id": org_id,
-                "has_activity": total_alerts > 0
-            }
-        }
-        
-        logger.info(f"👔 Executive brief generated: {len(alert_data)} alerts analyzed")
-        return brief_result
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Executive brief generation failed: {str(e)}")
+        logger.error(f"SEC-065: Executive brief generation failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate executive security briefing")
 
 # MOVED: performance-metrics endpoint moved before router registration       

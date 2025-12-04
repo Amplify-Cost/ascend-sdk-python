@@ -1089,3 +1089,25 @@ class SupportTicket(Base):
 
     def __repr__(self):
         return f"<SupportTicket(id={self.id}, user_id={self.user_id}, status={self.status}, org_id={self.organization_id})>"
+
+
+# =============================================================================
+# SEC-065: Cross-Module Model Registration
+# =============================================================================
+# Models defined in separate files are imported here for:
+# 1. SQLAlchemy registry - Enables relationship lookups
+# 2. Alembic autogenerate - Detects all models for migrations
+# 3. Centralized discovery - Single import point for all models
+#
+# Compliance: SOC 2 CC6.1 - Logical access controls
+# =============================================================================
+
+try:
+    from models_executive_brief import ExecutiveBrief
+except ImportError:
+    pass  # Model module may not exist in older deployments
+
+try:
+    from models_compliance_export import ComplianceExportJob
+except ImportError:
+    pass  # Model module may not exist in older deployments
