@@ -805,27 +805,31 @@ async def get_audit_logs(
                 "timestamp": row.timestamp.isoformat() if row.timestamp else None
             })
         
-        # If no logs found, return demo data
+        # SEC-089: Return honest empty state - no demo data fallback
         if not logs:
-            logs = get_demo_audit_logs()
-            logger.info("🔄 Using demo audit logs")
-        
-        logger.info(f"✅ Returning {len(logs)} audit logs")
+            logger.info(f"✅ SEC-089: No audit logs found for org - returning empty list (honest empty state)")
+        else:
+            logger.info(f"✅ SEC-089: Returning {len(logs)} real audit logs")
+
         return {
             "logs": logs,
             "total_count": len(logs),
+            "has_activity": len(logs) > 0,
             "filters_applied": {
                 "user_email": user_email,
                 "action": action,
                 "risk_level": risk_level
             }
         }
-        
+
     except Exception as e:
-        logger.error(f"❌ Error fetching audit logs: {e}")
+        logger.error(f"❌ SEC-089: Error fetching audit logs: {e}")
+        # SEC-089: Return empty list on error - never fake demo data
         return {
-            "logs": get_demo_audit_logs(),
-            "total_count": 50,
+            "logs": [],
+            "total_count": 0,
+            "has_activity": False,
+            "error": "Failed to retrieve audit logs",
             "filters_applied": {}
         }
 
@@ -915,10 +919,19 @@ async def get_user_analytics(
         return analytics_data
         
     except Exception as e:
-        logger.error(f"❌ Error fetching analytics: {e}")
+        logger.error(f"❌ SEC-089: Error fetching analytics: {e}")
         db.rollback()  # Rollback failed transaction
-        logger.info("🔄 Transaction rolled back, retrying analytics query...")
-        return get_demo_analytics()
+        # SEC-089: Return honest empty state - never fake demo data
+        return {
+            "user_statistics": {"total_users": 0, "active_users": 0, "inactive_users": 0, "pending_verification": 0},
+            "security_metrics": {"users_with_mfa": 0, "mfa_percentage": 0, "high_risk_users": 0, "risk_percentage": 0},
+            "role_distribution": {},
+            "recent_activity": {"new_users_7d": 0, "logins_7d": 0, "password_resets_7d": 0, "security_events_7d": 0},
+            "compliance": {"soc2_compliance": 0, "sox_compliance": 0, "hipaa_compliance": 0, "pci_compliance": 0, "iso27001_compliance": 0},
+            "security_score": 0,
+            "has_data": False,
+            "error": "Failed to retrieve analytics"
+        }
 
 # ============================================================================
 # UTILITY FUNCTIONS
@@ -1093,61 +1106,8 @@ async def log_audit_action(db: Session, user_email: str, action: str, target: st
     except Exception as e:
         logger.error(f"❌ Error logging audit action: {e}")
 
-def get_demo_audit_logs() -> List[Dict]:
-    """Demo audit logs"""
-    return [
-        {
-            "user_email": "admin@company.com",
-            "action": "USER_CREATE",
-            "target": "john.doe@company.com",
-            "details": "Created user John Doe in IT Department",
-            "ip_address": "192.168.1.100",
-            "risk_level": "Medium",
-            "timestamp": (datetime.now() - timedelta(hours=2)).isoformat()
-        },
-        {
-            "user_email": "manager@company.com",
-            "action": "ROLE_UPDATE",
-            "target": "jane.smith@company.com",
-            "details": "Updated user role from Level 2 to Level 3",
-            "ip_address": "192.168.1.101",
-            "risk_level": "High",
-            "timestamp": (datetime.now() - timedelta(hours=4)).isoformat()
-        }
-    ]
-
-def get_demo_analytics() -> Dict[str, Any]:
-    """Demo analytics data - fallback when real data unavailable"""
-    return {
-        "user_statistics": {
-            "total_users": 150,
-            "active_users": 142,
-            "inactive_users": 8,
-            "mfa_enabled": 135,
-            "high_risk_users": 3,
-            "mfa_percentage": 90.0,  # 135/150 = 90%
-            "risk_percentage": 2.0    # 3/150 = 2%
-        },
-        "department_distribution": [
-            {"department": "IT", "count": 45},
-            {"department": "Finance", "count": 32},
-            {"department": "HR", "count": 28},
-            {"department": "Operations", "count": 25},
-            {"department": "Unassigned", "count": 20}
-        ],
-        "role_distribution": [
-            {"role": "user", "count": 98},
-            {"role": "manager", "count": 35},
-            {"role": "admin", "count": 17}
-        ],
-        "compliance_metrics": {
-            "sox_compliance": 94.5,
-            "hipaa_compliance": 97.2,
-            "pci_compliance": 91.8,
-            "iso27001_compliance": 89.3
-        },
-        "security_score": 92.5
-    }
+# SEC-089: REMOVED get_demo_audit_logs() - enterprise standard: real data or honest empty state
+# SEC-089: REMOVED get_demo_analytics() - enterprise standard: real data or honest empty state
 
 def calculate_compliance_metrics(stats_result) -> Dict[str, float]:
     """Calculate compliance metrics"""
@@ -1320,11 +1280,9 @@ async def get_enterprise_reports_library(
         except Exception:
             stored_reports = []
         
-        # Generate reports from your existing analytics if no stored reports
+        # SEC-089: Return honest empty state - no demo report generation
         if not stored_reports:
-            analytics_data = await get_user_analytics(db, current_user)
-            stored_reports = await generate_demo_reports_from_analytics(analytics_data, current_user["email"])
-            logger.info("🔄 Generated reports from existing analytics data")
+            logger.info(f"✅ SEC-089: No stored reports for org - returning empty list")
         
         return {
             "reports": stored_reports,
@@ -1844,61 +1802,7 @@ async def store_enterprise_report(db: Session, report_id: str, title: str,
         logger.error(f"❌ Error storing report: {e}")
         db.rollback()
 
-async def generate_demo_reports_from_analytics(analytics_data: dict, author: str) -> list:
-    """Generate demo reports using your real analytics data"""
-    
-    base_reports = [
-        {
-            "id": f"RPT-SOX-{datetime.now().strftime('%Y%m%d')}",
-            "title": f"SOX Compliance Assessment - {datetime.now().strftime('%B %Y')}",
-            "type": "compliance",
-            "classification": "Confidential",
-            "status": "completed",
-            "format": "PDF",
-            "size": "8.7 MB",
-            "author": author,
-            "department": "Information Security",
-            "description": f"SOX compliance status: {analytics_data['compliance_metrics']['sox_compliance']}% compliant with {analytics_data['user_statistics']['total_users']} total users",
-            "date": datetime.now().strftime('%Y-%m-%d'),
-            "downloadCount": 0,
-            "pages": 34,
-            "tags": ["SOX", "compliance", "quarterly"],
-            "complianceFrameworks": ["SOX", "COSO"],
-            "retentionPeriod": "7 years",
-            "securityLevel": "Confidential",
-            "lastAccessed": datetime.now().isoformat(),
-            "live_metrics": {
-                "sox_compliance": analytics_data["compliance_metrics"]["sox_compliance"],
-                "security_score": analytics_data["security_score"]
-            }
-        },
-        {
-            "id": f"RPT-RISK-{datetime.now().strftime('%Y%m%d')}",
-            "title": f"Enterprise Risk Assessment - {datetime.now().strftime('%B %Y')}",
-            "type": "risk",
-            "classification": "Highly Confidential",
-            "status": "completed",
-            "format": "PDF", 
-            "size": "12.3 MB",
-            "author": author,
-            "department": "Information Security",
-            "description": f"Risk analysis of {analytics_data['user_statistics']['total_users']} users with {analytics_data['user_statistics']['high_risk_users']} high-risk accounts identified",
-            "date": datetime.now().strftime('%Y-%m-%d'),
-            "downloadCount": 0,
-            "pages": 47,
-            "tags": ["risk-assessment", "security", "analysis"],
-            "complianceFrameworks": ["ISO 27001", "NIST CSF"],
-            "retentionPeriod": "5 years",
-            "securityLevel": "Highly Confidential",
-            "lastAccessed": datetime.now().isoformat(),
-            "live_metrics": {
-                "high_risk_users": analytics_data["user_statistics"]["high_risk_users"],
-                "risk_percentage": analytics_data["user_statistics"]["risk_percentage"]
-            }
-        }
-    ]
-    
-    return base_reports
+# SEC-089: REMOVED generate_demo_reports_from_analytics() - enterprise standard: real data or honest empty state
 
 def generate_compliance_recommendations(analytics_data: dict) -> list:
     """Generate recommendations based on your analytics"""

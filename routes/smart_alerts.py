@@ -246,30 +246,12 @@ async def acknowledge_alert(
                 logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
                 return {"success": True, "message": "Alert acknowledged successfully"}
         except Exception as db_error:
-            logger.debug(f"Database update failed (expected for demo alerts): {db_error}")
+            logger.error(f"Database update failed: {db_error}")
             db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to acknowledge alert")
 
-        # Fallback to in-memory for demo alerts
-        alert_id_str = str(alert_id)
-        if alert_id_str in active_alerts:
-            active_alerts[alert_id_str]["status"] = "acknowledged"
-            active_alerts[alert_id_str]["acknowledged_by"] = current_user.get('email')
-            active_alerts[alert_id_str]["acknowledged_at"] = datetime.now(UTC).isoformat()
-            logger.info(f"✅ Demo alert {alert_id} acknowledged in memory")
-            return {"success": True, "message": "Alert acknowledged successfully"}
-
-        # Demo alert IDs 3001-3005 - handle gracefully
-        if 3001 <= alert_id <= 3005:
-            # Add to active_alerts for persistence during session
-            active_alerts[alert_id_str] = {
-                "id": alert_id,
-                "status": "acknowledged",
-                "acknowledged_by": current_user.get('email'),
-                "acknowledged_at": datetime.now(UTC).isoformat()
-            }
-            logger.info(f"✅ Demo alert {alert_id} acknowledged (created in memory)")
-            return {"success": True, "message": "Alert acknowledged successfully"}
-
+        # SEC-089: REMOVED demo alert handling (IDs 3001-3005 and in-memory fallback)
+        # Production only handles real database alerts
         raise HTTPException(status_code=404, detail="Alert not found")
 
     except HTTPException:
@@ -310,38 +292,48 @@ async def resolve_alert(
 async def get_alert_history(
     days: int = 30,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
 
-    """Get alert history for the specified number of days"""
+    """SEC-089: Get alert history from real database"""
     try:
         logger.info(f"📊 Alert history requested by: {current_user.get('email')} for {days} days")
-        
-        # In a production system, you'd query from a persistent alert history table
-        # For now, return mock historical data
+
         end_date = datetime.now(UTC)
         start_date = end_date - timedelta(days=days)
-        
-        # Mock historical alert data
+
+        # SEC-089: Query real alert history from database
+        from sqlalchemy import text
+        result = db.execute(text("""
+            SELECT id, title, severity, timestamp, acknowledged_at, status
+            FROM alerts
+            WHERE organization_id = :org_id
+              AND timestamp >= :start_date
+            ORDER BY timestamp DESC
+            LIMIT 100
+        """), {"org_id": org_id, "start_date": start_date}).fetchall()
+
         history = []
-        for i in range(min(days * 2, 50)):  # Max 50 historical alerts
-            alert_date = start_date + timedelta(hours=i * 12)
+        for row in result:
             history.append({
-                "id": f"hist_alert_{i}",
-                "rule_name": f"System Alert {i % 5 + 1}",
-                "severity": ["low", "medium", "high", "critical"][i % 4],
-                "triggered_at": alert_date.isoformat(),
-                "resolved_at": (alert_date + timedelta(minutes=30 + i * 10)).isoformat(),
-                "status": "resolved"
+                "id": str(row[0]),
+                "rule_name": row[1] or "Alert",
+                "severity": row[2] or "medium",
+                "triggered_at": row[3].isoformat() if row[3] else None,
+                "resolved_at": row[4].isoformat() if row[4] else None,
+                "status": row[5] or "pending"
             })
-        
+
         return {
             "history": history,
             "total_count": len(history),
             "date_range": {
                 "start": start_date.isoformat(),
                 "end": end_date.isoformat()
-            }
+            },
+            "has_activity": len(history) > 0,
+            "message": None if history else "No alert history for this period"
         }
         
     except Exception as e:
@@ -434,32 +426,12 @@ async def escalate_alert(
                 logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
                 return {"success": True, "message": "Alert escalated to security team"}
         except Exception as db_error:
-            logger.debug(f"Database update failed (expected for demo alerts): {db_error}")
+            logger.error(f"Database update failed: {db_error}")
             db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to escalate alert")
 
-        # Fallback to in-memory for demo alerts
-        alert_id_str = str(alert_id)
-        if alert_id_str in active_alerts:
-            active_alerts[alert_id_str]["status"] = "escalated"
-            active_alerts[alert_id_str]["severity"] = "high"
-            active_alerts[alert_id_str]["escalated_by"] = current_user.get('email')
-            active_alerts[alert_id_str]["escalated_at"] = datetime.now(UTC).isoformat()
-            logger.warning(f"⚠️ Demo alert {alert_id} escalated in memory")
-            return {"success": True, "message": "Alert escalated to security team"}
-
-        # Demo alert IDs 3001-3005 - handle gracefully
-        if 3001 <= alert_id <= 3005:
-            # Add to active_alerts for persistence during session
-            active_alerts[alert_id_str] = {
-                "id": alert_id,
-                "status": "escalated",
-                "severity": "high",
-                "escalated_by": current_user.get('email'),
-                "escalated_at": datetime.now(UTC).isoformat()
-            }
-            logger.warning(f"⚠️ Demo alert {alert_id} escalated (created in memory)")
-            return {"success": True, "message": "Alert escalated to security team"}
-
+        # SEC-089: REMOVED demo alert handling (IDs 3001-3005 and in-memory fallback)
+        # Production only handles real database alerts
         raise HTTPException(status_code=404, detail="Alert not found")
 
     except HTTPException:

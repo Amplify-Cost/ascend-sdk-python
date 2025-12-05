@@ -1673,92 +1673,9 @@ async def get_rules_enhanced(current_user: dict = Depends(get_current_user)):
         finally:
             db.close()
         
-        # Enterprise fallback rules for demonstration
-        fallback_rules = [
-            {
-                "id": 1,
-                "name": "High Risk Action Approval",
-                "description": "All high-risk actions require manual approval from security team",
-                "condition": "risk_level == 'high'",
-                "action": "require_approval",
-                "risk_level": "high",
-                "auto_approve": False,
-                "requires_mfa": True,
-                "approvers": ["admin@company.com", "security@company.com"],
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-                "justification": "High-risk actions pose significant security threats and require human oversight",
-                "tags": ["high-risk", "security", "approval"],
-                "created_by": "system"
-            },
-            {
-                "id": 2,
-                "name": "Vulnerability Scan Auto-Approval",
-                "description": "Low-risk vulnerability scans can be auto-approved for efficiency",
-                "condition": "action_type == 'vulnerability_scan' and risk_level == 'low'",
-                "action": "auto_approve",
-                "risk_level": "low",
-                "auto_approve": True,
-                "requires_mfa": False,
-                "approvers": ["security@company.com"],
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-                "justification": "Low-risk vulnerability scans are routine and can be safely automated",
-                "tags": ["low-risk", "automation", "vulnerability"],
-                "created_by": "system"
-            },
-            {
-                "id": 3,
-                "name": "Compliance Check Manual Review",
-                "description": "All compliance checks require manual review for audit trail",
-                "condition": "action_type == 'compliance_check'",
-                "action": "require_manual_review",
-                "risk_level": "medium",
-                "auto_approve": False,
-                "requires_mfa": True,
-                "approvers": ["compliance@company.com", "admin@company.com"],
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-                "justification": "Compliance checks require human review to ensure regulatory adherence",
-                "tags": ["compliance", "audit", "manual-review"],
-                "created_by": "system"
-            },
-            {
-                "id": 4,
-                "name": "Data Exfiltration Block",
-                "description": "Automatically block suspected data exfiltration attempts",
-                "condition": "action_type == 'data_exfiltration'",
-                "action": "block_immediately",
-                "risk_level": "high",
-                "auto_approve": False,
-                "requires_mfa": True,
-                "approvers": ["security@company.com", "admin@company.com", "legal@company.com"],
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-                "justification": "Data exfiltration attempts require immediate blocking to prevent data loss",
-                "tags": ["data-protection", "blocking", "high-risk"],
-                "created_by": "system"
-            },
-            {
-                "id": 5,
-                "name": "Privilege Escalation Alert",
-                "description": "Alert security team immediately on privilege escalation attempts",
-                "condition": "action_type == 'privilege_escalation'",
-                "action": "alert_security_team",
-                "risk_level": "high",
-                "auto_approve": False,
-                "requires_mfa": True,
-                "approvers": ["security@company.com", "identity-team@company.com"],
-                "created_at": datetime.now().isoformat(),
-                "status": "active",
-                "justification": "Privilege escalation is a common attack vector requiring immediate attention",
-                "tags": ["privilege-escalation", "alerting", "identity"],
-                "created_by": "system"
-            }
-        ]
-        
-        logger.info(f"⚠️ Using enterprise demonstration rules: {len(fallback_rules)} rules")
-        return fallback_rules
+        # SEC-089: Return honest empty state when no rules exist
+        logger.info(f"✅ SEC-089: No rules found in database - returning empty list")
+        return []
         
     except Exception as e:
         logger.error(f"❌ Enterprise rules error: {str(e)}")
@@ -1815,8 +1732,8 @@ async def create_rules_enterprise_fixed(request: Request, current_user: dict = D
                     
                 except Exception as rule_error:
                     logger.warning(f"Failed to create individual rule: {rule_error}")
-                    # Create a fallback response for rules that couldn't be saved
-                    created_rules.append(f"demo-{len(created_rules) + 1}")
+                    # SEC-089: Don't add fake IDs - track failures honestly
+                    # Continue to next rule, failures are logged
             
             db.commit()
             
@@ -1832,16 +1749,12 @@ async def create_rules_enterprise_fixed(request: Request, current_user: dict = D
         except Exception as db_error:
             logger.error(f"❌ Database error creating rules: {str(db_error)}")
             db.rollback()
-            
-            # Enterprise fallback - acknowledge the rules were received
-            rules_count = len(data) if isinstance(data, list) else 1
-            return {
-                "message": f"✅ {rules_count} rule(s) processed successfully (enterprise demo mode)",
-                "created_rule_ids": [f"demo-{i+1}" for i in range(rules_count)],
-                "created_by": current_user.get("email"),
-                "timestamp": datetime.now(UTC).isoformat(),
-                "note": "Rules processed in enterprise demonstration mode"
-            }
+
+            # SEC-089: Return honest error - don't pretend rules were created
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create rules - database error. Please try again."
+            )
             
         finally:
             db.close()
@@ -1904,41 +1817,58 @@ async def get_rule_feedback_enterprise(rule_id: int, current_user: dict = Depend
             
             if not rule_check:
                 raise HTTPException(status_code=404, detail="Rule not found")
-            
-            # Get related agent actions based on rule conditions
-            # For now, return enterprise demo data
-            current_time = datetime.now(UTC)
-            
+
+            # SEC-089: Query REAL rule feedback/statistics from database
+            stats_result = db.execute(text("""
+                SELECT
+                    COUNT(*) as total_triggered,
+                    COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved,
+                    COUNT(CASE WHEN status = 'denied' THEN 1 END) as rejected,
+                    COUNT(CASE WHEN is_false_positive = true THEN 1 END) as false_positives
+                FROM alerts
+                WHERE detected_by_rule_id = :rule_id
+            """), {'rule_id': rule_id}).fetchone()
+
+            total_triggered = stats_result[0] if stats_result else 0
+            approved = stats_result[1] if stats_result else 0
+            rejected = stats_result[2] if stats_result else 0
+            false_positives = stats_result[3] if stats_result else 0
+
+            # Get recent actions for this rule
+            recent_result = db.execute(text("""
+                SELECT id, agent_id, action_type, status, timestamp, reviewed_by
+                FROM alerts
+                WHERE detected_by_rule_id = :rule_id
+                ORDER BY timestamp DESC
+                LIMIT 10
+            """), {'rule_id': rule_id}).fetchall()
+
+            recent_actions = []
+            for row in recent_result:
+                recent_actions.append({
+                    "id": row[0],
+                    "agent_id": row[1] or "unknown",
+                    "action_type": row[2] or "alert",
+                    "status": row[3] or "pending",
+                    "timestamp": row[4].isoformat() if row[4] else None,
+                    "reviewed_by": row[5]
+                })
+
             return {
                 "rule_id": rule_id,
                 "rule_description": rule_check[2] if rule_check[2] else "Enterprise Security Rule",
                 "rule_condition": rule_check[3] if rule_check[3] else "Enterprise condition",
-                "total_triggered": 47,
-                "approved": 32,
-                "rejected": 12,
-                "false_positives": 3,
+                "total_triggered": total_triggered,
+                "approved": approved,
+                "rejected": rejected,
+                "false_positives": false_positives,
                 "feedback_stats": {
-                    "correct": 44,
-                    "false_positive": 3
+                    "correct": total_triggered - false_positives,
+                    "false_positive": false_positives
                 },
-                "recent_actions": [
-                    {
-                        "id": 2001,
-                        "agent_id": "security-scanner-01",
-                        "action_type": "vulnerability_scan",
-                        "status": "approved",
-                        "timestamp": current_time.isoformat(),
-                        "reviewed_by": "security@company.com"
-                    },
-                    {
-                        "id": 2002,
-                        "agent_id": "compliance-agent",
-                        "action_type": "compliance_check",
-                        "status": "approved",
-                        "timestamp": (current_time - timedelta(hours=2)).isoformat(),
-                        "reviewed_by": "compliance@company.com"
-                    }
-                ]
+                "recent_actions": recent_actions,
+                "has_activity": total_triggered > 0,
+                "message": None if total_triggered > 0 else "No activity yet for this rule"
             }
             
         finally:
@@ -1961,7 +1891,7 @@ async def generate_smart_rule_enterprise(request: Request, current_user: dict = 
         logger.info(f"🤖 Smart rule generation requested by: {current_user.get('email', 'unknown')}")
         
         # Extract parameters
-        agent_id = data.get("agent_id", "demo-agent")
+        agent_id = data.get("agent_id", "unknown-agent")  # SEC-089: Removed "demo-agent" default
         action_type = data.get("action_type", "suspicious_activity")
         description = data.get("description", "Generate security rule")
         
@@ -3508,73 +3438,10 @@ async def authorize_action_with_audit(
         notes = data.get("notes", "")
         
         logger.info(f"🔍 ENTERPRISE: Processing authorization for action {action_id}, decision: {decision}")
-        
-        # Handle demo actions with persistent storage
-        if action_id in demo_actions_storage:
-            action = demo_actions_storage[action_id]
-            
-            # Update action status
-            action["status"] = decision
-            action["reviewed_by"] = current_user["email"]
-            action["reviewed_at"] = datetime.now(UTC).isoformat()
-            action["notes"] = notes
-            
-            # Create enterprise audit trail entry
-            audit_entry = {
-                "audit_id": len(audit_trail_storage) + 1,
-                "action_id": action_id,
-                "agent_id": action["agent_id"],
-                "action_type": action["action_type"],
-                "decision": decision,
-                "reviewed_by": current_user["email"],
-                "reviewed_at": datetime.now(UTC).isoformat(),
-                "notes": notes,
-                "risk_score": action["ai_risk_score"],
-                "user_role": current_user["role"],
-                "session_info": {
-                    "ip_address": "enterprise_demo",
-                    "user_agent": "OW-AI Enterprise Platform"
-                },
-                "compliance_status": "audit_logged",
-                "enterprise_metadata": {
-                    "environment": "production",
-                    "platform": "ow-ai-enterprise",
-                    "version": "1.0.0"
-                }
-            }
-            
-            # Store in audit trail
-            audit_trail_storage.append(audit_entry)
-            
-            # Also try to store in database for persistence
-            try:
-                db.execute(text("""
-                    INSERT INTO log_audit_trail (action_id, decision, reviewed_by, timestamp)
-                    VALUES (:action_id, :decision, :reviewed_by, :timestamp)
-                """), {
-                    'action_id': action_id,
-                    'decision': decision,
-                    'reviewed_by': current_user["email"],
-                    'timestamp': datetime.now(UTC)
-                })
-                db.commit()
-                logger.info(f"✅ Audit trail saved to database for action {action_id}")
-            except Exception as db_error:
-                logger.warning(f"⚠️ Could not save to database audit trail: {db_error}")
-            
-            logger.info(f"✅ ENTERPRISE AUDIT: Action {action_id} {decision} by {current_user['email']}")
-            
-            return {
-                "message": f"🏢 Enterprise authorization {decision} successfully",
-                "action_id": action_id,
-                "decision": decision,
-                "authorization_status": decision,
-                "reviewed_by": current_user["email"],
-                "audit_trail_id": audit_entry["audit_id"],
-                "enterprise_logged": True
-            }
-        
-        # Handle real database actions (same as before)
+
+        # SEC-089: REMOVED demo_actions_storage handling - production uses database only
+
+        # Handle real database actions
         existing = db.execute(text("""
             SELECT id, status FROM agent_actions WHERE id = :action_id
         """), {'action_id': action_id}).fetchone()
@@ -3720,21 +3587,11 @@ async def emergency_override(
             raise HTTPException(status_code=400, detail="Emergency justification is required")
         
         logger.info(f"🚨 ENTERPRISE: Emergency override requested for action {action_id}")
-        
-        # Check if this is a demo action ID (9001, 9002, 9003)
-        if action_id in [9001, 9002, 9003]:
-            logger.warning(f"🚨 ENTERPRISE DEMO: Emergency override for action {action_id} by {current_user['email']} - {justification}")
-            
-            # For demo actions, just return success
-            return {
-                "message": "🚨 EMERGENCY OVERRIDE GRANTED (demo mode) - This action has been logged for audit",
-                "action_id": action_id,
-                "overridden_by": current_user["email"],
-                "justification": justification,
-                "demo_mode": True
-            }
-        
-        # For real database actions, check if action exists using raw SQL
+
+        # SEC-089: REMOVED demo action IDs (9001, 9002, 9003) handling
+        # All actions must exist in database - no fake demo overrides
+
+        # Check if action exists in database
         existing = db.execute(text("""
             SELECT id FROM agent_actions WHERE id = :action_id
         """), {'action_id': action_id}).fetchone()

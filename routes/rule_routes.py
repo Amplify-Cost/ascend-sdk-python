@@ -283,29 +283,7 @@ async def update_rule_feedback(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update feedback")
 
-@router.post("/rules/seed")
-def seed_rules(db: Session = Depends(get_db), _=Depends(require_csrf)):
-    demo_rules = [
-        Rule(
-            description="Block suspicious outbound requests",
-            condition="if outbound to unknown domains",
-            action="alert admin",
-            risk_level="High",
-            recommendation="Restrict outbound network activity",
-            justification="Prevent exfiltration attempts"
-        ),
-        Rule(
-            description="Flag excessive login attempts",
-            condition="if login attempts > 5 in 1hr",
-            action="lock account",
-            risk_level="Medium",
-            recommendation="Monitor and lock",
-            justification="Potential brute-force attack"
-        )
-    ]
-    db.add_all(demo_rules)
-    db.commit()
-    return {"message": "✅ Demo rules seeded"}
+# SEC-089: REMOVED /rules/seed endpoint - production should never have demo data injection
 
 @router.post("/generate-smart-rule")
 async def generate_smart_rule_endpoint(
@@ -324,7 +302,7 @@ async def generate_smart_rule_endpoint(
 
     try:
         data = await request.json()
-        agent_id = data.get("agent_id", "demo-agent")
+        agent_id = data.get("agent_id", "unknown-agent")  # SEC-089: Removed "demo-agent" default
         action_type = data.get("action_type", "suspicious_activity")
         description = data.get("description", "Analyze security patterns")
 
