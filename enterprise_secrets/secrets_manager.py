@@ -81,16 +81,59 @@ class EnterpriseSecretsManager:
         logger.info(f"🔐 Enterprise Secrets Manager initialized with {primary_provider.value}")
 
     def _generate_encryption_key(self) -> bytes:
-        """Generate secure encryption key for local secrets"""
-        password = os.environ.get("ENCRYPTION_MASTER_KEY", "default-dev-key").encode()
-        salt = b"ow-ai-enterprise-salt"  # In production, use random salt stored securely
+        """
+        Generate secure encryption key for local secrets.
+
+        Security (SEC-079):
+        - REQUIRES ENCRYPTION_MASTER_KEY environment variable in production
+        - Uses cryptographically random salt per deployment
+        - Stores salt in environment or generates unique per-instance for development
+        - NO hardcoded defaults for production
+
+        Compliance: SOC 2 CC6.1, PCI-DSS 3.5, NIST SP 800-53 SC-12
+        """
+        environment = os.environ.get("ENVIRONMENT", "development")
+
+        # SEC-079: Get master key - REQUIRED in production
+        master_key = os.environ.get("ENCRYPTION_MASTER_KEY")
+
+        if not master_key:
+            if environment.lower() == "production":
+                logger.critical("⛔ SEC-079 CRITICAL: ENCRYPTION_MASTER_KEY not configured in production!")
+                raise ValueError(
+                    "SEC-079: ENCRYPTION_MASTER_KEY environment variable is REQUIRED in production. "
+                    "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                )
+            else:
+                # Development only: generate ephemeral key (changes on restart)
+                logger.warning("⚠️ SEC-079: ENCRYPTION_MASTER_KEY not set - generating ephemeral development key")
+                master_key = secrets.token_urlsafe(32)
+
+        # SEC-079: Get or generate salt - should be stored persistently per deployment
+        salt_b64 = os.environ.get("ENCRYPTION_SALT")
+
+        if not salt_b64:
+            if environment.lower() == "production":
+                logger.critical("⛔ SEC-079 CRITICAL: ENCRYPTION_SALT not configured in production!")
+                raise ValueError(
+                    "SEC-079: ENCRYPTION_SALT environment variable is REQUIRED in production. "
+                    "Generate with: python -c \"import secrets, base64; print(base64.b64encode(secrets.token_bytes(16)).decode())\""
+                )
+            else:
+                # Development only: generate ephemeral salt
+                logger.warning("⚠️ SEC-079: ENCRYPTION_SALT not set - generating ephemeral development salt")
+                salt = secrets.token_bytes(16)
+        else:
+            salt = base64.b64decode(salt_b64)
+
+        # Derive key using PBKDF2
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=salt,
             iterations=100000,
         )
-        return base64.urlsafe_b64encode(kdf.derive(password))
+        return base64.urlsafe_b64encode(kdf.derive(master_key.encode()))
 
     def _create_cipher_suite(self) -> Fernet:
         """Create encryption cipher suite"""

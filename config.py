@@ -136,18 +136,52 @@ class AWSSecretsManagerConfig:
                 return aws_secrets[key]
             return os.getenv(key, default)
 
-        # Critical secrets (NEVER use defaults in production)
-        config['SECRET_KEY'] = get_config_value('SECRET_KEY', 'dev-secret-key-change-in-production-12345678901234567890')
-        config['JWT_SECRET_KEY'] = get_config_value('JWT_SECRET_KEY', config['SECRET_KEY'])  # Fallback to SECRET_KEY
-        config['DATABASE_URL'] = get_config_value('DATABASE_URL', 'postgresql://localhost:5432/owai_dev')
-        config['OPENAI_API_KEY'] = get_config_value('OPENAI_API_KEY', 'your-openai-api-key-here')
+        # SEC-079: Critical secrets - NO hardcoded defaults in production
+        # Generates cryptographically secure fallback ONLY for development
+        import secrets as py_secrets
 
-        # Security check: Warn if using default secrets in production
+        def _get_secure_default_for_dev(key_name: str) -> str:
+            """Generate secure random key for development only."""
+            if self.environment.lower() == 'production':
+                raise ValueError(
+                    f"SEC-079 CRITICAL: {key_name} not configured. "
+                    f"Set {key_name} environment variable or use AWS Secrets Manager."
+                )
+            # Development only: generate ephemeral secure key (changes on restart)
+            logger.warning(f"⚠️ SEC-079: {key_name} not set - generating ephemeral development key")
+            return py_secrets.token_urlsafe(32)
+
+        # SECRET_KEY - REQUIRED in production, ephemeral in development
+        secret_key_value = get_config_value('SECRET_KEY')
+        if not secret_key_value:
+            secret_key_value = _get_secure_default_for_dev('SECRET_KEY')
+        config['SECRET_KEY'] = secret_key_value
+
+        # JWT_SECRET_KEY - Falls back to SECRET_KEY
+        config['JWT_SECRET_KEY'] = get_config_value('JWT_SECRET_KEY', config['SECRET_KEY'])
+
+        # DATABASE_URL - Allow local default for development only
+        config['DATABASE_URL'] = get_config_value('DATABASE_URL', 'postgresql://localhost:5432/owai_dev')
+
+        # OPENAI_API_KEY - Optional but warn if not set
+        config['OPENAI_API_KEY'] = get_config_value('OPENAI_API_KEY', '')
+
+        # SEC-079: Security validation - BLOCK production with insecure config
         if self.environment.lower() == 'production':
-            if config['SECRET_KEY'].startswith('dev-'):
-                logger.critical("⛔ SECURITY ALERT: Using development SECRET_KEY in production!")
-            if config['OPENAI_API_KEY'].startswith('your-'):
-                logger.critical("⛔ SECURITY ALERT: OpenAI API key not configured!")
+            # Validate SECRET_KEY is not a known insecure value
+            insecure_patterns = ['dev-', 'test-', 'change-in-production', 'secret', '12345']
+            for pattern in insecure_patterns:
+                if pattern in config['SECRET_KEY'].lower():
+                    logger.critical(f"⛔ SEC-079 SECURITY BLOCK: SECRET_KEY contains insecure pattern '{pattern}'")
+                    raise ValueError(f"SEC-079: SECRET_KEY contains insecure pattern. Generate a secure key with: python -c \"import secrets; print(secrets.token_urlsafe(32))\"")
+
+            # Validate minimum key length (256 bits = 32 bytes = ~43 base64 chars)
+            if len(config['SECRET_KEY']) < 32:
+                logger.critical("⛔ SEC-079 SECURITY BLOCK: SECRET_KEY too short (minimum 32 characters)")
+                raise ValueError("SEC-079: SECRET_KEY must be at least 32 characters for production")
+
+            if not config['OPENAI_API_KEY'] or config['OPENAI_API_KEY'].startswith('your-'):
+                logger.warning("⚠️ OpenAI API key not configured - AI features will be disabled")
 
         # Application configuration
         config['ALGORITHM'] = get_config_value('ALGORITHM', 'HS256')
@@ -281,9 +315,28 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 COOKIE_SECURE = ENVIRONMENT == "production"
 COOKIE_SAMESITE = "strict" if COOKIE_SECURE else "lax"
 
-# ✅ SECURITY FIX: Explicit bcrypt cost factor
+# ✅ SECURITY FIX: Explicit bcrypt cost factor with validation
 # Created by: OW-kai Engineer (Phase 2 Security Fixes - Password Hardening)
-BCRYPT_ROUNDS = int(os.getenv("BCRYPT_ROUNDS", "14"))  # 2^14 iterations (~300ms)
+# SEC-079: Added validation to prevent insecure configuration
+_bcrypt_rounds_raw = int(os.getenv("BCRYPT_ROUNDS", "14"))
+
+# SEC-079: Validate BCRYPT_ROUNDS is within secure range
+# Minimum 12 (OWASP recommendation), Maximum 15 (prevent DoS via slow hashing)
+if _bcrypt_rounds_raw < 12:
+    logger.critical(f"⛔ SEC-079 SECURITY BLOCK: BCRYPT_ROUNDS={_bcrypt_rounds_raw} is too low (minimum 12)")
+    if ENVIRONMENT == "production":
+        raise ValueError(
+            f"SEC-079: BCRYPT_ROUNDS={_bcrypt_rounds_raw} is insecure. "
+            "Minimum value is 12 for production. Set BCRYPT_ROUNDS=12 or higher."
+        )
+    else:
+        logger.warning(f"⚠️ SEC-079: Forcing BCRYPT_ROUNDS to 12 (was {_bcrypt_rounds_raw})")
+        _bcrypt_rounds_raw = 12
+
+if _bcrypt_rounds_raw > 15:
+    logger.warning(f"⚠️ SEC-079: BCRYPT_ROUNDS={_bcrypt_rounds_raw} is very high - may cause slow logins")
+
+BCRYPT_ROUNDS = _bcrypt_rounds_raw  # 2^14 iterations (~200ms) is default
 
 # ============================================================================
 # PHASE 2: AWS Cognito Configuration

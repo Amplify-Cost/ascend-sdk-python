@@ -7,26 +7,56 @@ from typing import Dict, List, Optional
 from enterprise_config import config
 
 class EnterpriseJWTManager:
-    """Enterprise-grade JWT manager with RS256 signing and AWS Secrets Manager"""
-    
+    """
+    Enterprise-grade JWT manager with RS256 signing and AWS Secrets Manager.
+
+    Security (SEC-079):
+    - REQUIRES JWT keys from AWS Secrets Manager or environment variables in production
+    - Generates ephemeral keys ONLY for development (not production-safe)
+    - NO demo/hardcoded keys - fails fast if keys unavailable in production
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 3.6, NIST 800-63B
+    """
+
     def __init__(self):
+        import os
+
+        self.environment = os.environ.get("ENVIRONMENT", "development")
+
         # Get signing keys from AWS Secrets Manager or fallback
         self.private_key = config.get_secret('jwt-private-key')
         self.public_key = config.get_secret('jwt-public-key')
-        
-        # Enterprise fallback for AWS deployment
+
+        # SEC-079: Try environment variables as secondary source
+        if not self.private_key:
+            self.private_key = os.environ.get('JWT_PRIVATE_KEY')
+        if not self.public_key:
+            self.public_key = os.environ.get('JWT_PUBLIC_KEY')
+
+        # SEC-079: Generate ephemeral keys ONLY for development
         if not self.private_key or not self.public_key:
-            print("⚠️  JWT keys not found in AWS, using fallback RSA key generation")
-            self._generate_fallback_keys()
-        
+            if self.environment.lower() == "production":
+                # SEC-079: FAIL FAST in production - no key generation
+                raise ValueError(
+                    "SEC-079 CRITICAL: JWT keys not configured in production! "
+                    "Configure jwt-private-key and jwt-public-key in AWS Secrets Manager "
+                    "or set JWT_PRIVATE_KEY and JWT_PUBLIC_KEY environment variables."
+                )
+            else:
+                print("⚠️  SEC-079: JWT keys not found - generating ephemeral development keys")
+                self._generate_fallback_keys()
+
+        # SEC-079: Final validation - keys MUST exist
         if not self.private_key or not self.public_key:
-            print("❌ JWT keys could not be loaded or generated - using demo keys")
-            self._use_demo_keys()
-        
+            raise ValueError(
+                "SEC-079: Failed to load or generate JWT keys. "
+                "Cannot initialize JWT Manager without valid RSA key pair."
+            )
+
         # Enterprise JWT claims
         self.issuer = "https://api.ow-ai.com"
         self.audience = ["ow-ai-platform", "ow-ai-api", "ow-ai-dashboard"]
-        
+
         print("✅ Enterprise JWT Manager initialized with RS256 keys")
     
     def _generate_fallback_keys(self):
@@ -62,20 +92,9 @@ class EnterpriseJWTManager:
         except Exception as e:
             print(f"⚠️  Failed to generate fallback keys: {e}")
     
-    def _use_demo_keys(self):
-        """Use demo keys as last resort (NOT FOR PRODUCTION)"""
-        self.private_key = """-----BEGIN PRIVATE KEY-----
-MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKB
-wXfKy2ljy1sbfmmjY1Sw9XVpQDjp7p2s2QN6g+N0c7G1jQ2qBJ1XFBRQpVqC5K
-[Demo key - replace in production]
------END PRIVATE KEY-----"""
-        
-        self.public_key = """-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1L7VLPHCgcF3yst
-[Demo key - replace in production]
------END PUBLIC KEY-----"""
-        
-        print("⚠️  Using demo JWT keys - REPLACE IN PRODUCTION")
+    # SEC-079: _use_demo_keys method REMOVED
+    # Demo/hardcoded keys are a critical security vulnerability
+    # The system now fails fast if keys are not properly configured
     
     def create_access_token(self, 
                           user_id: str, 

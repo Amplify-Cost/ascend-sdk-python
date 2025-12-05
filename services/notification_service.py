@@ -55,13 +55,52 @@ class NotificationEncryption:
 
     Uses AES-256-GCM via Fernet for encrypting sensitive webhook URLs.
     Encryption key derived from environment variable using PBKDF2.
+
+    Security (SEC-080):
+    - REQUIRES NOTIFICATION_ENCRYPTION_KEY and NOTIFICATION_ENCRYPTION_SALT in production
+    - NO hardcoded default keys or salts
+    - Fails fast if not configured in production
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 3.5
     """
 
     def __init__(self):
         """Initialize encryption with key from environment."""
-        # Get encryption key from environment (or generate for development)
-        key_material = os.environ.get("NOTIFICATION_ENCRYPTION_KEY", "dev-key-change-in-production")
-        salt = os.environ.get("NOTIFICATION_ENCRYPTION_SALT", "owkai-notification-salt-v1").encode()
+        import secrets as py_secrets
+
+        environment = os.environ.get("ENVIRONMENT", "development")
+
+        # SEC-080: Get encryption key - REQUIRED in production
+        key_material = os.environ.get("NOTIFICATION_ENCRYPTION_KEY")
+
+        if not key_material:
+            if environment.lower() == "production":
+                logger.critical("⛔ SEC-080 CRITICAL: NOTIFICATION_ENCRYPTION_KEY not configured in production!")
+                raise ValueError(
+                    "SEC-080: NOTIFICATION_ENCRYPTION_KEY environment variable is REQUIRED in production. "
+                    "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                )
+            else:
+                # Development only: generate ephemeral key
+                logger.warning("⚠️ SEC-080: NOTIFICATION_ENCRYPTION_KEY not set - generating ephemeral development key")
+                key_material = py_secrets.token_urlsafe(32)
+
+        # SEC-080: Get salt - REQUIRED in production
+        salt_b64 = os.environ.get("NOTIFICATION_ENCRYPTION_SALT")
+
+        if not salt_b64:
+            if environment.lower() == "production":
+                logger.critical("⛔ SEC-080 CRITICAL: NOTIFICATION_ENCRYPTION_SALT not configured in production!")
+                raise ValueError(
+                    "SEC-080: NOTIFICATION_ENCRYPTION_SALT environment variable is REQUIRED in production. "
+                    "Generate with: python -c \"import secrets, base64; print(base64.b64encode(secrets.token_bytes(16)).decode())\""
+                )
+            else:
+                # Development only: generate ephemeral salt
+                logger.warning("⚠️ SEC-080: NOTIFICATION_ENCRYPTION_SALT not set - generating ephemeral development salt")
+                salt = py_secrets.token_bytes(16)
+        else:
+            salt = base64.b64decode(salt_b64)
 
         # Derive a proper Fernet key using PBKDF2
         kdf = PBKDF2HMAC(

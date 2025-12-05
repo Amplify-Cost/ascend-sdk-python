@@ -54,14 +54,34 @@ class ServiceNowEncryption:
     """
     AES-256 encryption for ServiceNow credentials.
     Uses Fernet with PBKDF2 key derivation.
+
+    Security (SEC-080):
+    - REQUIRES SERVICENOW_ENCRYPTION_KEY in production
+    - NO hardcoded default keys
+    - Fails fast if not configured in production
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 3.5
     """
 
     def __init__(self, master_key: Optional[str] = None):
         """Initialize encryption with master key from env or generate"""
-        self.master_key = master_key or os.getenv(
-            "SERVICENOW_ENCRYPTION_KEY",
-            os.getenv("ENCRYPTION_KEY", "owkai-servicenow-default-key-change-in-production")
-        )
+        environment = os.environ.get("ENVIRONMENT", "development")
+
+        # SEC-080: Try environment variables
+        self.master_key = master_key or os.getenv("SERVICENOW_ENCRYPTION_KEY") or os.getenv("ENCRYPTION_KEY")
+
+        # SEC-080: Fail fast in production if key not configured
+        if not self.master_key:
+            if environment.lower() == "production":
+                logger.critical("⛔ SEC-080 CRITICAL: SERVICENOW_ENCRYPTION_KEY not configured in production!")
+                raise ValueError(
+                    "SEC-080: SERVICENOW_ENCRYPTION_KEY or ENCRYPTION_KEY environment variable is REQUIRED in production. "
+                    "Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                )
+            else:
+                # Development only: generate ephemeral key
+                logger.warning("⚠️ SEC-080: SERVICENOW_ENCRYPTION_KEY not set - generating ephemeral development key")
+                self.master_key = secrets.token_urlsafe(32)
 
     def _derive_key(self, salt: bytes) -> bytes:
         """Derive encryption key using PBKDF2"""

@@ -103,9 +103,20 @@ class EnterpriseConfig:
             return None
     
     def get_database_url(self) -> str:
-        """Get complete database URL"""
+        """
+        Get complete database URL.
+
+        Security (SEC-079):
+        - NO hardcoded password fallbacks
+        - Requires explicit DATABASE_URL or DATABASE_PASSWORD configuration
+        - Fails fast if credentials not configured in production
+
+        Compliance: SOC 2 CC6.1, PCI-DSS 3.4, HIPAA 164.312
+        """
         if self.use_vault:
             password = self.get_secret('database')
+            if not password:
+                raise ValueError("SEC-079: Database password not found in AWS Secrets Manager")
             host = os.getenv('DATABASE_HOST', 'localhost')
             username = os.getenv('DATABASE_USERNAME', 'postgres')
             database = os.getenv('DATABASE_NAME', 'owai')
@@ -115,9 +126,22 @@ class EnterpriseConfig:
             database_url = os.getenv('DATABASE_URL')
             if database_url:
                 return database_url
-            
-            # Construct from individual parts
-            password = self.get_secret('database') or os.getenv('DATABASE_PASSWORD', 'fallback_password')
+
+            # SEC-079: Construct from individual parts - NO hardcoded defaults
+            password = self.get_secret('database') or os.getenv('DATABASE_PASSWORD')
+
+            # SEC-079: Fail fast if password not configured
+            if not password:
+                if self.environment == 'production':
+                    raise ValueError(
+                        "SEC-079 CRITICAL: DATABASE_PASSWORD not configured. "
+                        "Set DATABASE_URL or DATABASE_PASSWORD environment variable."
+                    )
+                else:
+                    # Development only - warn but allow local postgres without password
+                    print("⚠️  SEC-079: DATABASE_PASSWORD not set - attempting passwordless local connection")
+                    password = ""
+
             host = os.getenv('DATABASE_HOST', 'localhost')
             username = os.getenv('DATABASE_USERNAME', 'postgres')
             database = os.getenv('DATABASE_NAME', 'owai')
