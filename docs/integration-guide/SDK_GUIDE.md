@@ -18,7 +18,7 @@ The Ascend SDK provides the easiest way to integrate AI agent governance into yo
 ### Python
 
 ```bash
-pip install ascend-sdk
+pip install requests python-dotenv  # No SDK package - use REST API directly
 ```
 
 ### JavaScript/TypeScript

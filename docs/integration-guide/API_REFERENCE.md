@@ -447,7 +447,7 @@ def verify_webhook(payload, signature, timestamp, secret):
 ## SDK Support
 
 Official Ascend SDKs available:
-- **Python**: `pip install ascend-sdk`
+- **Python**: `pip install requests python-dotenv  # No SDK package - use REST API directly`
 - **JavaScript/TypeScript**: `npm install @ascend/sdk`
 - **Go**: `go get github.com/ascendowkai/sdk-go`
 

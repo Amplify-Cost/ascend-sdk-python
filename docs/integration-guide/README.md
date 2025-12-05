@@ -257,7 +257,7 @@ curl -X POST https://pilot.owkai.app/api/registry/agents/{agent_id}/emergency-su
 ### Python SDK
 
 ```bash
-pip install ascend-sdk
+pip install requests python-dotenv  # No SDK package - use REST API directly
 ```
 
 ```python
