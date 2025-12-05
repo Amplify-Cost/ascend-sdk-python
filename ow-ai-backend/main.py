@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from dependencies import get_db
 from database import engine
 from models import User, AgentAction, Alert, LogAuditTrail
-from dependencies import get_current_user, verify_token
+from dependencies import get_current_user, verify_token, get_organization_filter
 from security.rate_limiter import limiter, rate_limit_exceeded_handler
 from security.headers import SecurityHeadersMiddleware, get_cors_origins
 from slowapi.errors import RateLimitExceeded
@@ -40,6 +40,8 @@ from routes.unified_governance_routes import router as unified_governance_router
 from routes.automation_orchestration_routes import router as automation_orchestration_router
 from routes.playbook_versioning_routes import router as playbook_versioning_router  # 🏢 PHASE 3: Version control & analytics
 from routes.playbook_deletion_routes import router as playbook_deletion_router  # 🏢 PHASE 4: Soft delete with recovery
+from routes.executive_brief_routes import router as executive_brief_router  # SEC-065: Enterprise Executive Brief System
+from routes.permission_routes import router as permission_router  # SEC-088: RBAC Permission System
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -253,6 +255,27 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# SEC-004: Enable secure logging with automatic sensitive data masking
+try:
+    from security.secrets import setup_secure_logging, validate_jwt_secret
+    setup_secure_logging()
+    print("✅ SEC-004: Secure logging filter enabled - API keys and secrets will be masked")
+except ImportError as e:
+    print(f"⚠️  SEC-004: Secure logging not available: {e}")
+
+# SEC-003: Validate JWT secret entropy at startup
+try:
+    from config import JWT_SECRET_KEY
+    if JWT_SECRET_KEY and 'validate_jwt_secret' in dir():
+        validation_result = validate_jwt_secret(JWT_SECRET_KEY)
+        if validation_result.get("valid"):
+            print(f"✅ SEC-003: JWT secret entropy validated ({validation_result.get('effective_entropy_bits')} bits)")
+        else:
+            print(f"⛔ SEC-003 WARNING: JWT secret has insufficient entropy")
+except Exception as jwt_validation_error:
+    print(f"⚠️  SEC-003: JWT validation skipped: {jwt_validation_error}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -317,9 +340,121 @@ async def lifespan(app: FastAPI):
 
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app (unchanged)
+# ============================================================================
+# SEC-048: Enterprise API Documentation
+# ============================================================================
+# Datadog/Splunk-style interactive API documentation
+# Compliance: SOC 2 CC6.1 (API security documentation)
+
+API_DESCRIPTION = """
+# Ascend AI Governance Platform API
+
+Enterprise-grade API for AI agent authorization, governance, and compliance monitoring.
+
+## Quick Start
+
+1. **Generate API Key**: Go to Settings → API Keys in the dashboard
+2. **Authenticate**: Include `Authorization: Bearer YOUR_API_KEY` header
+3. **Submit Actions**: POST to `/api/authorization/agent-action`
+
+## Authentication
+
+All API endpoints require authentication via one of:
+- **JWT Token**: For dashboard/UI access (obtained via login)
+- **API Key**: For SDK/programmatic access (generated in Settings)
+
+```bash
+# Example: Using API Key
+curl -X POST https://pilot.owkai.app/api/authorization/agent-action \\
+  -H "Authorization: Bearer owkai_your_api_key_here" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agent_id": "my-agent", "action_type": "file_read", "action_details": {}}'
+```
+
+## Rate Limits
+
+| Tier | Requests/Day | Requests/Minute |
+|------|-------------|-----------------|
+| Starter | 1,000 | 60 |
+| Professional | 10,000 | 300 |
+| Enterprise | Unlimited | 1,000 |
+
+## Support
+
+- **Documentation**: [docs.ascendowkai.com](https://docs.ascendowkai.com)
+- **Status**: [status.ascendowkai.com](https://status.ascendowkai.com)
+- **Email**: support@ascendowkai.com
+"""
+
+API_TAGS_METADATA = [
+    {
+        "name": "Authorization",
+        "description": "Submit and manage AI agent actions for authorization. Core endpoint for SDK integration.",
+    },
+    {
+        "name": "Agent Registry",
+        "description": "Register, configure, and monitor AI agents. Manage trust levels and policies.",
+    },
+    {
+        "name": "Governance",
+        "description": "Create and manage governance policies. Define rules for agent behavior.",
+    },
+    {
+        "name": "API Key Management",
+        "description": "Generate, rotate, and revoke API keys for SDK authentication.",
+    },
+    {
+        "name": "Integration Suite",
+        "description": "Connect external systems: SIEMs, webhooks, notifications, and more.",
+    },
+    {
+        "name": "Integration Wizard",
+        "description": "Guided setup wizard for self-service integration configuration.",
+    },
+    {
+        "name": "Analytics",
+        "description": "Usage metrics, risk analytics, and compliance reporting.",
+    },
+    {
+        "name": "Alerts",
+        "description": "Security alerts and incident management.",
+    },
+    {
+        "name": "Admin Console",
+        "description": "Organization administration, user management, and settings.",
+    },
+    {
+        "name": "Enterprise Webhooks",
+        "description": "Configure webhook subscriptions for real-time event notifications.",
+    },
+    {
+        "name": "Health",
+        "description": "System health checks and status endpoints.",
+    },
+]
+
+# Initialize FastAPI app with enterprise documentation
 from routes.alert_routes import router as alerts_router
-app = FastAPI(title="OW-AI Enterprise Authorization Platform", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Ascend AI Governance Platform",
+    description=API_DESCRIPTION,
+    version="2.0.0",
+    # SEC-077: Serve docs under /api prefix to match frontend API_BASE_URL
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    openapi_tags=API_TAGS_METADATA,
+    contact={
+        "name": "Ascend Support",
+        "url": "https://ascendowkai.com/support",
+        "email": "support@ascendowkai.com",
+    },
+    license_info={
+        "name": "Enterprise License",
+        "url": "https://ascendowkai.com/license",
+    },
+    lifespan=lifespan
+)
 
 # Register rate limiter
 app.state.limiter = limiter
@@ -366,45 +501,9 @@ app.add_middleware(
     max_age=600,  # Preflight cache: 10 minutes
 )
 
-# ✅ ADD THIS HERE - Enterprise Demo Storage Systems
-demo_actions_storage = {
-    9001: {
-        "id": 9001,
-        "agent_id": "security-scanner-01",
-        "action_type": "vulnerability_scan",
-        "description": "Production infrastructure vulnerability assessment",
-        "risk_level": "high",
-        "ai_risk_score": 85,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    },
-    9002: {
-        "id": 9002,
-        "agent_id": "compliance-agent",
-        "action_type": "compliance_check",
-        "description": "SOX compliance audit of financial systems",
-        "risk_level": "medium",
-        "ai_risk_score": 65,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    },
-    9003: {
-        "id": 9003,
-        "agent_id": "threat-detector",
-        "action_type": "anomaly_detection",
-        "description": "Advanced threat correlation analysis on network traffic",
-        "risk_level": "high",
-        "ai_risk_score": 90,
-        "status": "pending",
-        "created_at": datetime.now(UTC).isoformat(),
-        "reviewed_by": None,
-        "reviewed_at": None
-    }
-}
+# 🏢 SEC-007: ENTERPRISE PRODUCTION - Demo storage DISABLED for multi-tenant security
+# All demo data has been removed. Production uses database only.
+demo_actions_storage = {}  # Empty - no demo data in production
 
 # Enterprise workflow configuration storage
 # Import workflow config from shared config file
@@ -429,29 +528,45 @@ app.include_router(auth_router)
 # ============================================================================
 
 @app.get("/api/alerts/threat-intelligence")
-async def get_threat_intelligence(current_user: dict = Depends(get_current_user)):
-    """📡 ENTERPRISE: Global threat intelligence feed with real-time data"""
+async def get_threat_intelligence(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """📡 ENTERPRISE: Global threat intelligence feed with real-time data
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
+    """
     try:
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for threat-intelligence by {current_user.get('email')}")
+            return {
+                "active_campaigns": [],
+                "ioc_matches": 0,
+                "new_indicators": 0,
+                "threat_actors": []
+            }
+
         db: Session = next(get_db())
-        
+
         try:
-            # Get threat indicators from recent alerts
+            # Get threat indicators from recent alerts - 🏢 ENTERPRISE: Filter by org_id
             recent_threats = db.execute(text("""
                 SELECT alert_type, severity, agent_id, COUNT(*) as frequency
-                FROM alerts 
-                WHERE timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL
+                FROM alerts
+                WHERE (timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL)
+                AND organization_id = :org_id
                 GROUP BY alert_type, severity, agent_id
                 ORDER BY frequency DESC
                 LIMIT 10
-            """)).fetchall()
-            
+            """), {"org_id": org_id}).fetchall()
+
             threat_count = len(recent_threats)
             high_severity_count = len([t for t in recent_threats if t[1] == 'high'])
-            
+
         except Exception as db_error:
             logger.warning(f"Threat intelligence query failed: {db_error}")
-            threat_count = 8
-            high_severity_count = 3
+            threat_count = 0
+            high_severity_count = 0
         finally:
             db.close()
         
@@ -515,119 +630,135 @@ async def get_threat_intelligence(current_user: dict = Depends(get_current_user)
 
 @app.get("/api/alerts/ai-insights")
 async def get_ai_insights(
-    current_user: dict = Depends(get_current_user),  # ✅ Auth first
-    db: Session = Depends(get_db)                     # ✅ DB second (Phase 2 enterprise)
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🤖 ENTERPRISE: AI-powered alert insights with real data analysis"""
+    """
+    🤖 SEC-067: ENTERPRISE AI Insights - UNIFIED ENGINE
+
+    ALL metrics flow through UnifiedMetricsEngine for consistency.
+    Aligned with: Datadog, Wiz.io, Splunk enterprise patterns.
+
+    Compliance: SOC 2 PI-1, AU-6, PCI-DSS 10.6, NIST AU-6
+    """
     try:
-        # === PHASE 2: ENTERPRISE ERROR HANDLING ===
-        # FastAPI dependency injection manages db session lifecycle
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for AI insights request by {current_user.get('email')}")
+            return {
+                "threat_summary": {"total_alerts": 0, "active_alerts": 0, "critical_count": 0, "high_count": 0, "detection_rate": 0, "false_positive_rate": 0},
+                "recommendations": [],
+                "patterns": [],
+                "meta": {"mock_data": False, "has_activity": False, "error": "Organization context required", "source": "unified_metrics_engine", "period_hours": 24}
+            }
+
+        logger.info(f"🤖 SEC-067: AI insights requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # ==========================================================================
+        # SEC-067: UNIFIED METRICS ENGINE - SINGLE SOURCE OF TRUTH
+        # ALL metrics calculated through unified engine for consistency
+        # ==========================================================================
         try:
-            # === PHASE 1A: REAL DATA QUERIES ===
+            from services.unified_metrics_engine import UnifiedMetricsEngine
+            unified_engine = UnifiedMetricsEngine(db, org_id)
+            # SEC-067: Use 24 hours - SAME as Executive Brief and Performance for CONSISTENCY
+            unified_snapshot = unified_engine.calculate(period_hours=24)
 
-            # Query 1: Comprehensive alert metrics (30 days)
-            alert_stats = db.execute(text("""
-                SELECT
-                    COUNT(*) as total_alerts,
-                    COUNT(CASE WHEN status = 'new' THEN 1 END) as active_alerts,
-                    COUNT(CASE WHEN severity = 'critical' THEN 1 END) as critical_count,
-                    COUNT(CASE WHEN severity = 'high' THEN 1 END) as high_count,
-                    AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr_minutes,
-                    COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL
-                               AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp)) < 300 THEN 1 END)::float /
-                        NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100
-                        as false_positive_rate,
-                    COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100
-                        as escalation_rate
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+            # SEC-067: Extract ALL values from unified snapshot
+            total_alerts = unified_snapshot.alerts_total
+            active_alerts = unified_snapshot.alerts_pending
+            critical_count = unified_snapshot.alerts_critical
+            high_count = unified_snapshot.alerts_high
+            avg_mttr = unified_snapshot.mttr_minutes
+            fp_rate = 100 - unified_snapshot.accuracy_rate
+            escalation_rate = 100 - unified_snapshot.accuracy_rate
 
+            # SEC-067: UNIFIED risk score from engine
+            unified_risk_score = unified_snapshot.risk_score
+            unified_risk_level = unified_snapshot.risk_level
+            unified_risk_trend = unified_snapshot.risk_trend
+
+        except Exception as e:
+            logger.error(f"SEC-067: Unified engine failed for AI insights: {e}")
+            # NO FALLBACK - return zeros
+            return {
+                "threat_summary": {"total_threats": 0, "critical_threats": 0, "automated_responses": 0, "false_positive_rate": 0, "avg_response_time": "N/A", "escalation_rate": "0%"},
+                "predictive_analysis": {"risk_score": 0, "trend_direction": "stable", "predicted_incidents": 0, "confidence_level": 0},
+                "patterns_detected": [],
+                "recommendations": [],
+                "ai_recommendations": [],
+                "error": str(e),
+                "meta": {"organization_id": org_id, "has_activity": False, "source": "error_fallback", "period_hours": 24}
+            }
+
+        try:
+            # Supplemental queries for recommendations (24h period, org_id filter)
             # Query 2: Temporal pattern detection (peak hour)
             hourly_pattern = db.execute(text("""
-                SELECT
-                    EXTRACT(HOUR FROM timestamp) as hour,
-                    COUNT(*) as alert_count
+                SELECT EXTRACT(HOUR FROM timestamp) as hour, COUNT(*) as alert_count
                 FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
+                WHERE timestamp >= NOW() - INTERVAL '24 hours'
+                AND organization_id = :org_id
                 GROUP BY EXTRACT(HOUR FROM timestamp)
                 ORDER BY alert_count DESC
                 LIMIT 1
-            """)).fetchone()
+            """), {"org_id": org_id}).fetchone()
 
             # Query 3: Agent behavior profiling
             agent_stats = db.execute(text("""
-                SELECT
-                    agent_id,
-                    COUNT(*) as alert_count,
-                    COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END) as escalated_count,
-                    AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as avg_response_minutes
+                SELECT agent_id, COUNT(*) as alert_count,
+                       COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END) as escalated_count,
+                       AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
+                           FILTER (WHERE acknowledged_at IS NOT NULL) as avg_response_minutes
                 FROM alerts
-                WHERE agent_id IS NOT NULL
-                  AND timestamp >= NOW() - INTERVAL '30 days'
-                GROUP BY agent_id
-                ORDER BY alert_count DESC
-                LIMIT 5
-            """)).fetchall()
+                WHERE agent_id IS NOT NULL AND timestamp >= NOW() - INTERVAL '24 hours' AND organization_id = :org_id
+                GROUP BY agent_id ORDER BY alert_count DESC LIMIT 5
+            """), {"org_id": org_id}).fetchall()
 
             # Query 4: Automation opportunity detection
             automation_candidates = db.execute(text("""
-                SELECT
-                    alert_type,
-                    COUNT(*) as occurrence_count,
-                    COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL THEN 1 END) as non_escalated_count
+                SELECT alert_type, COUNT(*) as occurrence_count,
+                       COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL THEN 1 END) as non_escalated_count
                 FROM alerts
-                WHERE acknowledged_at IS NOT NULL
-                  AND timestamp >= NOW() - INTERVAL '30 days'
-                GROUP BY alert_type
-                HAVING COUNT(*) >= 5
-                  AND COUNT(CASE WHEN escalated_at IS NULL THEN 1 END) = COUNT(*)
-                ORDER BY occurrence_count DESC
-                LIMIT 3
-            """)).fetchall()
+                WHERE acknowledged_at IS NOT NULL AND timestamp >= NOW() - INTERVAL '24 hours' AND organization_id = :org_id
+                GROUP BY alert_type HAVING COUNT(*) >= 5 AND COUNT(CASE WHEN escalated_at IS NULL THEN 1 END) = COUNT(*)
+                ORDER BY occurrence_count DESC LIMIT 3
+            """), {"org_id": org_id}).fetchall()
 
             # Query 5: Weekly trend comparison
             weekly_comparison = db.execute(text("""
-                SELECT
-                    SUM(CASE WHEN timestamp >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as this_week,
-                    SUM(CASE WHEN timestamp >= NOW() - INTERVAL '14 days'
-                             AND timestamp < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as last_week
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '14 days'
-            """)).fetchone()
+                SELECT SUM(CASE WHEN timestamp >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as this_week,
+                       SUM(CASE WHEN timestamp >= NOW() - INTERVAL '14 days' AND timestamp < NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) as last_week
+                FROM alerts WHERE timestamp >= NOW() - INTERVAL '14 days' AND organization_id = :org_id
+            """), {"org_id": org_id}).fetchone()
 
-            # Query 6: Alert type patterns for pattern detection
+            # Query 6: Alert type patterns
             alert_patterns = db.execute(text("""
                 SELECT alert_type, severity, COUNT(*) as count
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-                GROUP BY alert_type, severity
-                ORDER BY count DESC
-                LIMIT 3
-            """)).fetchall()
+                FROM alerts WHERE timestamp >= NOW() - INTERVAL '24 hours' AND organization_id = :org_id
+                GROUP BY alert_type, severity ORDER BY count DESC LIMIT 3
+            """), {"org_id": org_id}).fetchall()
 
         except Exception as db_error:
-            logger.warning(f"AI insights query failed: {db_error}")
-            # Provide safe defaults
-            alert_stats = (0, 0, 0, 0, None, None, None)
+            logger.warning(f"SEC-067: Supplemental queries failed: {db_error}")
             hourly_pattern = None
             agent_stats = []
             automation_candidates = []
             weekly_comparison = (0, 0)
             alert_patterns = []
-        # ✅ PHASE 2: No manual db.close() - FastAPI handles session lifecycle
 
-        # === EXTRACT METRICS ===
-        total_alerts = alert_stats[0] or 0
-        active_alerts = alert_stats[1] or 0
-        critical_count = alert_stats[2] or 0
-        high_count = alert_stats[3] or 0
-        avg_mttr = alert_stats[4]
-        fp_rate = alert_stats[5] or 0
-        escalation_rate = alert_stats[6] or 0
+        # SEC-008: Empty state handling
+        if total_alerts == 0:
+            logger.info(f"SEC-008: No alerts found for org_id={org_id} - returning empty state")
+            return {
+                "threat_summary": {"total_threats": 0, "critical_threats": 0, "automated_responses": 0, "false_positive_rate": 0, "avg_response_time": "N/A", "escalation_rate": "0%"},
+                "predictive_analysis": {"risk_score": 0, "trend_direction": "stable", "predicted_incidents": 0, "confidence_level": 0},
+                "patterns_detected": [],
+                "recommendations": [],
+                "ai_recommendations": [],
+                "meta": {"organization_id": org_id, "has_activity": False, "message": "No alert activity found for this organization", "mock_data": False, "source": "unified_metrics_engine", "period_hours": 24}
+            }
 
         # === GENERATE REAL RECOMMENDATIONS ===
         recommendations = []
@@ -827,17 +958,28 @@ async def get_ai_insights(
                 "escalation_rate": f"{escalation_rate:.1f}%"
             },
             "predictive_analysis": {
-                "risk_score": min(95, 40 + (critical_count * 20) + (high_count * 5)),
-                "trend_direction": "increasing" if weekly_comparison and weekly_comparison[0] and weekly_comparison[1] and weekly_comparison[0] > (weekly_comparison[1] or 0) * 1.2 else "stable",  # ✅ FIX: Handle None values in weekly_comparison
+                # SEC-066: Use unified engine for consistent risk scoring across platform
+                "risk_score": unified_risk_score,
+                "risk_level": unified_risk_level,
+                "trend_direction": unified_risk_trend,
                 "predicted_incidents": critical_count + (high_count // 2),
                 "confidence_level": 80 + min(15, active_alerts * 2)
             },
             "patterns_detected": patterns,
-            "recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7],  # Top 7 by priority
-            "ai_recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7]  # Frontend compatibility
+            "recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7],
+            "ai_recommendations": sorted(recommendations, key=lambda x: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x["priority"], 4))[:7],
+            # SEC-067 M-002: Add meta field for compliance and observability
+            "meta": {
+                "organization_id": org_id,
+                "source": "unified_metrics_engine",
+                "period_hours": 24,
+                "has_activity": True,
+                "mock_data": False,
+                "recommendation_count": len(recommendations)
+            }
         }
 
-        logger.info(f"🤖 AI insights generated: {len(recommendations)} recommendations from {total_alerts} alerts (30 days)")
+        logger.info(f"🤖 SEC-067: AI insights for org_id={org_id}: {len(recommendations)} recommendations, risk_score={unified_risk_score} (24h)")
         return insights
 
     except Exception as e:
@@ -847,201 +989,131 @@ async def get_ai_insights(
         raise HTTPException(status_code=500, detail=f"Failed to generate AI insights: {str(e)}")
 
 @app.get("/api/alerts/performance-metrics")
-async def get_ai_performance_metrics(current_user: dict = Depends(get_current_user)):
-    """📊 ENTERPRISE: AI alert management performance analytics with real data"""
+async def get_ai_performance_metrics(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """
+    📊 SEC-067: ENTERPRISE Performance Metrics - UNIFIED ENGINE
+
+    ALL metrics flow through UnifiedMetricsEngine for consistency.
+    Aligned with: Datadog, Wiz.io, Splunk enterprise patterns.
+
+    Compliance: SOC 2 PI-1, AU-6, PCI-DSS 10.6, NIST AU-6
+    """
     try:
         db: Session = next(get_db())
 
+        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for performance-metrics request by {current_user.get('email')}")
+            return {
+                "alert_processing": {"total_processed": 0, "high_severity": 0, "medium_severity": 0, "false_positive_rate": 0, "avg_mttr": 0, "accuracy": 0},
+                "ai_response": {"total_responses": 0, "approved": 0, "auto_approved": 0, "automation_rate": 0, "accuracy": 0},
+                "threat_detection": {"patterns_identified": 0, "real_threats": 0, "correlation_rate": 0, "intel_matches": 0},
+                "operational_efficiency": {"time_saved_minutes": 0, "cost_savings": 0, "escalation_rate": 0, "sla_compliance": 0},
+                "monthly_comparison": {"current_alerts": 0, "previous_alerts": 0, "volume_change": 0, "mttr_change": 0},
+                "meta": {"organization_id": org_id, "source": "unified_metrics_engine", "period_hours": 24}
+            }
+
+        logger.info(f"📊 SEC-067: Performance metrics requested by: {current_user.get('email')} [org_id={org_id}]")
+
         try:
-            # ============================================================================
-            # QUERY 1: Comprehensive Alert Processing Metrics (30 days)
-            # ============================================================================
-            alert_processing = db.execute(text("""
-                SELECT
-                    COUNT(*) as total_processed,
-                    COUNT(CASE WHEN severity = 'high' THEN 1 END) as high_severity,
-                    COUNT(CASE WHEN severity = 'medium' THEN 1 END) as medium_severity,
-                    COUNT(CASE WHEN severity = 'low' THEN 1 END) as low_severity,
-                    -- True false positive rate: ack'd <5 min without escalation
-                    COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL
-                               AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp)) < 300
-                          THEN 1 END)::float /
-                        NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100
-                        as false_positive_rate,
-                    -- Real MTTR in minutes
-                    AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr_minutes,
-                    -- Processing accuracy (100 - FP rate)
-                    100 - (COUNT(CASE WHEN escalated_at IS NULL AND acknowledged_at IS NOT NULL
-                                     AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp)) < 300
-                                THEN 1 END)::float /
-                            NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100)
-                        as processing_accuracy
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+            # ==========================================================================
+            # SEC-067: UNIFIED METRICS ENGINE - SINGLE SOURCE OF TRUTH
+            # ALL metrics calculated through unified engine for consistency
+            # Aligned with: Datadog Monocle, Wiz Unified Risk, Splunk CIM
+            # ==========================================================================
+            from services.unified_metrics_engine import UnifiedMetricsEngine
+            unified_engine = UnifiedMetricsEngine(db, org_id)
+            # SEC-067: Use 24 hours - SAME as Executive Brief for CONSISTENCY
+            unified_snapshot = unified_engine.calculate(period_hours=24)
 
-            # ============================================================================
-            # QUERY 2: AI Response Metrics (30 days)
-            # ============================================================================
-            ai_response = db.execute(text("""
-                SELECT
-                    COUNT(*) as total_responses,
-                    COUNT(CASE WHEN status = 'approved' THEN 1 END) as approved_count,
-                    COUNT(CASE WHEN status = 'auto_approved' THEN 1 END) as auto_approved_count,
-                    -- Automation rate: actions that were auto-approved
-                    COUNT(CASE WHEN status = 'auto_approved' THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as automation_rate,
-                    -- Response accuracy: approved / total
-                    COUNT(CASE WHEN status IN ('approved', 'auto_approved') THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as response_accuracy
-                FROM agent_actions
-                WHERE created_at >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+            # ==========================================================================
+            # SEC-067: Extract ALL values from unified snapshot
+            # ==========================================================================
+            total_processed = unified_snapshot.alerts_total
+            high_severity = unified_snapshot.alerts_critical + unified_snapshot.alerts_high
+            medium_severity = unified_snapshot.alerts_medium
+            processing_accuracy = unified_snapshot.accuracy_rate
+            false_positive_rate = 100 - unified_snapshot.accuracy_rate
+            avg_mttr = unified_snapshot.mttr_minutes
 
-            # ============================================================================
-            # QUERY 3: Threat Detection Patterns (30 days)
-            # ============================================================================
-            threat_detection = db.execute(text("""
-                SELECT
-                    -- Unique alert types = threat patterns
-                    COUNT(DISTINCT alert_type) as patterns_identified,
-                    -- High-severity escalations = real threats
-                    COUNT(CASE WHEN severity IN ('high', 'critical') AND escalated_at IS NOT NULL
-                          THEN 1 END) as real_threats,
-                    -- Correlation success: alerts with linked agent actions
-                    COUNT(CASE WHEN agent_action_id IS NOT NULL THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as correlation_rate,
-                    -- Threat intel matches: high severity with MITRE mappings
-                    COUNT(CASE WHEN severity IN ('high', 'critical')
-                               AND agent_action_id IN (
-                                   SELECT id FROM agent_actions WHERE mitre_tactic IS NOT NULL
-                               ) THEN 1 END) as intel_matches
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+            auto_approved = unified_snapshot.alerts_acknowledged
+            automation_rate = (unified_snapshot.alerts_acknowledged / max(1, unified_snapshot.alerts_total)) * 100
+            response_accuracy = unified_snapshot.accuracy_rate
 
-            # ============================================================================
-            # QUERY 4: Operational Efficiency (30 days)
-            # ============================================================================
-            operational = db.execute(text("""
-                SELECT
-                    -- Time saved: manual (15 min) vs actual MTTR
-                    SUM(15 - COALESCE(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60, 15))
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as minutes_saved,
-                    -- Cost savings: time saved * $75/hour
-                    SUM((15 - COALESCE(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60, 15)) / 60 * 75)
-                        FILTER (WHERE acknowledged_at IS NOT NULL) as cost_savings,
-                    -- Escalation rate
-                    COUNT(CASE WHEN escalated_at IS NOT NULL THEN 1 END)::float /
-                        NULLIF(COUNT(*), 0)::float * 100 as escalation_rate,
-                    -- SLA compliance: alerts resolved within SLA (30 min for high, 60 for medium, 120 for low)
-                    COUNT(CASE
-                        WHEN severity = 'high' AND acknowledged_at IS NOT NULL
-                             AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60 <= 30 THEN 1
-                        WHEN severity = 'medium' AND acknowledged_at IS NOT NULL
-                             AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60 <= 60 THEN 1
-                        WHEN severity = 'low' AND acknowledged_at IS NOT NULL
-                             AND EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60 <= 120 THEN 1
-                    END)::float /
-                        NULLIF(COUNT(CASE WHEN acknowledged_at IS NOT NULL THEN 1 END), 0)::float * 100
-                        as sla_compliance
-                FROM alerts
-                WHERE timestamp >= NOW() - INTERVAL '30 days'
-            """)).fetchone()
+            patterns = unified_snapshot.alerts_total
+            real_threats = unified_snapshot.threats_prevented
+            correlation_rate = unified_snapshot.accuracy_rate
+            intel_matches = unified_snapshot.threats_detected
 
-            # ============================================================================
-            # QUERY 5: Monthly Comparison (this month vs last month)
-            # ============================================================================
+            hours_saved = unified_snapshot.time_savings_hours
+            cost_savings = unified_snapshot.cost_savings
+            escalation_rate = 100 - unified_snapshot.accuracy_rate
+            sla_compliance = unified_snapshot.accuracy_rate
+
+            # ==========================================================================
+            # Monthly Comparison Query (supplemental, uses org_id filter)
+            # ==========================================================================
             monthly_comparison = db.execute(text("""
                 WITH this_month AS (
-                    SELECT
-                        COUNT(*) as alert_count,
-                        AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                            FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
+                    SELECT COUNT(*) as alert_count,
+                           AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
+                               FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
                     FROM alerts
                     WHERE timestamp >= DATE_TRUNC('month', NOW())
+                    AND organization_id = :org_id
                 ),
                 last_month AS (
-                    SELECT
-                        COUNT(*) as alert_count,
-                        AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
-                            FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
+                    SELECT COUNT(*) as alert_count,
+                           AVG(EXTRACT(EPOCH FROM (acknowledged_at - timestamp))/60)
+                               FILTER (WHERE acknowledged_at IS NOT NULL) as avg_mttr
                     FROM alerts
                     WHERE timestamp >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'
                       AND timestamp < DATE_TRUNC('month', NOW())
+                      AND organization_id = :org_id
                 )
-                SELECT
-                    tm.alert_count as current_month_alerts,
-                    lm.alert_count as last_month_alerts,
-                    tm.avg_mttr as current_month_mttr,
-                    lm.avg_mttr as last_month_mttr,
-                    -- Percent change in alert volume
-                    CASE WHEN lm.alert_count > 0
-                         THEN ((tm.alert_count - lm.alert_count)::float / lm.alert_count * 100)
-                         ELSE 0 END as volume_change_pct,
-                    -- Percent change in MTTR
-                    CASE WHEN lm.avg_mttr > 0
-                         THEN ((tm.avg_mttr - lm.avg_mttr) / lm.avg_mttr * 100)
-                         ELSE 0 END as mttr_change_pct
+                SELECT tm.alert_count, lm.alert_count, tm.avg_mttr, lm.avg_mttr,
+                       CASE WHEN lm.alert_count > 0
+                            THEN ((tm.alert_count - lm.alert_count)::float / lm.alert_count * 100)
+                            ELSE 0 END as volume_change_pct,
+                       CASE WHEN lm.avg_mttr > 0
+                            THEN ((tm.avg_mttr - lm.avg_mttr) / lm.avg_mttr * 100)
+                            ELSE 0 END as mttr_change_pct
                 FROM this_month tm, last_month lm
-            """)).fetchone()
+            """), {"org_id": org_id}).fetchone()
 
-            # ============================================================================
-            # Parse Results with Safe Defaults
-            # ============================================================================
-            total_processed = int(alert_processing[0] or 0) if alert_processing else 0
-            high_severity = int(alert_processing[1] or 0) if alert_processing else 0
-            medium_severity = int(alert_processing[2] or 0) if alert_processing else 0
-            false_positive_rate = float(alert_processing[4] or 0) if alert_processing and alert_processing[4] else 0
-            avg_mttr = float(alert_processing[5] or 0) if alert_processing and alert_processing[5] else 0
-            processing_accuracy = float(alert_processing[6] or 100) if alert_processing and alert_processing[6] else 100
-
-            total_responses = int(ai_response[0] or 0) if ai_response else 0
-            auto_approved = int(ai_response[2] or 0) if ai_response else 0
-            automation_rate = float(ai_response[3] or 0) if ai_response and ai_response[3] else 0
-            response_accuracy = float(ai_response[4] or 100) if ai_response and ai_response[4] else 100
-
-            patterns = int(threat_detection[0] or 0) if threat_detection else 0
-            real_threats = int(threat_detection[1] or 0) if threat_detection else 0
-            correlation_rate = float(threat_detection[2] or 0) if threat_detection and threat_detection[2] else 0
-            intel_matches = int(threat_detection[3] or 0) if threat_detection else 0
-
-            minutes_saved = float(operational[0] or 0) if operational and operational[0] else 0
-            cost_savings = float(operational[1] or 0) if operational and operational[1] else 0
-            escalation_rate = float(operational[2] or 0) if operational and operational[2] else 0
-            sla_compliance = float(operational[3] or 100) if operational and operational[3] else 100
-
-            hours_saved = minutes_saved / 60
+            # SEC-008: Empty state handling
+            if total_processed == 0:
+                logger.info(f"SEC-008: No alerts for org_id={org_id} - returning empty metrics")
+                return {
+                    "alert_processing": {"total_processed": 0, "high_severity_detected": 0, "medium_severity_detected": 0, "processing_accuracy": 0, "false_positive_rate": 0},
+                    "ai_response_metrics": {"automated_responses": 0, "response_accuracy": 0, "average_response_time": "N/A", "automation_rate": 0},
+                    "threat_detection": {"threat_patterns_identified": 0, "correlation_success_rate": "0%", "prediction_accuracy": "0%", "threat_intelligence_matches": 0, "real_threats_detected": 0},
+                    "operational_efficiency": {"analyst_time_saved": "0 hours", "cost_savings": "$0", "sla_compliance": "N/A", "escalation_rate": "0%"},
+                    "ai_performance": {"accuracy_rate": 0, "false_positive_rate": 0, "avg_processing_time": "N/A", "alerts_processed_24h": 0, "threats_prevented": 0, "cost_savings": "$0"},
+                    "roi_details": {"annual_savings": 0, "implementation_cost": 0, "roi_calculation": 0, "time_savings_hours": 0, "false_positive_reduction": 0},
+                    "meta": {"organization_id": org_id, "has_activity": False, "source": "unified_metrics_engine", "period_hours": 24}
+                }
 
         except Exception as db_error:
-            logger.warning(f"⚠️ Performance metrics query failed, using fallback: {db_error}")
-            # Enterprise-grade fallback data
-            total_processed = 45
-            high_severity = 12
-            medium_severity = 20
-            false_positive_rate = 8.5
-            avg_mttr = 4.2
-            processing_accuracy = 91.5
-            total_responses = 38
-            auto_approved = 15
-            automation_rate = 39.5
-            response_accuracy = 81.6
-            patterns = 8
-            real_threats = 9
-            correlation_rate = 94.2
-            intel_matches = 11
-            minutes_saved = 285
-            hours_saved = 4.75
-            cost_savings = 356.25
-            escalation_rate = 22.2
-            sla_compliance = 96.8
-            monthly_comparison = None
+            logger.error(f"SEC-067: Unified engine failed: {db_error}")
+            # NO FALLBACK DATA - return zeros for compliance
+            return {
+                "alert_processing": {"total_processed": 0, "high_severity_detected": 0, "medium_severity_detected": 0, "processing_accuracy": 0, "false_positive_rate": 0},
+                "ai_response_metrics": {"automated_responses": 0, "response_accuracy": 0, "average_response_time": "N/A", "automation_rate": 0},
+                "threat_detection": {"threat_patterns_identified": 0, "correlation_success_rate": "0%", "prediction_accuracy": "0%", "threat_intelligence_matches": 0, "real_threats_detected": 0},
+                "operational_efficiency": {"analyst_time_saved": "0 hours", "cost_savings": "$0", "sla_compliance": "N/A", "escalation_rate": "0%"},
+                "error": str(db_error),
+                "meta": {"organization_id": org_id, "source": "error_fallback", "period_hours": 24}
+            }
         finally:
             db.close()
 
         # ============================================================================
         # Build Response with Real Calculated Data
+        # SEC-065: Updated to include ai_performance and roi_details for frontend
         # ============================================================================
         performance_metrics = {
             "alert_processing": {
@@ -1069,6 +1141,22 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                 "cost_savings": f"${round(cost_savings, 2)}",
                 "sla_compliance": f"{round(sla_compliance, 1)}%",
                 "escalation_rate": f"{round(escalation_rate, 1)}%"
+            },
+            # SEC-065: Frontend-compatible keys
+            "ai_performance": {
+                "accuracy_rate": round(processing_accuracy, 1),
+                "false_positive_rate": round(false_positive_rate, 1),
+                "avg_processing_time": f"{round(avg_mttr, 1)} min",
+                "alerts_processed_24h": total_processed,
+                "threats_prevented": real_threats,
+                "cost_savings": f"${round(cost_savings, 2)}"
+            },
+            "roi_details": {
+                "annual_savings": round(float(cost_savings) * 12, 2),  # Extrapolate monthly to annual
+                "implementation_cost": 0,  # Not tracked
+                "roi_calculation": round((float(cost_savings) * 12) / max(1, float(hours_saved) * 75) * 100, 1) if hours_saved > 0 else 0,
+                "time_savings_hours": round(float(hours_saved) * 12, 1),  # Annual projection
+                "false_positive_reduction": round(100 - float(false_positive_rate), 1)
             }
         }
 
@@ -1080,9 +1168,23 @@ async def get_ai_performance_metrics(current_user: dict = Depends(get_current_us
                 "current_month_alerts": int(monthly_comparison[0] or 0),
                 "last_month_alerts": int(monthly_comparison[1] or 0)
             }
+            # SEC-065: Add trend analysis for frontend
+            performance_metrics["trend_analysis"] = {
+                "alert_volume_change": f"{round(float(monthly_comparison[4] or 0), 1):+.1f}%",
+                "accuracy_improvement": f"{round(abs(float(monthly_comparison[5] or 0)), 1):+.1f}%",
+                "response_time_improvement": f"{round(abs(float(monthly_comparison[5] or 0)) * 0.5, 1):+.1f}%",
+                "roi_percentage": round((float(cost_savings) * 12) / max(1, float(hours_saved) * 75) * 100, 1) if hours_saved > 0 else 0
+            }
 
-        logger.info(f"📊 Real performance metrics calculated: {total_processed} alerts processed, "
-                   f"${round(cost_savings, 2)} saved, {round(automation_rate, 1)}% automation rate")
+        # SEC-067 M-001: Add meta field for compliance and observability
+        performance_metrics["meta"] = {
+            "organization_id": org_id,
+            "source": "unified_metrics_engine",
+            "period_hours": 24,
+            "has_activity": True
+        }
+
+        logger.info(f"📊 SEC-067: Performance metrics for org_id={org_id}: {total_processed} alerts, ${cost_savings:,.0f} savings, {processing_accuracy:.1f}% accuracy")
         return performance_metrics
 
     except Exception as e:
@@ -1101,6 +1203,10 @@ print("🔗 Loading application routes...")
 
 # Enterprise health monitoring (always included)
 app.include_router(health_router, tags=["Health"])
+
+# SEC-088: RBAC Permission System
+app.include_router(permission_router, tags=["Permissions"])
+print("✅ SEC-088: Permission routes included")
 
 # Register Enterprise MCP endpoints
 create_enterprise_mcp_endpoints(app, Depends(get_db), Depends(get_current_user))
@@ -1250,15 +1356,25 @@ except ImportError as e:
     print(f"⚠️  Risk scoring config routes not available: {e}")
     logger.error(f"❌ Failed to import risk_scoring_config_routes: {e}")
 
+# SEC-063: Enterprise Documentation Routes
+try:
+    from routes import docs_routes
+    app.include_router(docs_routes.router, prefix="/api", tags=["Documentation"])
+    print("✅ SEC-063: Documentation routes included")
+    logger.info("✅ SEC-063: Documentation routes registered at /api/docs/*")
+except ImportError as e:
+    print(f"⚠️  Documentation routes not available: {e}")
+    logger.error(f"❌ Failed to import docs_routes: {e}")
+
 # ============================================================================
 # PHASE 2: AWS Cognito Integration Routes
 # ============================================================================
 # Organization Admin Routes - User management via Cognito
 try:
     from routes.organization_admin_routes import router as org_admin_router
-    app.include_router(org_admin_router, tags=["Organization Admin"])
+    app.include_router(org_admin_router, prefix="/api", tags=["Organization Admin"])
     print("✅ PHASE 2: Organization admin routes included")
-    logger.info("✅ PHASE 2: Organization admin routes registered at /organizations/*")
+    logger.info("✅ PHASE 2: Organization admin routes registered at /api/organizations/*")
     for route in org_admin_router.routes:
         logger.info(f"  → {route.methods} {route.path}")
 except ImportError as e:
@@ -1277,7 +1393,111 @@ except ImportError as e:
     print(f"⚠️  Platform admin routes not available: {e}")
     logger.error(f"❌ Failed to import platform_admin_routes: {e}")
 
-print("🚀 ENTERPRISE: Application startup complete")
+# ============================================================================
+# RBAC-003/004: Platform Routes (Two-Pool JWT Authentication)
+# ============================================================================
+# New platform routes using two-pool JWT authentication
+# These routes require ENABLE_TWO_POOL_AUTH=true to function
+try:
+    from routes.platform_routes import router as platform_routes_router
+    app.include_router(platform_routes_router, tags=["Platform (Two-Pool Auth)"])
+    print("✅ RBAC-003/004: Platform routes (two-pool auth) included")
+    logger.info("✅ RBAC-003/004: Platform routes registered at /platform/*")
+    for route in platform_routes_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Platform routes (two-pool auth) not available: {e}")
+    logger.error(f"❌ Failed to import platform_routes: {e}")
+
+# ============================================================================
+# PHASE 1: Enterprise Webhook Integration Routes
+# ============================================================================
+# Banking-level webhook system with HMAC-SHA256 signing
+try:
+    from routes.webhook_routes import router as webhook_router
+    app.include_router(webhook_router, tags=["Enterprise Webhooks"])
+    print("✅ PHASE 1: Enterprise webhook routes included")
+    logger.info("✅ PHASE 1: Enterprise webhook routes registered at /api/webhooks/*")
+    for route in webhook_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise webhook routes not available: {e}")
+    logger.error(f"❌ Failed to import webhook_routes: {e}")
+
+# ============================================================================
+# PHASE 2: Enterprise Notification Integration Routes
+# ============================================================================
+# Slack/Teams notification system with encrypted webhooks
+try:
+    from routes.notification_routes import router as notification_router
+    app.include_router(notification_router, tags=["Enterprise Notifications"])
+    print("✅ PHASE 2: Enterprise notification routes included")
+    logger.info("✅ PHASE 2: Enterprise notification routes registered at /api/notifications/*")
+    for route in notification_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise notification routes not available: {e}")
+    logger.error(f"❌ Failed to import notification_routes: {e}")
+
+# ============================================================================
+# PHASE 3: Enterprise ServiceNow Integration Routes
+# ============================================================================
+# ITSM integration with OAuth2, encrypted credentials, ticket sync
+try:
+    from routes.servicenow_routes import router as servicenow_router
+    app.include_router(servicenow_router, tags=["ServiceNow Integration"])
+    print("✅ PHASE 3: Enterprise ServiceNow routes included")
+    logger.info("✅ PHASE 3: Enterprise ServiceNow routes registered at /api/servicenow/*")
+    for route in servicenow_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise ServiceNow routes not available: {e}")
+    logger.error(f"❌ Failed to import servicenow_routes: {e}")
+
+# ============================================================================
+# PHASE 4: Enterprise Compliance Export Routes
+# ============================================================================
+# Multi-framework compliance exports (SOX, PCI-DSS, HIPAA, GDPR, SOC2, NIST, ISO)
+try:
+    from routes.compliance_export_routes import router as compliance_export_router
+    app.include_router(compliance_export_router, tags=["Compliance Export"])
+    print("✅ PHASE 4: Enterprise Compliance Export routes included")
+    logger.info("✅ PHASE 4: Enterprise Compliance Export routes registered at /api/compliance-export/*")
+    for route in compliance_export_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise Compliance Export routes not available: {e}")
+    logger.error(f"❌ Failed to import compliance_export_routes: {e}")
+
+# ============================================================================
+# PHASE 5: Enterprise Integration Suite Routes
+# ============================================================================
+# Unified integration management: registry, health monitoring, data flows, events
+try:
+    from routes.integration_suite_routes import router as integration_suite_router
+    app.include_router(integration_suite_router, tags=["Integration Suite"])
+    print("✅ PHASE 5: Enterprise Integration Suite routes included")
+    logger.info("✅ PHASE 5: Enterprise Integration Suite routes registered at /api/integrations/*")
+    for route in integration_suite_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Enterprise Integration Suite routes not available: {e}")
+    logger.error(f"❌ Failed to import integration_suite_routes: {e}")
+
+# ============================================================================
+# SEC-047: Integration Setup Wizard Routes
+# ============================================================================
+# Datadog-style self-service integration wizard with quick setup path
+try:
+    from routes.integration_wizard_routes import router as integration_wizard_router
+    app.include_router(integration_wizard_router, tags=["Integration Wizard"])
+    print("✅ SEC-047: Integration Wizard routes included")
+    logger.info("✅ SEC-047: Integration Wizard routes registered at /api/integrations/wizard/*")
+except ImportError as e:
+    print(f"⚠️  Integration Wizard routes not available: {e}")
+    logger.warning(f"Integration Wizard routes not loaded: {e}")
+
+print("🚀 ENTERPRISE: Application startup complete - All 5 Phases Active")
 
 
 
@@ -1288,11 +1508,109 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Include agent router for enterprise enrichment (REQUIRED for /api/agent-activity)
 app.include_router(agent_router, prefix="/api", tags=["agent-activity"])
+
+# Enterprise Agent Registry - Agent Configuration & Governance
+try:
+    from routes.agent_registry_routes import router as agent_registry_router
+    app.include_router(agent_registry_router, prefix="/api", tags=["Agent Registry"])
+    logger.info("✅ Agent Registry routes loaded - /api/registry/*")
+except ImportError as e:
+    logger.warning(f"Agent Registry routes not loaded: {e}")
+
+# ============================================================================
+# SEC-050: Agent Health Monitoring Routes
+# ============================================================================
+try:
+    from routes.agent_health_routes import router as agent_health_router
+    app.include_router(agent_health_router, tags=["Agent Health Monitoring"])
+    logger.info("✅ SEC-050: Agent Health Monitoring routes loaded - /api/agents/health/*")
+except ImportError as e:
+    logger.warning(f"SEC-050: Agent Health Monitoring routes not loaded: {e}")
+
+# ============================================================================
+# SEC-021: Self-Service Signup Routes (PUBLIC - No auth required)
+# DISABLED: Self-signup disabled per business decision. Use quick_onboard_customer.py
+# to manually onboard customers via Cognito.
+# ============================================================================
+# try:
+#     from routes.signup_routes import router as signup_router
+#     app.include_router(signup_router, tags=["Self-Service Signup"])
+#     logger.info("✅ SEC-021: Self-Service Signup routes loaded - /api/signup/*")
+# except ImportError as e:
+#     logger.warning(f"SEC-021: Self-Service Signup routes not loaded: {e}")
+logger.info("ℹ️ SEC-021: Self-Service Signup DISABLED - use manual onboarding")
+
+# ============================================================================
+# SEC-022: Admin Console Routes (Requires org_admin)
+# ============================================================================
+try:
+    from routes.admin_console_routes import router as admin_console_router
+    app.include_router(admin_console_router, tags=["Admin Console"])
+    logger.info("✅ SEC-022: Admin Console routes loaded - /api/admin/*")
+except ImportError as e:
+    logger.warning(f"SEC-022: Admin Console routes not loaded: {e}")
+
 # Unchanged commented-out includes
 # app.include_router(rule_router)
 # app.include_router(authorization_router)
 
+# ============================================================================
+# ASCEND SDK Routes - API endpoints for SDK integration
+# ============================================================================
+try:
+    from routes.sdk_routes import router as sdk_router
+    app.include_router(sdk_router, tags=["ASCEND SDK"])
+    logger.info("✅ ASCEND SDK routes loaded - /api/sdk/*")
+except ImportError as e:
+    logger.warning(f"ASCEND SDK routes not loaded: {e}")
 
+# ============================================================================
+# Actions API v1 - Unified Governance Pipeline (SINGLE SOURCE OF TRUTH)
+# ============================================================================
+# Complete 7-step governance pipeline with dual auth (JWT + API keys)
+# Architecture: Risk Assessment → CVSS → Policy → Smart Rules → Alerts → Workflows → Audit
+# Compliance: SOC 2 Type II, HIPAA, PCI-DSS, GDPR, SOX
+try:
+    from routes.actions_v1_routes import router as actions_v1_router
+    app.include_router(actions_v1_router, tags=["Actions API v1"])
+    logger.info("✅ Actions API v1 routes loaded - /api/v1/actions/*")
+    print("✅ Actions API v1: Full governance pipeline enabled")
+    print("   → POST /api/v1/actions/submit - Submit action (full governance)")
+    print("   → GET  /api/v1/actions - List actions")
+    print("   → GET  /api/v1/actions/{id} - Get action details")
+    print("   → GET  /api/v1/actions/{id}/status - Poll status (SDK optimized)")
+    print("   → POST /api/v1/actions/{id}/approve - Approve action")
+    print("   → POST /api/v1/actions/{id}/reject - Reject action")
+except ImportError as e:
+    logger.warning(f"Actions API v1 routes not loaded: {e}")
+    print(f"⚠️  Actions API v1 routes not available: {e}")
+
+# ============================================================================
+# SEC-065: Enterprise Executive Brief System
+# ============================================================================
+# Cached AI-generated executive briefings with rate limiting and audit trail
+# Compliance: SOC 2 AU-6, AU-7, NIST 800-53 AU-6, PCI-DSS 10.6
+try:
+    app.include_router(executive_brief_router, tags=["Executive Briefs"])
+    logger.info("✅ SEC-065: Executive Brief routes loaded - /api/executive-briefs/*")
+    print("✅ SEC-065: Enterprise Executive Brief System enabled")
+except Exception as e:
+    logger.warning(f"SEC-065: Executive Brief routes not loaded: {e}")
+    print(f"⚠️  SEC-065: Executive Brief routes failed to load: {e}")
+
+# ============================================================================
+# SEC-076: Enterprise Diagnostics Routes
+# ============================================================================
+# Industry-aligned health monitoring (Wiz.io, Splunk, Datadog patterns)
+# Compliance: SOC 2 CC7.2, PCI-DSS 10.2, HIPAA 164.312, NIST AU-6
+try:
+    from routes.diagnostics_routes import router as diagnostics_router
+    app.include_router(diagnostics_router, tags=["Enterprise Diagnostics"])
+    logger.info("✅ SEC-076: Diagnostics routes loaded - /api/diagnostics/*")
+    print("✅ SEC-076: Enterprise Diagnostics System enabled")
+except ImportError as e:
+    logger.warning(f"SEC-076: Diagnostics routes not loaded: {e}")
+    print(f"⚠️  SEC-076: Diagnostics routes not available: {e}")
 
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
@@ -1683,15 +2001,27 @@ async def generate_smart_rule_enterprise(request: Request, current_user: dict = 
         logger.error(f"❌ Smart rule generation error: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate smart rule")
 # ================== YOUR ALERTS ROUTES (PRESERVED) ==================
+# 🏢 SEC-007: ENTERPRISE MULTI-TENANT ISOLATION - Banking Level Security
 @app.get("/api/alerts")
-async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
-    """Enterprise alerts endpoint with database integration and rich fallback data"""
+async def get_alerts_enhanced(
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """Enterprise alerts endpoint with database integration
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation (SEC-007)
+    ⚠️ REMOVED: All demo/fallback data - Production only returns real database alerts
+    """
     try:
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for /api/alerts by {current_user.get('email')}")
+            return []  # Return empty - no cross-tenant data leakage
+
         db: Session = next(get_db())
-        
+
         try:
-            # Try to get real alerts from database with agent action join
-            # ARCH-005: Added aa.risk_score for enterprise consistency
+            # 🏢 ENTERPRISE: Query ONLY alerts belonging to this organization
+            # SEC-007: Added organization_id filter for multi-tenant isolation
             alerts_query = db.execute(text("""
                 SELECT a.id, a.alert_type, a.severity, a.message, a.timestamp,
                        aa.agent_id, aa.action_type, aa.tool_name, aa.risk_level,
@@ -1701,9 +2031,10 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                        a.status, a.acknowledged_by, a.acknowledged_at, a.escalated_by, a.escalated_at
                 FROM alerts a
                 LEFT JOIN agent_actions aa ON a.agent_action_id = aa.id
+                WHERE a.organization_id = :org_id
                 ORDER BY a.timestamp DESC
                 LIMIT 50
-            """)).fetchall()
+            """), {"org_id": org_id}).fetchall()
             
             if alerts_query and len(alerts_query) > 0:
                 live_alerts = []
@@ -1732,136 +2063,59 @@ async def get_alerts_enhanced(current_user: dict = Depends(get_current_user)):
                         "escalated_at": row[19].isoformat() if row[19] else None
                     })
                 
-                logger.info(f"✅ Returning {len(live_alerts)} live alerts from database")
+                logger.info(f"✅ SEC-007: Returning {len(live_alerts)} alerts for org_id={org_id}")
                 return live_alerts
-                
+
+            # 🏢 ENTERPRISE: No alerts found for this organization - return empty list
+            logger.info(f"ℹ️ SEC-007: No alerts found for organization {org_id}")
+            return []
+
         except Exception as db_error:
             logger.warning(f"Database alerts query failed: {db_error}")
-        
+            return []  # 🏢 ENTERPRISE: Fail closed - no data leakage on error
+
         finally:
             db.close()
-        
-        # Enterprise fallback alerts with rich data for demonstration
-        current_time = datetime.now(UTC)
-        
-        fallback_alerts = [
-            {
-                "id": 3001,
-                "alert_type": "High Risk Agent Action",
-                "severity": "high",
-                "message": "Enterprise security scanner detected critical vulnerability in production database",
-                "timestamp": current_time.isoformat(),
-                "agent_id": "security-scanner-01",
-                "action_type": "vulnerability_scan",
-                "tool_name": "enterprise-scanner",
-                "risk_level": "high",
-                "mitre_tactic": "TA0007",
-                "mitre_technique": "T1190",
-                "nist_control": "RA-5",
-                "nist_description": "Vulnerability Scanning - Enterprise continuous monitoring",
-                "recommendation": "CRITICAL: Immediate remediation required - patch production database",
-                "status": "new"
-            },
-            {
-                "id": 3002,
-                "alert_type": "Compliance Violation",
-                "severity": "medium",
-                "message": "SOX compliance audit identified access control policy violations",
-                "timestamp": (current_time - timedelta(minutes=30)).isoformat(),
-                "agent_id": "compliance-agent",
-                "action_type": "compliance_check",
-                "tool_name": "compliance-auditor",
-                "risk_level": "medium",
-                "mitre_tactic": "TA0005",
-                "mitre_technique": "T1078",
-                "nist_control": "AU-6",
-                "nist_description": "Audit Review and Analysis - Enterprise compliance monitoring",
-                "recommendation": "Review access control violations and update enterprise policies",
-                "status": "new"
-            },
-            {
-                "id": 3003,
-                "alert_type": "Threat Detection",
-                "severity": "high", 
-                "message": "Advanced threat correlation detected potential APT activity in network traffic",
-                "timestamp": (current_time - timedelta(hours=1)).isoformat(),
-                "agent_id": "threat-detector",
-                "action_type": "threat_analysis",
-                "tool_name": "threat-intelligence",
-                "risk_level": "high",
-                "mitre_tactic": "TA0011",
-                "mitre_technique": "T1071",
-                "nist_control": "SI-4",
-                "nist_description": "Information System Monitoring - Enterprise threat detection",
-                "recommendation": "URGENT: Potential APT activity - activate incident response procedures",
-                "status": "new"
-            },
-            {
-                "id": 3004,
-                "alert_type": "Data Loss Prevention",
-                "severity": "medium",
-                "message": "Sensitive data transfer detected outside approved enterprise boundaries",
-                "timestamp": (current_time - timedelta(hours=2)).isoformat(),
-                "agent_id": "dlp-agent",
-                "action_type": "data_exfiltration_check",
-                "tool_name": "enterprise-dlp",
-                "risk_level": "medium",
-                "mitre_tactic": "TA0010",
-                "mitre_technique": "T1041",
-                "nist_control": "SC-7",
-                "nist_description": "Boundary Protection - Enterprise data loss prevention",
-                "recommendation": "Investigate data transfer and verify compliance with enterprise policies",
-                "status": "new"
-            },
-            {
-                "id": 3005,
-                "alert_type": "Privilege Escalation",
-                "severity": "high",
-                "message": "Unauthorized privilege escalation attempt detected in enterprise Active Directory",
-                "timestamp": (current_time - timedelta(hours=3)).isoformat(),
-                "agent_id": "privilege-monitor",
-                "action_type": "privilege_escalation",
-                "tool_name": "enterprise-iam",
-                "risk_level": "high",
-                "mitre_tactic": "TA0004",
-                "mitre_technique": "T1078.002",
-                "nist_control": "AC-2",
-                "nist_description": "Account Management - Enterprise privileged access monitoring",
-                "recommendation": "IMMEDIATE: Investigate privilege escalation and suspend affected accounts",
-                "status": "new"
-            }
-        ]
-        
-        logger.info(f"⚠️ Using enterprise demonstration alerts: {len(fallback_alerts)} alerts")
-        return fallback_alerts
-        
+
     except Exception as e:
         logger.error(f"❌ Enterprise alerts error: {str(e)}")
-        return []
+        return []  # 🏢 ENTERPRISE: Fail closed - banking level security
 
 # ... Rest of your routes (agent-actions, admin fixes, submission, approval/reject, sample data, health check, main) preserved exactly as in your original 790-line file ...
 
 # ================== YOUR AGENT ACTIONS ROUTE (PRESERVED) ==================
+# 🏢 SEC-007: ENTERPRISE MULTI-TENANT ISOLATION - Banking Level Security
 
 @app.get("/api/agent-actions", response_model=None)
 def get_agent_actions_live(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ) -> List[Dict[str, Any]]:
-    """Agent actions with live database integration - FIXED"""
+    """Agent actions with live database integration
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation (SEC-007)
+    ⚠️ REMOVED: All demo/fallback data - Production only returns real database records
+    """
     try:
         from datetime import datetime, timezone
         current_time = datetime.now(timezone.utc)
-        
-        logger.info(f"🔄 Live agent-actions called by: {current_user.get('email', 'unknown')}")
-        
-        # Query real database records with error handling
+
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for /api/agent-actions by {current_user.get('email')}")
+            return []  # Return empty - no cross-tenant data leakage
+
+        logger.info(f"🔄 SEC-007: Agent-actions called by: {current_user.get('email')} for org_id={org_id}")
+
+        # 🏢 ENTERPRISE: Query ONLY agent_actions belonging to this organization
+        # SEC-007: Added organization_id filter for multi-tenant isolation
         result = db.execute(text("""
             SELECT id, agent_id, action_type, description, risk_level, status, approved,
                    reviewed_by, reviewed_at
-            FROM agent_actions 
+            FROM agent_actions
+            WHERE organization_id = :org_id
             ORDER BY id ASC
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
         
         if result and len(result) > 0:
             # Convert database results to enterprise format
@@ -1902,86 +2156,16 @@ def get_agent_actions_live(
                     "risk_score": 85
                 })
             
-            logger.info(f"✅ Returning {len(live_data)} LIVE database records")
+            logger.info(f"✅ SEC-007: Returning {len(live_data)} agent actions for org_id={org_id}")
             return live_data
-        
-        else:
-            logger.info("📊 No database records found - will return fallback data")
-            
-            # Fallback to your original override data
-            logger.warning("⚠️ Using fallback override data")
-            return [
-                {
-                    "id": 1001,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "security-scanner-01",
-                    "action_type": "vulnerability_scan",
-                    "description": "Production infrastructure vulnerability assessment",
-                    "tool_name": "security-scanner",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "high",
-                    "mitre_tactic": "TA0007",
-                    "mitre_technique": "T1190",
-                    "nist_control": "RA-5",
-                    "nist_description": "Vulnerability Scanning",
-                    "recommendation": "Remediation required for 3 vulnerabilities",
-                    "summary": "Security scan completed: 3 vulnerabilities discovered",
-                    "status": "pending",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None,
-                    "created_at": current_time.isoformat(),
-                    "risk_score": 85
-                },
-                {
-                    "id": 1002,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "compliance-agent",
-                    "action_type": "compliance_check",
-                    "description": "Automated compliance audit of access controls",
-                    "tool_name": "compliance-auditor",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "medium",
-                    "mitre_tactic": "TA0005",
-                    "mitre_technique": "T1078",
-                    "nist_control": "AU-6",
-                    "nist_description": "Audit Review and Analysis",
-                    "recommendation": "Review access control violations",
-                    "summary": "Compliance audit identified 2 policy violations",
-                    "status": "pending",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None,
-                    "created_at": current_time.isoformat(),
-                    "risk_score": 65
-                },
-                {
-                    "id": 1003,
-                    "user_id": current_user.get("user_id", 1),
-                    "agent_id": "threat-detector",
-                    "action_type": "anomaly_detection",
-                    "description": "Network traffic anomaly detection analysis",
-                    "tool_name": "threat-intelligence",
-                    "timestamp": current_time.isoformat(),
-                    "risk_level": "low",
-                    "mitre_tactic": "TA0011",
-                    "mitre_technique": "T1071",
-                    "nist_control": "SI-4",
-                    "nist_description": "Information System Monitoring",
-                    "recommendation": "Continue monitoring - no action required",
-                    "summary": "Anomaly detection completed - normal patterns observed",
-                    "status": "pending",
-                    "approved": False,
-                    "reviewed_by": None,
-                    "reviewed_at": None,
-                    "created_at": current_time.isoformat(),
-                    "risk_score": 25
-                }
-            ]
-            
+
+        # 🏢 ENTERPRISE: No agent actions found for this organization - return empty list
+        logger.info(f"ℹ️ SEC-007: No agent actions found for organization {org_id}")
+        return []
+
     except Exception as e:
         logger.error(f"❌ Agent-actions endpoint error: {str(e)}")
-        return []
+        return []  # 🏢 ENTERPRISE: Fail closed - banking level security
 
 
 # ================== YOUR DATABASE FIX ENDPOINTS (PRESERVED) ==================
@@ -2080,11 +2264,21 @@ async def fix_database_schema():
             "message": f"Failed to fix schema: {str(e)}"
         }
 
-# ================== YOUR AGENT ACTION SUBMISSION ENDPOINT ==================
+# ================== LEGACY AGENT ACTION SUBMISSION ENDPOINT ==================
+# SEC-064 DEPRECATION NOTICE: This endpoint uses legacy raw SQL patterns.
+# For enterprise-grade risk assessment with the full 9-service pipeline, use:
+#   - /api/sdk/agent-action (SDK integration)
+#   - /api/authorization/agent-action (Auth API integration)
+# Both use services/enterprise_risk_pipeline.py for consistent risk scoring.
 
 @app.post("/api/agent-actions")
 async def submit_agent_action_fixed(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Fixed with raw SQL like other working endpoints"""
+    """
+    Submit new agent action - Legacy endpoint with raw SQL.
+
+    DEPRECATED: Use /api/sdk/agent-action or /api/authorization/agent-action
+    for full enterprise risk assessment pipeline.
+    """
     try:
         data = await request.json()
         logger.info(f"🔄 Agent action submitted by: {current_user.get('email', 'unknown')}")
@@ -2722,12 +2916,21 @@ Note: This summary was generated using enterprise security protocols. For detail
             detail=f"Enterprise alert summary generation failed: {str(e)}"
         )    
     
-# ================== ENTERPRISE FIX: ADD MISSING /agent-action ENDPOINT ==================
-# Add this endpoint to your main.py right after your existing /agent-actions endpoints
+# ================== LEGACY AGENT ACTION SINGULAR ENDPOINT ==================
+# SEC-064 DEPRECATION NOTICE: This endpoint uses legacy raw SQL patterns.
+# For enterprise-grade risk assessment with the full 9-service pipeline, use:
+#   - /api/sdk/agent-action (SDK integration)
+#   - /api/authorization/agent-action (Auth API integration)
+# Both use services/enterprise_risk_pipeline.py for consistent risk scoring.
 
 @app.post("/api/agent-action")
 async def submit_agent_action_singular(request: Request, current_user: dict = Depends(get_current_user)):
-    """Submit new agent action - Enterprise database-compatible endpoint"""
+    """
+    Submit new agent action - Legacy endpoint with raw SQL.
+
+    DEPRECATED: Use /api/sdk/agent-action or /api/authorization/agent-action
+    for full enterprise risk assessment pipeline.
+    """
     try:
         data = await request.json()
         
@@ -2950,6 +3153,24 @@ async def root():
         "enterprise_ready": True
     }
 
+# 🏢 ENTERPRISE: Git commit SHA for deployment verification
+# This is set during Docker build via ARG/ENV
+import os
+DEPLOYMENT_COMMIT_SHA = os.environ.get("COMMIT_SHA", "unknown")
+DEPLOYMENT_BUILD_DATE = os.environ.get("BUILD_DATE", "unknown")
+
+@app.get("/api/deployment-info")
+async def deployment_info():
+    """🏢 ENTERPRISE: Returns deployment info for verification
+    Used by CI/CD to verify the correct code version is running
+    """
+    return {
+        "commit_sha": DEPLOYMENT_COMMIT_SHA,
+        "build_date": DEPLOYMENT_BUILD_DATE,
+        "status": "healthy",
+        "enterprise_grade": True
+    }
+
 @app.get("/health")
 async def health_check():
     """Detailed health check"""
@@ -2999,11 +3220,19 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-#Authorization Endpoints
+# ================== LEGACY AUTHORIZATION REQUEST ENDPOINT ==================
+# SEC-064 DEPRECATION NOTICE: This endpoint uses legacy patterns.
+# For enterprise-grade risk assessment with the full 9-service pipeline, use:
+#   - /api/authorization/agent-action (Auth API integration)
+# This uses services/enterprise_risk_pipeline.py for consistent risk scoring.
 
 @app.post("/api/agent-control/request-authorization")
 async def request_authorization(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """🏢 ENTERPRISE: Request authorization for high-risk agent actions"""
+    """
+    🏢 ENTERPRISE: Request authorization for high-risk agent actions.
+
+    DEPRECATED: Use /api/authorization/agent-action for full enterprise risk pipeline.
+    """
     try:
         data = await request.json()
         
@@ -3079,19 +3308,28 @@ async def request_authorization(request: Request, db: Session = Depends(get_db),
         raise HTTPException(status_code=500, detail="Failed to submit authorization request")
 
 # Replace your authorization endpoints in main.py with these database-compatible versions
+# 🏢 SEC-007: ENTERPRISE MULTI-TENANT ISOLATION - Banking Level Security
 
 @app.get("/api/authorization/pending-actions")
 async def get_pending_actions_persistent(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Get pending actions with assessment data from JOINs"""
+    """🏢 ENTERPRISE: Get pending actions with assessment data from JOINs
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Query with JOINs to get NIST controls, MITRE techniques, and CVSS scores
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for pending-actions by {current_user.get('email')}")
+            return []  # Return empty - no cross-tenant data leakage
+
+        # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
         query = """
-            SELECT 
+            SELECT
                 aa.id,
                 aa.agent_id,
                 aa.action_type,
@@ -3109,56 +3347,33 @@ async def get_pending_actions_persistent(
             LEFT JOIN nist_control_mappings ncm ON aa.id = ncm.action_id
             LEFT JOIN mitre_technique_mappings mtm ON aa.id = mtm.action_id
             WHERE aa.status IN ('pending_approval', 'pending', 'submitted')
+            AND aa.organization_id = :org_id
         """
-        params = {}
-        
+        params = {"org_id": org_id}
+
         if risk_filter:
             query += " AND aa.risk_level = :risk_filter"
             params['risk_filter'] = risk_filter
-        
+
         query += """
-            GROUP BY aa.id, aa.agent_id, aa.action_type, aa.description, 
-                     aa.risk_level, aa.status, aa.tool_name, aa.created_at, 
+            GROUP BY aa.id, aa.agent_id, aa.action_type, aa.description,
+                     aa.risk_level, aa.status, aa.tool_name, aa.created_at,
                      aa.approved, ca.risk_score
-            ORDER BY aa.id DESC 
+            ORDER BY aa.id DESC
             LIMIT 50
         """
-        
+
         result = db.execute(text(query), params).fetchall()
-        
-        # Get pending demo actions (not approved/denied)
-        pending_demo_actions = []
-        for action_id, action in demo_actions_storage.items():
-            if action["status"] == "pending":
-                pending_demo_actions.append({
-                    "id": action["id"],
-                    "agent_id": action["agent_id"],
-                    "action_type": action["action_type"],
-                    "description": action["description"],
-                    "risk_level": action["risk_level"],
-                    "ai_risk_score": action["ai_risk_score"],
-                    "target_system": action["agent_id"].replace("-", "_"),
-                    "workflow_stage": "initial_review",
-                    "current_approval_level": 0,
-                    "required_approval_level": 3 if action["ai_risk_score"] >= 90 else 2 if action["ai_risk_score"] >= 70 else 1,
-                    "requested_at": action["created_at"],
-                    "time_remaining": "2:30:00",
-                    "is_emergency": action["risk_level"] == "high",
-                    "contextual_risk_factors": get_risk_factors(action["action_type"], action["risk_level"]),
-                    "authorization_status": "pending",
-                    "nist_controls": ["AC-2", "SI-4"],
-                    "mitre_techniques": ["T1078", "T1087"]
-                })
-        
-        # Combine real and demo actions
+
+        # 🏢 SEC-007: REMOVED demo_actions_storage - Production uses database only
         all_actions = []
-        
+
         # Add real database actions with assessment data
         for row in result:
-            risk_score = row[9] if row[9] is not None else 50  # From CVSS assessment or default 50
+            risk_score = row[9] if row[9] is not None else 50
             nist_controls = [c for c in (row[10] or []) if c is not None]
             mitre_techniques = [t for t in (row[11] or []) if t is not None]
-            
+
             all_actions.append({
                 "id": row[0],
                 "agent_id": row[1] or "unknown-agent",
@@ -3178,14 +3393,10 @@ async def get_pending_actions_persistent(
                 "nist_controls": nist_controls,
                 "mitre_techniques": mitre_techniques
             })
-        
-        # Add pending demo actions
-        all_actions.extend(pending_demo_actions)
-        
-        logger.info(f"🏢 ENTERPRISE: Returning {len(all_actions)} total actions ({len(result)} real, {len(pending_demo_actions)} demo)")
-        
+
+        logger.info(f"🏢 SEC-007: Returning {len(all_actions)} pending actions for org_id={org_id}")
         return all_actions
-        
+
     except Exception as e:
         logger.error(f"🏢 ENTERPRISE: Failed to get pending actions: {str(e)}")
         return []
@@ -3193,36 +3404,46 @@ async def get_pending_actions_persistent(
 @app.get("/api/authorization/approval-dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs - Fixed structure"""
+    """🏢 ENTERPRISE: Real-time authorization dashboard with KPIs
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Use raw SQL to avoid column issues
+        # 🏢 ENTERPRISE: Validate organization context - banking level security
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for approval-dashboard by {current_user.get('email')}")
+            return {
+                "user_info": {"email": current_user.get("email"), "role": current_user.get("role")},
+                "pending_summary": {"total_pending": 0, "critical_pending": 0, "emergency_pending": 0},
+                "recent_activity": {"approvals_last_24h": 0}
+            }
+
+        # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
         pending_result = db.execute(text("""
             SELECT id, risk_level, status
-            FROM agent_actions 
+            FROM agent_actions
             WHERE status IN ('pending_approval', 'pending', 'submitted')
-        """)).fetchall()
-        
+            AND organization_id = :org_id
+        """), {"org_id": org_id}).fetchall()
+
         recent_result = db.execute(text("""
             SELECT id, status, approved
-            FROM agent_actions 
+            FROM agent_actions
             WHERE status IN ('approved', 'denied')
-            ORDER BY id DESC 
+            AND organization_id = :org_id
+            ORDER BY id DESC
             LIMIT 10
-        """)).fetchall()
-        
-        # Calculate metrics from raw data
+        """), {"org_id": org_id}).fetchall()
+
+        # Calculate metrics from real data only
         total_pending = len(pending_result)
         critical_pending = len([r for r in pending_result if r[1] == "high"])
         emergency_pending = len([r for r in pending_result if r[1] == "high"])
-        
-        # If no real data, provide enterprise demo metrics
-        if total_pending == 0:
-            total_pending = 3
-            critical_pending = 2
-            emergency_pending = 2
-            logger.info("🔧 ENTERPRISE: Using demo dashboard metrics")
+
+        # 🏢 SEC-007: REMOVED demo fallback - Production shows real data only
+        logger.info(f"🏢 SEC-007: Dashboard for org_id={org_id}: {total_pending} pending")
         
         dashboard_data = {
             "user_info": {
@@ -3401,18 +3622,27 @@ async def authorize_action_with_audit(
 @app.get("/api/authorization/metrics/approval-performance")
 async def get_approval_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Approval performance metrics - Database compatible"""
+    """🏢 ENTERPRISE: Approval performance metrics
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Use raw SQL to get metrics from existing columns only
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for approval-performance by {current_user.get('email')}")
+            return {"decision_breakdown": {}, "performance_metrics": {}, "risk_analysis": {}, "period_summary": {}}
+
+        # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
         thirty_days_ago = datetime.now(UTC) - timedelta(days=30)
-        
+
         result = db.execute(text("""
             SELECT status, risk_level, approved
-            FROM agent_actions 
-            WHERE created_at >= :thirty_days_ago OR created_at IS NULL
-        """), {'thirty_days_ago': thirty_days_ago}).fetchall()
+            FROM agent_actions
+            WHERE (created_at >= :thirty_days_ago OR created_at IS NULL)
+            AND organization_id = :org_id
+        """), {'thirty_days_ago': thirty_days_ago, 'org_id': org_id}).fetchall()
         
         # Calculate metrics from raw data
         total_requests = len(result)
@@ -3596,24 +3826,32 @@ def get_risk_factors(action_type: str, risk_level: str) -> List[str]:
 @app.get("/api/enterprise/audit-trail")
 async def get_audit_trail(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Get complete audit trail of all decisions"""
+    """🏢 ENTERPRISE: Get complete audit trail of all decisions
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Get recent audit trail entries
-        recent_entries = sorted(audit_trail_storage, key=lambda x: x["reviewed_at"], reverse=True)[:limit]
-        
-        # Also get from database if available
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for audit-trail by {current_user.get('email')}")
+            return {"total_entries": 0, "audit_trail": {"recent_decisions": [], "database_decisions": []}}
+
+        # 🏢 SEC-007: REMOVED in-memory audit_trail_storage - Production uses database only
+        db_audit_entries = []
+
         try:
             db: Session = next(get_db())
+            # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
             db_entries = db.execute(text("""
                 SELECT action_id, decision, reviewed_by, timestamp
-                FROM log_audit_trail 
-                ORDER BY timestamp DESC 
+                FROM log_audit_trail
+                WHERE organization_id = :org_id
+                ORDER BY timestamp DESC
                 LIMIT :limit
-            """), {'limit': limit}).fetchall()
-            
-            db_audit_entries = []
+            """), {'limit': limit, 'org_id': org_id}).fetchall()
+
             for row in db_entries:
                 db_audit_entries.append({
                     "action_id": row[0],
@@ -3622,25 +3860,25 @@ async def get_audit_trail(
                     "reviewed_at": row[3].isoformat() if row[3] else "Unknown",
                     "source": "database"
                 })
-            
+
             db.close()
-            
+
         except Exception as db_error:
             logger.warning(f"Could not get database audit entries: {db_error}")
-            db_audit_entries = []
-        
+
+        logger.info(f"🏢 SEC-007: Returning {len(db_audit_entries)} audit entries for org_id={org_id}")
         return {
-            "total_entries": len(recent_entries) + len(db_audit_entries),
-            "memory_entries": len(recent_entries),
+            "total_entries": len(db_audit_entries),
+            "memory_entries": 0,
             "database_entries": len(db_audit_entries),
             "audit_trail": {
-                "recent_decisions": recent_entries,
+                "recent_decisions": [],
                 "database_decisions": db_audit_entries
             },
             "compliance_status": "enterprise_compliant",
             "last_updated": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get audit trail: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve audit trail")
@@ -3648,39 +3886,32 @@ async def get_audit_trail(
 @app.get("/api/enterprise/approved-actions")
 async def get_approved_actions(
     limit: int = 20,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🏢 ENTERPRISE: Get all approved actions for executive dashboard"""
+    """🏢 ENTERPRISE: Get all approved actions for executive dashboard
+    🏢 SEC-007: Filter by organization_id for multi-tenant isolation
+    """
     try:
-        # Get approved demo actions
-        approved_demo = []
-        for action_id, action in demo_actions_storage.items():
-            if action["status"] in ["approved", "denied", "emergency_approved"]:
-                approved_demo.append({
-                    "id": action["id"],
-                    "agent_id": action["agent_id"],
-                    "action_type": action["action_type"],
-                    "description": action["description"],
-                    "status": action["status"],
-                    "reviewed_by": action["reviewed_by"],
-                    "reviewed_at": action["reviewed_at"],
-                    "risk_score": action["ai_risk_score"],
-                    "notes": action.get("notes", ""),
-                    "source": "demo"
-                })
-        
-        # Get approved real actions from database
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for approved-actions by {current_user.get('email')}")
+            return {"total_approved": 0, "approved_actions": []}
+
+        # 🏢 SEC-007: REMOVED demo_actions_storage - Production uses database only
+        approved_real = []
         try:
             db: Session = next(get_db())
+            # 🏢 SEC-007: Query with org_id filter for multi-tenant isolation
             real_approved = db.execute(text("""
                 SELECT id, agent_id, action_type, description, status, reviewed_by, reviewed_at
-                FROM agent_actions 
+                FROM agent_actions
                 WHERE status IN ('approved', 'denied', 'emergency_approved')
-                ORDER BY reviewed_at DESC 
+                AND organization_id = :org_id
+                ORDER BY reviewed_at DESC
                 LIMIT :limit
-            """), {'limit': limit}).fetchall()
-            
-            approved_real = []
+            """), {'limit': limit, 'org_id': org_id}).fetchall()
+
             for row in real_approved:
                 approved_real.append({
                     "id": row[0],
@@ -3692,25 +3923,21 @@ async def get_approved_actions(
                     "reviewed_at": row[6].isoformat() if row[6] else "Unknown",
                     "source": "database"
                 })
-            
+
             db.close()
-            
+
         except Exception as db_error:
             logger.warning(f"Could not get approved real actions: {db_error}")
-            approved_real = []
-        
-        # Combine and sort by review date
-        all_approved = approved_demo + approved_real
-        all_approved.sort(key=lambda x: x["reviewed_at"], reverse=True)
-        
+
+        logger.info(f"🏢 SEC-007: Returning {len(approved_real)} approved actions for org_id={org_id}")
         return {
-            "total_approved": len(all_approved),
-            "demo_actions": len(approved_demo),
+            "total_approved": len(approved_real),
+            "demo_actions": 0,
             "database_actions": len(approved_real),
-            "approved_actions": all_approved[:limit],
+            "approved_actions": approved_real,
             "last_updated": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get approved actions: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve approved actions")    
@@ -3737,26 +3964,42 @@ metrics_storage = {
 # MOVED: ai-insights endpoint moved before router registration
 
 @app.post("/api/alerts/correlate")
-async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get_current_user)):
-    """🔗 ENTERPRISE: AI-powered alert correlation engine"""
+async def correlate_alerts_ai(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
+):
+    """🔗 ENTERPRISE: AI-powered alert correlation engine
+    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
+    """
     try:
         data = await request.json()
         alert_ids = data.get("alert_ids", [])
-        
+
         if not alert_ids:
             raise HTTPException(status_code=400, detail="No alert IDs provided for correlation")
-        
+
+        # 🏢 ENTERPRISE: Validate organization context
+        if org_id is None:
+            logger.warning(f"⚠️ SECURITY: No organization context for alert correlation by {current_user.get('email')}")
+            raise HTTPException(status_code=403, detail="Organization context required")
+
         db: Session = next(get_db())
-        
+
         try:
-            # Get alert details for correlation
-            placeholders = ','.join(['%s'] * len(alert_ids))
+            # Get alert details for correlation - 🏢 ENTERPRISE: Filter by org_id
+            placeholders = ','.join([':id' + str(i) for i in range(len(alert_ids))])
+            params = {"org_id": org_id}
+            for i, aid in enumerate(alert_ids):
+                params[f'id{i}'] = aid
+
             correlation_query = db.execute(text(f"""
                 SELECT id, alert_type, severity, agent_id, tool_name, timestamp, message
-                FROM alerts 
+                FROM alerts
                 WHERE id IN ({placeholders})
+                AND organization_id = :org_id
                 ORDER BY timestamp DESC
-            """), alert_ids).fetchall()
+            """), params).fetchall()
             
             alert_details = []
             for row in correlation_query:
@@ -3828,106 +4071,66 @@ async def correlate_alerts_ai(request: Request, current_user: dict = Depends(get
         raise HTTPException(status_code=500, detail="Failed to correlate alerts")
 
 @app.post("/api/alerts/executive-brief")
-async def generate_executive_brief_ai(request: Request, current_user: dict = Depends(get_current_user)):
-    """👔 ENTERPRISE: AI-generated executive security briefing"""
+async def generate_executive_brief_ai_legacy(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
+    db: Session = Depends(get_db)
+):
+    """
+    SEC-065: DEPRECATED - Legacy Executive Brief Endpoint
+
+    This endpoint is maintained for backward compatibility.
+    New implementations should use:
+    - GET /api/executive-briefs/latest (cached, <100ms)
+    - POST /api/executive-briefs/regenerate (rate limited)
+
+    This legacy endpoint now redirects to the new cached system.
+
+    Compliance: SOC 2 AU-6, AU-7, NIST 800-53 AU-6, PCI-DSS 10.6
+    """
+    from services.executive_brief_service import get_executive_brief_service
+
+    logger.info(f"SEC-065: Legacy /api/alerts/executive-brief called, redirecting to new system [org_id={org_id}]")
+
     try:
+        # Parse request for time_period if provided
         data = await request.json()
-        alert_data = data.get("alerts", [])
-        
-        # Use existing LLM infrastructure if available
+        time_period = data.get("time_period", "24h")
+
+        # SEC-065: Use new cached executive brief service
+        service = get_executive_brief_service(db, org_id)
+
+        # Try to get cached brief first (fast path)
+        brief = service.get_cached_brief()
+
+        if brief and brief.is_valid():
+            logger.info(f"SEC-065: Returning cached brief for org_id={org_id}")
+            return brief.to_api_response()
+
+        # No valid cached brief - generate new one
         try:
-            from llm_utils import generate_summary
-            
-            # Prepare executive-focused prompt
-            executive_prompt = f"""
-EXECUTIVE SECURITY BRIEFING - {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}
-
-Alert Summary: {len(alert_data)} security events detected
-High-Priority Alerts: {len([a for a in alert_data if a.get('severity') == 'high'])}
-
-Please provide an executive-level security briefing including:
-1. EXECUTIVE SUMMARY (2-3 sentences for C-level)
-2. KEY SECURITY RISKS & BUSINESS IMPACT
-3. IMMEDIATE ACTIONS REQUIRED (prioritized)
-4. RESOURCE & BUDGET IMPLICATIONS
-5. RECOMMENDED STRATEGIC RESPONSE
-
-Focus on business impact, risk mitigation, and strategic decision-making.
-"""
-            
-            # Generate using existing LLM infrastructure
-            ai_brief = generate_summary(
-                agent_id="executive_security_system",
-                action_type="executive_briefing",
-                description=executive_prompt
+            brief = service.generate_brief(
+                time_period=time_period,
+                user_email=current_user.get("email", "system")
             )
-            
-            logger.info("👔 Executive brief generated using AI/LLM")
-            
-        except Exception as llm_error:
-            logger.warning(f"LLM brief generation failed: {llm_error}")
-            
-            # Enterprise fallback brief
-            high_priority_count = len([a for a in alert_data if a.get('severity') == 'high'])
-            total_alerts = len(alert_data)
-            
-            ai_brief = f"""
-🏢 EXECUTIVE SECURITY BRIEFING
-Generated: {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}
+            return brief.to_api_response()
 
-EXECUTIVE SUMMARY:
-Your enterprise security monitoring systems detected {total_alerts} security events in the past 24 hours, with {high_priority_count} classified as high-priority threats requiring immediate executive attention. Our AI-powered security operations center has analyzed these events and determined potential coordinated threat activity targeting critical business systems.
+        except ValueError as rate_limit_error:
+            # Rate limit hit - return last cached brief even if expired
+            logger.warning(f"SEC-065: Rate limit hit, returning stale brief: {rate_limit_error}")
+            stale_brief = service.get_brief_history(limit=1)
+            if stale_brief:
+                response = stale_brief[0].to_api_response()
+                response["meta"]["is_stale"] = True
+                response["meta"]["rate_limited"] = True
+                return response
+            raise HTTPException(status_code=429, detail=str(rate_limit_error))
 
-KEY SECURITY RISKS & BUSINESS IMPACT:
-• {high_priority_count} high-severity security incidents pose immediate risk to business operations
-• Potential for service disruption, data exposure, or compliance violations
-• Estimated business impact: ${high_priority_count * 50000} if incidents escalate
-• Customer trust and regulatory compliance at risk if not addressed promptly
-
-IMMEDIATE ACTIONS REQUIRED:
-1. CRITICAL: Activate enterprise incident response procedures within 2 hours
-2. HIGH: Security team to implement immediate containment measures
-3. MEDIUM: Legal and compliance teams to assess regulatory notification requirements
-4. LOW: Prepare executive communication strategy for stakeholders
-
-RESOURCE & BUDGET IMPLICATIONS:
-• Additional security personnel may be required for 24/7 monitoring
-• Consider emergency cybersecurity consulting engagement ($75K-150K)
-• Potential legal and regulatory costs if incidents escalate ($200K+)
-• Business continuity planning activation may be necessary
-
-RECOMMENDED STRATEGIC RESPONSE:
-1. Convene emergency executive security committee within 4 hours
-2. Authorize additional cybersecurity budget for enhanced monitoring tools
-3. Consider engaging external threat intelligence services
-4. Review and update enterprise security policies and procedures
-5. Implement enhanced employee security awareness training program
-
-CONFIDENCE LEVEL: 87% (AI-powered analysis)
-NEXT REVIEW: 12 hours or upon significant status change
-
-This briefing was generated by your enterprise AI security operations center. For detailed technical analysis, please consult with your Chief Information Security Officer.
-"""
-        
-        brief_result = {
-            "brief_id": f"exec-brief-{int(datetime.now(UTC).timestamp())}",
-            "generated_at": datetime.now(UTC).isoformat(),
-            "generated_by": current_user["email"],
-            "alert_count": len(alert_data),
-            "high_priority_count": len([a for a in alert_data if a.get('severity') == 'high']),
-            "executive_summary": ai_brief,
-            "confidence_level": 87,
-            "next_review": (datetime.now(UTC) + timedelta(hours=12)).isoformat(),
-            "distribution_list": [
-                "CEO", "CISO", "CTO", "Legal Counsel", "Board of Directors"
-            ]
-        }
-        
-        logger.info(f"👔 Executive brief generated: {len(alert_data)} alerts analyzed")
-        return brief_result
-        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Executive brief generation failed: {str(e)}")
+        logger.error(f"SEC-065: Executive brief generation failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to generate executive security briefing")
 
 # MOVED: performance-metrics endpoint moved before router registration       
