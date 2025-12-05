@@ -44,6 +44,10 @@ export const AuthProvider = ({ children }) => {
   const [sessionExpiresIn, setSessionExpiresIn] = useState(null);
   const [mfaChallenge, setMfaChallenge] = useState(null);
 
+  // SEC-088: RBAC Permission State
+  const [permissions, setPermissions] = useState({});
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+
   // Refs for timers
   const sessionTimerRef = useRef(null);
   const warningTimerRef = useRef(null);
@@ -316,13 +320,109 @@ export const AuthProvider = ({ children }) => {
   }, [poolConfig]);
 
   /**
-   * Check if user has specific permission (placeholder for RBAC)
+   * SEC-088: Fetch user permissions from backend
+   * Called on authentication and periodically refreshed
    */
-  const hasPermission = useCallback((_permission) => {
-    // This would integrate with backend RBAC system
-    // For now, return true for authenticated users
-    return isAuthenticated;
+  const fetchPermissions = useCallback(async () => {
+    if (!isAuthenticated) {
+      setPermissions({});
+      return;
+    }
+
+    setPermissionsLoading(true);
+    try {
+      const tokens = getStoredTokens();
+      if (!tokens?.accessToken) {
+        console.warn('SEC-088: No access token for permission fetch');
+        return;
+      }
+
+      const response = await fetch('/api/permissions/me', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokens.accessToken}`,
+        },
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setPermissions(data.permissions || {});
+        console.log('SEC-088: Permissions loaded', Object.keys(data.permissions || {}).length, 'resources');
+      } else {
+        console.error('SEC-088: Failed to fetch permissions', response.status);
+        setPermissions({});
+      }
+    } catch (error) {
+      console.error('SEC-088: Permission fetch error', error);
+      setPermissions({});
+    } finally {
+      setPermissionsLoading(false);
+    }
   }, [isAuthenticated]);
+
+  // Fetch permissions when authenticated
+  useEffect(() => {
+    if (isAuthenticated && Object.keys(permissions).length === 0 && !permissionsLoading) {
+      fetchPermissions();
+    }
+  }, [isAuthenticated, permissions, permissionsLoading, fetchPermissions]);
+
+  /**
+   * SEC-088: Check if user has specific permission
+   *
+   * @param {string} permission - Permission in format "resource:action" or "resource.action"
+   * @returns {boolean} - True if user has permission
+   *
+   * Usage:
+   *   hasPermission('policies:create')
+   *   hasPermission('alerts.acknowledge')
+   */
+  const hasPermission = useCallback((permission) => {
+    // Must be authenticated
+    if (!isAuthenticated) {
+      return false;
+    }
+
+    // Still loading permissions, be permissive during load
+    if (permissionsLoading && Object.keys(permissions).length === 0) {
+      return true; // Allow during initial load to prevent UI flash
+    }
+
+    // Parse permission string
+    const separator = permission.includes(':') ? ':' : '.';
+    const [resource, action] = permission.split(separator);
+
+    if (!resource || !action) {
+      console.warn('SEC-088: Invalid permission format', permission);
+      return false;
+    }
+
+    // Check if resource:action is allowed
+    const resourcePermissions = permissions[resource];
+    if (!resourcePermissions) {
+      return false;
+    }
+
+    return resourcePermissions.includes(action);
+  }, [isAuthenticated, permissions, permissionsLoading]);
+
+  /**
+   * SEC-088: Check multiple permissions (any)
+   * Returns true if user has ANY of the specified permissions
+   */
+  const hasAnyPermission = useCallback((permissionList) => {
+    return permissionList.some(perm => hasPermission(perm));
+  }, [hasPermission]);
+
+  /**
+   * SEC-088: Check multiple permissions (all)
+   * Returns true if user has ALL of the specified permissions
+   */
+  const hasAllPermissions = useCallback((permissionList) => {
+    return permissionList.every(perm => hasPermission(perm));
+  }, [hasPermission]);
 
   const value = {
     // State
@@ -334,13 +434,22 @@ export const AuthProvider = ({ children }) => {
     sessionExpiresIn,
     mfaChallenge,
 
+    // SEC-088: Permission state
+    permissions,
+    permissionsLoading,
+
     // Actions
     login,
     logout,
     extendSession,
     updateUserProfile,
+    setMfaChallenge,
+
+    // SEC-088: Permission functions
     hasPermission,
-    setMfaChallenge
+    hasAnyPermission,
+    hasAllPermissions,
+    fetchPermissions,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
