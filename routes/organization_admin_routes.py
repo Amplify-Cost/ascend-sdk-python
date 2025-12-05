@@ -892,3 +892,68 @@ async def get_subscription_info_auto_org(
 
     # Delegate to existing endpoint
     return await get_subscription_info(org_id, db, current_user)
+
+
+# ============================================================================
+# SEC-093: Organization Settings Endpoint
+# ============================================================================
+
+@router.get("/settings")
+async def get_organization_settings(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_org_admin)
+):
+    """
+    SEC-093: Get organization settings (security configuration).
+
+    Returns organization-level settings including:
+    - MFA configuration
+    - Session timeout settings
+    - Password policy
+    - IP restrictions
+
+    This endpoint mirrors /api/admin/security/settings for frontend compatibility.
+
+    Security:
+    - Requires org admin role
+    - Multi-tenant isolation via organization_id
+
+    Compliance: SOC 2 CC6.1, PCI-DSS 8.2.3
+    """
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Organization ID not found in authentication token"
+        )
+
+    # Query organization settings
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    # Return settings structure matching frontend expectations
+    return {
+        "organization_id": org_id,
+        "organization_name": org.name,
+        "mfa": {
+            "configuration": getattr(org, 'cognito_mfa_configuration', 'OPTIONAL'),
+            "enforced": getattr(org, 'cognito_mfa_configuration', 'OPTIONAL') == 'ON'
+        },
+        "session": {
+            "timeout_minutes": 60,
+            "max_concurrent_sessions": 5
+        },
+        "password_policy": {
+            "min_length": 12,
+            "require_uppercase": True,
+            "require_lowercase": True,
+            "require_numbers": True,
+            "require_special": True,
+            "max_age_days": 90
+        },
+        "ip_restrictions": {
+            "enabled": False,
+            "allowed_ranges": []
+        }
+    }

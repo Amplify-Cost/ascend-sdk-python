@@ -1454,7 +1454,8 @@ async def create_test_action_api(
             "created_at": datetime.now(UTC),
             "user_id": current_user.get("user_id", 1),
             "tool_name": tool_name,
-            "summary": business_justification[:200]  # First 200 chars for quick reference
+            "summary": business_justification[:200],  # First 200 chars for quick reference
+            "organization_id": current_user.get("organization_id")  # SEC-095: Multi-tenant isolation
         }
 
         with DatabaseService.get_transaction(db):
@@ -1467,14 +1468,16 @@ async def create_test_action_api(
                     target_system, target_resource, nist_control, nist_description,
                     mitre_tactic, mitre_technique, recommendation, status,
                     requires_approval, approval_level, required_approval_level,
-                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, tool_name, summary
+                    cvss_score, cvss_severity, cvss_vector, created_at, user_id, tool_name, summary,
+                    organization_id
                 )
                 VALUES (
                     :agent_id, :action_type, :description, :risk_level, :risk_score,
                     :target_system, :target_resource, :nist_control, :nist_description,
                     :mitre_tactic, :mitre_technique, :recommendation, :status,
                     :requires_approval, :approval_level, :required_approval_level,
-                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :tool_name, :summary
+                    :cvss_score, :cvss_severity, :cvss_vector, :created_at, :user_id, :tool_name, :summary,
+                    :organization_id
                 )
                 RETURNING id, created_at
                 """,
@@ -1520,18 +1523,19 @@ async def create_test_action_api(
                     "timestamp": datetime.now(UTC),
                     "agent_id": agent_id,
                     "agent_action_id": action_id,
-                    "status": "new"
+                    "status": "new",
+                    "organization_id": current_user.get("organization_id")  # SEC-095: Multi-tenant isolation
                 }
 
                 # Insert alert and get its ID
                 result = db.execute(text("""
                     INSERT INTO alerts (
                         alert_type, severity, message, timestamp, agent_id,
-                        agent_action_id, status
+                        agent_action_id, status, organization_id
                     )
                     VALUES (
                         :alert_type, :severity, :message, :timestamp, :agent_id,
-                        :agent_action_id, :status
+                        :agent_action_id, :status, :organization_id
                     )
                     RETURNING id
                 """), alert_data)
