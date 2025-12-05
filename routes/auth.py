@@ -534,7 +534,7 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
         # Create tokens with organization context for multi-tenant isolation
         # ENTERPRISE SECURITY: organization_id is REQUIRED for data isolation
         user_data = {
-            "sub": str(user.id),
+            "sub": cognito_user_id,
             "email": user.email,
             "role": user.role,
             "user_id": user.id,
@@ -1458,7 +1458,7 @@ async def create_cognito_session(
         # Step 7: Create secure session cookie
         # Using existing enterprise token creation
         session_data = {
-            "sub": str(user.id),
+            "sub": cognito_user_id,
             "email": user.email,
             "role": user.role,
             "user_id": user.id,
