@@ -1389,6 +1389,22 @@ except ImportError as e:
     logger.error(f"❌ Failed to import platform_admin_routes: {e}")
 
 # ============================================================================
+# RBAC-003/004: Platform Routes (Two-Pool JWT Authentication)
+# ============================================================================
+# New platform routes using two-pool JWT authentication
+# These routes require ENABLE_TWO_POOL_AUTH=true to function
+try:
+    from routes.platform_routes import router as platform_routes_router
+    app.include_router(platform_routes_router, tags=["Platform (Two-Pool Auth)"])
+    print("✅ RBAC-003/004: Platform routes (two-pool auth) included")
+    logger.info("✅ RBAC-003/004: Platform routes registered at /platform/*")
+    for route in platform_routes_router.routes:
+        logger.info(f"  → {route.methods} {route.path}")
+except ImportError as e:
+    print(f"⚠️  Platform routes (two-pool auth) not available: {e}")
+    logger.error(f"❌ Failed to import platform_routes: {e}")
+
+# ============================================================================
 # PHASE 1: Enterprise Webhook Integration Routes
 # ============================================================================
 # Banking-level webhook system with HMAC-SHA256 signing
