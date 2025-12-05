@@ -29,6 +29,13 @@ from jose.backends import RSAKey
 from database import get_db
 from models import User, Organization, AuthAuditLog, LoginAttempt, CognitoToken
 
+# RBAC-001: Multi-Pool JWT Validation (Platform + Per-Org Pools)
+from services.two_pool_jwt_validator import (
+    MultiPoolJWTValidator,
+    get_validator as get_multi_pool_validator,
+    validate_token as multi_pool_validate_token
+)
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -45,6 +52,10 @@ COGNITO_JWKS_URL = f"{COGNITO_ISSUER}/.well-known/jwks.json"
 MAX_LOGIN_ATTEMPTS_PER_IP = 5  # Block after 5 failed attempts from same IP
 MAX_LOGIN_ATTEMPTS_PER_EMAIL = 10  # Block after 10 failed attempts for same email
 LOGIN_ATTEMPT_WINDOW_MINUTES = 15  # Time window for counting attempts
+
+# RBAC-001: Two-Pool authentication feature flag
+# Set to 'true' to enable platform + customer pool validation
+ENABLE_TWO_POOL_AUTH = os.getenv("ENABLE_TWO_POOL_AUTH", "false").lower() == "true"
 
 
 # ============================================================================
@@ -101,9 +112,13 @@ def refresh_cognito_keys():
 # JWT TOKEN VALIDATION
 # ============================================================================
 
-def validate_cognito_token(token: str) -> dict:
+def validate_cognito_token(token: str, db: Optional[Session] = None) -> dict:
     """
     Enterprise-grade JWT token validation with RS256 signature verification.
+
+    RBAC-001: Supports multi-pool validation when ENABLE_TWO_POOL_AUTH=true:
+    - Platform Pool: Ascend internal staff (scope='platform', org_id=null)
+    - Per-Org Pools: Tenant users from organizations.cognito_user_pool_id (scope='org')
 
     Validation Steps:
     1. Decode JWT header to extract key ID (kid)
@@ -125,6 +140,7 @@ def validate_cognito_token(token: str) -> dict:
 
     Args:
         token: JWT token string from Authorization header
+        db: Optional database session (required for multi-pool validation)
 
     Returns:
         dict: Validated token payload with custom attributes
@@ -132,6 +148,62 @@ def validate_cognito_token(token: str) -> dict:
     Raises:
         HTTPException: If validation fails (401 Unauthorized)
     """
+    # RBAC-001: Use multi-pool validation if enabled AND db provided
+    if ENABLE_TWO_POOL_AUTH and db is not None:
+        try:
+            payload = multi_pool_validate_token(token, db)
+
+            # Map two-pool payload to expected user context format
+            user_context = {
+                "cognito_user_id": payload.get("sub"),
+                "email": payload.get("email"),
+                "organization_id": payload.get("custom:organization_id") or payload.get("org_id"),
+                "organization_slug": payload.get("custom:organization_slug"),
+                "role": payload.get("custom:role", "user"),
+                "is_org_admin": payload.get("custom:is_org_admin") == "true",
+                "jti": payload.get("jti"),
+                "exp": payload.get("exp"),
+                "iat": payload.get("iat"),
+                # RBAC-001: New fields from two-pool validation
+                "scope": payload.get("scope", "org"),
+                "pool_source": payload.get("pool_source"),
+            }
+
+            # Platform tokens may have null org_id - that's OK
+            if user_context["scope"] == "platform":
+                logger.info(f"✅ Platform token validated: {user_context['email']}")
+                # Platform users don't need org_id
+                if not user_context["organization_id"]:
+                    user_context["organization_id"] = None
+            else:
+                # Customer tokens MUST have org_id
+                if not user_context["organization_id"]:
+                    raise JWTError("Customer token missing required organization_id")
+
+                # Convert organization_id to integer
+                try:
+                    user_context["organization_id"] = int(user_context["organization_id"])
+                except (ValueError, TypeError):
+                    raise JWTError("Invalid organization_id format")
+
+                logger.info(f"✅ Customer token validated: {user_context['email']} (org: {user_context.get('organization_slug', 'N/A')})")
+
+            return user_context
+
+        except JWTError as e:
+            logger.error(f"Two-pool JWT validation failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error in two-pool validation: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Authentication error"
+            )
+
+    # Legacy single-pool validation (default)
     try:
         # Step 1: Decode header to get key ID (kid)
         unverified_header = jwt.get_unverified_header(token)
@@ -551,8 +623,8 @@ async def get_current_user_cognito(
     user_agent = request.headers.get("User-Agent", "unknown")
 
     try:
-        # Step 2: Validate JWT
-        token_payload = validate_cognito_token(token)
+        # Step 2: Validate JWT (RBAC-001: pass db for multi-pool validation)
+        token_payload = validate_cognito_token(token, db=db)
 
         cognito_user_id = token_payload["cognito_user_id"]
         email = token_payload["email"]
@@ -596,44 +668,20 @@ async def get_current_user_cognito(
         db.execute(text(f"SET LOCAL app.current_organization_id = {organization_id}"))
 
         # Step 6: Get or create user in local database
-        # SEC-014 ENTERPRISE FIX: Auto-link existing users by email fallback
-        # Banking-Level: SOC 2 CC6.1, NIST IA-5, PCI-DSS 8.2.3
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
 
         if not user:
-            # SEC-014: Check if user exists by email (for existing users being linked to Cognito)
-            user = db.query(User).filter(
-                User.email == email,
-                User.organization_id == organization_id
-            ).first()
-
-            if user:
-                # SEC-014: Auto-link existing user to new Cognito identity
-                # This handles: user recreation in Cognito, user pool migrations, identity recovery
-                logger.info(f"🔗 SEC-014: Auto-linking existing user to Cognito: {email} (user_id={user.id})")
-                user.cognito_user_id = cognito_user_id
-                # Update role if changed in Cognito
-                if user.role != token_payload["role"]:
-                    logger.info(f"📝 SEC-014: Updating role for {email}: {user.role} → {token_payload['role']}")
-                    user.role = token_payload["role"]
-                if hasattr(user, 'is_org_admin'):
-                    user.is_org_admin = token_payload["is_org_admin"]
-                db.flush()
-                logger.info(f"✅ SEC-014: User auto-linked: ID={user.id}, Email={email}, CognitoID={cognito_user_id}")
-            else:
-                # Create new user record for Cognito user
-                logger.info(f"📝 Creating new user from Cognito: {email}")
-                user = User(
-                    email=email,
-                    cognito_user_id=cognito_user_id,
-                    organization_id=organization_id,
-                    role=token_payload["role"],
-                    is_org_admin=token_payload["is_org_admin"],
-                    is_active=True
-                )
-                db.add(user)
-                db.flush()
-                logger.info(f"✅ New user created: ID={user.id}, Email={email}")
+            # Create user record for Cognito user
+            user = User(
+                email=email,
+                cognito_user_id=cognito_user_id,
+                organization_id=organization_id,
+                role=token_payload["role"],
+                is_org_admin=token_payload["is_org_admin"],
+                is_active=True
+            )
+            db.add(user)
+            db.flush()
 
         # Step 7: Update last login
         user.last_login = datetime.now()
