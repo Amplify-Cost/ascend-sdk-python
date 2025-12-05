@@ -12,7 +12,7 @@ Status: Production-ready
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from datetime import datetime, UTC, timedelta
-from uuid import UUID  # SEC-092: For UUID-to-INTEGER conversion
+from typing import Optional
 import hashlib
 import secrets
 import logging
@@ -23,6 +23,17 @@ from models import User
 from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyRateLimit
 from dependencies import get_current_user
 from security.cookies import SESSION_COOKIE_NAME  # For JWT cookie authentication
+
+# SEC-092: Import TokenService for RS256-only JWT verification
+from services.token_service import (
+    get_token_service,
+    TenantContext,
+    TokenExpiredError,
+    InvalidClaimsError,
+    InvalidSignatureError,
+    InvalidAlgorithmError,
+    AuthenticationError,
+)
 
 # Setup logging
 logger = logging.getLogger("enterprise.api_key_auth")
@@ -293,73 +304,64 @@ async def get_current_user_or_api_key(
         HTTPException: If neither authentication method succeeds
     """
     # 1. Try JWT first (admin UI)
-    # Check cookie session
+    # SEC-092: Use TokenService.verify() for RS256-only JWT verification
+    # This is the SAME verification used by working routes in dependencies.py
     cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if cookie_jwt:
         try:
-            from security.jwt_security import secure_jwt_decode
-            from config import SECRET_KEY, ALGORITHM
+            # SEC-092: RS256-only verification using TokenService
+            token_service = get_token_service()
+            client_ip = request.client.host if hasattr(request, 'client') and request.client else None
 
-            payload = secure_jwt_decode(
+            tenant_context: TenantContext = token_service.verify(
                 token=cookie_jwt,
-                secret_key=SECRET_KEY,
-                algorithms=[ALGORITHM],
-                required_claims=["sub", "exp"],
-                operation_name="dual_auth_cookie"
+                expected_type="access",
+                client_ip=client_ip
             )
 
-            # SEC-092: Extract database INTEGER IDs for queries (same pattern as dependencies.py SEC-091)
-            # Priority: 1) db_user_id/db_org_id claims, 2) UUID.int conversion, 3) fallback
+            # SEC-092: Convert TenantContext to dict with expected keys
+            user_id = tenant_context.user_id
+            organization_id = tenant_context.org_id
 
-            # SEC-092: Extract user_id (database INTEGER)
-            user_id = payload.get("db_user_id")  # SEC-091 claim from routes/auth.py
-            if user_id is None:
-                user_id_raw = payload.get("user_id") or payload.get("sub")
-                if user_id_raw:
-                    try:
-                        # Try to convert UUID string to int if it's a small number (db id)
-                        user_uuid = UUID(str(user_id_raw)) if isinstance(user_id_raw, str) and '-' in str(user_id_raw) else None
-                        if user_uuid and user_uuid.int < 1000000000:
-                            user_id = user_uuid.int
-                        elif str(user_id_raw).isdigit():
-                            user_id = int(user_id_raw)
-                        else:
-                            logger.warning(f"SEC-092: user_id appears to be Cognito UUID (cookie): {user_id_raw}")
-                            user_id = None  # Can't use Cognito UUID as database ID
-                    except (ValueError, AttributeError):
-                        if str(user_id_raw).isdigit():
-                            user_id = int(user_id_raw)
+            logger.debug(f"✅ SEC-092: Authenticated via JWT cookie (RS256): user_id={user_id}, org_id={organization_id}")
 
-            # SEC-092: Extract organization_id (database INTEGER)
-            organization_id = payload.get("db_org_id")  # SEC-091 claim from routes/auth.py
-            if organization_id is None:
-                org_id_raw = payload.get("organization_id") or payload.get("org_id")
-                if org_id_raw:
-                    try:
-                        org_uuid = UUID(str(org_id_raw)) if isinstance(org_id_raw, str) and '-' in str(org_id_raw) else None
-                        if org_uuid:
-                            organization_id = org_uuid.int
-                        elif str(org_id_raw).isdigit():
-                            organization_id = int(org_id_raw)
-                    except (ValueError, AttributeError):
-                        if str(org_id_raw).isdigit():
-                            organization_id = int(org_id_raw)
-
-            logger.debug(f"✅ Authenticated via JWT cookie: {payload.get('email')} [user_id={user_id}, org_id={organization_id}]")
-
-            # SEC-092: Dict merge order fix - explicit INTEGER values MUST override payload STRING UUIDs
-            # Python dict merge: later keys override earlier keys, so **payload FIRST, then explicit overrides
             return {
-                **payload,  # SEC-092: Base payload first (may contain STRING UUIDs)
-                "user_id": user_id,  # SEC-092: Override with INTEGER from db_user_id claim
-                "email": payload.get("email"),
-                "role": payload.get("role", "user"),
-                "organization_id": organization_id,  # SEC-092: Override with INTEGER from db_org_id claim
-                "cognito_sub": payload.get("cognito_sub") or payload.get("sub"),  # SEC-092: Cognito identity for correlation
+                "user_id": user_id,
+                "sub": str(user_id),
+                "email": None,  # Not in TenantContext - populated from database if needed
+                "role": tenant_context.role,
+                "organization_id": organization_id,
+                "org_id": organization_id,
+                "tenant_id": tenant_context.tenant_id,
+                "permissions": list(tenant_context.permissions),
+                "session_id": tenant_context.session_id,
+                "jti": tenant_context.token_jti,
+                "cognito_sub": None,  # SEC-092: Cognito sub not in RS256 tokens
                 "auth_method": "cookie",
             }
+        except TokenExpiredError:
+            logger.debug("SEC-092: JWT cookie expired")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired - please login again"
+            )
+        except (InvalidSignatureError, InvalidAlgorithmError) as e:
+            logger.warning(f"SEC-092: JWT cookie signature/algorithm error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token signature"
+            )
+        except InvalidClaimsError as e:
+            logger.warning(f"SEC-092: JWT cookie claims error: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token claims"
+            )
+        except AuthenticationError as e:
+            logger.debug(f"SEC-092: JWT cookie authentication failed: {e}")
+            pass  # Try next method
         except Exception as e:
-            logger.debug(f"JWT cookie authentication failed: {e}")
+            logger.debug(f"SEC-092: JWT cookie verification failed: {e}")
             pass  # Try next method
 
     # Check Authorization header for JWT or API key
@@ -373,69 +375,54 @@ async def get_current_user_or_api_key(
         is_jwt = token.count('.') == 2
 
         if is_jwt:
-            # Try JWT authentication
+            # SEC-092: RS256-only JWT verification using TokenService
             try:
-                from security.jwt_security import secure_jwt_decode
-                from config import SECRET_KEY, ALGORITHM
+                token_service = get_token_service()
+                client_ip = request.client.host if hasattr(request, 'client') and request.client else None
 
-                payload = secure_jwt_decode(
+                tenant_context: TenantContext = token_service.verify(
                     token=token,
-                    secret_key=SECRET_KEY,
-                    algorithms=[ALGORITHM],
-                    required_claims=["sub", "exp"],
-                    operation_name="dual_auth_bearer_jwt"
+                    expected_type="access",
+                    client_ip=client_ip
                 )
 
-                # SEC-092: Extract database INTEGER IDs for queries (same pattern as cookie path)
-                # Priority: 1) db_user_id/db_org_id claims, 2) UUID.int conversion, 3) fallback
+                # SEC-092: Convert TenantContext to dict with expected keys
+                user_id = tenant_context.user_id
+                organization_id = tenant_context.org_id
 
-                # SEC-092: Extract user_id (database INTEGER)
-                user_id = payload.get("db_user_id")  # SEC-091 claim from routes/auth.py
-                if user_id is None:
-                    user_id_raw = payload.get("user_id") or payload.get("sub")
-                    if user_id_raw:
-                        try:
-                            user_uuid = UUID(str(user_id_raw)) if isinstance(user_id_raw, str) and '-' in str(user_id_raw) else None
-                            if user_uuid and user_uuid.int < 1000000000:
-                                user_id = user_uuid.int
-                            elif str(user_id_raw).isdigit():
-                                user_id = int(user_id_raw)
-                            else:
-                                logger.warning(f"SEC-092: user_id appears to be Cognito UUID (bearer): {user_id_raw}")
-                                user_id = None
-                        except (ValueError, AttributeError):
-                            if str(user_id_raw).isdigit():
-                                user_id = int(user_id_raw)
+                logger.debug(f"✅ SEC-092: Authenticated via JWT bearer (RS256): user_id={user_id}, org_id={organization_id}")
 
-                # SEC-092: Extract organization_id (database INTEGER)
-                organization_id = payload.get("db_org_id")  # SEC-091 claim from routes/auth.py
-                if organization_id is None:
-                    org_id_raw = payload.get("organization_id") or payload.get("org_id")
-                    if org_id_raw:
-                        try:
-                            org_uuid = UUID(str(org_id_raw)) if isinstance(org_id_raw, str) and '-' in str(org_id_raw) else None
-                            if org_uuid:
-                                organization_id = org_uuid.int
-                            elif str(org_id_raw).isdigit():
-                                organization_id = int(org_id_raw)
-                        except (ValueError, AttributeError):
-                            if str(org_id_raw).isdigit():
-                                organization_id = int(org_id_raw)
-
-                logger.debug(f"✅ Authenticated via JWT bearer: {payload.get('email')} [user_id={user_id}, org_id={organization_id}]")
-
-                # SEC-092: Dict merge order fix - explicit INTEGER values MUST override payload STRING UUIDs
                 return {
-                    **payload,  # SEC-092: Base payload first (may contain STRING UUIDs)
-                    "user_id": user_id,  # SEC-092: Override with INTEGER from db_user_id claim
-                    "email": payload.get("email"),
-                    "role": payload.get("role", "user"),
-                    "organization_id": organization_id,  # SEC-092: Override with INTEGER from db_org_id claim
-                    "cognito_sub": payload.get("cognito_sub") or payload.get("sub"),  # SEC-092: Cognito identity
+                    "user_id": user_id,
+                    "sub": str(user_id),
+                    "email": None,  # Not in TenantContext - populated from database if needed
+                    "role": tenant_context.role,
+                    "organization_id": organization_id,
+                    "org_id": organization_id,
+                    "tenant_id": tenant_context.tenant_id,
+                    "permissions": list(tenant_context.permissions),
+                    "session_id": tenant_context.session_id,
+                    "jti": tenant_context.token_jti,
+                    "cognito_sub": None,  # SEC-092: Cognito sub not in RS256 tokens
                     "auth_method": "bearer",
                 }
+            except TokenExpiredError:
+                logger.debug("SEC-092: JWT bearer token expired")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has expired - please login again"
+                )
+            except (InvalidSignatureError, InvalidAlgorithmError) as e:
+                logger.warning(f"SEC-092: JWT bearer signature/algorithm error: {e}")
+                pass  # Try API key - might be an API key that looks like JWT
+            except InvalidClaimsError as e:
+                logger.warning(f"SEC-092: JWT bearer claims error: {e}")
+                pass  # Try API key
+            except AuthenticationError as e:
+                logger.debug(f"SEC-092: JWT bearer authentication failed: {e}")
+                pass  # Try API key
             except Exception as e:
-                logger.debug(f"JWT bearer authentication failed: {e}")
+                logger.debug(f"SEC-092: JWT bearer verification failed: {e}")
                 pass  # Try API key
 
         # 2. Try API key (non-JWT Bearer token)
