@@ -47,6 +47,8 @@ export const AuthProvider = ({ children }) => {
   // SEC-088: RBAC Permission State
   const [permissions, setPermissions] = useState({});
   const [permissionsLoading, setPermissionsLoading] = useState(false);
+  // SEC-090: Flag to prevent infinite loop when API returns empty permissions
+  const [permissionsFetched, setPermissionsFetched] = useState(false);
 
   // Refs for timers
   const sessionTimerRef = useRef(null);
@@ -191,6 +193,7 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Clear authentication state
+   * SEC-090: Also resets permissionsFetched flag to allow re-fetch on next login
    */
   const clearAuthState = () => {
     setUser(null);
@@ -199,6 +202,9 @@ export const AuthProvider = ({ children }) => {
     setShowSessionWarning(false);
     setSessionExpiresIn(null);
     setMfaChallenge(null);
+    // SEC-090: Reset permission state on logout
+    setPermissions({});
+    setPermissionsFetched(false);
     clearTimers();
   };
 
@@ -322,6 +328,7 @@ export const AuthProvider = ({ children }) => {
   /**
    * SEC-088: Fetch user permissions from backend
    * Called on authentication and periodically refreshed
+   * SEC-090: Uses permissionsFetched flag to prevent infinite loop
    */
   const fetchPermissions = useCallback(async () => {
     if (!isAuthenticated) {
@@ -349,6 +356,7 @@ export const AuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         setPermissions(data.permissions || {});
+        // SEC-090: Log only once on successful fetch (not on every render)
         console.log('SEC-088: Permissions loaded', Object.keys(data.permissions || {}).length, 'resources');
       } else {
         console.error('SEC-088: Failed to fetch permissions', response.status);
@@ -359,15 +367,19 @@ export const AuthProvider = ({ children }) => {
       setPermissions({});
     } finally {
       setPermissionsLoading(false);
+      // SEC-090: Mark permissions as fetched to prevent infinite loop
+      setPermissionsFetched(true);
     }
   }, [isAuthenticated]);
 
-  // Fetch permissions when authenticated
+  // SEC-090: Fetch permissions when authenticated (fixed infinite loop)
+  // Uses permissionsFetched flag instead of checking permissions.length
+  // to prevent re-fetching when API returns empty permissions
   useEffect(() => {
-    if (isAuthenticated && Object.keys(permissions).length === 0 && !permissionsLoading) {
+    if (isAuthenticated && !permissionsFetched && !permissionsLoading) {
       fetchPermissions();
     }
-  }, [isAuthenticated, permissions, permissionsLoading, fetchPermissions]);
+  }, [isAuthenticated, permissionsFetched, permissionsLoading, fetchPermissions]);
 
   /**
    * SEC-088: Check if user has specific permission
