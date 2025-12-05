@@ -30,6 +30,7 @@ from security.cookies import (
 
 # ===== NEW: Enterprise Database Support =====
 from sqlalchemy.orm import Session
+from sqlalchemy import text  # SEC-082: For RLS activation
 try:
     # Try your existing database setup
     from database import SessionLocal
@@ -163,8 +164,15 @@ def _decode_jwt(token: str, client_ip: Optional[str] = None) -> dict:
 # ===== NEW: Enterprise Database Dependency =====
 def get_db() -> Session:
     """
-    🏢 ENTERPRISE: Database session dependency with proper error handling
-    Provides database access with proper connection management
+    🏢 ENTERPRISE: Database session dependency with proper error handling (LEGACY)
+
+    ⚠️ DEPRECATION NOTICE: This function does NOT activate RLS policies.
+    For authenticated endpoints requiring multi-tenant isolation, use get_db_with_rls() instead.
+
+    This function remains for:
+    - Public endpoints (health checks, login, etc.)
+    - Background jobs that operate across organizations
+    - Migration/maintenance scripts
 
     IMPORTANT: This function should NOT mask HTTP exceptions (401, 403, etc)
     from authentication/authorization dependencies. Only true database errors
@@ -192,6 +200,177 @@ def get_db() -> Session:
     finally:
         if db:
             db.close()
+
+
+def get_db_with_rls(
+    current_user: dict = Depends(get_current_user)
+) -> Session:
+    """
+    🔐 SEC-082: Database session with Row-Level Security (RLS) activation.
+
+    This function sets the PostgreSQL app.current_organization_id variable to enable
+    Row-Level Security policies for multi-tenant isolation. RLS policies are defined
+    in the database but only become active when this context variable is set.
+
+    RLS provides defense-in-depth by enforcing tenant isolation at the database layer,
+    even if application logic has bugs. This is critical for banking-level security.
+
+    Usage in routes:
+        @router.get("/data")
+        async def get_data(
+            current_user: dict = Depends(get_current_user),
+            db: Session = Depends(get_db_with_rls)
+        ):
+            # RLS is automatically active - queries are automatically filtered
+            data = db.query(Model).all()  # Only returns current org's data
+
+    COMPLIANCE:
+    - SOC 2 CC6.1: Logical Access Controls
+    - PCI-DSS 7.1: Access Control Model
+    - HIPAA § 164.308(a)(1)(ii)(A): Access Controls
+    - NIST 800-53 AC-3: Access Enforcement
+
+    Security Features:
+    - RLS policies enforce organization_id filtering at database layer
+    - Cannot be bypassed by application bugs
+    - Audit trail of RLS activation in application logs
+    - Graceful handling when organization_id is missing
+
+    Args:
+        current_user: User dict from get_current_user dependency
+
+    Returns:
+        Database session with RLS context activated
+
+    Raises:
+        HTTPException: Re-raises auth/authz exceptions
+    """
+    db = None
+    try:
+        db = SessionLocal()
+
+        # SEC-082: Activate RLS by setting organization context
+        if current_user and current_user.get("organization_id"):
+            org_id = current_user.get("organization_id")
+
+            # Set PostgreSQL session variable for RLS policies
+            try:
+                db.execute(text("SET app.current_organization_id = :org_id"), {"org_id": str(org_id)})
+                logger.info(f"🔐 SEC-082: RLS activated | org_id={org_id} | user={current_user.get('email', 'unknown')}")
+            except Exception as e:
+                logger.error(f"🚨 SEC-082: Failed to set RLS context | org_id={org_id} | error={str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to activate security policies"
+                )
+        else:
+            # No organization context - RLS will block all queries
+            logger.warning(f"⚠️ SEC-082: No organization_id in token | user={current_user.get('email', 'unknown')}")
+            # Still allow session to be created - RLS policies will enforce isolation
+
+        yield db
+
+    except HTTPException:
+        # 🔐 ENTERPRISE: Re-raise HTTP exceptions (401, 403, 404, etc) without modification
+        # These come from auth/authorization dependencies and should pass through
+        if db:
+            db.rollback()
+        raise
+    except Exception as e:
+        # 🔧 ENTERPRISE: Only catch true database connection/query errors
+        logger.error(f"Database session error: {e}")
+        if db:
+            db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error"
+        )
+    finally:
+        if db:
+            db.close()
+
+
+def get_db_public() -> Session:
+    """
+    🌐 ENTERPRISE: Database session for PUBLIC endpoints (no RLS).
+
+    This function provides database access WITHOUT RLS activation for endpoints that:
+    - Don't require authentication (health checks, login, registration)
+    - Need to query across organizations (admin tools, reports)
+    - Are used by background jobs
+
+    ⚠️ WARNING: Only use this for truly public endpoints. For authenticated endpoints,
+    use get_db_with_rls() to ensure multi-tenant isolation.
+
+    Usage:
+        @router.get("/health")
+        async def health_check(db: Session = Depends(get_db_public)):
+            # No RLS - can query system-wide data
+            return {"status": "ok"}
+    """
+    db = None
+    try:
+        db = SessionLocal()
+        logger.debug("🌐 Database session created (public - no RLS)")
+        yield db
+    except HTTPException:
+        if db:
+            db.rollback()
+        raise
+    except Exception as e:
+        logger.error(f"Public database session error: {e}")
+        if db:
+            db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database connection error"
+        )
+    finally:
+        if db:
+            db.close()
+
+
+def verify_rls_active(db: Session, expected_org_id: int) -> bool:
+    """
+    🔍 SEC-082: Verify RLS context is correctly set.
+
+    This utility function checks whether the PostgreSQL app.current_organization_id
+    variable is set to the expected value. Used for testing and audit logging.
+
+    Args:
+        db: Database session
+        expected_org_id: Expected organization ID
+
+    Returns:
+        True if RLS context matches expected value, False otherwise
+
+    Example:
+        db = SessionLocal()
+        db.execute(text("SET app.current_organization_id = '123'"))
+        assert verify_rls_active(db, 123) == True
+    """
+    try:
+        # Get current RLS context variable (returns NULL if not set)
+        result = db.execute(text("SELECT current_setting('app.current_organization_id', true)"))
+        current = result.scalar()
+
+        if current is None:
+            logger.warning(f"⚠️ SEC-082: RLS context not set (expected org_id={expected_org_id})")
+            return False
+
+        # Compare as strings to avoid type mismatches
+        matches = str(current) == str(expected_org_id)
+
+        if matches:
+            logger.debug(f"✅ SEC-082: RLS context verified | org_id={expected_org_id}")
+        else:
+            logger.error(f"🚨 SEC-082: RLS context MISMATCH | expected={expected_org_id} | actual={current}")
+
+        return matches
+
+    except Exception as e:
+        logger.error(f"🚨 SEC-082: Failed to verify RLS context | error={str(e)}")
+        return False
 
 # ===== PRESERVE: All existing authentication functions =====
 def get_current_user(

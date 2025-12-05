@@ -121,14 +121,17 @@ class Alert(Base):
 
 class Log(Base):
     __tablename__ = "logs"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     level = Column(String)  # DEBUG, INFO, WARNING, ERROR, CRITICAL
     message = Column(Text)
     source = Column(String)  # source component or service
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     extra_data = Column(JSON, nullable=True)  # Changed from 'metadata'
-    
+
+    # SEC-082: Multi-tenant isolation (nullable for system-level logs)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+
     # Relationship
     user = relationship("User", back_populates="logs")
 
@@ -214,7 +217,7 @@ class AgentAction(Base):
 
 class Rule(Base):
     __tablename__ = "rules"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     # name = Column(String, index=True)  # REMOVED - doesn't exist in database
     description = Column(Text)
@@ -224,29 +227,33 @@ class Rule(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
+
+    # SEC-082: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     # Fields your routes expect
     condition = Column(Text, nullable=True)  # Rule condition
     action = Column(String, nullable=True)   # Action to take
     risk_level = Column(String, nullable=True)  # Risk level
     recommendation = Column(Text, nullable=True)  # Recommendation text
     justification = Column(Text, nullable=True)   # Justification text
-    
+
     # Rule definition (original fields)
     conditions = Column(JSON, nullable=True)  # Rule conditions in JSON format
     actions = Column(JSON, nullable=True)     # Actions to take when rule triggers
-    
+
     # NIST/MITRE framework mapping
     nist_controls = Column(JSON, nullable=True)
     mitre_tactics = Column(JSON, nullable=True)
     mitre_techniques = Column(JSON, nullable=True)
-    
+
     # Rule metrics
     trigger_count = Column(Integer, default=0)
     last_triggered = Column(DateTime, nullable=True)
-    
+
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization")
 
 class SmartRule(Base):
     __tablename__ = "smart_rules"
@@ -275,15 +282,18 @@ class SmartRule(Base):
 
 class RuleFeedback(Base):
     __tablename__ = "rule_feedbacks"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     rule_id = Column(Integer, ForeignKey("rules.id"))
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
+
+    # SEC-082: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     # Feedback counters that your routes expect
     correct = Column(Integer, default=0)
     false_positive = Column(Integer, default=0)
-    
+
     # Additional enterprise feedback fields
     feedback_type = Column(String, nullable=True)  # positive, negative, improvement, bug
     rating = Column(Integer, nullable=True)  # 1-5 scale
@@ -291,20 +301,25 @@ class RuleFeedback(Base):
     effectiveness_score = Column(Float, nullable=True)
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
-    
+
     # Improvement suggestions
     suggested_changes = Column(JSON, nullable=True)
     priority = Column(String, default="medium")  # low, medium, high, critical
-    
+
     # Relationships
     rule = relationship("Rule", foreign_keys=[rule_id])
     user = relationship("User", foreign_keys=[user_id])
+    organization = relationship("Organization")
 
 class LogAuditTrail(Base):
     __tablename__ = "log_audit_trails"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # SEC-082: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     action = Column(String)  # CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT
     resource_type = Column(String)  # agents, actions, alerts, logs
     resource_id = Column(String, nullable=True)
@@ -312,17 +327,18 @@ class LogAuditTrail(Base):
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     session_id = Column(String, nullable=True)
-    
+
     # Risk and compliance
     risk_level = Column(String, nullable=True)
     compliance_framework = Column(String, nullable=True)
-    
+
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
+    organization = relationship("Organization")
 
 class PendingAgentAction(Base):
     __tablename__ = "pending_agent_actions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     request_id = Column(String, unique=True, index=True)
     agent_id = Column(String, index=True)
@@ -331,7 +347,10 @@ class PendingAgentAction(Base):
     risk_level = Column(String)
     risk_score = Column(Float)
     target_system = Column(String, nullable=True)
-    
+
+    # SEC-082: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     # Fields that main.py schema fix expects
     tool_name = Column(String, nullable=True)
     action_payload = Column(Text, nullable=True)
@@ -397,15 +416,16 @@ class PendingAgentAction(Base):
     
     # Audit and Tracking
     extra_data = Column(JSON, nullable=True)
-    
+
     # Relationships
     approver = relationship("User", foreign_keys=[approved_by])
     denier = relationship("User", foreign_keys=[denied_by])
     override_user = relationship("User", foreign_keys=[override_by])
+    organization = relationship("Organization")
 
 class SystemConfiguration(Base):
     __tablename__ = "system_configurations"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     key = Column(String, unique=True, index=True)
     value = Column(JSON)
@@ -413,13 +433,17 @@ class SystemConfiguration(Base):
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     created_by = Column(Integer, ForeignKey("users.id"))
-    
+
+    # SEC-082: Multi-tenant isolation (nullable for global system config)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+
     # Configuration metadata
     config_type = Column(String)  # security, integration, ui, workflow
     is_sensitive = Column(Boolean, default=False)  # For sensitive configs like API keys
-    
+
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization")
 
 class AuditLog(Base):
     """
@@ -454,7 +478,7 @@ class AuditLog(Base):
 
 class IntegrationEndpoint(Base):
     __tablename__ = "integration_endpoints"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     endpoint_type = Column(String)  # siem, webhook, api, sso
@@ -463,25 +487,29 @@ class IntegrationEndpoint(Base):
     headers = Column(JSON, nullable=True)
     authentication = Column(JSON, nullable=True)  # Encrypted auth details
     enabled = Column(Boolean, default=True)
-    
+
+    # SEC-082: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     # Configuration
     retry_count = Column(Integer, default=3)
     timeout_seconds = Column(Integer, default=30)
     rate_limit = Column(Integer, nullable=True)  # Requests per minute
-    
+
     # Monitoring
     last_success = Column(DateTime, nullable=True)
     last_failure = Column(DateTime, nullable=True)
     success_count = Column(Integer, default=0)
     failure_count = Column(Integer, default=0)
-    
+
     # Metadata
     created_at = Column(DateTime, default=datetime.now(UTC))
     updated_at = Column(DateTime, default=datetime.now(UTC), onupdate=datetime.now(UTC))
     created_by = Column(Integer, ForeignKey("users.id"))
-    
+
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
+    organization = relationship("Organization")
 
 
 # Add these workflow models to the end of your models.py file
@@ -796,6 +824,9 @@ class CVSSAssessment(Base):
     id = Column(Integer, primary_key=True, index=True)
     action_id = Column(Integer, ForeignKey("agent_actions.id", ondelete="CASCADE"), nullable=False)
 
+    # SEC-082: Multi-tenant isolation
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+
     # CVSS v3.1 Base Metrics (8 required metrics)
     attack_vector = Column(String(20), nullable=False)          # NETWORK|ADJACENT|LOCAL|PHYSICAL
     attack_complexity = Column(String(20), nullable=False)      # LOW|HIGH
@@ -817,6 +848,7 @@ class CVSSAssessment(Base):
 
     # Relationships
     action = relationship("AgentAction", backref="cvss_assessments")
+    organization = relationship("Organization")
 
 
 # 🏢 ENTERPRISE RISK SCORING CONFIGURATION MODEL
