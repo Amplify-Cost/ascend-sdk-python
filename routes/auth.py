@@ -111,15 +111,39 @@ def create_enterprise_token(data: dict, token_type: str = "access") -> str:
         HTTPException: If token creation fails
     """
     try:
-        # Extract required fields
-        user_id = data.get("sub") or str(data.get("user_id"))
+        # SEC-091: Extract database user_id (INTEGER) separately from Cognito sub (UUID)
+        # CRITICAL: Use database user_id for queries, NOT Cognito sub
+        db_user_id = data.get("user_id")  # Database INTEGER (e.g., 7)
+        cognito_sub = data.get("sub")      # Cognito UUID (e.g., "118b5540-...")
         org_id = data.get("organization_id")
         role = data.get("role", "user")
         email = data.get("email", "")
 
-        # Convert org_id integer to UUID (SEC-081 requirement)
-        org_uuid = org_id_to_uuid(org_id) if isinstance(org_id, int) else uuid.UUID(org_id)
-        user_uuid = uuid.UUID(user_id) if not isinstance(user_id, uuid.UUID) else user_id
+        # SEC-091: Convert database INTEGER IDs to UUIDs for token claims
+        # Use UUID(int=N) for deterministic, reversible conversion
+        org_uuid = org_id_to_uuid(org_id) if isinstance(org_id, int) else uuid.UUID(str(org_id))
+
+        # SEC-091: Convert database user_id to UUID (NOT Cognito sub)
+        if isinstance(db_user_id, int):
+            user_uuid = uuid.UUID(int=db_user_id)  # Deterministic: 7 → "00000000-...-000007"
+        elif db_user_id and str(db_user_id).isdigit():
+            user_uuid = uuid.UUID(int=int(db_user_id))
+        elif cognito_sub:
+            # Fallback: Use Cognito sub if no database user_id (legacy tokens)
+            user_uuid = uuid.UUID(cognito_sub) if isinstance(cognito_sub, str) else cognito_sub
+            logger.warning(f"SEC-091: Using Cognito sub as user_id fallback (legacy) | sub={cognito_sub}")
+        else:
+            raise ValueError("No valid user_id or sub found in token data")
+
+        # SEC-091: Build additional claims with original database IDs for backward compatibility
+        additional_claims = {
+            "email": email,
+            "db_user_id": db_user_id,        # Original database INTEGER user_id
+            "db_org_id": org_id,              # Original database INTEGER org_id
+            "cognito_sub": cognito_sub,       # Cognito UUID for identity correlation
+        }
+        # Remove None values
+        additional_claims = {k: v for k, v in additional_claims.items() if v is not None}
 
         # Create token using TokenService
         if token_type == "access":
@@ -128,7 +152,7 @@ def create_enterprise_token(data: dict, token_type: str = "access") -> str:
                 org_id=org_uuid,
                 role=role,
                 permissions=[],  # TODO: Extract from user role if needed
-                additional_claims={"email": email} if email else None
+                additional_claims=additional_claims
             )
         else:  # refresh token
             token = _token_service.create_refresh_token(
@@ -136,7 +160,7 @@ def create_enterprise_token(data: dict, token_type: str = "access") -> str:
                 org_id=org_uuid
             )
 
-        logger.info(f"✅ SEC-081: Token created (RS256) | user={email} | type={token_type}")
+        logger.info(f"✅ SEC-091: Token created (RS256) | user={email} | db_user_id={db_user_id} | db_org_id={org_id} | type={token_type}")
         return token
 
     except Exception as e:

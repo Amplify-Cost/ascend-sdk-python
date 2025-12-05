@@ -401,27 +401,49 @@ def get_current_user(
                 request.state.tenant_context = payload["_tenant_context"]
             request.state.auth = payload
 
-            # ENTERPRISE SECURITY: Extract organization_id from token
-            # This is CRITICAL for multi-tenant data isolation
-            # SEC-081: org_id is now UUID string, convert for backward compatibility
-            organization_id = payload.get("organization_id")
-            try:
-                # Try to convert UUID string to integer for legacy code
-                from uuid import UUID
-                org_uuid = UUID(organization_id) if isinstance(organization_id, str) else organization_id
-                # Extract integer from UUID (for legacy compatibility)
-                # UUID(int=N) was used in legacy_support.py, so we can reverse it
-                organization_id = org_uuid.int
-            except (ValueError, AttributeError):
-                # If conversion fails, keep as-is
-                pass
+            # SEC-091: Extract database INTEGER IDs for queries
+            # Priority: 1) db_user_id/db_org_id claims, 2) UUID.int conversion, 3) fallback
+            from uuid import UUID
 
-            logger.info(f"✅ Authentication successful (cookie): user_id={payload.get('user_id')} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
+            # SEC-091: Extract user_id (database INTEGER)
+            user_id = payload.get("db_user_id")  # New SEC-091 claim
+            if user_id is None:
+                # Fallback: Convert UUID.int back to integer for deterministic UUIDs
+                user_id_raw = payload.get("user_id")
+                if user_id_raw:
+                    try:
+                        user_uuid = UUID(str(user_id_raw)) if isinstance(user_id_raw, str) else user_id_raw
+                        # SEC-091: Check if this is a deterministic UUID (small int)
+                        if user_uuid.int < 1000000000:  # Reasonable database ID range
+                            user_id = user_uuid.int
+                            logger.debug(f"SEC-091: Converted user_id UUID.int={user_id}")
+                        else:
+                            # This is likely a Cognito UUID, not a database ID
+                            logger.warning(f"SEC-091: user_id appears to be Cognito UUID, not database ID: {user_id_raw}")
+                            user_id = user_id_raw  # Keep as-is, route must handle
+                    except (ValueError, AttributeError):
+                        user_id = user_id_raw
+
+            # SEC-091: Extract organization_id (database INTEGER)
+            organization_id = payload.get("db_org_id")  # New SEC-091 claim
+            if organization_id is None:
+                # Fallback: Convert UUID.int back to integer
+                org_id_raw = payload.get("organization_id") or payload.get("org_id")
+                if org_id_raw:
+                    try:
+                        org_uuid = UUID(str(org_id_raw)) if isinstance(org_id_raw, str) else org_id_raw
+                        organization_id = org_uuid.int
+                        logger.debug(f"SEC-091: Converted org_id UUID.int={organization_id}")
+                    except (ValueError, AttributeError):
+                        organization_id = org_id_raw
+
+            logger.info(f"✅ Authentication successful (cookie): user_id={user_id} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
             return {
-                "user_id": payload.get("user_id"),
+                "user_id": user_id,
                 "email": payload.get("email"),
                 "role": payload.get("role", "user"),
                 "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
+                "cognito_sub": payload.get("cognito_sub"),  # SEC-091: Cognito identity for correlation
                 "auth_method": "cookie",
                 **payload
             }
@@ -454,23 +476,43 @@ def get_current_user(
                     request.state.tenant_context = payload["_tenant_context"]
                 request.state.auth = payload
 
-                # ENTERPRISE SECURITY: Extract organization_id from token
-                # SEC-081: org_id is now UUID string, convert for backward compatibility
-                organization_id = payload.get("organization_id")
-                try:
-                    # Try to convert UUID string to integer for legacy code
-                    from uuid import UUID
-                    org_uuid = UUID(organization_id) if isinstance(organization_id, str) else organization_id
-                    organization_id = org_uuid.int
-                except (ValueError, AttributeError):
-                    pass
+                # SEC-091: Extract database INTEGER IDs for queries
+                # Priority: 1) db_user_id/db_org_id claims, 2) UUID.int conversion, 3) fallback
+                from uuid import UUID
 
-                logger.info(f"✅ Authentication successful (bearer): user_id={payload.get('user_id')} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
+                # SEC-091: Extract user_id (database INTEGER)
+                user_id = payload.get("db_user_id")  # New SEC-091 claim
+                if user_id is None:
+                    user_id_raw = payload.get("user_id")
+                    if user_id_raw:
+                        try:
+                            user_uuid = UUID(str(user_id_raw)) if isinstance(user_id_raw, str) else user_id_raw
+                            if user_uuid.int < 1000000000:
+                                user_id = user_uuid.int
+                            else:
+                                logger.warning(f"SEC-091: user_id appears to be Cognito UUID (bearer): {user_id_raw}")
+                                user_id = user_id_raw
+                        except (ValueError, AttributeError):
+                            user_id = user_id_raw
+
+                # SEC-091: Extract organization_id (database INTEGER)
+                organization_id = payload.get("db_org_id")  # New SEC-091 claim
+                if organization_id is None:
+                    org_id_raw = payload.get("organization_id") or payload.get("org_id")
+                    if org_id_raw:
+                        try:
+                            org_uuid = UUID(str(org_id_raw)) if isinstance(org_id_raw, str) else org_id_raw
+                            organization_id = org_uuid.int
+                        except (ValueError, AttributeError):
+                            organization_id = org_id_raw
+
+                logger.info(f"✅ Authentication successful (bearer): user_id={user_id} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
                 return {
-                    "user_id": payload.get("user_id"),
+                    "user_id": user_id,
                     "email": payload.get("email"),
                     "role": payload.get("role", "user"),
                     "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
+                    "cognito_sub": payload.get("cognito_sub"),  # SEC-091: Cognito identity
                     "auth_method": "bearer",
                     **payload
                 }
