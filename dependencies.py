@@ -203,7 +203,7 @@ def get_db() -> Session:
 
 
 def get_db_with_rls(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = None
 ) -> Session:
     """
     🔐 SEC-082: Database session with Row-Level Security (RLS) activation.
