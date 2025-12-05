@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20251205_sec082'
-down_revision = '20251204_sec078'  # Latest migration from sec078_create_mcp_sessions
+down_revision = 'sec078_mcp_sessions'  # Latest migration from sec078_create_mcp_sessions
 branch_labels = None
 depends_on = None
 
