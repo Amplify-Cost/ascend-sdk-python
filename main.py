@@ -41,6 +41,7 @@ from routes.automation_orchestration_routes import router as automation_orchestr
 from routes.playbook_versioning_routes import router as playbook_versioning_router  # 🏢 PHASE 3: Version control & analytics
 from routes.playbook_deletion_routes import router as playbook_deletion_router  # 🏢 PHASE 4: Soft delete with recovery
 from routes.executive_brief_routes import router as executive_brief_router  # SEC-065: Enterprise Executive Brief System
+from routes.permission_routes import router as permission_router  # SEC-088: RBAC Permission System
 # Enterprise health module with graceful fallback
 try:
     from health import router as health_router
@@ -1202,6 +1203,10 @@ print("🔗 Loading application routes...")
 
 # Enterprise health monitoring (always included)
 app.include_router(health_router, tags=["Health"])
+
+# SEC-088: RBAC Permission System
+app.include_router(permission_router, tags=["Permissions"])
+print("✅ SEC-088: Permission routes included")
 
 # Register Enterprise MCP endpoints
 create_enterprise_mcp_endpoints(app, Depends(get_db), Depends(get_current_user))
