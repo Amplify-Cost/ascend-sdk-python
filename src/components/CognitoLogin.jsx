@@ -267,10 +267,47 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
       );
     }
 
-    // 🏦 ENTERPRISE: MFA_SETUP challenge requires different flow
+    // 🏦 ENTERPRISE: MFA challenge routing with partial enrollment detection
     // MFA_SETUP = First-time setup with QR code
-    // SMS_MFA / SOFTWARE_TOKEN_MFA = Verification for existing MFA
-    if (mfaChallenge.challengeName === 'MFA_SETUP') {
+    // SOFTWARE_TOKEN_MFA = Verification for existing MFA OR partial enrollment
+    // SMS_MFA = SMS verification
+
+    // SEC-035: Detect if user needs MFA setup vs verification
+    // Cognito sends SOFTWARE_TOKEN_MFA even for unverified TOTP associations
+    const needsMFASetup = () => {
+      const { challengeName, challengeParameters } = mfaChallenge;
+
+      // Explicit MFA_SETUP challenge
+      if (challengeName === 'MFA_SETUP') {
+        return true;
+      }
+
+      // SEC-035: Check for partial enrollment indicators
+      // If MFAS_CAN_SETUP is present, user hasn't completed MFA setup
+      if (challengeParameters?.MFAS_CAN_SETUP) {
+        console.log('SEC-035: MFAS_CAN_SETUP detected - routing to setup flow');
+        return true;
+      }
+
+      // SEC-035: For SOFTWARE_TOKEN_MFA, check if user has verified device
+      // If no FRIENDLY_DEVICE_NAME in parameters, likely unverified
+      if (challengeName === 'SOFTWARE_TOKEN_MFA') {
+        // Check for indicators of verified device
+        const hasVerifiedDevice = challengeParameters?.FRIENDLY_DEVICE_NAME ||
+                                   challengeParameters?.USER_ID_FOR_SRP;
+
+        if (!hasVerifiedDevice) {
+          console.log('SEC-035: SOFTWARE_TOKEN_MFA without verified device - routing to setup');
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    // Route to MFA Setup (QR code display)
+    if (needsMFASetup()) {
+      console.log('SEC-035: Routing to MFASetupChallenge for QR code display');
       return (
         <MFASetupChallenge
           session={mfaChallenge.session}
@@ -280,18 +317,20 @@ const CognitoLogin = ({ onLoginSuccess, switchToRegister, switchToForgotPassword
           onCancel={handleMFACancel}
         />
       );
-    } else {
-      return (
-        <MFAVerification
-          challengeName={mfaChallenge.challengeName}
-          session={mfaChallenge.session}
-          poolConfig={mfaChallenge.poolConfig}
-          username={email} // 🏦 ENTERPRISE FIX: Pass username for AWS Cognito MFA
-          onVerify={handleMFAVerified}
-          onCancel={handleMFACancel}
-        />
-      );
     }
+
+    // Route to MFA Verification (code entry only - user has verified device)
+    console.log('SEC-035: Routing to MFAVerification for code entry');
+    return (
+      <MFAVerification
+        challengeName={mfaChallenge.challengeName}
+        session={mfaChallenge.session}
+        poolConfig={mfaChallenge.poolConfig}
+        username={email} // 🏦 ENTERPRISE FIX: Pass username for AWS Cognito MFA
+        onVerify={handleMFAVerified}
+        onCancel={handleMFACancel}
+      />
+    );
   }
 
   return (
