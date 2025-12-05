@@ -318,21 +318,6 @@ async def get_current_user_or_api_key(
             logger.debug(f"JWT cookie authentication failed: {e}")
             pass  # Try next method
 
-    # SEC-033: Check X-API-Key header FIRST (preferred for SDK)
-    x_api_key = request.headers.get("X-API-Key")
-    if x_api_key:
-        try:
-            user_context = await verify_api_key(x_api_key, db)
-            logger.debug(f"✅ SEC-033: Authenticated via X-API-Key: {user_context.get('email')}")
-
-            # Store in request state for middleware access
-            request.state.api_key_id = user_context.get("api_key_id")
-            request.state.auth_method = "x_api_key"
-
-            return user_context
-        except HTTPException:
-            pass  # X-API-Key failed, try other methods
-
     # Check Authorization header for JWT or API key
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
@@ -381,11 +366,29 @@ async def get_current_user_or_api_key(
         except HTTPException:
             pass  # API key failed
 
+    # SEC-033: Check X-API-Key header (SDK standard header)
+    # This provides SDK flexibility - developers can use either:
+    #   - Authorization: Bearer <api_key>
+    #   - X-API-Key: <api_key>
+    x_api_key = request.headers.get("X-API-Key")
+    if x_api_key:
+        try:
+            user_context = await verify_api_key(x_api_key, db)
+            logger.debug(f"✅ Authenticated via X-API-Key header: {user_context.get('email')}")
+
+            # Store in request state for middleware access
+            request.state.api_key_id = user_context.get("api_key_id")
+            request.state.auth_method = "api_key"
+
+            return user_context
+        except HTTPException:
+            pass  # API key failed
+
     # 3. Neither method succeeded
     logger.warning("❌ Authentication failed: No valid JWT or API key")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Authentication required. Provide either session cookie or API key."
+        detail="Authentication required. Use session cookie, 'Authorization: Bearer <token>', or 'X-API-Key: <api_key>'"
     )
 
 
@@ -403,20 +406,32 @@ async def get_current_api_key(
     Use this for endpoints that should ONLY be accessible via SDK,
     not through admin UI
 
+    SEC-033: Supports both header formats:
+        - Authorization: Bearer <api_key>
+        - X-API-Key: <api_key>
+
     Returns:
         User context dict with api_key_id
 
     Raises:
         HTTPException: If API key is invalid
     """
+    api_key = None
+
+    # SEC-033: Check Authorization: Bearer header first
     auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
+    if auth_header and auth_header.startswith("Bearer "):
+        api_key = auth_header[7:]  # Remove "Bearer " prefix
+
+    # SEC-033: Check X-API-Key header as alternative
+    if not api_key:
+        api_key = request.headers.get("X-API-Key")
+
+    if not api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="API key required. Format: Authorization: Bearer <api_key>"
+            detail="API key required. Use either 'Authorization: Bearer <api_key>' or 'X-API-Key: <api_key>'"
         )
-
-    api_key = auth_header[7:]  # Remove "Bearer " prefix
 
     user_context = await verify_api_key(api_key, db)
 
