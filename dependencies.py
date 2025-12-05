@@ -438,14 +438,16 @@ def get_current_user(
                         organization_id = org_id_raw
 
             logger.info(f"✅ Authentication successful (cookie): user_id={user_id} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
+            # SEC-091 PHASE 2: Dict merge order fix - explicit INTEGER values MUST override payload STRING UUIDs
+            # Python dict merge: later keys override earlier keys, so **payload FIRST, then explicit overrides
             return {
-                "user_id": user_id,
+                **payload,  # SEC-091: Base payload first (contains STRING UUIDs)
+                "user_id": user_id,  # SEC-091: Override with INTEGER from db_user_id claim
                 "email": payload.get("email"),
                 "role": payload.get("role", "user"),
-                "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
+                "organization_id": organization_id,  # SEC-091: Override with INTEGER from db_org_id claim
                 "cognito_sub": payload.get("cognito_sub"),  # SEC-091: Cognito identity for correlation
                 "auth_method": "cookie",
-                **payload
             }
         except HTTPException:
             # Re-raise HTTP exceptions from _decode_jwt
@@ -507,14 +509,16 @@ def get_current_user(
                             organization_id = org_id_raw
 
                 logger.info(f"✅ Authentication successful (bearer): user_id={user_id} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
+                # SEC-091 PHASE 2: Dict merge order fix - explicit INTEGER values MUST override payload STRING UUIDs
+                # Python dict merge: later keys override earlier keys, so **payload FIRST, then explicit overrides
                 return {
-                    "user_id": user_id,
+                    **payload,  # SEC-091: Base payload first (contains STRING UUIDs)
+                    "user_id": user_id,  # SEC-091: Override with INTEGER from db_user_id claim
                     "email": payload.get("email"),
                     "role": payload.get("role", "user"),
-                    "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
+                    "organization_id": organization_id,  # SEC-091: Override with INTEGER from db_org_id claim
                     "cognito_sub": payload.get("cognito_sub"),  # SEC-091: Cognito identity
                     "auth_method": "bearer",
-                    **payload
                 }
             except HTTPException:
                 # Re-raise HTTP exceptions from _decode_jwt

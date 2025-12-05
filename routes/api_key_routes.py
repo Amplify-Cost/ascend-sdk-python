@@ -21,8 +21,9 @@ import logging
 
 # Import dependencies
 from database import get_db
-from dependencies import get_current_user, get_organization_filter
-from dependencies_api_keys import get_current_user_or_api_key  # ENTERPRISE: Dual auth support
+from dependencies import get_current_user
+# SEC-091 PHASE 2: Use dual auth org filter for routes that support both JWT and API keys
+from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth
 from models import User
 from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyPermission, ApiKeyRateLimit
 from models_audit import ImmutableAuditLog  # For audit trail
@@ -165,7 +166,7 @@ async def generate_api_key(
     request: GenerateKeyRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user_or_api_key),
-    org_id: int = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-091: Dual auth for API key routes
 ):
     """
     Generate a new API key for the current user
@@ -286,7 +287,7 @@ async def list_api_keys(
     page_size: int = 20,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user_or_api_key),
-    org_id: int = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-091: Dual auth for API key routes
 ):
     """
     List all API keys for the current user (masked)
@@ -352,7 +353,7 @@ async def revoke_api_key(
     reason: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user_or_api_key),
-    org_id: int = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-091: Dual auth for API key routes
 ):
     """
     Revoke an API key (soft delete)
@@ -438,7 +439,7 @@ async def get_api_key_usage(
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user_or_api_key),
-    org_id: int = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-091: Dual auth for API key routes
 ):
     """
     Get usage statistics for an API key
