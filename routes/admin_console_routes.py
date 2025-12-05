@@ -753,7 +753,91 @@ async def invite_user(
     temp_password = secrets.token_urlsafe(16)
     password_hash = bcrypt.hashpw(temp_password.encode(), bcrypt.gensalt()).decode()
 
-    # Create user
+    # SEC-034: Create Cognito user FIRST (fail-secure pattern)
+    # If Cognito fails, we don't create orphan database records
+    cognito_user_id = None
+    try:
+        import boto3
+        from botocore.exceptions import ClientError
+
+        # Get per-org Cognito pool or fall back to default
+        pool_id = org.cognito_user_pool_id or os.getenv('COGNITO_USER_POOL_ID')
+
+        if not pool_id:
+            logger.warning(f"SEC-034: No Cognito pool configured for org {org.id}, skipping Cognito user creation")
+        else:
+            cognito = boto3.client('cognito-idp', region_name=os.getenv('AWS_REGION', 'us-east-2'))
+
+            # Prepare user attributes
+            user_attributes = [
+                {'Name': 'email', 'Value': invite_data.email.lower()},
+                {'Name': 'email_verified', 'Value': 'true'},
+                {'Name': 'custom:organization_id', 'Value': str(org.id)},
+                {'Name': 'custom:organization_slug', 'Value': org.slug or ''},
+                {'Name': 'custom:role', 'Value': invite_data.role},
+                {'Name': 'custom:is_org_admin', 'Value': 'true' if invite_data.is_org_admin else 'false'}
+            ]
+
+            # Add name attributes if available
+            if invite_data.first_name:
+                user_attributes.append({'Name': 'given_name', 'Value': invite_data.first_name})
+            if invite_data.last_name:
+                user_attributes.append({'Name': 'family_name', 'Value': invite_data.last_name})
+
+            # Create user in Cognito with temporary password
+            logger.info(f"SEC-034: Creating Cognito user for {invite_data.email} in pool {pool_id}")
+            response = cognito.admin_create_user(
+                UserPoolId=pool_id,
+                Username=invite_data.email.lower(),
+                TemporaryPassword=temp_password,
+                UserAttributes=user_attributes,
+                DesiredDeliveryMediums=['EMAIL'],
+                MessageAction='SUPPRESS'  # We send custom invitation email
+            )
+
+            # Extract Cognito user ID (sub) from response
+            for attr in response['User']['Attributes']:
+                if attr['Name'] == 'sub':
+                    cognito_user_id = attr['Value']
+                    break
+
+            if not cognito_user_id:
+                raise HTTPException(status_code=500, detail="SEC-034: Failed to extract Cognito user ID")
+
+            logger.info(f"SEC-034: Cognito user created: {cognito_user_id}")
+
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_msg = e.response['Error']['Message']
+        logger.error(f"SEC-034: Cognito user creation failed: {error_code} - {error_msg}")
+
+        if error_code == 'UsernameExistsException':
+            raise HTTPException(
+                status_code=409,
+                detail=f"User with email {invite_data.email} already exists in authentication system"
+            )
+        elif error_code == 'InvalidParameterException':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid user data: {error_msg}"
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"SEC-034: Failed to create user identity: {error_code}"
+            )
+    except Exception as e:
+        # Non-Cognito errors (boto3 import, network, etc.)
+        if 'ClientError' not in str(type(e)):
+            logger.error(f"SEC-034: Unexpected error during Cognito user creation: {e}")
+            # Allow fallback to database-only if Cognito is not configured
+            if org.cognito_user_pool_id:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"SEC-034: Identity provider error: {str(e)}"
+                )
+
+    # Create database user (only after Cognito succeeds or is skipped)
     # SEC-044: Use timezone-aware datetime for consistency
     new_user = User(
         email=invite_data.email.lower(),
@@ -763,12 +847,13 @@ async def invite_user(
         is_org_admin=invite_data.is_org_admin,
         is_active=True,
         force_password_change=True,
-        created_at=datetime.now(UTC)
+        created_at=datetime.now(UTC),
+        cognito_user_id=cognito_user_id  # SEC-034: Store Cognito user ID
     )
     db.add(new_user)
     db.flush()
 
-    # Create audit log
+    # Create audit log with SEC-034 Cognito user ID
     audit = AuditLog(
         organization_id=org.id,
         user_id=admin["user_id"],
@@ -778,7 +863,9 @@ async def invite_user(
         changes={
             "email": invite_data.email,
             "role": invite_data.role,
-            "is_org_admin": invite_data.is_org_admin
+            "is_org_admin": invite_data.is_org_admin,
+            "cognito_user_id": cognito_user_id,  # SEC-034: Audit trail includes Cognito ID
+            "cognito_pool_id": org.cognito_user_pool_id or os.getenv('COGNITO_USER_POOL_ID')
         },
         ip_address=request.client.host if request.client else None
     )
@@ -803,12 +890,14 @@ async def invite_user(
         logger.error(f"SEC-022: Failed to send invitation email: {e}")
         # Don't fail the invite if email fails
 
-    logger.info(f"SEC-022: User {invite_data.email} invited to org {org.id} by {admin['email']}")
+    logger.info(f"SEC-034: User {invite_data.email} invited to org {org.id} by {admin['email']} (cognito_user_id={cognito_user_id})")
 
     return {
         "success": True,
         "message": f"Invitation sent to {invite_data.email}",
-        "user_id": new_user.id
+        "user_id": new_user.id,
+        "cognito_user_id": cognito_user_id,  # SEC-034: Include for verification
+        "cognito_enabled": cognito_user_id is not None
     }
 
 
