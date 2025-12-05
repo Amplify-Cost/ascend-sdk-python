@@ -18,10 +18,14 @@ bcrypt==4.0.1
 bleach==6.3.0  # XSS protection via HTML sanitization
 requests==2.31.0  # HTTP requests for Cognito JWKS
 
-# Enterprise JWT
+# Enterprise JWT (SEC-081: RS256 unified authentication)
 python-jose[cryptography]==3.3.0
+PyJWT[crypto]>=2.8.0  # SEC-081: Unified TokenService (RS256 only)
 authlib==1.2.1
 requests-oauthlib==1.3.1
+
+# SEC-081: Password hashing (Argon2id + pepper)
+argon2-cffi>=23.1.0  # SEC-081: OWASP 2024 recommended KDF
 
 # Enterprise Secrets Management
 boto3==1.34.0
@@ -34,7 +38,6 @@ redis>=4.5.0
 schedule==1.2.0
 psutil==5.9.8
 APScheduler==3.10.4  # Automated retention cleanup scheduler
-aiohttp==3.9.1  # SEC-022: Phase 5 Integration Suite async HTTP client
 
 # Database migrations
 alembic==1.13.1
