@@ -63,6 +63,11 @@ from .unified_auth.exceptions import (
     KeyNotFoundError,
 )
 from .unified_auth.tenant_context import TenantContext
+from .unified_auth.legacy_support import (
+    is_within_grace_period,
+    verify_legacy_hs256_token,
+    get_grace_period_remaining,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -486,6 +491,132 @@ class TokenService:
         )
 
         return context
+
+    def verify_with_legacy_support(
+        self,
+        token: str,
+        expected_type: str = "access",
+        client_ip: Optional[str] = None,
+    ) -> TenantContext:
+        """
+        Verify JWT token with fallback to legacy HS256 support.
+
+        This method provides zero-downtime migration from HS256 to RS256:
+        1. First attempts RS256 verification (new tokens)
+        2. If RS256 fails AND within grace period, attempts HS256 verification
+        3. If grace period expired, rejects HS256 tokens with clear error
+
+        MIGRATION TIMELINE:
+        - Before 2025-12-11: Both RS256 and HS256 tokens accepted
+        - After 2025-12-11: Only RS256 tokens accepted (HS256 rejected with 401)
+
+        SECURITY:
+        - All HS256 token usage is logged at WARNING level
+        - Users are prompted to re-login for RS256 tokens
+        - Grace period end date is enforced strictly
+
+        Args:
+            token: JWT token string
+            expected_type: Expected token type ("access" or "refresh")
+            client_ip: Client IP for context (optional)
+
+        Returns:
+            TenantContext with authenticated user information
+
+        Raises:
+            InvalidAlgorithmError: If algorithm is blocked
+            InvalidSignatureError: If signature verification fails
+            InvalidClaimsError: If required claims missing/invalid
+            TokenExpiredError: If token has expired
+            TokenRevokedError: If token has been revoked
+            AuthenticationError: If verification fails completely
+
+        Example:
+            >>> # RS256 token (new) - verified with public key
+            >>> context = token_service.verify_with_legacy_support(new_token)
+            >>> context.auth_method
+            'jwt'
+
+            >>> # HS256 token (legacy) - verified during grace period
+            >>> context = token_service.verify_with_legacy_support(old_token)
+            >>> context.auth_method
+            'legacy_hs256'
+        """
+        # Step 1: Try RS256 verification first (new tokens)
+        try:
+            context = self.verify(token, expected_type, client_ip)
+            logger.debug(
+                f"SEC-081: Token verified with RS256 | "
+                f"user_id={context.user_id} | "
+                f"org_id={context.org_id}"
+            )
+            return context
+        except (InvalidAlgorithmError, InvalidSignatureError) as e:
+            # RS256 verification failed - check if HS256 grace period active
+            logger.debug(
+                f"SEC-081: RS256 verification failed - checking HS256 fallback | "
+                f"error={type(e).__name__}"
+            )
+
+            # Step 2: Check if within grace period
+            if not is_within_grace_period():
+                # Grace period expired - reject with clear message
+                remaining = get_grace_period_remaining()
+                logger.warning(
+                    f"SEC-081: HS256 grace period {remaining} - RS256 required"
+                )
+                raise AuthenticationError(
+                    "Legacy tokens no longer accepted. Please login again to receive a new token.",
+                    detail={
+                        "grace_period_status": remaining,
+                        "migration_phase": "rs256_only",
+                    }
+                )
+
+            # Step 3: Within grace period - attempt HS256 verification
+            try:
+                # Import SECRET_KEY for legacy HS256 verification
+                from config import SECRET_KEY, ALGORITHM as LEGACY_ALGORITHM
+
+                # Verify legacy HS256 token
+                context = verify_legacy_hs256_token(
+                    token=token,
+                    secret_key=SECRET_KEY,
+                    algorithm=LEGACY_ALGORITHM if LEGACY_ALGORITHM == "HS256" else "HS256",
+                    client_ip=client_ip,
+                )
+
+                # Log successful fallback to HS256
+                remaining = get_grace_period_remaining()
+                logger.warning(
+                    f"SEC-081: Legacy HS256 token accepted (grace period: {remaining}) | "
+                    f"user_id={context.user_id} | "
+                    f"org_id={context.org_id} | "
+                    f"ACTION REQUIRED: User should re-login for RS256 token"
+                )
+
+                return context
+
+            except Exception as hs256_error:
+                # HS256 verification also failed
+                logger.error(
+                    f"SEC-081: Both RS256 and HS256 verification failed | "
+                    f"rs256_error={type(e).__name__} | "
+                    f"hs256_error={type(hs256_error).__name__}"
+                )
+                raise AuthenticationError(
+                    "Token verification failed with both RS256 and legacy HS256",
+                    detail={
+                        "rs256_error": str(e),
+                        "hs256_error": str(hs256_error),
+                    }
+                )
+        except (TokenExpiredError, TokenRevokedError, InvalidClaimsError):
+            # These errors should be raised immediately (not HS256 fallback)
+            raise
+        except AuthenticationError:
+            # Generic auth errors should be raised immediately
+            raise
 
     def _validate_algorithm(self, token: str) -> None:
         """

@@ -9,6 +9,15 @@ import logging
 # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
 from security.jwt_security import secure_jwt_decode
 
+# SEC-081: Import TokenService for unified authentication
+from services.token_service import get_token_service
+from services.unified_auth.tenant_context import TenantContext
+from services.unified_auth.exceptions import (
+    AuthenticationError as UnifiedAuthError,
+    TokenExpiredError,
+    InvalidClaimsError,
+)
+
 # ===== PRESERVE: All existing imports =====
 from config import SECRET_KEY, ALGORITHM
 from security.cookies import (
@@ -70,17 +79,86 @@ except ImportError:
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)  # do not auto-error: we support cookie fallback
 
-# ✅ SECURITY FIX: Use secure JWT decoder instead of raw jwt.decode
-# Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
-def _decode_jwt(token: str):
-    """Secure JWT decoder wrapper for backward compatibility"""
-    return secure_jwt_decode(
-        token=token,
-        secret_key=SECRET_KEY,
-        algorithms=[ALGORITHM],
-        required_claims=["sub", "exp"],
-        operation_name="dependencies_decode"
-    )
+# SEC-081: Use TokenService for unified JWT verification with HS256 grace period
+# Replaces: secure_jwt_decode (Phase 2)
+# Enhancement: Supports both RS256 (new) and HS256 (legacy during grace period)
+def _decode_jwt(token: str, client_ip: Optional[str] = None) -> dict:
+    """
+    Unified JWT decoder using TokenService with HS256 grace period support.
+
+    This function replaces the previous secure_jwt_decode implementation with
+    the SEC-081 TokenService, which provides:
+    - RS256-only for new tokens
+    - HS256 fallback during grace period (until 2025-12-11)
+    - Automatic migration to TenantContext
+    - Comprehensive audit logging
+
+    Args:
+        token: JWT token string
+        client_ip: Client IP address (optional)
+
+    Returns:
+        dict: User information dictionary for backward compatibility
+              Includes: user_id, email, role, organization_id, tenant_context
+
+    Raises:
+        HTTPException: 401 if authentication fails
+    """
+    try:
+        # Get TokenService singleton
+        token_service = get_token_service()
+
+        # Verify token with legacy HS256 support
+        tenant_context: TenantContext = token_service.verify_with_legacy_support(
+            token=token,
+            expected_type="access",
+            client_ip=client_ip
+        )
+
+        # Convert TenantContext to dict for backward compatibility
+        # This allows existing code to continue using dict-style access
+        return {
+            "user_id": str(tenant_context.user_id),
+            "sub": str(tenant_context.user_id),
+            "email": None,  # Not in TenantContext - will be populated from database
+            "role": tenant_context.role,
+            "organization_id": str(tenant_context.org_id),
+            "org_id": str(tenant_context.org_id),
+            "tenant_id": tenant_context.tenant_id,
+            "permissions": list(tenant_context.permissions),
+            "session_id": tenant_context.session_id,
+            "jti": tenant_context.token_jti,
+            "auth_method": tenant_context.auth_method,
+            "authenticated_at": tenant_context.authenticated_at,
+            "expires_at": tenant_context.token_expires_at,
+            # Include TenantContext for advanced use cases
+            "_tenant_context": tenant_context,
+        }
+
+    except TokenExpiredError as e:
+        logger.warning(f"SEC-081: Token expired | jti={getattr(e, 'jti', 'unknown')}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired - please login again"
+        )
+    except InvalidClaimsError as e:
+        logger.warning(f"SEC-081: Invalid token claims | claims={getattr(e, 'invalid_claims', [])}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims"
+        )
+    except UnifiedAuthError as e:
+        logger.warning(f"SEC-081: Authentication failed | error={str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"SEC-081: Unexpected authentication error | error={str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed"
+        )
 
 # ===== NEW: Enterprise Database Dependency =====
 def get_db() -> Session:
@@ -126,35 +204,52 @@ def get_current_user(
     2) Optionally allow Bearer token during migration (if flag enabled)
 
     SECURITY: organization_id is REQUIRED for multi-tenant data isolation
+
+    SEC-081 Enhancement: Uses TokenService with HS256 grace period support
     """
-    # SEC-024: Debug logging to trace cookie presence (INFO level for production visibility)
-    logger.info(f"🔍 SEC-024: Auth check for {request.url.path}")
-    logger.info(f"🔍 SEC-024: Cookies present: {list(request.cookies.keys())}")
+    # Extract client IP for audit trail
+    client_ip = request.client.host if hasattr(request, 'client') and request.client else None
 
     # 1) Cookie session
     cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if cookie_jwt:
         try:
-            payload = _decode_jwt(cookie_jwt)
+            payload = _decode_jwt(cookie_jwt, client_ip=client_ip)
             payload["auth_method"] = "cookie"
+
+            # SEC-081: Store TenantContext in request.state for Layer 1 establishment
+            if "_tenant_context" in payload:
+                request.state.tenant_context = payload["_tenant_context"]
             request.state.auth = payload
 
             # ENTERPRISE SECURITY: Extract organization_id from token
             # This is CRITICAL for multi-tenant data isolation
+            # SEC-081: org_id is now UUID string, convert for backward compatibility
             organization_id = payload.get("organization_id")
-            if organization_id:
-                organization_id = int(organization_id)
+            try:
+                # Try to convert UUID string to integer for legacy code
+                from uuid import UUID
+                org_uuid = UUID(organization_id) if isinstance(organization_id, str) else organization_id
+                # Extract integer from UUID (for legacy compatibility)
+                # UUID(int=N) was used in legacy_support.py, so we can reverse it
+                organization_id = org_uuid.int
+            except (ValueError, AttributeError):
+                # If conversion fails, keep as-is
+                pass
 
-            logger.info(f"✅ Authentication successful (cookie): {payload.get('email')} [org_id={organization_id}]")
+            logger.info(f"✅ Authentication successful (cookie): user_id={payload.get('user_id')} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
             return {
-                "user_id": int(payload.get("sub")) if payload.get("sub") else None,
+                "user_id": payload.get("user_id"),
                 "email": payload.get("email"),
                 "role": payload.get("role", "user"),
                 "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
                 "auth_method": "cookie",
                 **payload
             }
-        except JWTError as e:
+        except HTTPException:
+            # Re-raise HTTP exceptions from _decode_jwt
+            raise
+        except Exception as e:
             logger.error(f"JWT decode error (cookie): {str(e)}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
 
@@ -172,25 +267,38 @@ def get_current_user(
         if is_jwt:
             # JWT token authentication
             try:
-                payload = _decode_jwt(token)
+                payload = _decode_jwt(token, client_ip=client_ip)
                 payload["auth_method"] = "bearer"
+
+                # SEC-081: Store TenantContext in request.state for Layer 1 establishment
+                if "_tenant_context" in payload:
+                    request.state.tenant_context = payload["_tenant_context"]
                 request.state.auth = payload
 
                 # ENTERPRISE SECURITY: Extract organization_id from token
+                # SEC-081: org_id is now UUID string, convert for backward compatibility
                 organization_id = payload.get("organization_id")
-                if organization_id:
-                    organization_id = int(organization_id)
+                try:
+                    # Try to convert UUID string to integer for legacy code
+                    from uuid import UUID
+                    org_uuid = UUID(organization_id) if isinstance(organization_id, str) else organization_id
+                    organization_id = org_uuid.int
+                except (ValueError, AttributeError):
+                    pass
 
-                logger.info(f"✅ Authentication successful (bearer): {payload.get('email')} [org_id={organization_id}]")
+                logger.info(f"✅ Authentication successful (bearer): user_id={payload.get('user_id')} [org_id={organization_id}] [method={payload.get('auth_method', 'jwt')}]")
                 return {
-                    "user_id": int(payload.get("sub")) if payload.get("sub") else None,
+                    "user_id": payload.get("user_id"),
                     "email": payload.get("email"),
                     "role": payload.get("role", "user"),
                     "organization_id": organization_id,  # CRITICAL: Multi-tenant isolation
                     "auth_method": "bearer",
                     **payload
                 }
-            except JWTError as e:
+            except HTTPException:
+                # Re-raise HTTP exceptions from _decode_jwt
+                raise
+            except Exception as e:
                 logger.error(f"JWT decode error (bearer): {str(e)}")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication token")
         else:
@@ -199,9 +307,6 @@ def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
 
     # Neither cookie nor allowed bearer present
-    # SEC-024: Log auth failure details for debugging (INFO level for production)
-    logger.info(f"🔐 SEC-024: Auth failed for {request.url.path} - No cookie and no valid bearer")
-    logger.info(f"🔐 SEC-024: Cookies={list(request.cookies.keys())}, HasBearer={bool(credentials and credentials.credentials)}")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Authentication required",
@@ -306,37 +411,23 @@ def require_organization_context(current_user: dict = Depends(get_current_user))
     return current_user
 
 
-def get_organization_filter(current_user: dict = Depends(get_current_user)):
+def get_organization_filter(current_user: dict = Depends(require_organization_context)):
     """
     🏢 ENTERPRISE: Get organization filter for database queries.
 
     Returns the organization_id that MUST be used in all database queries
     to ensure multi-tenant data isolation.
 
-    IMPORTANT: This is a GRACEFUL filter that returns None if organization_id
-    is not in the token. Routes should handle None gracefully:
-    - For strict tenant isolation: check if org_id is None and return 403
-    - For backward compatibility: skip filter if org_id is None (show all data)
-
     Usage in routes:
         @router.get("/data")
         async def get_data(
-            org_id: int = Depends(get_organization_filter),
+            org_filter: int = Depends(get_organization_filter),
             db: Session = Depends(get_db)
         ):
-            query = db.query(Model)
-            if org_id is not None:
-                query = query.filter(Model.organization_id == org_id)
-            return query.all()
+            # All queries MUST filter by org_filter
+            data = db.query(Model).filter(Model.organization_id == org_filter).all()
     """
-    organization_id = current_user.get("organization_id")
-
-    if organization_id is None:
-        logger.warning(f"⚠️ Organization context missing for user {current_user.get('email')} - data isolation NOT enforced")
-    else:
-        logger.debug(f"✅ Organization filter: org_id={organization_id} for {current_user.get('email')}")
-
-    return organization_id
+    return current_user.get("organization_id")
 
 
 # ===== PRESERVE: Legacy aliases =====

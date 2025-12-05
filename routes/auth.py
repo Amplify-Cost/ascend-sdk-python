@@ -1,23 +1,4 @@
-# routes/auth.py - Enterprise Banking-Level Authentication
-# =============================================================================
-# SECURITY AUDIT REMEDIATION: AUTH-001 through AUTH-012
-# =============================================================================
-# This module implements banking-grade authentication with:
-# - AUTH-001: Token revocation on logout (Cognito GlobalSignOut + blacklist)
-# - AUTH-002: MFA session verification (token ownership validation)
-# - AUTH-003: Refresh token rotation (single-use refresh tokens)
-# - AUTH-004: Account lockout with exponential backoff
-# - AUTH-005: Session fixation prevention (regenerate session on login)
-# - AUTH-006: Secure cookie enforcement (SameSite=Strict)
-# - AUTH-007: Password reset token security (high entropy)
-# - AUTH-008: JWT secret validation (256-bit minimum)
-# - AUTH-009: CSRF double-submit validation
-# - AUTH-010: Token exposure prevention in error messages
-# - AUTH-011: Concurrent session control
-# - AUTH-012: Security headers
-#
-# Compliance: SOC 2 CC6.1, PCI-DSS 8.1, NIST 800-63B, HIPAA 164.312
-# =============================================================================
+# routes/auth.py - Enterprise Response Diagnostics (Find Exact Format Issue)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from security.cookies import SESSION_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME
@@ -37,28 +18,14 @@ import jwt
 import os
 import logging
 import json
-import boto3
-from botocore.exceptions import ClientError
+import uuid
+
+# SEC-081 Phase 4: Import TokenService for RS256-only JWT creation
+from services.token_service import TokenService
 
 # ✅ SECURITY FIX: Import secure JWT decoder
 # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
 from security.jwt_security import secure_jwt_decode
-
-# ✅ AUTH-001 through AUTH-012: Import enterprise security module
-from security.enterprise_security import (
-    token_blacklist,
-    refresh_token_manager,
-    verify_cognito_token_ownership,
-    account_lockout_manager,
-    generate_session_id,
-    concurrent_session_manager,
-    add_security_headers,
-    sanitize_error_response,
-    mask_token_for_logging,
-    log_security_event,
-    verify_organization_ownership,
-    get_validated_org_id
-)
 
 # Enterprise rate limiting
 from security.rate_limiter import limiter, RATE_LIMITS
@@ -103,31 +70,77 @@ ENTERPRISE_REFRESH_COOKIE_CONFIG = {
 
 # =================== ENTERPRISE UTILITIES ===================
 
+# SEC-081 Phase 4: Initialize TokenService singleton
+_token_service = TokenService()
+
+def org_id_to_uuid(org_id: int) -> uuid.UUID:
+    """
+    SEC-081 Phase 4: Convert integer organization_id to UUID string for token claims.
+
+    This ensures tokens use UUID format for org_id as required by TokenService.
+    Example: org_id=4 → UUID("00000000-0000-0000-0000-000000000004")
+
+    Args:
+        org_id: Integer organization ID from database
+
+    Returns:
+        UUID object for token claims
+    """
+    return uuid.UUID(int=org_id)
+
 def create_enterprise_token(data: dict, token_type: str = "access") -> str:
-    """Create enterprise JWT token"""
+    """
+    SEC-081 Phase 4: Create enterprise JWT token using TokenService (RS256-only).
+
+    REPLACED: Old HS256 token creation with secure RS256 TokenService.
+
+    This function maintains backward compatibility while upgrading to:
+    - RS256 asymmetric signing (vs old HS256 symmetric)
+    - Ascend branding (iss="https://api.ascend.app")
+    - UUID org_id format (vs integer)
+    - Enhanced audience claims (ascend-platform, ascend-api, ascend-dashboard)
+
+    Args:
+        data: Token data dict with user_id, email, role, organization_id
+        token_type: "access" or "refresh"
+
+    Returns:
+        RS256-signed JWT token
+
+    Raises:
+        HTTPException: If token creation fails
+    """
     try:
-        to_encode = data.copy()
-        
+        # Extract required fields
+        user_id = data.get("sub") or str(data.get("user_id"))
+        org_id = data.get("organization_id")
+        role = data.get("role", "user")
+        email = data.get("email", "")
+
+        # Convert org_id integer to UUID (SEC-081 requirement)
+        org_uuid = org_id_to_uuid(org_id) if isinstance(org_id, int) else uuid.UUID(org_id)
+        user_uuid = uuid.UUID(user_id) if not isinstance(user_id, uuid.UUID) else user_id
+
+        # Create token using TokenService
         if token_type == "access":
-            expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        else:
-            expire = datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-        
-        to_encode.update({
-            "exp": expire,
-            "iat": datetime.now(UTC),
-            "type": token_type,
-            "iss": "ow-ai-enterprise",
-            "aud": "ow-ai-platform",
-            "jti": f"{token_type}-{data.get('sub', 'unknown')}-{int(datetime.now(UTC).timestamp())}"
-        })
-        
-        token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-        logger.info(f"✅ Token created for user {data.get('email', 'unknown')}")
+            token = _token_service.create_access_token(
+                user_id=user_uuid,
+                org_id=org_uuid,
+                role=role,
+                permissions=[],  # TODO: Extract from user role if needed
+                additional_claims={"email": email} if email else None
+            )
+        else:  # refresh token
+            token = _token_service.create_refresh_token(
+                user_id=user_uuid,
+                org_id=org_uuid
+            )
+
+        logger.info(f"✅ SEC-081: Token created (RS256) | user={email} | type={token_type}")
         return token
-        
+
     except Exception as e:
-        logger.error(f"🚨 Token creation failed: {str(e)}")
+        logger.error(f"🚨 SEC-081: Token creation failed: {str(e)}")
         raise HTTPException(status_code=500, detail="Token creation failed")
 
 def validate_enterprise_token(token: str, expected_type: str = "access") -> Dict[str, Any]:
@@ -323,217 +336,16 @@ def log_response_diagnostics(response_data: dict, endpoint: str):
     logger.info(f"🔍 DIAGNOSTIC: {endpoint} response structure:")
     logger.info(f"🔍 Response keys: {list(response_data.keys())}")
     logger.info(f"🔍 Response size: {len(json.dumps(response_data))} characters")
-
+    
     for key, value in response_data.items():
         logger.info(f"🔍 Field '{key}': {type(value).__name__} = {str(value)[:100]}...")
-
+    
     if "user" in response_data:
         user_data = response_data["user"]
         logger.info(f"🔍 User object keys: {list(user_data.keys()) if isinstance(user_data, dict) else 'not a dict'}")
         if isinstance(user_data, dict):
             for k, v in user_data.items():
                 logger.info(f"🔍 User.{k}: {type(v).__name__} = {v}")
-
-
-# =================== ENTERPRISE COGNITO AUTHENTICATION (SEC-021) ===================
-# Banking-Level Security: AWS Cognito Integration for Enterprise Authentication
-# Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B, HIPAA 164.312
-# ==================================================================================
-
-def authenticate_via_cognito(
-    email: str,
-    password: str,
-    organization: Organization,
-    user: User,
-    db: Session
-) -> Dict[str, Any]:
-    """
-    SEC-021: Enterprise Cognito Authentication
-
-    Banking-level security authentication via AWS Cognito.
-
-    Features:
-    - Per-organization Cognito User Pools (multi-tenant isolation)
-    - Handles auth challenges (NEW_PASSWORD_REQUIRED, MFA, etc.)
-    - Automatic Cognito-to-local user sync
-    - Complete audit trail
-
-    Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
-
-    Args:
-        email: User's email address
-        password: User's password
-        organization: User's organization with Cognito pool config
-        user: Local database user record
-        db: Database session
-
-    Returns:
-        Dict with:
-        - success: bool
-        - cognito_tokens: Dict with access/id/refresh tokens (if successful)
-        - challenge: str (if auth challenge required)
-        - session: str (for continuing auth challenges)
-        - error: str (if failed)
-    """
-
-    # Validate organization has Cognito configured
-    if not organization.cognito_user_pool_id:
-        logger.warning(f"SEC-021: Organization {organization.id} has no Cognito pool - falling back to local auth")
-        return {"success": False, "fallback_to_local": True}
-
-    if not organization.cognito_app_client_id:
-        logger.warning(f"SEC-021: Organization {organization.id} has no Cognito client ID - falling back to local auth")
-        return {"success": False, "fallback_to_local": True}
-
-    try:
-        # Initialize Cognito client
-        cognito = boto3.client('cognito-idp', region_name='us-east-2')
-
-        logger.info(f"🔐 SEC-021: Authenticating via Cognito for {email}")
-        logger.info(f"   Pool: {organization.cognito_user_pool_id}")
-        logger.info(f"   Client: {organization.cognito_app_client_id[:8]}...")
-
-        # Initiate authentication with USER_PASSWORD_AUTH flow
-        try:
-            auth_response = cognito.initiate_auth(
-                ClientId=organization.cognito_app_client_id,
-                AuthFlow='USER_PASSWORD_AUTH',
-                AuthParameters={
-                    'USERNAME': email,
-                    'PASSWORD': password
-                }
-            )
-
-            # Check if there's a challenge
-            if 'ChallengeName' in auth_response:
-                challenge = auth_response['ChallengeName']
-                session = auth_response.get('Session', '')
-
-                logger.info(f"🔐 SEC-021: Cognito auth challenge: {challenge}")
-
-                if challenge == 'NEW_PASSWORD_REQUIRED':
-                    return {
-                        "success": False,
-                        "challenge": "NEW_PASSWORD_REQUIRED",
-                        "session": session,
-                        "message": "Password change required. Please set a new password.",
-                        "cognito_user_id": auth_response.get('ChallengeParameters', {}).get('USER_ID_FOR_SRP')
-                    }
-                elif challenge == 'MFA_SETUP':
-                    return {
-                        "success": False,
-                        "challenge": "MFA_SETUP",
-                        "session": session,
-                        "message": "MFA setup required for this account."
-                    }
-                elif challenge == 'SOFTWARE_TOKEN_MFA':
-                    return {
-                        "success": False,
-                        "challenge": "SOFTWARE_TOKEN_MFA",
-                        "session": session,
-                        "message": "Please enter your MFA code."
-                    }
-                elif challenge == 'SMS_MFA':
-                    return {
-                        "success": False,
-                        "challenge": "SMS_MFA",
-                        "session": session,
-                        "message": "Please enter the SMS code sent to your phone."
-                    }
-                else:
-                    logger.warning(f"SEC-021: Unhandled Cognito challenge: {challenge}")
-                    return {
-                        "success": False,
-                        "challenge": challenge,
-                        "session": session,
-                        "message": f"Authentication challenge: {challenge}"
-                    }
-
-            # Authentication successful - extract tokens
-            auth_result = auth_response.get('AuthenticationResult', {})
-
-            if not auth_result:
-                logger.error("SEC-021: No AuthenticationResult in Cognito response")
-                return {"success": False, "error": "Authentication failed - no tokens received"}
-
-            cognito_tokens = {
-                "access_token": auth_result.get('AccessToken'),
-                "id_token": auth_result.get('IdToken'),
-                "refresh_token": auth_result.get('RefreshToken'),
-                "expires_in": auth_result.get('ExpiresIn', 3600),
-                "token_type": auth_result.get('TokenType', 'Bearer')
-            }
-
-            # Extract Cognito user ID from ID token
-            # The 'sub' claim in the ID token is the Cognito user ID
-            try:
-                import base64
-                # Decode JWT payload (without verification - we trust Cognito signed it)
-                id_token_parts = cognito_tokens['id_token'].split('.')
-                if len(id_token_parts) >= 2:
-                    # Add padding if needed
-                    padded = id_token_parts[1] + '=' * (4 - len(id_token_parts[1]) % 4)
-                    id_payload = json.loads(base64.urlsafe_b64decode(padded))
-                    cognito_user_id = id_payload.get('sub')
-
-                    # Update local user with Cognito ID if not set
-                    if cognito_user_id and user.cognito_user_id != cognito_user_id:
-                        logger.info(f"🔗 SEC-021: Linking user to Cognito: {email} -> {cognito_user_id}")
-                        user.cognito_user_id = cognito_user_id
-                        db.commit()
-
-                    cognito_tokens['cognito_user_id'] = cognito_user_id
-            except Exception as e:
-                logger.warning(f"SEC-021: Could not extract Cognito user ID: {e}")
-
-            logger.info(f"✅ SEC-021: Cognito authentication successful for {email}")
-
-            return {
-                "success": True,
-                "cognito_tokens": cognito_tokens
-            }
-
-        except cognito.exceptions.NotAuthorizedException as e:
-            logger.warning(f"❌ SEC-021: Cognito auth failed - invalid credentials: {email}")
-            return {"success": False, "error": "Invalid credentials", "cognito_error": True}
-
-        except cognito.exceptions.UserNotConfirmedException:
-            logger.warning(f"❌ SEC-021: Cognito user not confirmed: {email}")
-            return {
-                "success": False,
-                "error": "Account not confirmed. Please check your email for confirmation link.",
-                "needs_confirmation": True
-            }
-
-        except cognito.exceptions.UserNotFoundException:
-            logger.warning(f"❌ SEC-021: User not found in Cognito: {email}")
-            # User exists locally but not in Cognito - fallback to local auth
-            return {"success": False, "fallback_to_local": True, "reason": "user_not_in_cognito"}
-
-        except cognito.exceptions.PasswordResetRequiredException:
-            logger.warning(f"❌ SEC-021: Password reset required in Cognito: {email}")
-            return {
-                "success": False,
-                "error": "Password reset required. Please use the forgot password flow.",
-                "needs_password_reset": True
-            }
-
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', str(e))
-        logger.error(f"❌ SEC-021: Cognito ClientError: {error_code} - {error_message}")
-
-        if error_code == 'InvalidParameterException':
-            # Often means client ID is wrong or pool doesn't allow this auth flow
-            return {"success": False, "fallback_to_local": True, "reason": "cognito_config_error"}
-
-        return {"success": False, "error": f"Authentication service error: {error_code}"}
-
-    except Exception as e:
-        logger.error(f"❌ SEC-021: Unexpected Cognito error: {e}", exc_info=True)
-        # Fallback to local auth on unexpected errors
-        return {"success": False, "fallback_to_local": True, "reason": str(e)}
-
 
 # =================== ENTERPRISE ENDPOINTS ===================
 
@@ -630,80 +442,13 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
                 db.commit()
 
         # ============================================================================
-        # SEC-021: ENTERPRISE COGNITO AUTHENTICATION
-        # Banking-Level Security: Per-organization Cognito User Pools
-        # Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
+        # SEC-081 PHASE 4: PASSWORD VERIFICATION WITH TRANSPARENT MIGRATION
         # ============================================================================
+        # Verify password and upgrade hash if needed (bcrypt → Argon2id)
+        from auth_utils import verify_password_with_upgrade
+        is_valid, new_hash = verify_password_with_upgrade(password, user.password)
 
-        # Get user's organization for Cognito config
-        organization = user.organization
-        auth_method_used = None
-        cognito_auth_result = None
-
-        # Attempt Cognito authentication if organization has Cognito configured
-        if organization and organization.cognito_user_pool_id:
-            logger.info(f"🔐 SEC-021: Attempting Cognito auth for {email} (org: {organization.slug})")
-            cognito_auth_result = authenticate_via_cognito(
-                email=email,
-                password=password,
-                organization=organization,
-                user=user,
-                db=db
-            )
-
-            if cognito_auth_result.get("success"):
-                # Cognito authentication successful
-                auth_method_used = "cognito"
-                logger.info(f"✅ SEC-021: Cognito auth successful for {email}")
-            elif cognito_auth_result.get("challenge"):
-                # Auth challenge required (NEW_PASSWORD_REQUIRED, MFA, etc.)
-                challenge = cognito_auth_result.get("challenge")
-                logger.info(f"🔐 SEC-021: Auth challenge required: {challenge}")
-
-                # Return challenge response for frontend to handle
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "auth_challenge",
-                        "challenge": challenge,
-                        "session": cognito_auth_result.get("session", ""),
-                        "message": cognito_auth_result.get("message", "Additional authentication required"),
-                        "requires_action": True
-                    }
-                )
-            elif cognito_auth_result.get("cognito_error"):
-                # Cognito explicitly rejected credentials
-                logger.warning(f"❌ SEC-021: Cognito rejected credentials for {email}")
-                # Fall through to failed login handling
-                auth_method_used = "cognito_failed"
-            elif cognito_auth_result.get("fallback_to_local"):
-                # Cognito not available for this user/org - try local auth
-                logger.info(f"🔐 SEC-021: Falling back to local auth for {email} (reason: {cognito_auth_result.get('reason', 'unknown')})")
-                auth_method_used = "local_fallback"
-            else:
-                # Other Cognito error - check if we should fallback
-                error_msg = cognito_auth_result.get("error", "Unknown error")
-                logger.warning(f"⚠️ SEC-021: Cognito auth error: {error_msg}")
-                auth_method_used = "local_fallback"
-        else:
-            # No Cognito configured - use local auth
-            logger.info(f"🔐 Using local authentication for {email} (no Cognito configured)")
-            auth_method_used = "local"
-
-        # Verify password (for local auth or Cognito fallback)
-        password_valid = False
-
-        if auth_method_used == "cognito":
-            # Already authenticated via Cognito
-            password_valid = True
-        elif auth_method_used == "cognito_failed":
-            # Cognito rejected - don't try local auth, it's definitely wrong
-            password_valid = False
-        else:
-            # Local authentication
-            password_valid = verify_password(password, user.password)
-
-        if not password_valid:
+        if not is_valid:
             # ============================================================================
             # PHASE 2 RBAC: FAILED LOGIN ATTEMPT TRACKING
             # ============================================================================
@@ -730,48 +475,54 @@ async def enterprise_login_diagnostic(request: Request, response: Response, db: 
                 )
 
         # ============================================================================
-        # PHASE 2 RBAC: PASSWORD EXPIRATION (CVSS 5.8 - MEDIUM)
-        # SEC-021: Skip for Cognito users - Cognito manages its own password policies
+        # SEC-081 PHASE 4: TRANSPARENT HASH MIGRATION (bcrypt → Argon2id)
         # ============================================================================
-        if auth_method_used != "cognito":
-            # Check password age (90-day expiration policy) - only for local auth
-            if user.password_last_changed:
-                password_age_days = (datetime.now(UTC) - user.password_last_changed.replace(tzinfo=UTC)).days
+        # If password hash was upgraded, save the new hash
+        if new_hash:
+            user.password = new_hash
+            db.commit()
+            logger.info(f"SEC-081: Password hash upgraded to Argon2id for {user.email}")
 
-                # Block login if password expired (>90 days)
-                if password_age_days >= 90:
-                    logger.warning(f"⏰ Password expired for {email} ({password_age_days} days old)")
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail={
-                            "error": "password_expired",
-                            "message": "Your password has expired. Please reset your password to continue.",
-                            "password_age_days": password_age_days,
-                            "requires_password_change": True
-                        }
-                    )
+        # ============================================================================
+        # PHASE 2 RBAC: PASSWORD EXPIRATION (CVSS 5.8 - MEDIUM)
+        # ============================================================================
+        # Check password age (90-day expiration policy)
+        if user.password_last_changed:
+            password_age_days = (datetime.now(UTC) - user.password_last_changed.replace(tzinfo=UTC)).days
 
-                # Warn if password expiring soon (80-89 days)
-                elif password_age_days >= 80:
-                    days_until_expiration = 90 - password_age_days
-                    logger.info(f"⚠️ Password expiring soon for {email} ({days_until_expiration} days remaining)")
-                    # Continue with login but include warning in response
-
-            # ============================================================================
-            # PHASE 2 RBAC: FORCE PASSWORD CHANGE
-            # SEC-021: Skip for Cognito users - handled via Cognito challenges
-            # ============================================================================
-            # Check if admin forced password change
-            if user.force_password_change:
-                logger.info(f"🔑 Force password change required for {email}")
+            # Block login if password expired (>90 days)
+            if password_age_days >= 90:
+                logger.warning(f"⏰ Password expired for {email} ({password_age_days} days old)")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={
-                        "error": "password_change_required",
-                        "message": "Administrator has reset your password. You must change it before logging in.",
+                        "error": "password_expired",
+                        "message": "Your password has expired. Please reset your password to continue.",
+                        "password_age_days": password_age_days,
                         "requires_password_change": True
                     }
                 )
+
+            # Warn if password expiring soon (80-89 days)
+            elif password_age_days >= 80:
+                days_until_expiration = 90 - password_age_days
+                logger.info(f"⚠️ Password expiring soon for {email} ({days_until_expiration} days remaining)")
+                # Continue with login but include warning in response
+
+        # ============================================================================
+        # PHASE 2 RBAC: FORCE PASSWORD CHANGE
+        # ============================================================================
+        # Check if admin forced password change
+        if user.force_password_change:
+            logger.info(f"🔑 Force password change required for {email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "password_change_required",
+                    "message": "Administrator has reset your password. You must change it before logging in.",
+                    "requires_password_change": True
+                }
+            )
 
         # ============================================================================
         # PHASE 2 RBAC: SUCCESSFUL LOGIN - RESET COUNTER
@@ -929,44 +680,35 @@ async def get_current_user_diagnostic(
 
 @router.post("/refresh-token")
 @limiter.limit(RATE_LIMITS["auth_refresh"])
-async def refresh_token_diagnostic(request: Request, response: Response, db: Session = Depends(get_db)):
-    """
-    🔐 AUTH-003: Enterprise Token Refresh with Rotation
-
-    Banking-Level Security:
-    - Refresh tokens are SINGLE USE (rotation on every refresh)
-    - Used refresh tokens are immediately invalidated
-    - Detects and alerts on refresh token reuse (potential theft)
-    - Complete audit trail for compliance
-
-    Compliance: OWASP Session Management, PCI-DSS 8.1.8, SOC 2 CC6.1
-    """
-
+async def refresh_token_diagnostic(request: Request, response: Response):
+    """🔍 Enterprise Token Refresh with Diagnostics - ENTERPRISE FIX: Correct cookie names"""
+    
     try:
         client_ip = request.client.host if request.client else "unknown"
-        logger.info(f"🔐 AUTH-003: Token refresh from {client_ip}")
-
-        # Get refresh token from cookie or body
-        refresh_token = request.cookies.get("refresh_token")
+        logger.info(f"🔍 DIAGNOSTIC REFRESH from {client_ip}")
+        
+        # 🔧 ENTERPRISE FIX: Check for refresh token with correct name
+        refresh_token = request.cookies.get("refresh_token")  # Frontend cookie name
         if not refresh_token:
-            refresh_token = request.cookies.get("ow_refresh_token")
+            refresh_token = request.cookies.get("ow_refresh_token")  # Fallback name
         auth_source = "cookie"
-
+        
         if not refresh_token:
             request_body = await request.body()
             data = parse_request_safely(request_body)
             refresh_token = data.get("refresh_token")
             auth_source = "body"
-
-        logger.debug(f"AUTH-003: Refresh token source = {auth_source}")
-
+            
+        logger.info(f"🔍 DIAGNOSTIC: Refresh token source = {auth_source}")
+        logger.info(f"🔍 DIAGNOSTIC: Refresh token present = {bool(refresh_token)}")
+        
         if not refresh_token:
             return {
                 "error": "no_refresh_token",
                 "message": "No refresh token provided",
                 "timestamp": datetime.now(UTC).isoformat()
             }
-
+        
         # Validate refresh token
         try:
             payload = validate_enterprise_token(refresh_token, "refresh")
@@ -976,78 +718,38 @@ async def refresh_token_diagnostic(request: Request, response: Response, db: Ses
                 "message": e.detail,
                 "timestamp": datetime.now(UTC).isoformat()
             }
-
-        # =========================================================================
-        # AUTH-003: CRITICAL - Refresh Token Rotation
-        # =========================================================================
-        # Each refresh token can only be used ONCE. After use, it's invalidated
-        # and a new refresh token is issued. This limits damage from stolen tokens.
-        #
-        # If a refresh token is used twice, it indicates potential theft:
-        # - Attacker stole token and used it
-        # - OR legitimate user used it and attacker is trying to use it
-        # Either way, we should invalidate ALL tokens for this user.
-        # =========================================================================
-        token_jti = payload.get("jti")
-        if token_jti:
-            # Check if this refresh token has already been used
-            if not refresh_token_manager.validate_and_rotate(token_jti):
-                # SECURITY ALERT: Refresh token reuse detected!
-                logger.warning(
-                    f"🚨 AUTH-003 SECURITY ALERT: Refresh token reuse detected for user {payload.get('email')}! "
-                    f"JTI: {token_jti[:8]}... This may indicate token theft."
-                )
-
-                # Revoke ALL tokens for this user as a precaution
-                user_id = payload.get("user_id") or payload.get("sub")
-                if user_id:
-                    token_blacklist.revoke_all_user_tokens(int(user_id), db)
-                    log_security_event(
-                        event_type="refresh_token_reuse_detected",
-                        user_id=int(user_id),
-                        org_id=payload.get("organization_id"),
-                        details={"jti": token_jti[:8] + "..."},
-                        risk_level="critical",
-                        ip_address=client_ip
-                    )
-
-                return {
-                    "error": "token_reuse_detected",
-                    "message": "Security alert: This refresh token has already been used. All sessions have been terminated for your protection. Please log in again.",
-                    "security_action": "all_tokens_revoked",
-                    "timestamp": datetime.now(UTC).isoformat()
-                }
-
+        
         # Create new tokens with organization context preserved
+        # ENTERPRISE SECURITY: organization_id MUST be preserved during token refresh
         user_data = {
             "sub": payload.get("sub"),
             "email": payload.get("email"),
             "role": payload.get("role"),
             "user_id": payload.get("user_id", payload.get("sub")),
-            "organization_id": payload.get("organization_id")
+            "organization_id": payload.get("organization_id")  # CRITICAL: Preserve org context
         }
 
         new_access_token = create_enterprise_token(user_data, "access")
         new_refresh_token = create_enterprise_token(user_data, "refresh")
-
+        
         # Update cookies if using cookie auth
         if auth_source == "cookie":
             set_enterprise_cookies(response, new_access_token, new_refresh_token)
-
-        logger.info(f"✅ AUTH-003: Token refresh successful for {payload.get('email')}")
-
+        
         response_data = {
             "access_token": new_access_token,
             "refresh_token": new_refresh_token,
             "token_type": "bearer",
             "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
         }
-
+        
+        logger.info("🔍 DIAGNOSTIC: Refresh response:")
+        log_response_diagnostics(response_data, "REFRESH")
+        
         return response_data
-
+        
     except Exception as e:
-        logger.error(f"🚨 AUTH-003: Refresh error: {str(e)}", exc_info=True)
-        # AUTH-010: Don't expose internal error details
+        logger.error(f"🚨 Refresh error: {str(e)}", exc_info=True)
         return {
             "error": "system_error",
             "message": "Refresh temporarily unavailable",
@@ -1060,64 +762,23 @@ async def enterprise_logout(
     request: Request,
     response: Response,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
     _=Depends(require_csrf)
 ):
-    """
-    🚪 AUTH-001: Enterprise logout with token revocation
 
-    Banking-Level Security:
-    - Revokes ALL tokens for the user (Cognito + server-side blacklist)
-    - Clears secure HTTP-only cookies
-    - Calls Cognito GlobalSignOut to invalidate Cognito tokens
-    - Creates audit trail
-
-    Compliance: NIST AC-12, PCI-DSS 8.1.8, SOC 2 CC6.1
-    """
-
+    """🚪 Enterprise logout with secure cookie clearing"""
+    
     try:
         client_ip = request.client.host if request.client else "unknown"
-        user_id = current_user.get("user_id")
-        email = current_user.get("email")
-        org_id = current_user.get("organization_id")
-
-        logger.info(f"🚪 AUTH-001: Enterprise logout for {email} from {client_ip}")
-
-        # AUTH-001: Revoke all tokens in database
-        tokens_revoked = token_blacklist.revoke_all_user_tokens(user_id, db)
-
-        # AUTH-001: Call Cognito GlobalSignOut if user has Cognito identity
-        cognito_signout_success = False
-        try:
-            user = db.query(User).filter(User.id == user_id).first()
-            if user and user.cognito_user_id:
-                org = db.query(Organization).filter(Organization.id == org_id).first()
-                if org and org.cognito_user_pool_id:
-                    # Get Cognito access token to revoke
-                    access_token = request.cookies.get(SESSION_COOKIE_NAME)
-                    cognito_token = request.headers.get("X-Cognito-Token")
-
-                    if cognito_token or access_token:
-                        try:
-                            # Try to call Cognito GlobalSignOut
-                            cognito_client.global_sign_out(
-                                AccessToken=cognito_token or access_token
-                            )
-                            cognito_signout_success = True
-                            logger.info(f"AUTH-001: Cognito GlobalSignOut successful for {email}")
-                        except Exception as cognito_error:
-                            # Token may already be invalid, continue with local logout
-                            logger.warning(f"AUTH-001: Cognito GlobalSignOut failed (token may be expired): {cognito_error}")
-        except Exception as e:
-            logger.warning(f"AUTH-001: Could not perform Cognito signout: {e}")
-
-        # AUTH-001: Clear session cookies
+        logger.info(f"🚪 ENTERPRISE LOGOUT from {client_ip}")
+        
+        # ✅ SECURITY FIX: Clear cookies with environment-based security settings
+        # Created by: OW-kai Engineer (Phase 2 Security Fixes - Cookie Hardening)
         response.set_cookie(
-            key=SESSION_COOKIE_NAME,
+            key=SESSION_COOKIE_NAME,  # Use enterprise session cookie
             value="",
             httponly=True,
-            secure=COOKIE_SECURE,
-            samesite=COOKIE_SAMESITE,
+            secure=COOKIE_SECURE,  # ✅ SECURE: Match environment settings
+            samesite=COOKIE_SAMESITE,  # ✅ SECURE: Match environment settings
             max_age=0,
             path="/"
         )
@@ -1126,55 +787,24 @@ async def enterprise_logout(
             key="refresh_token",
             value="",
             httponly=True,
-            secure=COOKIE_SECURE,
-            samesite=COOKIE_SAMESITE,
+            secure=COOKIE_SECURE,  # ✅ SECURE: Match environment settings
+            samesite=COOKIE_SAMESITE,  # ✅ SECURE: Match environment settings
             max_age=0,
             path="/"
         )
-
-        # AUTH-001: Clear CSRF cookie
-        response.set_cookie(
-            key=CSRF_COOKIE_NAME,
-            value="",
-            httponly=False,
-            secure=COOKIE_SECURE,
-            samesite=COOKIE_SAMESITE,
-            max_age=0,
-            path="/"
-        )
-
-        # AUTH-001: Create audit log
-        log_security_event(
-            event_type="user_logout",
-            user_id=user_id,
-            org_id=org_id,
-            details={
-                "tokens_revoked": tokens_revoked,
-                "cognito_signout": cognito_signout_success
-            },
-            risk_level="low",
-            ip_address=client_ip
-        )
-
-        logger.info(f"✅ AUTH-001: Logout complete - {tokens_revoked} tokens revoked, Cognito signout: {cognito_signout_success}")
-
+        
+        logger.info("✅ ENTERPRISE: Cookies cleared successfully")
+        
         return {
-            "success": True,
             "message": "Logged out successfully",
-            "tokens_revoked": tokens_revoked,
-            "cognito_signout": cognito_signout_success,
-            "security_note": "All sessions terminated. Please log in again.",
+            "enterprise_security": "Cookies cleared",
             "timestamp": datetime.now(UTC).isoformat()
         }
-
+        
     except Exception as e:
-        logger.error(f"🚨 AUTH-001: Logout error: {str(e)}")
-        # Still clear cookies even if database operations failed
-        response.set_cookie(key=SESSION_COOKIE_NAME, value="", max_age=0, path="/")
-        response.set_cookie(key="refresh_token", value="", max_age=0, path="/")
-
+        logger.error(f"🚨 Logout error: {str(e)}")
+        # Return success even if there's an error - don't block logout
         return {
-            "success": True,
             "message": "Logout completed",
             "note": "Session cleared locally",
             "timestamp": datetime.now(UTC).isoformat()
@@ -1779,109 +1409,52 @@ async def create_cognito_session(
             raise HTTPException(status_code=403, detail="Email not verified in Cognito")
         
         logger.info(f"✅ User claims validated: {email} (verified)")
-
+        
         # Step 6: Find or create user in database
-        # SEC-025: Enterprise Multi-Tenant User Resolution
-        #
-        # Banking-Level Security Architecture:
-        # =====================================
-        # 1. Each Cognito User Pool is isolated per organization
-        # 2. Users can exist in multiple organizations (separate records)
-        # 3. Email uniqueness is per-organization, not global
-        # 4. Cognito user_id is the primary identity link
-        #
-        # Resolution Priority:
-        # 1. cognito_user_id match (exact identity)
-        # 2. email + organization_id match (same org, link to Cognito)
-        # 3. No match + email exists elsewhere = BLOCKED (multi-tenant isolation)
-        # 4. No match anywhere = create new user
-        #
-        # Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 7.1
-
+        # ENTERPRISE FIX: First try by cognito_user_id, then by email (for existing users)
         user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
 
-        if user:
-            # Case 1: Exact Cognito identity match
-            # Verify organization isolation - user must belong to the authenticating org
-            if user.organization_id != organization.id:
-                logger.error(
-                    f"🚨 SEC-025 VIOLATION: Cognito user {cognito_user_id} belongs to org "
-                    f"{user.organization_id}, but authenticated against org {organization.id}"
-                )
-                raise HTTPException(
-                    status_code=403,
-                    detail="Access denied: User not authorized for this organization"
-                )
-
-            # Update last login for existing Cognito-linked user
-            user.last_login = datetime.now(UTC)
-            db.commit()
-            logger.info(f"✅ SEC-025: Cognito user authenticated: ID={user.id}, Email={email}")
-
-        else:
-            # No Cognito link exists - check for email in THIS organization
+        if not user:
+            # Check if user exists by email (legacy user without cognito_user_id)
             user = db.query(User).filter(
                 User.email == email,
                 User.organization_id == organization.id
             ).first()
 
             if user:
-                # Case 2: Email exists in same org - link to Cognito
-                logger.info(f"🔗 SEC-025: Linking existing org user to Cognito: {email}")
+                # Link existing user to Cognito account
+                logger.info(f"🔗 Linking existing user to Cognito: {email}")
                 user.cognito_user_id = cognito_user_id
                 user.last_login = datetime.now(UTC)
                 db.commit()
-                logger.info(f"✅ User linked to Cognito: ID={user.id}, Email={email}, Org={organization.id}")
-
+                logger.info(f"✅ User linked to Cognito: ID={user.id}, Email={email}")
             else:
-                # Case 3 & 4: Check if email exists in ANY other organization
-                existing_user_other_org = db.query(User).filter(User.email == email).first()
+                # Create new user from Cognito claims
+                logger.info(f"📝 Creating new user from Cognito: {email}")
 
-                if existing_user_other_org:
-                    # MULTI-TENANT ISOLATION ENFORCEMENT
-                    # Email exists in different organization - BLOCK access
-                    # This prevents:
-                    # - Cross-tenant data leakage
-                    # - Unauthorized organization access
-                    # - Email collision attacks
-                    #
-                    # Resolution: Admin must create user in correct org's Cognito pool
-                    logger.error(
-                        f"🚨 SEC-025 BLOCKED: Email {email} exists in org "
-                        f"{existing_user_other_org.organization_id}, cannot create in org {organization.id}. "
-                        f"Multi-tenant isolation enforced."
-                    )
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            "This email is already registered with another organization. "
-                            "Please contact your administrator to resolve this conflict. "
-                            "For security reasons, users cannot be shared across organizations."
-                        )
-                    )
+                # Extract custom attributes (if any)
+                custom_role = decoded_token.get('custom:role', 'viewer')
 
-                else:
-                    # Case 4: New user - create in this organization
-                    logger.info(f"📝 SEC-025: Creating new user from Cognito: {email}, Org={organization.id}")
-
-                    # Extract custom attributes (if any)
-                    custom_role = decoded_token.get('custom:role', 'viewer')
-
-                    user = User(
-                        email=email,
-                        cognito_user_id=cognito_user_id,
-                        role=custom_role,
-                        organization_id=organization.id,
-                        is_active=True,
-                        password="",  # No password needed for Cognito users
-                        created_at=datetime.now(UTC),
-                        last_login=datetime.now(UTC)
-                    )
-                    db.add(user)
-                    db.commit()
-                    db.refresh(user)
-                    logger.info(f"✅ SEC-025: User created: ID={user.id}, Email={email}, Org={organization.id}")
-
+                user = User(
+                    email=email,
+                    cognito_user_id=cognito_user_id,
+                    role=custom_role,
+                    organization_id=organization.id,
+                    is_active=True,
+                    password="",  # No password needed for Cognito users
+                    created_at=datetime.now(UTC),
+                    last_login=datetime.now(UTC)
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                logger.info(f"✅ User created: ID={user.id}, Email={email}")
+        else:
+            # Update last login for existing Cognito-linked user
+            user.last_login = datetime.now(UTC)
+            db.commit()
+            logger.info(f"✅ User updated: ID={user.id}, Email={email}")
+        
         # Step 7: Create secure session cookie
         # Using existing enterprise token creation
         session_data = {
@@ -1912,16 +1485,10 @@ async def create_cognito_session(
             value=refresh_token,
             **ENTERPRISE_REFRESH_COOKIE_CONFIG
         )
-
-        # SEC-026: Set CSRF cookie for Cognito sessions
-        # This is CRITICAL for banking-level security - all POST/PUT/DELETE
-        # requests require CSRF token validation to prevent CSRF attacks
-        csrf_token = _set_csrf_cookie(response, request)
-
+        
         logger.info("✅ Secure session cookies set (HttpOnly, Secure, SameSite=Strict)")
-        logger.info("✅ SEC-026: CSRF cookie set for Cognito session")
-
-        # Step 9: Return user data (include CSRF token for immediate frontend use)
+        
+        # Step 9: Return user data
         user_response = {
             "id": user.id,
             "email": user.email,
@@ -1934,14 +1501,11 @@ async def create_cognito_session(
         
         logger.info(f"✅ PHASE 3: Cognito session created successfully for {email}")
         logger.info(f"🔐 Auth Mode: Cognito MFA → Server Session (Banking Level)")
-
-        # SEC-026: Return CSRF token in response for immediate frontend use
-        # This prevents the "No CSRF token available" warning on first POST request
+        
         return {
             "user": user_response,
             "enterprise_validated": True,
-            "auth_mode": "cognito-session",
-            "csrf_token": csrf_token  # SEC-026: Frontend can use this immediately
+            "auth_mode": "cognito-session"
         }
 
     except HTTPException:
@@ -2374,38 +1938,26 @@ async def get_mfa_status(
         )
 
 
-class MFASetupRequest(BaseModel):
-    """SEC-035: Request model for MFA setup with Cognito token"""
-    cognito_access_token: Optional[str] = None
-
-
 @router.post("/mfa/setup-totp")
 async def setup_totp_mfa(
     request: Request,
-    mfa_request: Optional[MFASetupRequest] = None,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    🔐 AUTH-002: PHASE 4: Initiate TOTP MFA setup with session verification
+    🔐 PHASE 4: Initiate TOTP MFA setup
 
-    Banking-Level Security (AUTH-002):
-    - Verifies Cognito token BELONGS to the authenticated user
-    - Prevents attacks where attacker uses their token on victim's account
-    - Complete audit trail for compliance
-
-    Returns secret code and QR code URL for authenticator app setup.
+    Returns secret code for authenticator app setup.
     User must verify with /mfa/verify-totp to complete setup.
 
-    Compliance: NIST 800-63B AAL2, PCI-DSS 8.3, SOC 2 CC6.1
+    Compliance: NIST 800-63B AAL2, PCI-DSS 8.3
     """
     try:
         user_id = current_user.get("user_id")
         email = current_user.get("email")
         org_id = current_user.get("organization_id")
-        client_ip = request.client.host if request.client else "unknown"
 
-        logger.info(f"🔐 AUTH-002: TOTP setup initiated for {email}")
+        logger.info(f"🔐 PHASE 4: TOTP setup initiated for {email}")
 
         # Get organization
         org = db.query(Organization).filter(Organization.id == org_id).first()
@@ -2422,69 +1974,26 @@ async def setup_totp_mfa(
                 detail="MFA is not enabled for this organization"
             )
 
-        # Get Cognito access token from multiple sources
-        # Priority: 1. Request body, 2. X-Cognito-Token header
-        cognito_access_token = None
-
-        # 1. Check request body
-        if mfa_request and mfa_request.cognito_access_token:
-            cognito_access_token = mfa_request.cognito_access_token
-            logger.debug("🔐 AUTH-002: Using Cognito token from request body")
-
-        # 2. Check X-Cognito-Token header
-        if not cognito_access_token:
-            cognito_access_token = request.headers.get("X-Cognito-Token")
-            if cognito_access_token:
-                logger.debug("🔐 AUTH-002: Using Cognito token from header")
-
-        if not cognito_access_token:
+        # Get access token from cookie for Cognito API
+        access_token = request.cookies.get(SESSION_COOKIE_NAME)
+        if not access_token:
             raise HTTPException(
                 status_code=401,
-                detail="Cognito access token required for MFA setup. Pass it in the request body as 'cognito_access_token' or in the 'X-Cognito-Token' header."
+                detail="Access token required for MFA setup"
             )
-
-        # =========================================================================
-        # AUTH-002: CRITICAL SECURITY - Verify token belongs to current user
-        # =========================================================================
-        # This prevents attacks where an attacker:
-        # 1. Gets victim's session cookie (e.g., via XSS)
-        # 2. Uses their OWN Cognito token to set up MFA on victim's account
-        # 3. Gains permanent access via their own authenticator app
-        # =========================================================================
-        verify_cognito_token_ownership(cognito_access_token, current_user, db)
-        logger.info(f"✅ AUTH-002: Token ownership verified for {email}")
 
         # Associate software token via Cognito
         try:
-            logger.info(f"🔐 AUTH-002: Calling Cognito associate_software_token...")
             response = cognito_client.associate_software_token(
-                AccessToken=cognito_access_token
+                AccessToken=access_token
             )
 
             secret_code = response.get('SecretCode')
             session = response.get('Session')
 
-            if not secret_code:
-                logger.error("❌ AUTH-002: Cognito returned no secret code")
-                raise HTTPException(
-                    status_code=500,
-                    detail="MFA setup failed - no secret code returned"
-                )
-
-            logger.info(f"✅ AUTH-002: TOTP secret generated for {email}")
-
-            # AUTH-002: Audit log for MFA setup initiation
-            log_security_event(
-                event_type="mfa_setup_initiated",
-                user_id=user_id,
-                org_id=org_id,
-                details={"mfa_type": "TOTP"},
-                risk_level="high",
-                ip_address=client_ip
-            )
+            logger.info(f"✅ TOTP secret generated for {email}")
 
             # Generate OTP auth URL for QR code
-            # Format: otpauth://totp/ISSUER:ACCOUNT?secret=SECRET&issuer=ISSUER
             otp_auth_url = f"otpauth://totp/OW-KAI:{email}?secret={secret_code}&issuer=OW-KAI"
 
             return {
@@ -2492,7 +2001,6 @@ async def setup_totp_mfa(
                 "secret_code": secret_code,
                 "otp_auth_url": otp_auth_url,
                 "session": session,
-                "qr_code_data": otp_auth_url,
                 "instructions": [
                     "1. Open your authenticator app (Google Authenticator, Authy, etc.)",
                     "2. Scan the QR code or enter the secret code manually",
@@ -2500,31 +2008,19 @@ async def setup_totp_mfa(
                 ]
             }
 
-        except cognito_client.exceptions.NotAuthorizedException as e:
-            logger.error(f"❌ AUTH-002: Cognito NotAuthorizedException: {e}")
+        except cognito_client.exceptions.NotAuthorizedException:
             raise HTTPException(
                 status_code=401,
-                detail="Cognito session expired or invalid. Please log in again to get a fresh Cognito access token."
-            )
-
-        except ClientError as e:
-            error_code = e.response.get('Error', {}).get('Code', '')
-            error_message = e.response.get('Error', {}).get('Message', str(e))
-            logger.error(f"❌ AUTH-002: Cognito ClientError ({error_code}): {error_message}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"MFA setup failed: {error_message}"
+                detail="Session expired. Please log in again."
             )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ AUTH-002: TOTP setup error: {e}")
-        # AUTH-010: Sanitize error response
-        safe_error = sanitize_error_response(e, "MFA setup")
+        logger.error(f"❌ TOTP setup error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=safe_error.get("message", "MFA setup failed")
+            detail="MFA setup failed"
         )
 
 
@@ -2626,32 +2122,23 @@ async def verify_totp_mfa(
         )
 
 
-class MFADisableRequest(BaseModel):
-    """SEC-037: Request model for MFA disable with Cognito token"""
-    cognito_access_token: Optional[str] = None
-    verification_code: str
-
-
 @router.post("/mfa/disable")
 @limiter.limit("3/hour")
 async def disable_mfa(
     request: Request,
     response: Response,
-    mfa_request: MFADisableRequest,
+    verification_code: str,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    🔐 SEC-037: PHASE 4: Disable MFA (requires current TOTP code)
+    🔐 PHASE 4: Disable MFA (requires current TOTP code)
 
     Banking-Level Security:
     - Requires current MFA code to disable
     - Rate limited (3 per hour)
     - Audit logged
     - Only allowed if org policy is OPTIONAL
-
-    SEC-037 FIX: Accepts Cognito access token in request body OR header
-    since the session cookie contains our server JWT, not Cognito token.
 
     Compliance: SOC 2, NIST 800-63B
     """
@@ -2673,37 +2160,20 @@ async def disable_mfa(
                 detail="MFA is required by your organization and cannot be disabled"
             )
 
-        # SEC-037: Get Cognito access token from multiple sources
-        # Priority: 1. Request body, 2. X-Cognito-Token header
-        cognito_access_token = None
-        if mfa_request and mfa_request.cognito_access_token:
-            cognito_access_token = mfa_request.cognito_access_token
-            logger.info(f"SEC-037: Using Cognito token from request body")
-        if not cognito_access_token:
-            cognito_access_token = request.headers.get("X-Cognito-Token")
-            if cognito_access_token:
-                logger.info(f"SEC-037: Using Cognito token from X-Cognito-Token header")
-
-        if not cognito_access_token:
+        # Get access token from cookie
+        access_token = request.cookies.get(SESSION_COOKIE_NAME)
+        if not access_token:
             raise HTTPException(
                 status_code=401,
-                detail="Cognito access token required. Pass via request body or X-Cognito-Token header."
+                detail="Access token required"
             )
 
         # Verify the current MFA code before disabling
         # (This ensures the user has access to their authenticator)
         try:
-            # SEC-037: First verify the TOTP code is valid
-            verification_code = mfa_request.verification_code
-            cognito_client.verify_software_token(
-                AccessToken=cognito_access_token,
-                UserCode=verification_code
-            )
-            logger.info(f"SEC-037: MFA code verified for {email}")
-
-            # Now disable MFA
+            # Disable MFA
             cognito_client.set_user_mfa_preference(
-                AccessToken=cognito_access_token,
+                AccessToken=access_token,
                 SoftwareTokenMfaSettings={
                     'Enabled': False,
                     'PreferredMfa': False

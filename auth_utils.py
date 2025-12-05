@@ -11,7 +11,13 @@ import bcrypt
 
 # ✅ SECURITY FIX: Import secure JWT decoder
 # Created by: OW-kai Engineer (Phase 2 Security Fixes - JWT Hardening)
-from security.jwt_security import secure_jwt_decode 
+from security.jwt_security import secure_jwt_decode
+
+# ============================================================================
+# SEC-081 PHASE 4: PASSWORD SERVICE INTEGRATION
+# ============================================================================
+# Import unified password service with Pepper + Argon2id
+from services.password_service import PasswordService
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +26,27 @@ security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    """Hash password with SHA-256 + bcrypt (fixes 72-byte limit)"""
-    # ✅ SECURITY FIX: Use explicit bcrypt cost factor for enterprise security
-    # Created by: OW-kai Engineer (Phase 2 Security Fixes - Password Hardening)
-    sha_digest = hashlib.sha256(password.encode('utf-8')).hexdigest()
-    salt = bcrypt.gensalt(rounds=BCRYPT_ROUNDS)  # ✅ SECURE: Explicit 14 rounds (2^14 iterations)
-    hashed = bcrypt.hashpw(sha_digest.encode('utf-8'), salt).decode('utf-8')
-    logger.info(f"Password hashed successfully (SHA-256+bcrypt with {BCRYPT_ROUNDS} rounds)")
+    """
+    Hash password using unified PasswordService (Pepper + Argon2id).
+
+    SEC-081 PHASE 4: Delegates to PasswordService for enterprise-grade hashing.
+
+    Security:
+    - Layer 1: HMAC-SHA256 with pepper (defense against DB compromise)
+    - Layer 2: Argon2id memory-hard hashing (OWASP 2024 recommended)
+
+    Args:
+        password: Plain text password
+
+    Returns:
+        Argon2id hash string
+
+    Compliance: NIST SP 800-63B, OWASP ASVS 2.4.4, PCI-DSS 8.2
+    """
+    # SEC-081: Delegate to PasswordService
+    password_service = PasswordService()
+    hashed = password_service.hash(password)
+    logger.info("SEC-081: Password hashed successfully with Pepper + Argon2id")
     return hashed
 
 
@@ -72,29 +92,77 @@ def decode_refresh_token(refresh_token: str):
         raise HTTPException(status_code=401, detail="Invalid refresh token")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password - supports both legacy and new hashes"""
-    import hashlib
+    """
+    Verify password using unified PasswordService.
 
-    # Try new method first (SHA-256 + bcrypt)
-    sha_digest = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
-    try:
-        if pwd_context.verify(sha_digest, hashed_password):
-            logger.info("Password verification: SUCCESS (new method)")
-            return True
-    except:
-        pass
+    SEC-081 PHASE 4: Delegates to PasswordService for unified verification.
 
-    # Fallback: Try legacy method (direct bcrypt) for old users
-    try:
-        if pwd_context.verify(plain_password, hashed_password):
-            logger.info("Password verification: SUCCESS (legacy method)")
-            logger.warning("User needs password rehash - using legacy bcrypt")
-            return True
-    except:
-        pass
+    Supports:
+    - Argon2id hashes (new)
+    - Bcrypt hashes (legacy, with SHA-256 or direct)
 
-    logger.info("Password verification: FAILED")
-    return False
+    Args:
+        plain_password: Plain text password to verify
+        hashed_password: Stored hash to verify against
+
+    Returns:
+        True if password matches, False otherwise
+
+    Note: For login flows, use verify_password_with_upgrade() instead
+          to enable transparent migration from bcrypt to Argon2id.
+    """
+    # SEC-081: Delegate to PasswordService
+    password_service = PasswordService()
+    is_valid = password_service.verify(plain_password, hashed_password)
+
+    if is_valid:
+        logger.info("SEC-081: Password verification SUCCESS")
+    else:
+        logger.info("SEC-081: Password verification FAILED")
+
+    return is_valid
+
+def verify_password_with_upgrade(plain_password: str, hashed_password: str) -> tuple[bool, str | None]:
+    """
+    Verify password and upgrade hash if needed (transparent migration).
+
+    SEC-081 PHASE 4: Use in login flows to automatically migrate legacy
+    bcrypt hashes to Argon2id + Pepper.
+
+    Args:
+        plain_password: Plain text password to verify
+        hashed_password: Stored hash to verify against
+
+    Returns:
+        Tuple of (is_valid, new_hash_or_none):
+        - If valid and needs upgrade: (True, new_argon2_hash)
+        - If valid and no upgrade needed: (True, None)
+        - If invalid: (False, None)
+
+    Example:
+        is_valid, new_hash = verify_password_with_upgrade(password, user.password)
+        if is_valid:
+            if new_hash:
+                # Update database with new hash (bcrypt → Argon2id migration)
+                user.password = new_hash
+                db.commit()
+            # Allow login
+        else:
+            # Reject login
+    """
+    # SEC-081: Delegate to PasswordService
+    password_service = PasswordService()
+    is_valid, new_hash = password_service.verify_and_upgrade(plain_password, hashed_password)
+
+    if is_valid:
+        if new_hash:
+            logger.info("SEC-081: Password verification SUCCESS with hash upgrade (bcrypt → Argon2id)")
+        else:
+            logger.info("SEC-081: Password verification SUCCESS (no upgrade needed)")
+    else:
+        logger.info("SEC-081: Password verification FAILED")
+
+    return is_valid, new_hash
 
 def decode_access_token(token: str):
     """Decode access token - used internally only"""

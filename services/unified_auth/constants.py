@@ -18,15 +18,17 @@ from typing import List
 # JWT CONFIGURATION (RS256 ONLY)
 # =============================================================================
 
-# Issuer - identifies tokens issued by Ascend platform
-# Per SEC-081 Modification 2: Updated branding to ascend.app
-ISSUER: str = os.getenv("JWT_ISSUER", "https://api.ascend.app")
+# Issuer - identifies tokens issued by this platform
+# SEC-081 Phase 4: Must match production URL for token validation
+# Future migration to ascend.app will require grace period (like HS256→RS256)
+ISSUER: str = os.getenv("JWT_ISSUER", "https://pilot.owkai.app")
 
-# Audiences - valid recipients of Ascend tokens
+# Audiences - valid recipients of platform tokens
+# SEC-081 Phase 4: Updated to match current production domain
 AUDIENCES: List[str] = [
-    "ascend-platform",
-    "ascend-api",
-    "ascend-dashboard",
+    "pilot.owkai.app",
+    "owkai-platform",
+    "owkai-api",
 ]
 
 # Algorithm - RS256 ONLY (asymmetric)
