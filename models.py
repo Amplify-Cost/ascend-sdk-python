@@ -54,7 +54,8 @@ class User(Base):
     # Note: Using existing last_login and login_attempts columns from production schema
 
     # PHASE 2: Multi-Tenancy - organization_id is part of email uniqueness constraint
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    # RBAC-002: Nullable for platform users (is_platform_user=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     is_org_admin = Column(Boolean, default=False, nullable=False)
 
     # SEC-046 Phase 2: User Profile Extended Fields
@@ -82,6 +83,15 @@ class User(Base):
     # SEC-071: Admin Console - MFA Status Tracking
     # Compliance: SOC 2 CC6.1, NIST IA-2, PCI-DSS 8.3
     mfa_enabled = Column(Boolean, default=False, nullable=False)
+
+    # RBAC-002: Platform User Support
+    # Compliance: SOC 2 CC6.1, NIST AC-2, PCI-DSS 7.1
+    # scope: 'platform' = Ascend internal staff, 'org' = tenant users
+    scope = Column(String(20), default='org', nullable=False, index=True)
+    is_platform_user = Column(Boolean, default=False, nullable=False, index=True)
+    # Validation (enforced at application level):
+    #   is_platform_user=True  → organization_id MUST be NULL, scope='platform'
+    #   is_platform_user=False → organization_id MUST be NOT NULL, scope='org'
 
     # Relationships
 
