@@ -24,16 +24,11 @@ from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyRateLimit
 from dependencies import get_current_user
 from security.cookies import SESSION_COOKIE_NAME  # For JWT cookie authentication
 
-# SEC-092: Import TokenService for RS256-only JWT verification
-from services.token_service import (
-    get_token_service,
-    TenantContext,
-    TokenExpiredError,
-    InvalidClaimsError,
-    InvalidSignatureError,
-    InvalidAlgorithmError,
-    AuthenticationError,
-)
+# SEC-092 HOTFIX: Import Cognito validator for production JWT verification
+# The TokenService.verify() approach was incorrect - it only handles internal RS256 tokens
+# Production uses Cognito tokens signed with Cognito's RSA keys
+from dependencies_cognito import validate_cognito_token
+from jose import JWTError
 
 # Setup logging
 logger = logging.getLogger("enterprise.api_key_auth")
@@ -304,64 +299,46 @@ async def get_current_user_or_api_key(
         HTTPException: If neither authentication method succeeds
     """
     # 1. Try JWT first (admin UI)
-    # SEC-092: Use TokenService.verify() for RS256-only JWT verification
-    # This is the SAME verification used by working routes in dependencies.py
+    # SEC-092 HOTFIX: Use validate_cognito_token for Cognito JWT verification
+    # Previous fix incorrectly used TokenService.verify() which only handles internal RS256 tokens
     cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if cookie_jwt:
         try:
-            # SEC-092: RS256-only verification using TokenService
-            token_service = get_token_service()
-            client_ip = request.client.host if hasattr(request, 'client') and request.client else None
+            # SEC-092 HOTFIX: Cognito token verification using JWKS public keys
+            user_context = validate_cognito_token(cookie_jwt, db)
 
-            tenant_context: TenantContext = token_service.verify(
-                token=cookie_jwt,
-                expected_type="access",
-                client_ip=client_ip
-            )
+            # Extract required fields from Cognito context
+            user_id = user_context.get("user_id")
+            organization_id = user_context.get("organization_id")
+            cognito_user_id = user_context.get("cognito_user_id")
 
-            # SEC-092: Convert TenantContext to dict with expected keys
-            user_id = tenant_context.user_id
-            organization_id = tenant_context.org_id
+            # SEC-092 HOTFIX: Lookup database user if needed
+            if user_id is None and cognito_user_id:
+                user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
+                if user:
+                    user_id = user.id
+                    organization_id = user.organization_id
 
-            logger.debug(f"✅ SEC-092: Authenticated via JWT cookie (RS256): user_id={user_id}, org_id={organization_id}")
+            logger.debug(f"✅ SEC-092 HOTFIX: Authenticated via JWT cookie (Cognito): user_id={user_id}, org_id={organization_id}")
 
             return {
                 "user_id": user_id,
-                "sub": str(user_id),
-                "email": None,  # Not in TenantContext - populated from database if needed
-                "role": tenant_context.role,
+                "sub": str(cognito_user_id) if cognito_user_id else str(user_id),
+                "email": user_context.get("email"),
+                "role": user_context.get("role", "user"),
                 "organization_id": organization_id,
                 "org_id": organization_id,
-                "tenant_id": tenant_context.tenant_id,
-                "permissions": list(tenant_context.permissions),
-                "session_id": tenant_context.session_id,
-                "jti": tenant_context.token_jti,
-                "cognito_sub": None,  # SEC-092: Cognito sub not in RS256 tokens
+                "cognito_sub": cognito_user_id,
                 "auth_method": "cookie",
             }
-        except TokenExpiredError:
-            logger.debug("SEC-092: JWT cookie expired")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired - please login again"
-            )
-        except (InvalidSignatureError, InvalidAlgorithmError) as e:
-            logger.warning(f"SEC-092: JWT cookie signature/algorithm error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token signature"
-            )
-        except InvalidClaimsError as e:
-            logger.warning(f"SEC-092: JWT cookie claims error: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token claims"
-            )
-        except AuthenticationError as e:
-            logger.debug(f"SEC-092: JWT cookie authentication failed: {e}")
+        except HTTPException:
+            # Re-raise HTTP exceptions (401, 403, etc.)
+            raise
+        except JWTError as e:
+            logger.debug(f"SEC-092 HOTFIX: JWT cookie validation failed: {e}")
             pass  # Try next method
         except Exception as e:
-            logger.debug(f"SEC-092: JWT cookie verification failed: {e}")
+            logger.debug(f"SEC-092 HOTFIX: JWT cookie verification failed: {e}")
             pass  # Try next method
 
     # Check Authorization header for JWT or API key
@@ -375,54 +352,42 @@ async def get_current_user_or_api_key(
         is_jwt = token.count('.') == 2
 
         if is_jwt:
-            # SEC-092: RS256-only JWT verification using TokenService
+            # SEC-092 HOTFIX: Cognito JWT verification using JWKS public keys
             try:
-                token_service = get_token_service()
-                client_ip = request.client.host if hasattr(request, 'client') and request.client else None
+                user_context = validate_cognito_token(token, db)
 
-                tenant_context: TenantContext = token_service.verify(
-                    token=token,
-                    expected_type="access",
-                    client_ip=client_ip
-                )
+                # Extract required fields from Cognito context
+                user_id = user_context.get("user_id")
+                organization_id = user_context.get("organization_id")
+                cognito_user_id = user_context.get("cognito_user_id")
 
-                # SEC-092: Convert TenantContext to dict with expected keys
-                user_id = tenant_context.user_id
-                organization_id = tenant_context.org_id
+                # SEC-092 HOTFIX: Lookup database user if needed
+                if user_id is None and cognito_user_id:
+                    user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
+                    if user:
+                        user_id = user.id
+                        organization_id = user.organization_id
 
-                logger.debug(f"✅ SEC-092: Authenticated via JWT bearer (RS256): user_id={user_id}, org_id={organization_id}")
+                logger.debug(f"✅ SEC-092 HOTFIX: Authenticated via JWT bearer (Cognito): user_id={user_id}, org_id={organization_id}")
 
                 return {
                     "user_id": user_id,
-                    "sub": str(user_id),
-                    "email": None,  # Not in TenantContext - populated from database if needed
-                    "role": tenant_context.role,
+                    "sub": str(cognito_user_id) if cognito_user_id else str(user_id),
+                    "email": user_context.get("email"),
+                    "role": user_context.get("role", "user"),
                     "organization_id": organization_id,
                     "org_id": organization_id,
-                    "tenant_id": tenant_context.tenant_id,
-                    "permissions": list(tenant_context.permissions),
-                    "session_id": tenant_context.session_id,
-                    "jti": tenant_context.token_jti,
-                    "cognito_sub": None,  # SEC-092: Cognito sub not in RS256 tokens
+                    "cognito_sub": cognito_user_id,
                     "auth_method": "bearer",
                 }
-            except TokenExpiredError:
-                logger.debug("SEC-092: JWT bearer token expired")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has expired - please login again"
-                )
-            except (InvalidSignatureError, InvalidAlgorithmError) as e:
-                logger.warning(f"SEC-092: JWT bearer signature/algorithm error: {e}")
-                pass  # Try API key - might be an API key that looks like JWT
-            except InvalidClaimsError as e:
-                logger.warning(f"SEC-092: JWT bearer claims error: {e}")
-                pass  # Try API key
-            except AuthenticationError as e:
-                logger.debug(f"SEC-092: JWT bearer authentication failed: {e}")
+            except HTTPException:
+                # Re-raise HTTP exceptions (401, 403, etc.)
+                raise
+            except JWTError as e:
+                logger.debug(f"SEC-092 HOTFIX: JWT bearer validation failed: {e}")
                 pass  # Try API key
             except Exception as e:
-                logger.debug(f"SEC-092: JWT bearer verification failed: {e}")
+                logger.debug(f"SEC-092 HOTFIX: JWT bearer verification failed: {e}")
                 pass  # Try API key
 
         # 2. Try API key (non-JWT Bearer token)
