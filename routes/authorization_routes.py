@@ -2207,6 +2207,15 @@ async def create_agent_action_api(
     org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Multi-tenant isolation
 ):
     """
+    DEPRECATED: Use POST /api/v1/actions/submit instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: POST /api/authorization/agent-action
+    - New: POST /api/v1/actions/submit
+    - Same request/response format, improved unified architecture
+
     Create agent action via API (for external agents/simulators)
 
     This endpoint processes RAW agent actions through the full platform workflow:
@@ -2220,6 +2229,18 @@ async def create_agent_action_api(
     SEC-020: organization_id set automatically from authenticated user for multi-tenant isolation
     Endpoint: POST /api/authorization/agent-action
     """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "POST /api/authorization/agent-action is deprecated. Use POST /api/v1/actions/submit instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        "⚠️ DEPRECATED ENDPOINT CALLED: POST /api/authorization/agent-action - "
+        "Please migrate to POST /api/v1/actions/submit (Sunset: 2025-06-01)"
+    )
+
     try:
         data = await request.json()
 
@@ -2381,9 +2402,11 @@ async def create_agent_action_api(
             alert_triggered = True
 
         # ===================================================================
-        # RETURN: Platform's decision
+        # RETURN: Platform's decision with deprecation headers
         # ===================================================================
-        return {
+        from fastapi.responses import JSONResponse
+
+        response_data = {
             "id": action.id,
             "agent_id": action.agent_id,
             "status": action.status,
@@ -2393,6 +2416,13 @@ async def create_agent_action_api(
             "alert_triggered": alert_triggered,
             "message": f"Action processed through platform workflow - Risk: {action.risk_score}"  # ENTERPRISE FIX: Return updated score
         }
+
+        response = JSONResponse(content=response_data)
+        response.headers["X-Deprecation-Warning"] = "This endpoint is deprecated. Use POST /api/v1/actions/submit instead."
+        response.headers["Sunset"] = "Wed, 01 Jun 2025 00:00:00 GMT"
+        response.headers["Link"] = '</api/v1/actions/submit>; rel="alternate"'
+
+        return response
 
     except HTTPException:
         raise

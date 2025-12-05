@@ -17,7 +17,7 @@ from sqlalchemy import text
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, UTC
-from dependencies import verify_token, get_db, require_admin, get_organization_filter
+from dependencies import verify_token, get_db, require_admin
 from services.retention_policy_service import RetentionPolicyService
 import logging
 
@@ -38,8 +38,7 @@ class CleanupRequest(BaseModel):
 
 @router.get("/retention/health")
 def get_retention_health(
-    db: Session = Depends(get_db),
-    org_id: int = Depends(get_organization_filter)
+    db: Session = Depends(get_db)
 ):
     """
     Enterprise Health Check for Retention Policy Service
@@ -51,7 +50,6 @@ def get_retention_health(
     - Database connectivity verification
     - Service availability monitoring
     - System metrics for monitoring/alerting
-    - Multi-tenant isolation
     """
     try:
         # Check database connectivity (SQLAlchemy 2.0 requires text() wrapper)
@@ -59,15 +57,8 @@ def get_retention_health(
 
         # Get basic statistics
         from models_audit import ImmutableAuditLog
-        query = db.query(ImmutableAuditLog)
+        total_logs = db.query(ImmutableAuditLog).count()
 
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(ImmutableAuditLog.organization_id == org_id)
-
-        total_logs = query.count()
-
-        logger.info(f"Retention health check completed [org_id={org_id}]")
         return {
             "status": "healthy",
             "service": "retention_policy",
@@ -76,14 +67,13 @@ def get_retention_health(
             "timestamp": datetime.now(UTC).isoformat()
         }
     except Exception as e:
-        logger.error(f"Retention health check failed [org_id={org_id}]: {str(e)}")
+        logger.error(f"Retention health check failed: {str(e)}")
         raise HTTPException(status_code=503, detail=f"Service unavailable: {str(e)}")
 
 @router.get("/retention/statistics")
 def get_retention_statistics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_token),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(verify_token)
 ):
     """
     Get statistics about retention status of audit logs
@@ -95,13 +85,9 @@ def get_retention_statistics(
         - Expired logs
         - Legal hold logs
         - Eligible for deletion
-
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
-        logger.info(f"Fetching retention statistics [org_id={org_id}]")
-        service = RetentionPolicyService(db, organization_id=org_id)
+        service = RetentionPolicyService(db)
         stats = service.get_retention_statistics()
 
         return {
@@ -109,15 +95,13 @@ def get_retention_statistics(
             "statistics": stats
         }
     except Exception as e:
-        logger.error(f"Failed to get retention statistics [org_id={org_id}]: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
 
 @router.post("/retention/backfill")
 def backfill_retention_dates(
     batch_size: int = Query(1000, ge=1, le=10000),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Backfill retention dates for logs without them
@@ -129,22 +113,17 @@ def backfill_retention_dates(
         Statistics about backfill operation
 
     Security: Admin only
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
-        logger.info(f"Starting retention backfill (batch_size={batch_size}) [org_id={org_id}]")
-        service = RetentionPolicyService(db, organization_id=org_id)
+        service = RetentionPolicyService(db)
         result = service.backfill_retention_dates(batch_size=batch_size)
 
-        logger.info(f"Backfill completed: {result['updated']} logs updated [org_id={org_id}]")
         return {
             "status": "success",
             "result": result,
             "message": f"Backfilled {result['updated']} logs"
         }
     except Exception as e:
-        logger.error(f"Backfill failed [org_id={org_id}]: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Backfill failed: {str(e)}")
 
 @router.get("/retention/expired")
@@ -152,8 +131,7 @@ def get_expired_logs(
     exclude_legal_hold: bool = Query(True),
     limit: int = Query(100, ge=1, le=1000),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(verify_token),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(verify_token)
 ):
     """
     List audit logs that have passed their retention period
@@ -164,13 +142,9 @@ def get_expired_logs(
 
     Returns:
         List of expired logs with details
-
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
-        logger.info(f"Fetching expired logs (exclude_legal_hold={exclude_legal_hold}, limit={limit}) [org_id={org_id}]")
-        service = RetentionPolicyService(db, organization_id=org_id)
+        service = RetentionPolicyService(db)
         expired_logs = service.find_expired_logs(exclude_legal_hold=exclude_legal_hold)
 
         # Limit results
@@ -191,22 +165,19 @@ def get_expired_logs(
                 "compliance_tags": log.compliance_tags
             })
 
-        logger.info(f"Found {len(logs_data)} expired logs [org_id={org_id}]")
         return {
             "status": "success",
             "count": len(logs_data),
             "logs": logs_data
         }
     except Exception as e:
-        logger.error(f"Failed to get expired logs [org_id={org_id}]: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get expired logs: {str(e)}")
 
 @router.post("/retention/cleanup")
 def cleanup_expired_logs(
     request: CleanupRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Execute retention cleanup to delete expired logs
@@ -220,12 +191,9 @@ def cleanup_expired_logs(
 
     Security: Admin only
     WARNING: Actual deletion breaks hash chain
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
-        logger.info(f"Starting retention cleanup (dry_run={request.dry_run}, max_delete={request.max_delete}) [org_id={org_id}]")
-        service = RetentionPolicyService(db, organization_id=org_id)
+        service = RetentionPolicyService(db)
         result = service.cleanup_expired_logs(
             dry_run=request.dry_run,
             max_delete=request.max_delete
@@ -233,10 +201,8 @@ def cleanup_expired_logs(
 
         if request.dry_run:
             message = f"DRY RUN: Would delete {result['would_delete']} logs"
-            logger.info(f"Cleanup dry run completed [org_id={org_id}]")
         else:
             message = f"DELETED {result['deleted']} expired logs"
-            logger.warning(f"Cleanup executed: {result['deleted']} logs deleted [org_id={org_id}]")
 
         return {
             "status": "success",
@@ -245,15 +211,13 @@ def cleanup_expired_logs(
             "warning": "Actual deletion breaks hash chain" if not request.dry_run else None
         }
     except Exception as e:
-        logger.error(f"Cleanup failed [org_id={org_id}]: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
 
 @router.post("/retention/legal-hold")
 def apply_legal_hold(
     request: LegalHoldRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Apply legal hold to specific audit logs
@@ -266,8 +230,6 @@ def apply_legal_hold(
         Statistics about applied holds
 
     Security: Admin only
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
         if not request.log_ids:
@@ -276,15 +238,13 @@ def apply_legal_hold(
         if not request.reason:
             raise HTTPException(status_code=400, detail="reason is required")
 
-        logger.info(f"Applying legal hold to {len(request.log_ids)} logs [org_id={org_id}]")
-        service = RetentionPolicyService(db, organization_id=org_id)
+        service = RetentionPolicyService(db)
         result = service.apply_legal_hold(
             log_ids=request.log_ids,
             reason=request.reason,
             applied_by=current_user.get('email', 'unknown')
         )
 
-        logger.info(f"Legal hold applied to {result['applied']} logs [org_id={org_id}]")
         return {
             "status": "success",
             "result": result,
@@ -293,15 +253,13 @@ def apply_legal_hold(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Legal hold failed [org_id={org_id}]: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Legal hold failed: {str(e)}")
 
 @router.post("/retention/legal-hold/release")
 def release_legal_hold(
     request: LegalHoldReleaseRequest,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Release legal hold from audit logs
@@ -313,21 +271,17 @@ def release_legal_hold(
         Statistics about released holds
 
     Security: Admin only
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
         if not request.log_ids:
             raise HTTPException(status_code=400, detail="log_ids is required")
 
-        logger.info(f"Releasing legal hold from {len(request.log_ids)} logs [org_id={org_id}]")
-        service = RetentionPolicyService(db, organization_id=org_id)
+        service = RetentionPolicyService(db)
         result = service.release_legal_hold(
             log_ids=request.log_ids,
             released_by=current_user.get('email', 'unknown')
         )
 
-        logger.info(f"Legal hold released from {result['released']} logs [org_id={org_id}]")
         return {
             "status": "success",
             "result": result,
@@ -336,13 +290,11 @@ def release_legal_hold(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Hold release failed [org_id={org_id}]: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Hold release failed: {str(e)}")
 
 @router.get("/retention/job-status")
 def get_retention_job_status(
-    current_user: dict = Depends(verify_token),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(verify_token)
 ):
     """
     Get status of the automated retention cleanup job
@@ -359,13 +311,10 @@ def get_retention_job_status(
         - total_deleted: Total number of records deleted (all time)
 
     Security: Requires authentication
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
         from jobs.retention_cleanup_job import get_scheduler_status
 
-        logger.info(f"Fetching retention job status [org_id={org_id}]")
         status = get_scheduler_status()
 
         return {
@@ -374,13 +323,12 @@ def get_retention_job_status(
             "timestamp": datetime.now(UTC).isoformat()
         }
     except Exception as e:
-        logger.error(f"Failed to get scheduler status [org_id={org_id}]: {str(e)}")
+        logger.error(f"Failed to get scheduler status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
 
 @router.post("/retention/trigger-manual-cleanup")
 def trigger_manual_retention_cleanup(
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Manually trigger retention cleanup job (admin only)
@@ -395,24 +343,20 @@ def trigger_manual_retention_cleanup(
         Result of cleanup execution
 
     Security: Admin only
-    Enterprise Features:
-    - Multi-tenant data isolation
     """
     try:
         from jobs.retention_cleanup_job import trigger_manual_cleanup
 
-        user_email = current_user.get('email', 'unknown')
-        logger.info(f"Manual retention cleanup triggered by {user_email} [org_id={org_id}]")
+        logger.info(f"Manual retention cleanup triggered by {current_user.get('email', 'unknown')}")
 
         result = trigger_manual_cleanup()
 
-        logger.info(f"Manual cleanup completed [org_id={org_id}]")
         return {
             "status": "success",
             "result": result,
-            "triggered_by": user_email,
+            "triggered_by": current_user.get('email', 'unknown'),
             "timestamp": datetime.now(UTC).isoformat()
         }
     except Exception as e:
-        logger.error(f"Manual cleanup failed [org_id={org_id}]: {str(e)}")
+        logger.error(f"Manual cleanup failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Manual cleanup failed: {str(e)}")

@@ -15,7 +15,7 @@ from schemas.risk_config import RiskConfigCreate, RiskConfigResponse, RiskConfig
 from services.risk_config_validator import validate_risk_config
 from services.risk_config_loader import clear_config_cache
 from services.immutable_audit_service import ImmutableAuditService
-from typing import List, Optional
+from typing import List
 from datetime import datetime, UTC
 import logging
 
@@ -26,79 +26,34 @@ router = APIRouter(prefix="/api/risk-scoring", tags=["Risk Scoring Configuration
 def get_active_config(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    org_id: Optional[int] = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get currently active risk scoring configuration
 
     **RBAC:** Admin only
-    **Multi-tenant:** Filtered by organization
     **Returns:** Active configuration or factory default
+    **SEC-082:** Multi-tenant organization filtering
     """
     try:
-        query = db.query(RiskScoringConfig).filter(
-            RiskScoringConfig.is_active == True
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(RiskScoringConfig.organization_id == org_id)
-
-        active_config = query.first()
+        active_config = db.query(RiskScoringConfig).filter(
+            RiskScoringConfig.is_active == True,
+            RiskScoringConfig.organization_id == org_id
+        ).first()
 
         if not active_config:
-            # 🏢 ENTERPRISE: Return factory default configuration instead of 404
-            # This ensures the Risk Configuration tab always loads with sensible defaults
-            logger.info(f"No active config found for org_id={org_id}, returning factory default")
-            return {
-                "id": 0,  # Synthetic ID indicating factory default
-                "config_version": "1.0.0-default",
-                "algorithm_version": "2.0.0",
-                "environment_weights": {
-                    "production": 150,
-                    "staging": 120,
-                    "development": 80
-                },
-                "action_weights": {
-                    "database_write": 90,
-                    "database_delete": 100,
-                    "system_command": 85,
-                    "file_access": 70,
-                    "network_request": 60
-                },
-                "resource_multipliers": {
-                    "pii_data": 1.3,
-                    "financial": 1.4,
-                    "health_records": 1.5,
-                    "credentials": 1.6
-                },
-                "pii_weights": {
-                    "contains_ssn": 150,
-                    "contains_email": 110,
-                    "contains_phone": 120,
-                    "contains_address": 115
-                },
-                "component_percentages": {
-                    "cvss_weight": 40,
-                    "policy_weight": 30,
-                    "context_weight": 30
-                },
-                "description": "Factory default configuration - customize as needed",
-                "is_active": False,
-                "is_default": True,
-                "created_at": datetime.now(UTC),
-                "created_by": "system",
-                "activated_at": None,
-                "activated_by": None
-            }
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No active configuration found"
+            )
 
-        logger.info(f"Active config v{active_config.config_version} retrieved by {admin_user['email']} [org_id={org_id}]")
+        logger.info(f"Active config v{active_config.config_version} retrieved by {admin_user['email']}")
         return active_config
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to retrieve active config: {str(e)} [org_id={org_id}]")
+        logger.error(f"Failed to retrieve active config: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve configuration"
@@ -109,36 +64,32 @@ def get_config_history(
     limit: int = 10,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    org_id: Optional[int] = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter)
 ):
     """
     Get configuration history (most recent first)
 
     **RBAC:** Admin only
-    **Multi-tenant:** Filtered by organization
     **Params:** limit (default 10, max 50)
     **Returns:** List of configurations ordered by creation date
+    **SEC-082:** Multi-tenant organization filtering
     """
     try:
         # Validate limit
         if limit > 50:
             limit = 50
 
-        query = db.query(RiskScoringConfig)
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(RiskScoringConfig.organization_id == org_id)
-
-        configs = query.order_by(
+        configs = db.query(RiskScoringConfig).filter(
+            RiskScoringConfig.organization_id == org_id
+        ).order_by(
             RiskScoringConfig.created_at.desc()
         ).limit(limit).all()
 
-        logger.info(f"Config history ({len(configs)} records) retrieved by {admin_user['email']} [org_id={org_id}]")
+        logger.info(f"Config history ({len(configs)} records) retrieved by {admin_user['email']}")
         return configs
 
     except Exception as e:
-        logger.error(f"Failed to retrieve config history: {str(e)} [org_id={org_id}]")
+        logger.error(f"Failed to retrieve config history: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve configuration history"
@@ -149,17 +100,17 @@ def create_config(
     config_data: RiskConfigCreate,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
-    org_id: Optional[int] = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Create new risk scoring configuration (does not activate)
 
     **RBAC:** Admin only
-    **Multi-tenant:** Associated with organization
     **CSRF:** Required
     **Validation:** Runs validation checks before creation
     **Returns:** Created configuration (is_active = False)
+    **SEC-082:** Multi-tenant organization filtering
     """
     try:
         # Validate configuration
@@ -167,7 +118,7 @@ def create_config(
         validation_result = validate_risk_config(config_dict)
 
         if not validation_result['valid']:
-            logger.warning(f"Config validation failed: {validation_result['errors']} [org_id={org_id}]")
+            logger.warning(f"Config validation failed: {validation_result['errors']}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -189,12 +140,9 @@ def create_config(
             description=config_data.description,
             is_active=False,
             is_default=False,
-            created_by=admin_user['email']
+            created_by=admin_user['email'],
+            organization_id=org_id  # SEC-082: Set organization ID
         )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            new_config.organization_id = org_id
 
         db.add(new_config)
         db.commit()
@@ -222,7 +170,7 @@ def create_config(
 
         logger.info(
             f"Config v{new_config.config_version} (ID: {new_config.id}) "
-            f"created by {admin_user['email']} with {len(validation_result['warnings'])} warnings [org_id={org_id}]"
+            f"created by {admin_user['email']} with {len(validation_result['warnings'])} warnings"
         )
 
         return new_config
@@ -230,7 +178,7 @@ def create_config(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to create config: {str(e)} [org_id={org_id}]")
+        logger.error(f"Failed to create config: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -242,32 +190,27 @@ def activate_config(
     config_id: int,
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
-    org_id: Optional[int] = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Activate a risk scoring configuration (deactivates previous)
 
     **RBAC:** Admin only
-    **Multi-tenant:** Scoped to organization
     **CSRF:** Required
     **Side Effects:**
       - Deactivates currently active config
       - Activates specified config
       - Clears config cache
       - Creates immutable audit log entry
+    **SEC-082:** Multi-tenant organization filtering
     """
     try:
         # Find config to activate
-        query = db.query(RiskScoringConfig).filter(
-            RiskScoringConfig.id == config_id
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(RiskScoringConfig.organization_id == org_id)
-
-        config_to_activate = query.first()
+        config_to_activate = db.query(RiskScoringConfig).filter(
+            RiskScoringConfig.id == config_id,
+            RiskScoringConfig.organization_id == org_id
+        ).first()
 
         if not config_to_activate:
             raise HTTPException(
@@ -276,19 +219,14 @@ def activate_config(
             )
 
         # Deactivate currently active config
-        current_active_query = db.query(RiskScoringConfig).filter(
-            RiskScoringConfig.is_active == True
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            current_active_query = current_active_query.filter(RiskScoringConfig.organization_id == org_id)
-
-        current_active = current_active_query.first()
+        current_active = db.query(RiskScoringConfig).filter(
+            RiskScoringConfig.is_active == True,
+            RiskScoringConfig.organization_id == org_id
+        ).first()
 
         if current_active:
             current_active.is_active = False
-            logger.info(f"Deactivated config v{current_active.config_version} (ID: {current_active.id}) [org_id={org_id}]")
+            logger.info(f"Deactivated config v{current_active.config_version} (ID: {current_active.id})")
 
         # Activate new config
         config_to_activate.is_active = True
@@ -325,7 +263,7 @@ def activate_config(
 
         logger.info(
             f"Config v{config_to_activate.config_version} (ID: {config_to_activate.id}) "
-            f"activated by {admin_user['email']} [org_id={org_id}]"
+            f"activated by {admin_user['email']}"
         )
 
         return config_to_activate
@@ -333,7 +271,7 @@ def activate_config(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to activate config: {str(e)} [org_id={org_id}]")
+        logger.error(f"Failed to activate config: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -343,14 +281,12 @@ def activate_config(
 @router.post("/config/validate", response_model=RiskConfigValidation)
 def validate_config(
     config_data: RiskConfigCreate,
-    admin_user: dict = Depends(require_admin),
-    org_id: Optional[int] = Depends(get_organization_filter)
+    admin_user: dict = Depends(require_admin)
 ):
     """
     Dry-run validation of risk scoring configuration (no DB write)
 
     **RBAC:** Admin only
-    **Multi-tenant:** Organization context for validation
     **Returns:** Validation result with errors and warnings
     **Use Case:** Preview validation before creating config
     """
@@ -362,13 +298,13 @@ def validate_config(
             f"Config validation dry-run by {admin_user['email']}: "
             f"valid={validation_result['valid']}, "
             f"errors={len(validation_result['errors'])}, "
-            f"warnings={len(validation_result['warnings'])} [org_id={org_id}]"
+            f"warnings={len(validation_result['warnings'])}"
         )
 
         return validation_result
 
     except Exception as e:
-        logger.error(f"Failed to validate config: {str(e)} [org_id={org_id}]")
+        logger.error(f"Failed to validate config: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to validate configuration"
@@ -378,32 +314,27 @@ def validate_config(
 def rollback_to_default(
     db: Session = Depends(get_db),
     admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
-    org_id: Optional[int] = Depends(get_organization_filter)
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
     """
     Emergency rollback to factory default configuration
 
     **RBAC:** Admin only
-    **Multi-tenant:** Scoped to organization
     **CSRF:** Required
     **Side Effects:**
       - Deactivates current config
       - Activates factory default (is_default = True)
       - Clears config cache
       - Creates audit log entry
+    **SEC-082:** Multi-tenant organization filtering
     """
     try:
         # Find factory default
-        factory_default_query = db.query(RiskScoringConfig).filter(
-            RiskScoringConfig.is_default == True
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            factory_default_query = factory_default_query.filter(RiskScoringConfig.organization_id == org_id)
-
-        factory_default = factory_default_query.first()
+        factory_default = db.query(RiskScoringConfig).filter(
+            RiskScoringConfig.is_default == True,
+            RiskScoringConfig.organization_id == org_id
+        ).first()
 
         if not factory_default:
             raise HTTPException(
@@ -412,19 +343,14 @@ def rollback_to_default(
             )
 
         # Deactivate current active config
-        current_active_query = db.query(RiskScoringConfig).filter(
-            RiskScoringConfig.is_active == True
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            current_active_query = current_active_query.filter(RiskScoringConfig.organization_id == org_id)
-
-        current_active = current_active_query.first()
+        current_active = db.query(RiskScoringConfig).filter(
+            RiskScoringConfig.is_active == True,
+            RiskScoringConfig.organization_id == org_id
+        ).first()
 
         if current_active and current_active.id != factory_default.id:
             current_active.is_active = False
-            logger.info(f"Deactivated config v{current_active.config_version} (ID: {current_active.id}) [org_id={org_id}]")
+            logger.info(f"Deactivated config v{current_active.config_version} (ID: {current_active.id})")
 
         # Activate factory default
         factory_default.is_active = True
@@ -461,7 +387,7 @@ def rollback_to_default(
 
         logger.warning(
             f"EMERGENCY ROLLBACK to factory default v{factory_default.config_version} "
-            f"by {admin_user['email']} [org_id={org_id}]"
+            f"by {admin_user['email']}"
         )
 
         return factory_default
@@ -469,7 +395,7 @@ def rollback_to_default(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to rollback to default: {str(e)} [org_id={org_id}]")
+        logger.error(f"Failed to rollback to default: {str(e)}")
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

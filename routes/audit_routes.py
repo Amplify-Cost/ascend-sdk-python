@@ -79,16 +79,15 @@ def get_audit_logs(
     offset: int = Query(0),
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_token),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Get audit logs with pagination"""
+    """Get audit logs with pagination (SEC-082: Multi-tenant isolation)"""
     try:
         from models_audit import ImmutableAuditLog
-        query = db.query(ImmutableAuditLog)
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
-        if org_id is not None:
-            query = query.filter(ImmutableAuditLog.organization_id == org_id)
+        # SEC-082: Filter by organization_id
+        query = db.query(ImmutableAuditLog).filter(
+            ImmutableAuditLog.organization_id == org_id
+        )
 
         total = query.count()
         logs = query.order_by(ImmutableAuditLog.timestamp.desc()).offset(offset).limit(limit).all()
@@ -145,21 +144,19 @@ def export_audit_logs_csv(
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_token),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Export audit logs to CSV format with compliance metadata"""
+    """Export audit logs to CSV format with compliance metadata (SEC-082: Multi-tenant isolation)"""
     try:
         import csv
         import io
         from fastapi.responses import StreamingResponse
         from models_audit import ImmutableAuditLog
 
-        # Build query with filters
-        query = db.query(ImmutableAuditLog)
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
-        if org_id is not None:
-            query = query.filter(ImmutableAuditLog.organization_id == org_id)
+        # Build query with filters (SEC-082: Add org filter)
+        query = db.query(ImmutableAuditLog).filter(
+            ImmutableAuditLog.organization_id == org_id
+        )
 
         if start_date:
             start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
@@ -236,9 +233,9 @@ def export_audit_logs_pdf(
     resource_type: Optional[str] = Query(None, description="Filter by resource type"),
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_token),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    org_id: int = Depends(get_organization_filter)
 ):
-    """Export audit logs to PDF format with professional formatting and compliance badges"""
+    """Export audit logs to PDF format with professional formatting and compliance badges (SEC-082: Multi-tenant isolation)"""
     try:
         import io
         import json
@@ -251,12 +248,10 @@ def export_audit_logs_pdf(
         from reportlab.platypus import Image as RLImage
         from models_audit import ImmutableAuditLog
 
-        # Build query with filters
-        query = db.query(ImmutableAuditLog)
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
-        if org_id is not None:
-            query = query.filter(ImmutableAuditLog.organization_id == org_id)
+        # Build query with filters (SEC-082: Add org filter)
+        query = db.query(ImmutableAuditLog).filter(
+            ImmutableAuditLog.organization_id == org_id
+        )
 
         if start_date:
             start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))

@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 import io
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, get_organization_filter
 from models_compliance_export import (
     ComplianceFramework,
     ExportFormat,

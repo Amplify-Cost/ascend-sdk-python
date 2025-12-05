@@ -20,16 +20,15 @@ from populate_mcp_data import generate_mcp_actions
 router = APIRouter(prefix="/mcp", tags=["mcp-enterprise-secure"])
 logger = logging.getLogger(__name__)
 
-# 🏢 ENTERPRISE: NO demo data - use database for real MCP actions
-# In-memory cache for recently processed actions (cleared periodically)
+# In-memory storage for demo (replace with database in production)
 mcp_actions_store = []
 
-# 🏢 ENTERPRISE: Removed demo data initialization
-# MCP actions should come from database, not hardcoded demo data
+# Initialize with demo data
 def initialize_demo_data():
-    """DEPRECATED: Demo data removed for enterprise security compliance"""
-    # Do not initialize any demo data - return empty list
-    logger.info("🏢 ENTERPRISE: Demo data disabled - using database for MCP actions")
+    global mcp_actions_store
+    if not mcp_actions_store:
+        mcp_actions_store = generate_mcp_actions()
+        logger.info(f"Initialized MCP demo data with {len(mcp_actions_store)} actions")
 
 # Security validation dependency
 async def validate_enterprise_security(
@@ -101,25 +100,25 @@ async def get_mcp_actions_secure(
     skip: int = 0,
     limit: int = 100
 ):
-    """
-    🏢 ENTERPRISE: Get MCP actions from database (NO demo data)
-    Returns empty list for organizations without MCP actions
-    """
-    # 🏢 ENTERPRISE: NO demo data - return empty list
-    # MCP actions should be queried from database with org_id filter
+    """Get MCP actions with real demo data"""
+    
+    # Initialize demo data if needed
+    initialize_demo_data()
+    
+    # Paginate results
     total = len(mcp_actions_store)
     actions = mcp_actions_store[skip:skip + limit]
-
-    logger.info("🏢 ENTERPRISE: MCP actions requested (no demo data)", extra={
+    
+    logger.info("MCP actions requested", extra={
         "user_id": getattr(current_user, 'id', 'unknown'),
         "total_actions": total,
         "returned_actions": len(actions)
     })
-
+    
     return {
         "actions": actions,
         "total": total,
-        "page": skip // limit if limit > 0 else 0,
+        "page": skip // limit,
         "limit": limit,
         "has_next": skip + limit < total
     }

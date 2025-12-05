@@ -80,7 +80,7 @@ def list_alerts(
                 "status": getattr(alert, 'status', 'new')
             })
         
-        logger.info(f"Retrieved {len(enriched_alerts)} alerts for user {user.get('email')}")
+        logger.info(f"📊 Retrieved {len(enriched_alerts)} alerts for user {user.get('email')} [org_id={org_id}]")
         return enriched_alerts
         
     except Exception as e:

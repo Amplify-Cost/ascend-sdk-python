@@ -12,16 +12,12 @@ Status: Production-ready
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Union
+from pydantic import BaseModel, Field
+from typing import Optional, List
 from datetime import datetime, timedelta, UTC
 import secrets
 import hashlib
 import logging
-import re
-
-# SEC-056: Import rate limiter for public endpoint protection
-from security.rate_limiter import limiter, RATE_LIMITS
 
 # Import dependencies
 from database import get_db
@@ -48,32 +44,6 @@ class PermissionRequest(BaseModel):
     actions: List[str] = Field(..., description="Allowed actions (e.g., ['create', 'read'])")
 
 
-def parse_permission_string(perm_str: str) -> PermissionRequest:
-    """
-    SEC-039: Parse permission string like "agent:read" into PermissionRequest
-
-    Supports formats:
-    - "category:action" -> {category: "category", actions: ["action"]}
-    - "category:*" -> {category: "category", actions: ["*"]}
-
-    Security: Input validation prevents injection attacks
-    """
-    if ":" not in perm_str:
-        raise ValueError(f"Invalid permission format: {perm_str}. Expected 'category:action'")
-
-    parts = perm_str.split(":", 1)
-    category = parts[0].strip()
-    action = parts[1].strip()
-
-    # Security: Validate category and action contain only safe characters
-    if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', category):
-        raise ValueError(f"Invalid permission category: {category}")
-    if action != "*" and not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', action):
-        raise ValueError(f"Invalid permission action: {action}")
-
-    return PermissionRequest(category=category, actions=[action])
-
-
 class RateLimitRequest(BaseModel):
     """Rate limit configuration for API key"""
     max_requests: int = Field(default=1000, ge=1, le=100000, description="Maximum requests per window")
@@ -81,56 +51,12 @@ class RateLimitRequest(BaseModel):
 
 
 class GenerateKeyRequest(BaseModel):
-    """Request to generate a new API key
-
-    SEC-039: Accepts permissions in TWO formats for SDK compatibility:
-    1. Structured: [{"category": "agent", "actions": ["read", "write"]}]
-    2. Simple strings: ["agent:read", "agent:write", "action:submit"]
-
-    Both formats are normalized to structured PermissionRequest objects internally.
-    """
+    """Request to generate a new API key"""
     name: str = Field(..., min_length=1, max_length=255, description="User-friendly name for the key")
     description: Optional[str] = Field(None, max_length=1000, description="Purpose of the key")
     expires_in_days: Optional[int] = Field(None, ge=1, le=3650, description="Expiration in days (NULL = never expires)")
-    permissions: Optional[List[Union[PermissionRequest, str]]] = Field(
-        None,
-        description="Permissions as structured objects OR simple strings like 'category:action'"
-    )
+    permissions: Optional[List[PermissionRequest]] = Field(None, description="Specific permissions (NULL = inherit user permissions)")
     rate_limit: Optional[RateLimitRequest] = Field(None, description="Rate limit config (NULL = default 1000/hour)")
-
-    @field_validator('permissions', mode='before')
-    @classmethod
-    def normalize_permissions(cls, v):
-        """
-        SEC-039: Normalize permissions to structured format
-
-        Converts:
-        - ["agent:read", "action:submit"] -> [{category: "agent", actions: ["read"]}, ...]
-        - [{category: "agent", actions: ["read"]}] -> unchanged
-
-        Compliance: SOC 2 CC6.1 - consistent permission format for audit trail
-        """
-        if v is None:
-            return v
-
-        normalized = []
-        for perm in v:
-            if isinstance(perm, str):
-                # Parse string format: "category:action"
-                try:
-                    parsed = parse_permission_string(perm)
-                    normalized.append(parsed.model_dump())
-                except ValueError as e:
-                    raise ValueError(f"Invalid permission string: {e}")
-            elif isinstance(perm, dict):
-                # Already structured format - validate
-                if 'category' not in perm or 'actions' not in perm:
-                    raise ValueError(f"Permission object must have 'category' and 'actions' keys: {perm}")
-                normalized.append(perm)
-            else:
-                raise ValueError(f"Permission must be string or object, got: {type(perm)}")
-
-        return normalized
 
 
 class ApiKeyResponse(BaseModel):
@@ -262,12 +188,10 @@ async def generate_api_key(
         if request.expires_in_days:
             expires_at = datetime.now(UTC) + timedelta(days=request.expires_in_days)
 
-        # 3. Create API key record
-        # SEC-018: ENTERPRISE Multi-tenant isolation (Banking-Level: SOC 2 CC6.1)
-        # organization_id is NOT NULL in database - must be set in constructor
+        # 3. Create API key record (SEC-082: Enforce org_id)
         api_key = ApiKey(
-            organization_id=org_id,  # SEC-018: Required for multi-tenant isolation
             user_id=current_user["user_id"],
+            organization_id=org_id,
             key_hash=key_hash,
             key_prefix=key_prefix,
             salt=salt,
@@ -276,7 +200,6 @@ async def generate_api_key(
             is_active=True,
             expires_at=expires_at
         )
-
         db.add(api_key)
         db.flush()  # Get ID without committing
 
@@ -328,7 +251,7 @@ async def generate_api_key(
             }
         )
 
-        logger.info(f"✅ API key generated for user {current_user['email']}: {key_prefix} [org_id={org_id}]")
+        logger.info(f"✅ API key generated for user {current_user['email']}: {key_prefix}")
 
         # 8. Return full key (shown ONCE)
         return ApiKeyResponse(
@@ -372,17 +295,17 @@ async def list_api_keys(
     - JWT authentication required
     - Only shows user's own keys
     - Keys are masked (prefix only)
+    - SEC-082: Multi-tenant isolation
 
     Returns:
         List of API keys with usage stats
     """
     try:
-        # Build query
-        query = db.query(ApiKey).filter(ApiKey.user_id == current_user["user_id"])
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(ApiKey.organization_id == org_id)
+        # Build query (SEC-082: Filter by org_id)
+        query = db.query(ApiKey).filter(
+            ApiKey.user_id == current_user["user_id"],
+            ApiKey.organization_id == org_id
+        )
 
         if not include_revoked:
             query = query.filter(ApiKey.is_active == True)
@@ -399,7 +322,7 @@ async def list_api_keys(
         # Convert to dict (masks full key)
         keys_data = [key.to_dict() for key in keys]
 
-        logger.info(f"✅ Listed {len(keys_data)} API keys for user {current_user['email']} [org_id={org_id}]")
+        logger.info(f"✅ Listed {len(keys_data)} API keys for user {current_user['email']}")
 
         return ApiKeyListResponse(
             success=True,
@@ -438,22 +361,18 @@ async def revoke_api_key(
     - JWT authentication required
     - Only owner can revoke
     - Requires reason for audit trail
+    - SEC-082: Validates ownership before deletion
 
     Returns:
         Success message with revocation timestamp
     """
     try:
-        # 1. Find key
-        query = db.query(ApiKey).filter(
+        # 1. Find key (SEC-082: Verify ownership via org_id)
+        api_key = db.query(ApiKey).filter(
             ApiKey.id == key_id,
-            ApiKey.user_id == current_user["user_id"]
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(ApiKey.organization_id == org_id)
-
-        api_key = query.first()
+            ApiKey.user_id == current_user["user_id"],
+            ApiKey.organization_id == org_id
+        ).first()
 
         if not api_key:
             raise HTTPException(
@@ -489,7 +408,7 @@ async def revoke_api_key(
             }
         )
 
-        logger.info(f"✅ API key revoked: {api_key.key_prefix} [org_id={org_id}]")
+        logger.info(f"✅ API key revoked: {api_key.key_prefix}")
 
         return {
             "success": True,
@@ -510,139 +429,7 @@ async def revoke_api_key(
 
 
 # ========================================
-# Endpoint 4: Validate API Key (SEC-056)
-# ========================================
-
-class ValidateKeyRequest(BaseModel):
-    """Request to validate an API key - SEC-056"""
-    api_key: str = Field(..., min_length=10, description="The API key to validate")
-
-
-class ValidateKeyResponse(BaseModel):
-    """Response from API key validation - SEC-056"""
-    valid: bool
-    key_prefix: Optional[str] = None
-    organization_id: Optional[int] = None
-    user_id: Optional[int] = None
-    permissions: Optional[List[str]] = None
-    expires_at: Optional[str] = None
-    rate_limit: Optional[dict] = None
-    error: Optional[str] = None
-
-
-@router.post("/validate", response_model=ValidateKeyResponse)
-@limiter.limit("10/minute")  # SEC-056: RISK-002 - Rate limit public endpoint
-async def validate_api_key(
-    request: ValidateKeyRequest,
-    http_request: Request,  # Required for rate limiter
-    db: Session = Depends(get_db)
-):
-    """
-    SEC-056: Validate an API key and return its metadata
-
-    Security:
-    - Does NOT require prior authentication (validates the provided key)
-    - Returns limited metadata for security
-    - Audit logged for compliance
-    - Rate limited: 10 requests/minute per IP (RISK-002)
-    - Constant-time hash comparison (RISK-001)
-
-    Use Cases:
-    - SDK initialization verification
-    - Pre-flight key checks before operations
-    - Admin console key testing
-
-    Returns:
-        ValidateKeyResponse with validity status and metadata
-    """
-    try:
-        api_key_value = request.api_key
-
-        # 1. Extract prefix for lookup
-        if not api_key_value.startswith("owkai_"):
-            logger.warning(f"SEC-056: Invalid key format - missing owkai_ prefix")
-            return ValidateKeyResponse(
-                valid=False,
-                error="Invalid key format"
-            )
-
-        key_prefix = api_key_value[:16]
-
-        # 2. Find key by prefix
-        api_key = db.query(ApiKey).filter(
-            ApiKey.key_prefix == key_prefix,
-            ApiKey.is_active == True
-        ).first()
-
-        if not api_key:
-            logger.warning(f"SEC-056: Key not found or inactive: {key_prefix}")
-            return ValidateKeyResponse(
-                valid=False,
-                error="Key not found or revoked"
-            )
-
-        # 3. Verify hash - SEC-056 RISK-001: Use constant-time comparison to prevent timing attacks
-        computed_hash = hashlib.sha256((api_key_value + api_key.salt).encode()).hexdigest()
-        if not secrets.compare_digest(computed_hash, api_key.key_hash):
-            logger.warning(f"SEC-056: Hash mismatch for key: {key_prefix}")
-            return ValidateKeyResponse(
-                valid=False,
-                error="Invalid key"
-            )
-
-        # 4. Check expiration
-        if api_key.expires_at and api_key.expires_at < datetime.now(UTC):
-            logger.warning(f"SEC-056: Expired key: {key_prefix}")
-            return ValidateKeyResponse(
-                valid=False,
-                error="Key expired"
-            )
-
-        # 5. Get permissions
-        permissions = db.query(ApiKeyPermission).filter(
-            ApiKeyPermission.api_key_id == api_key.id
-        ).all()
-
-        permission_list = [
-            f"{p.permission_category}:{p.permission_action}"
-            for p in permissions
-        ]
-
-        # 6. Get rate limit
-        rate_limit = db.query(ApiKeyRateLimit).filter(
-            ApiKeyRateLimit.api_key_id == api_key.id
-        ).first()
-
-        rate_limit_info = None
-        if rate_limit:
-            rate_limit_info = {
-                "max_requests": rate_limit.max_requests,
-                "window_seconds": rate_limit.window_seconds,
-                "current_count": rate_limit.current_count
-            }
-
-        logger.info(f"✅ SEC-056: Key validated successfully: {key_prefix}")
-
-        return ValidateKeyResponse(
-            valid=True,
-            key_prefix=key_prefix,
-            organization_id=api_key.organization_id,
-            user_id=api_key.user_id,
-            permissions=permission_list,
-            expires_at=api_key.expires_at.isoformat() if api_key.expires_at else None,
-            rate_limit=rate_limit_info
-        )
-
-    except Exception as e:
-        logger.error(f"❌ SEC-056: Key validation error: {e}")
-        return ValidateKeyResponse(
-            valid=False,
-            error="Validation error"
-        )
-
-
-# ========================================
-# Endpoint 5: Get API Key Usage
+# Endpoint 4: Get API Key Usage
 # ========================================
 
 @router.get("/{key_id}/usage")
@@ -659,22 +446,18 @@ async def get_api_key_usage(
     Security:
     - JWT authentication required
     - Only owner can view usage
+    - SEC-082: Validates ownership before reading
 
     Returns:
         Usage statistics and recent activity
     """
     try:
-        # 1. Verify ownership
-        query = db.query(ApiKey).filter(
+        # 1. Verify ownership (SEC-082: Check org_id)
+        api_key = db.query(ApiKey).filter(
             ApiKey.id == key_id,
-            ApiKey.user_id == current_user["user_id"]
-        )
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation
-        if org_id is not None:
-            query = query.filter(ApiKey.organization_id == org_id)
-
-        api_key = query.first()
+            ApiKey.user_id == current_user["user_id"],
+            ApiKey.organization_id == org_id
+        ).first()
 
         if not api_key:
             raise HTTPException(
@@ -698,7 +481,7 @@ async def get_api_key_usage(
         else:
             success_rate = 0
 
-        logger.info(f"✅ Retrieved usage for API key: {api_key.key_prefix} [org_id={org_id}]")
+        logger.info(f"✅ Retrieved usage for API key: {api_key.key_prefix}")
 
         return {
             "success": True,

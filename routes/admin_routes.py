@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
 from models import User
-from dependencies import require_admin, get_current_user, require_csrf, get_organization_filter
+from dependencies import require_admin, get_current_user, require_csrf
 from schemas import UserOut
 from typing import List
 import logging
@@ -13,16 +13,11 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 @router.get("/users", response_model=List[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    admin_user: dict = Depends(require_admin)
 ):
     """List all users (admin only)"""
     try:
-        query = db.query(User)
-        # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
-        if org_id is not None:
-            query = query.filter(User.organization_id == org_id)
-        users = query.order_by(User.created_at.desc()).all()
+        users = db.query(User).order_by(User.created_at.desc()).all()
         return users
     except Exception as e:
         logger.error(f"Failed to list users: {str(e)}")
@@ -36,9 +31,7 @@ def update_user_role(
     user_id: int,
     new_role: str,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    admin_user: dict = Depends(require_admin), _=Depends(require_csrf)
 ):
     """Update user role (admin only)"""
     try:
@@ -48,11 +41,7 @@ def update_user_role(
                 detail="Role must be 'user' or 'admin'"
             )
 
-        query = db.query(User).filter(User.id == user_id)
-        # 🏢 ENTERPRISE: Multi-tenant isolation - ensure user is in same org
-        if org_id is not None:
-            query = query.filter(User.organization_id == org_id)
-        user = query.first()
+        user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -86,17 +75,11 @@ def update_user_role(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),
-    _=Depends(require_csrf),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    admin_user: dict = Depends(require_admin), _=Depends(require_csrf)
 ):
     """Delete user (admin only)"""
     try:
-        query = db.query(User).filter(User.id == user_id)
-        # 🏢 ENTERPRISE: Multi-tenant isolation - ensure user is in same org
-        if org_id is not None:
-            query = query.filter(User.organization_id == org_id)
-        user = query.first()
+        user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

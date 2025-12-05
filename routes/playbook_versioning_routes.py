@@ -62,13 +62,11 @@ async def get_playbook_versions(
     - Performance tracking across versions
     - Rollback decision support
     """
-    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    playbook = query.first()
+    # SEC-082: Multi-tenant isolation - verify organization ownership
+    playbook = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -95,13 +93,11 @@ async def create_playbook_version(
 
     Pattern: GitLab Merge Request Versioning
     """
-    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    playbook = query.first()
+    # SEC-082: Multi-tenant isolation - verify organization ownership
+    playbook = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -187,13 +183,11 @@ async def rollback_playbook(
     - Zero-downtime rollback
     - Complete audit trail maintained
     """
-    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    playbook = query.first()
+    # SEC-082: Multi-tenant isolation - verify organization ownership
+    playbook = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -282,12 +276,11 @@ async def compare_playbook_versions(
 
     Pattern: GitHub Pull Request Diff View
     """
-    # 🏢 ENTERPRISE: Multi-tenant isolation - verify playbook access first
-    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    playbook = query.first()
+    # SEC-082: Multi-tenant isolation - verify playbook ownership before comparing versions
+    playbook = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -382,13 +375,11 @@ async def get_playbook_analytics(
 
     Pattern: Splunk SOAR Analytics Dashboard
     """
-    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    playbook = query.first()
+    # SEC-082: Multi-tenant isolation - verify organization ownership
+    playbook = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -503,13 +494,11 @@ async def get_playbook_performance(
     Quick health check for playbook performance.
     Returns alerts if performance degrades.
     """
-    query = db.query(AutomationPlaybook).filter(AutomationPlaybook.id == playbook_id)
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    playbook = query.first()
+    # SEC-082: Multi-tenant isolation - verify organization ownership
+    playbook = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
     if not playbook:
         raise HTTPException(status_code=404, detail="Playbook not found")
 
@@ -606,35 +595,25 @@ async def clone_playbook(
     Creates exact copy of playbook with new ID.
     Optionally includes execution statistics.
     """
-    # Get source playbook
-    query = db.query(AutomationPlaybook).filter(
-        AutomationPlaybook.id == clone_request.source_playbook_id
-    )
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        query = query.filter(AutomationPlaybook.organization_id == org_id)
-
-    source = query.first()
+    # SEC-082: Multi-tenant isolation - verify source playbook ownership
+    source = db.query(AutomationPlaybook).filter(
+        AutomationPlaybook.id == clone_request.source_playbook_id,
+        AutomationPlaybook.organization_id == org_id
+    ).first()
 
     if not source:
         raise HTTPException(status_code=404, detail="Source playbook not found")
 
     # Check new ID doesn't exist
-    existing_query = db.query(AutomationPlaybook).filter(
+    existing = db.query(AutomationPlaybook).filter(
         AutomationPlaybook.id == clone_request.new_playbook_id
-    )
-
-    # 🏢 ENTERPRISE: Multi-tenant isolation
-    if org_id is not None:
-        existing_query = existing_query.filter(AutomationPlaybook.organization_id == org_id)
-
-    existing = existing_query.first()
+    ).first()
 
     if existing:
         raise HTTPException(status_code=400, detail="Playbook with this ID already exists")
 
     # Create new playbook
+    # SEC-082: Ensure cloned playbook inherits organization_id
     new_playbook = AutomationPlaybook(
         id=clone_request.new_playbook_id,
         name=clone_request.new_name,
@@ -644,9 +623,9 @@ async def clone_playbook(
         approval_required=source.approval_required,
         trigger_conditions=source.trigger_conditions,
         actions=source.actions,
+        organization_id=org_id,
         execution_count=source.execution_count if clone_request.include_execution_history else 0,
         success_rate=source.success_rate if clone_request.include_execution_history else 0.0,
-        organization_id=org_id,  # 🏢 ENTERPRISE: Set organization_id for new playbook
         created_by=current_user.get("user_id"),
         created_at=datetime.now(UTC)
     )

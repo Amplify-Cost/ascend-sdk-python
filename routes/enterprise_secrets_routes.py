@@ -13,7 +13,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, require_admin, get_organization_filter
+from dependencies import get_current_user, require_admin
 from config import _config as config
 
 logger = logging.getLogger(__name__)
@@ -116,8 +116,7 @@ def get_rotation_service():
 
 @router.get("/status")
 async def get_secrets_management_status(
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Get overall status of enterprise secrets management system
@@ -125,9 +124,7 @@ async def get_secrets_management_status(
     try:
         manager = get_secrets_manager()
         rotation_service = get_rotation_service()
-
-        logger.info(f"Fetching secrets management status [org_id={org_id}]")
-
+        
         # Get basic status
         compliance_report = manager.get_compliance_report()
         rotation_status = rotation_service.get_rotation_status()
@@ -172,16 +169,15 @@ async def get_secrets_management_status(
 @router.post("/rotate", response_model=SecretRotationResponse)
 async def rotate_secret(
     request: SecretRotationRequest,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Rotate a specific secret with comprehensive validation and audit trail
     """
     try:
         rotation_service = get_rotation_service()
-
-        logger.info(f"🔄 Secret rotation requested by {current_user['email']} for {request.secret_name} [org_id={org_id}]")
+        
+        logger.info(f"🔄 Secret rotation requested by {current_user['email']} for {request.secret_name}")
         
         # Validate secret exists
         manager = get_secrets_manager()
@@ -236,8 +232,7 @@ async def rotate_secret(
 async def rotate_all_due_secrets(
     force: bool = False,
     dry_run: bool = False,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Rotate all secrets that are due for rotation
@@ -245,9 +240,7 @@ async def rotate_all_due_secrets(
     try:
         manager = get_secrets_manager()
         rotation_service = get_rotation_service()
-
-        logger.info(f"Bulk rotation requested [org_id={org_id}]")
-
+        
         # Get secrets due for rotation
         due_secrets = manager.get_secrets_due_for_rotation()
         
@@ -320,8 +313,7 @@ async def rotate_all_due_secrets(
 @router.post("/schedule")
 async def create_rotation_schedule(
     request: RotationScheduleRequest,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Create or update a rotation schedule for a secret
@@ -329,9 +321,7 @@ async def create_rotation_schedule(
     try:
         rotation_service = get_rotation_service()
         manager = get_secrets_manager()
-
-        logger.info(f"Creating rotation schedule for {request.secret_name} [org_id={org_id}]")
-
+        
         # Validate secret exists
         current_secret = manager.get_secret(request.secret_name)
         if not current_secret:
@@ -376,17 +366,14 @@ async def create_rotation_schedule(
 
 @router.get("/schedules")
 async def get_rotation_schedules(
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Get all rotation schedules
     """
     try:
         rotation_service = get_rotation_service()
-
-        logger.info(f"Fetching rotation schedules [org_id={org_id}]")
-
+        
         schedules = []
         for secret_name, schedule in rotation_service.rotation_schedules.items():
             schedules.append({
@@ -414,17 +401,14 @@ async def get_rotation_schedules(
 @router.delete("/schedule/{secret_name}")
 async def delete_rotation_schedule(
     secret_name: str,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Delete a rotation schedule
     """
     try:
         rotation_service = get_rotation_service()
-
-        logger.info(f"Deleting rotation schedule for {secret_name} [org_id={org_id}]")
-
+        
         if secret_name not in rotation_service.rotation_schedules:
             raise HTTPException(
                 status_code=404,
@@ -461,17 +445,13 @@ async def delete_rotation_schedule(
 
 @router.get("/compliance-report", response_model=ComplianceReportResponse)
 async def get_compliance_report(
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Generate comprehensive compliance report for enterprise auditing
     """
     try:
         manager = get_secrets_manager()
-
-        logger.info(f"Generating compliance report [org_id={org_id}]")
-
         report = manager.get_compliance_report()
         
         return ComplianceReportResponse(
@@ -496,17 +476,13 @@ async def get_audit_trail(
     limit: int = 100,
     secret_name: Optional[str] = None,
     action: Optional[str] = None,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Get audit trail for compliance and security monitoring
     """
     try:
         manager = get_secrets_manager()
-
-        logger.info(f"Fetching audit trail [org_id={org_id}]")
-
         audit_entries = manager.get_audit_trail(limit=limit)
         
         # Filter by secret name if provided
@@ -554,17 +530,13 @@ async def get_audit_trail(
 async def get_rotation_history(
     limit: int = 50,
     secret_name: Optional[str] = None,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Get rotation history for monitoring and troubleshooting
     """
     try:
         rotation_service = get_rotation_service()
-
-        logger.info(f"Fetching rotation history [org_id={org_id}]")
-
         history = rotation_service.get_rotation_history(limit=limit)
         
         # Filter by secret name if provided
@@ -600,16 +572,15 @@ async def get_rotation_history(
 async def emergency_secret_rotation(
     secret_name: str,
     reason: str,
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Perform emergency secret rotation with enhanced audit logging
     """
     try:
         rotation_service = get_rotation_service()
-
-        logger.warning(f"🚨 Emergency rotation requested by {current_user['email']} for {secret_name} [org_id={org_id}]")
+        
+        logger.warning(f"🚨 Emergency rotation requested by {current_user['email']} for {secret_name}")
         
         # Validate secret exists
         manager = get_secrets_manager()
@@ -652,17 +623,14 @@ async def emergency_secret_rotation(
 
 @router.post("/validate-secrets")
 async def validate_all_secrets(
-    current_user: dict = Depends(require_admin),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin)
 ):
     """
     Validate all secrets are accessible and meet security requirements
     """
     try:
         manager = get_secrets_manager()
-
-        logger.info(f"Validating all secrets [org_id={org_id}]")
-
+        
         validation_results = []
         total_secrets = 0
         accessible_secrets = 0
@@ -736,18 +704,14 @@ async def validate_all_secrets(
         )
 
 @router.get("/health")
-async def get_secrets_health_check(
-    org_id: int = Depends(get_organization_filter)
-):
+async def get_secrets_health_check():
     """
     Health check endpoint for secrets management system
     """
     try:
         manager = get_secrets_manager()
         rotation_service = get_rotation_service()
-
-        logger.info(f"Health check requested [org_id={org_id}]")
-
+        
         # Basic health checks
         health_status = {
             "secrets_manager": "healthy",

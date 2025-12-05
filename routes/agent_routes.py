@@ -27,7 +27,30 @@ async def create_agent_action(
     org_id: int = Depends(get_organization_filter),
     _=Depends(require_csrf)
 ):
-    """Submit a new agent action for security review - Enterprise-grade with graceful fallback"""
+    """
+    DEPRECATED: Use POST /api/v1/actions/submit instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: POST /api/agent-action
+    - New: POST /api/v1/actions/submit
+    - Same request/response format, improved unified architecture
+
+    Submit a new agent action for security review - Enterprise-grade with graceful fallback
+    """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "POST /api/agent-action is deprecated. Use POST /api/v1/actions/submit instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        "⚠️ DEPRECATED ENDPOINT CALLED: POST /api/agent-action - "
+        "Please migrate to POST /api/v1/actions/submit (Sunset: 2025-06-01)"
+    )
+
     try:
         data = await request.json()
 
@@ -327,7 +350,30 @@ def list_agent_actions(
     limit: int = 100,
     skip: int = 0
 ):
-    """List agent actions with pagination - Enterprise-grade with tenant isolation"""
+    """
+    DEPRECATED: Use GET /api/v1/actions instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: GET /api/agent-actions
+    - New: GET /api/v1/actions
+    - Same response format, improved filtering and pagination
+
+    List agent actions with pagination - Enterprise-grade with tenant isolation
+    """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "GET /api/agent-actions is deprecated. Use GET /api/v1/actions instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        "⚠️ DEPRECATED ENDPOINT CALLED: GET /api/agent-actions - "
+        "Please migrate to GET /api/v1/actions (Sunset: 2025-06-01)"
+    )
+
     try:
         # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
@@ -384,9 +430,31 @@ def get_agent_activity(
     org_id: int = Depends(get_organization_filter_dual_auth),  # SEC-020: Dual-auth org filter
     risk: str = None
 ):
-    """Get recent agent activity, optionally filtered by risk level - Enterprise-grade with tenant isolation
+    """
+    DEPRECATED: Use GET /api/v1/actions?risk={level} instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: GET /api/agent-activity?risk=high
+    - New: GET /api/v1/actions?risk=high
+    - Same response format, improved filtering capabilities
+
+    Get recent agent activity, optionally filtered by risk level - Enterprise-grade with tenant isolation
     SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "GET /api/agent-activity is deprecated. Use GET /api/v1/actions instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        "⚠️ DEPRECATED ENDPOINT CALLED: GET /api/agent-activity - "
+        "Please migrate to GET /api/v1/actions (Sunset: 2025-06-01)"
+    )
+
     try:
         # 🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
         try:
@@ -441,11 +509,32 @@ async def approve_agent_action(
     _=Depends(require_csrf)
 ):
     """
+    DEPRECATED: Use POST /api/v1/actions/{action_id}/approve instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: POST /api/agent-action/{action_id}/approve
+    - New: POST /api/v1/actions/{action_id}/approve
+    - Same request/response format
+
     Approve an agent action (admin only) - Enterprise audit trail preserved
 
     FIX #2: Now stores approval comments in extra_data field for compliance
     🏢 ENTERPRISE: Only actions belonging to user's organization can be approved
     """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "POST /api/agent-action/{action_id}/approve is deprecated. Use POST /api/v1/actions/{action_id}/approve instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        f"⚠️ DEPRECATED ENDPOINT CALLED: POST /api/agent-action/{action_id}/approve - "
+        "Please migrate to POST /api/v1/actions/{action_id}/approve (Sunset: 2025-06-01)"
+    )
+
     try:
         # 🏢 ENTERPRISE: Filter by organization_id - users can only approve their org's actions
         action = db.query(AgentAction).filter(
@@ -516,11 +605,32 @@ async def reject_agent_action(
     _=Depends(require_csrf)
 ):
     """
+    DEPRECATED: Use POST /api/v1/actions/{action_id}/reject instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: POST /api/agent-action/{action_id}/reject
+    - New: POST /api/v1/actions/{action_id}/reject
+    - Same request/response format
+
     Reject an agent action (admin only) - Enterprise audit trail preserved
 
     FIX #2: Now stores rejection reason in extra_data field for compliance
     🏢 ENTERPRISE: Only actions belonging to user's organization can be rejected
     """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "POST /api/agent-action/{action_id}/reject is deprecated. Use POST /api/v1/actions/{action_id}/reject instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        f"⚠️ DEPRECATED ENDPOINT CALLED: POST /api/agent-action/{action_id}/reject - "
+        "Please migrate to POST /api/v1/actions/{action_id}/reject (Sunset: 2025-06-01)"
+    )
+
     try:
         # 🏢 ENTERPRISE: Filter by organization_id - users can only reject their org's actions
         action = db.query(AgentAction).filter(
@@ -593,6 +703,15 @@ async def get_agent_action_by_id(
     org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Dual-auth org filter
 ):
     """
+    DEPRECATED: Use GET /api/v1/actions/{action_id} instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: GET /api/agent-action/{action_id}
+    - New: GET /api/v1/actions/{action_id}
+    - Same response format
+
     FIX #1: Get individual agent action by ID for deep linking and detailed reports.
 
     Use Cases:
@@ -604,6 +723,18 @@ async def get_agent_action_by_id(
     🏢 ENTERPRISE: Only returns action if it belongs to user's organization
     SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "GET /api/agent-action/{action_id} is deprecated. Use GET /api/v1/actions/{action_id} instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        f"⚠️ DEPRECATED ENDPOINT CALLED: GET /api/agent-action/{action_id} - "
+        "Please migrate to GET /api/v1/actions/{action_id} (Sunset: 2025-06-01)"
+    )
+
     try:
         # 🏢 ENTERPRISE: Filter by organization_id - users can only see their org's actions
         action = db.query(AgentAction).filter(
@@ -696,6 +827,15 @@ async def get_action_status(
     org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-020: Dual-auth org filter
 ):
     """
+    DEPRECATED: Use GET /api/v1/actions/{action_id}/status instead.
+
+    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+
+    Migration Guide:
+    - Old: GET /api/agent-action/status/{action_id}
+    - New: GET /api/v1/actions/{action_id}/status
+    - Same response format
+
     FIX #4: Agent polling endpoint for autonomous workflow.
 
     Use Case: Agent submits action, then polls every 30s until approved/rejected.
@@ -706,6 +846,18 @@ async def get_action_status(
     🏢 ENTERPRISE: Only returns status if action belongs to user's organization
     SEC-020: Supports both JWT (admin UI) and API key (SDK) authentication
     """
+    # Add deprecation warning
+    import warnings
+    warnings.warn(
+        "GET /api/agent-action/status/{action_id} is deprecated. Use GET /api/v1/actions/{action_id}/status instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    logger.warning(
+        f"⚠️ DEPRECATED ENDPOINT CALLED: GET /api/agent-action/status/{action_id} - "
+        "Please migrate to GET /api/v1/actions/{action_id}/status (Sunset: 2025-06-01)"
+    )
+
     try:
         # 🏢 ENTERPRISE: Filter by organization_id - users can only poll their org's actions
         action = db.query(AgentAction).filter(
@@ -745,277 +897,6 @@ async def get_action_status(
     except Exception as e:
         logger.error(f"Status check failed for action {action_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# ========== SEC-022: SDK AGENT ACTION SUBMISSION ENDPOINT ==========
-# Added: 2025-12-01 - Enterprise SDK integration for autonomous agents
-# Purpose: Allow SDK-based agents to submit actions via API key (no CSRF required)
-# Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
-
-@router.post("/sdk/agent-action")
-async def create_agent_action_via_sdk(
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-022: API key auth
-    org_id: int = Depends(get_organization_filter_dual_auth)  # SEC-022: Dual-auth org filter
-):
-    """
-    SEC-022: Submit agent action via SDK (API key authentication)
-
-    This endpoint allows external agents and SDK integrations to submit
-    actions for authorization WITHOUT requiring browser-based CSRF tokens.
-
-    Authentication: API key via X-API-Key header
-    Authorization: Multi-tenant isolation via organization_id
-
-    Use Cases:
-    - LangChain agents submitting tool calls for approval
-    - AWS Lambda functions requesting permission
-    - MCP servers integrating with OW-AI governance
-    - Custom AI agents in enterprise applications
-
-    Request Body:
-    {
-        "agent_id": "financial-advisor-001",
-        "action_type": "transaction",
-        "description": "Executing stock purchase order",
-        "risk_score": 72,
-        "resource": "trading_system",
-        "metadata": {...}
-    }
-
-    Returns:
-    {
-        "id": 123,
-        "status": "pending",
-        "requires_approval": true,
-        "risk_score": 72,
-        "poll_url": "/api/agent-action/status/123"
-    }
-
-    Compliance: SOC 2 CC6.1, PCI-DSS 8.3, NIST 800-63B
-    """
-    try:
-        data = await request.json()
-
-        # Validate required fields
-        required_fields = ["agent_id", "action_type", "description"]
-        missing_fields = [field for field in required_fields if not data.get(field)]
-        if missing_fields:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Missing required fields: {', '.join(missing_fields)}"
-            )
-
-        # SEC-061: Use enrichment system for action-type-based risk scoring
-        # This ensures SDK actions get proper risk assessment like the main endpoint
-        try:
-            enrichment = evaluate_action_enrichment(
-                action_type=data["action_type"],
-                description=data["description"],
-                db=db,
-                action_id=None,  # No action_id yet
-                context={
-                    "tool_name": data.get("tool_name"),
-                    "resource": data.get("resource"),
-                    "sdk_integration": True
-                }
-            )
-
-            # SEC-061: Calculate risk_score from enrichment
-            # Priority: 1) CVSS score (scaled to 0-100), 2) Risk level mapping, 3) Client-provided
-            if enrichment.get("cvss_score"):
-                risk_score = int(enrichment["cvss_score"] * 10)  # 0-10 CVSS -> 0-100
-            else:
-                # Map risk_level to score ranges
-                risk_level_scores = {
-                    "low": 25,
-                    "medium": 55,
-                    "high": 75,
-                    "critical": 95
-                }
-                risk_score = risk_level_scores.get(enrichment["risk_level"], 50)
-
-            risk_level = enrichment["risk_level"]
-            mitre_tactic = enrichment.get("mitre_tactic", "TA0002")
-            mitre_technique = enrichment.get("mitre_technique", "T1059")
-            nist_control = enrichment.get("nist_control", "AC-3")
-            nist_description = enrichment.get("nist_description", "Access Enforcement")
-            recommendation = enrichment.get("recommendation", "Review agent action")
-            cvss_score = enrichment.get("cvss_score")
-            cvss_severity = enrichment.get("cvss_severity")
-            cvss_vector = enrichment.get("cvss_vector")
-
-            logger.info(f"SEC-061: Enrichment applied to SDK action - action_type={data['action_type']}, "
-                       f"risk_level={risk_level}, risk_score={risk_score}")
-
-        except Exception as enrichment_error:
-            logger.warning(f"SEC-061: Enrichment failed for SDK action, using client-provided score: {enrichment_error}")
-            # Fallback to client-provided risk_score
-            risk_score = data.get("risk_score", 50)
-            if not isinstance(risk_score, (int, float)):
-                risk_score = 50
-            risk_score = max(0, min(100, int(risk_score)))
-
-            # Derive risk_level from score
-            if risk_score >= 90:
-                risk_level = "critical"
-            elif risk_score >= 70:
-                risk_level = "high"
-            elif risk_score >= 40:
-                risk_level = "medium"
-            else:
-                risk_level = "low"
-
-            mitre_tactic = "TA0002"
-            mitre_technique = "T1059"
-            nist_control = "AC-3"
-            nist_description = "Access Enforcement"
-            recommendation = "Review agent action"
-            cvss_score = None
-            cvss_severity = None
-            cvss_vector = None
-
-        # Determine if approval is required based on risk level
-        if risk_level == "low":
-            requires_approval = False  # Auto-approve low risk
-        else:
-            requires_approval = True  # medium, high, critical require approval
-
-        # Generate summary
-        try:
-            summary = generate_summary(
-                agent_id=data["agent_id"],
-                action_type=data["action_type"],
-                description=data["description"]
-            )
-        except Exception as e:
-            logger.warning(f"OpenAI summary generation failed: {e}")
-            summary = f"SDK Agent '{data['agent_id']}' requesting '{data['action_type']}' - requires review"
-
-        # Create the agent action - SEC-061: Include enrichment data
-        action = AgentAction(
-            agent_id=data["agent_id"],
-            tool_name=data.get("tool_name", f"sdk_{data['action_type']}"),
-            action_type=data["action_type"],
-            description=data["description"],
-            risk_score=risk_score,
-            risk_level=risk_level,
-            status="approved" if not requires_approval else "pending",
-            approved=not requires_approval,
-            requires_approval=requires_approval,
-            summary=summary,
-            target_system=data.get("resource", "unknown"),
-            extra_data=data.get("metadata", {}),
-            organization_id=org_id,
-            timestamp=datetime.now(UTC),
-            created_at=datetime.now(UTC),
-            # SEC-061: Enterprise enrichment data
-            mitre_tactic=mitre_tactic,
-            mitre_technique=mitre_technique,
-            nist_control=nist_control,
-            nist_description=nist_description,
-            recommendation=recommendation,
-            cvss_score=cvss_score,
-            cvss_severity=cvss_severity,
-            cvss_vector=cvss_vector
-        )
-
-        db.add(action)
-        db.flush()  # Get action.id before further processing
-        action_id = action.id
-        logger.info(f"SEC-061: SDK action record created (not committed): {action_id}")
-
-        # =====================================================================
-        # SEC-061 ENTERPRISE: CVSS Second Pass Assessment with action_id
-        # Compliance: NIST 800-30, SOC 2 CC3.2, PCI-DSS 6.1
-        # =====================================================================
-        try:
-            from services.cvss_auto_mapper import cvss_auto_mapper
-            cvss_result = cvss_auto_mapper.auto_assess_action(
-                db=db,
-                action_id=action.id,
-                action_type=data["action_type"],
-                context={
-                    "description": data["description"],
-                    "risk_level": risk_level,
-                    "contains_pii": "pii" in (data.get("description") or "").lower(),
-                    "production_system": "production" in (data.get("description") or "").lower(),
-                    "financial_transaction": any(x in (data.get("description") or "").lower()
-                                                  for x in ["payment", "transaction", "billing"]),
-                    "requires_admin": risk_level == "high",
-                    "sdk_integration": True
-                }
-            )
-
-            # Update action with CVSS fields from detailed assessment
-            action.cvss_score = cvss_result["base_score"]
-            action.cvss_severity = cvss_result["severity"]
-            action.cvss_vector = cvss_result["vector_string"]
-            action.risk_score = int(cvss_result["base_score"] * 10)  # 0-100 scale
-
-            db.add(action)
-            db.flush()
-
-            logger.info(f"SEC-061: CVSS integrated for SDK action {action.id} -> "
-                       f"{cvss_result['base_score']} ({cvss_result['severity']})")
-        except Exception as cvss_error:
-            logger.warning(f"SEC-061: CVSS integration failed for SDK action {action.id}: {cvss_error}")
-            cvss_result = None  # Continue - CVSS is supplementary
-
-        # =====================================================================
-        # SEC-064 ENTERPRISE: Unified Risk Pipeline
-        # Replaces duplicate code with centralized service
-        # Compliance: SOC 2 CC7.2, PCI-DSS 6.1, NIST 800-30/800-53
-        # =====================================================================
-        from services.enterprise_risk_pipeline import get_enterprise_risk_pipeline
-
-        pipeline = get_enterprise_risk_pipeline(db)
-        pipeline_result = await pipeline.evaluate_action(
-            action=action,
-            data=data,
-            current_user=current_user,
-            organization_id=org_id,
-            source="sdk_agent_action"
-        )
-
-        logger.info(f"SEC-064: Pipeline completed for SDK action {action.id} - "
-                   f"score={pipeline_result.risk_score}, level={pipeline_result.risk_level}, "
-                   f"stages={len(pipeline_result.stages_completed)}")
-
-        # =====================================================================
-        # SEC-064 ENTERPRISE: Response using Unified Pipeline Result
-        # =====================================================================
-        auth_method = current_user.get("auth_method", "api_key")
-        logger.info(f"SEC-064: Enterprise SDK action completed - ID: {action.id}, Agent: {data['agent_id']}, "
-                    f"Risk: {pipeline_result.risk_score}, Level: {pipeline_result.risk_level}, "
-                    f"Status: {pipeline_result.status}, Auth: {auth_method}")
-
-        # Build response using pipeline result
-        response = pipeline_result.to_response_dict()
-        response.update({
-            "id": action.id,
-            "action_id": action.id,
-            "agent_id": action.agent_id,
-            "action_type": action.action_type,
-            "poll_url": f"/api/agent-action/status/{action.id}",
-            "enterprise_grade": True,
-            "sdk_integration": True,
-            "alert_generated": pipeline_result.automation.alert_created,
-            "alert_id": pipeline_result.automation.alert_id
-        })
-
-        return response
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"SEC-022: SDK agent action creation failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create agent action: {str(e)}"
-        )
-
 
 @router.post("/agent-action/{action_id}/false-positive")
 def mark_false_positive(

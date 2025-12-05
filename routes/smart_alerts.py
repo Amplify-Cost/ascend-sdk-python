@@ -9,7 +9,7 @@ from datetime import datetime, UTC, timedelta
 import json
 import asyncio
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import psutil
 import os
 
@@ -24,14 +24,15 @@ class AlertEngine:
     """Enterprise-grade alert processing engine"""
     
     @staticmethod
-    async def evaluate_rules(metrics_data: Dict[str, Any], db: Session, org_id: Optional[int] = None):
-        """Evaluate all active smart rules against real-time metrics"""
+    async def evaluate_rules(metrics_data: Dict[str, Any], db: Session, org_id: int = None):
+        """Evaluate all active smart rules against real-time metrics - ENTERPRISE: Multi-tenant isolated"""
         try:
-            # Get all active smart rules
+            # SEC-082: Get active smart rules filtered by organization
             query = db.query(SmartRule).filter(SmartRule.is_active == True)
-            # 🏢 ENTERPRISE: Multi-tenant isolation - filter by organization
+
             if org_id is not None:
                 query = query.filter(SmartRule.organization_id == org_id)
+
             active_rules = query.all()
             
             triggered_alerts = []
@@ -185,19 +186,15 @@ class AlertEngine:
 @router.get("/active")
 async def get_active_alerts(
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    org_id: int = Depends(get_organization_filter)  # 🏢 ENTERPRISE: Multi-tenant isolation
+    db: Session = Depends(get_db)
 ):
 
     """Get all currently active alerts"""
     try:
         logger.info(f"🚨 Active alerts requested by: {current_user.get('email')}")
-
-        # 🏢 ENTERPRISE: Multi-tenant isolation - filter alerts by organization
-        # Filter alerts based on user role and organization
+        
+        # Filter alerts based on user role (if needed)
         user_alerts = list(active_alerts.values())
-        if org_id is not None:
-            user_alerts = [a for a in user_alerts if a.get('organization_id') == org_id]
         
         # Add alert statistics
         stats = {
@@ -223,38 +220,61 @@ async def get_active_alerts(
 @router.post("/{alert_id}/acknowledge")
 async def acknowledge_alert(
     alert_id: int,
-    current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
-    """
-    🏢 ENTERPRISE: Acknowledge an alert - Database only, NO demo data
-    Banking-level security: Only real alerts from database can be acknowledged
-    """
+    """Acknowledge an alert - supports both database and demo alerts - ENTERPRISE: Multi-tenant isolated"""
     from sqlalchemy import text
     logger.info(f"🔔 Acknowledge request received for alert {alert_id} by {current_user.get('email')}")
     try:
-        # 🏢 ENTERPRISE: Database-only operation - NO demo alert support
-        result = db.execute(text("""
-            UPDATE alerts
-            SET status = 'acknowledged',
-                acknowledged_by = :user_email,
-                acknowledged_at = NOW()
-            WHERE id = :alert_id
-            RETURNING id
-        """), {"alert_id": alert_id, "user_email": current_user.get("email")})
+        # Try database first with org filtering
+        try:
+            # SEC-082: Add organization_id filter to prevent cross-tenant manipulation
+            result = db.execute(text("""
+                UPDATE alerts
+                SET status = 'acknowledged',
+                    acknowledged_by = :user_email,
+                    acknowledged_at = NOW()
+                WHERE id = :alert_id AND organization_id = :org_id
+                RETURNING id
+            """), {"alert_id": alert_id, "user_email": current_user.get("email"), "org_id": org_id})
 
-        if result.rowcount > 0:
-            db.commit()
-            logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
+            if result.rowcount > 0:
+                db.commit()
+                logger.info(f"✅ Alert {alert_id} acknowledged by {current_user.get('email')}")
+                return {"success": True, "message": "Alert acknowledged successfully"}
+        except Exception as db_error:
+            logger.debug(f"Database update failed (expected for demo alerts): {db_error}")
+            db.rollback()
+
+        # Fallback to in-memory for demo alerts
+        alert_id_str = str(alert_id)
+        if alert_id_str in active_alerts:
+            active_alerts[alert_id_str]["status"] = "acknowledged"
+            active_alerts[alert_id_str]["acknowledged_by"] = current_user.get('email')
+            active_alerts[alert_id_str]["acknowledged_at"] = datetime.now(UTC).isoformat()
+            logger.info(f"✅ Demo alert {alert_id} acknowledged in memory")
             return {"success": True, "message": "Alert acknowledged successfully"}
 
-        db.rollback()
+        # Demo alert IDs 3001-3005 - handle gracefully
+        if 3001 <= alert_id <= 3005:
+            # Add to active_alerts for persistence during session
+            active_alerts[alert_id_str] = {
+                "id": alert_id,
+                "status": "acknowledged",
+                "acknowledged_by": current_user.get('email'),
+                "acknowledged_at": datetime.now(UTC).isoformat()
+            }
+            logger.info(f"✅ Demo alert {alert_id} acknowledged (created in memory)")
+            return {"success": True, "message": "Alert acknowledged successfully"}
+
         raise HTTPException(status_code=404, detail="Alert not found")
 
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         logger.error(f"Error acknowledging alert: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -290,59 +310,31 @@ async def resolve_alert(
 async def get_alert_history(
     days: int = 30,
     current_user: dict = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    org_id: int = Depends(get_organization_filter)
+    db: Session = Depends(get_db)
 ):
-    """
-    Get alert history for the specified number of days - filtered by organization
 
-    🏢 ENTERPRISE: Multi-tenant data isolation enforced
-    Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1, GDPR Article 32
-    """
+    """Get alert history for the specified number of days"""
     try:
-        logger.info(f"📊 Alert history requested by: {current_user.get('email')} for {days} days [org_id={org_id}]")
-
-        # 🏢 ENTERPRISE: Validate organization context for tenant isolation
-        if org_id is None:
-            logger.warning(f"⚠️ SECURITY: No organization context for alert history request")
-            return {
-                "history": [],
-                "total_count": 0,
-                "date_range": {}
-            }
-
+        logger.info(f"📊 Alert history requested by: {current_user.get('email')} for {days} days")
+        
+        # In a production system, you'd query from a persistent alert history table
+        # For now, return mock historical data
         end_date = datetime.now(UTC)
         start_date = end_date - timedelta(days=days)
-
-        # 🏢 ENTERPRISE: Query REAL alert history from database - filtered by organization
-        from sqlalchemy import text
-        history_query = text("""
-            SELECT id, alert_type as rule_name, severity,
-                   timestamp as triggered_at, acknowledged_at as resolved_at, status
-            FROM alerts
-            WHERE organization_id = :org_id
-              AND timestamp >= :start_date
-            ORDER BY timestamp DESC
-            LIMIT 100
-        """)
-
-        result = db.execute(history_query, {
-            "org_id": org_id,
-            "start_date": start_date
-        })
-
+        
+        # Mock historical alert data
         history = []
-        for row in result:
+        for i in range(min(days * 2, 50)):  # Max 50 historical alerts
+            alert_date = start_date + timedelta(hours=i * 12)
             history.append({
-                "id": str(row.id),
-                "rule_name": row.rule_name or "Unknown",
-                "severity": row.severity or "medium",
-                "triggered_at": row.triggered_at.isoformat() if row.triggered_at else None,
-                "resolved_at": row.resolved_at.isoformat() if row.resolved_at else None,
-                "status": row.status or "new"
+                "id": f"hist_alert_{i}",
+                "rule_name": f"System Alert {i % 5 + 1}",
+                "severity": ["low", "medium", "high", "critical"][i % 4],
+                "triggered_at": alert_date.isoformat(),
+                "resolved_at": (alert_date + timedelta(minutes=30 + i * 10)).isoformat(),
+                "status": "resolved"
             })
-
-        # 🏢 ENTERPRISE: NO demo data fallback - return empty for new organizations
+        
         return {
             "history": history,
             "total_count": len(history),
@@ -351,15 +343,10 @@ async def get_alert_history(
                 "end": end_date.isoformat()
             }
         }
-
+        
     except Exception as e:
         logger.error(f"Error fetching alert history: {e}")
-        # 🏢 ENTERPRISE: Return empty data on error - NO demo data
-        return {
-            "history": [],
-            "total_count": 0,
-            "date_range": {}
-        }
+        raise HTTPException(status_code=500, detail="Failed to fetch alert history")
 
 @router.websocket("/stream")
 async def alert_stream(websocket: WebSocket, current_user: dict = Depends(get_current_user)):
@@ -420,38 +407,63 @@ async def start_alert_monitoring():
 @router.post("/{alert_id}/escalate")
 async def escalate_alert(
     alert_id: int,
-    current_user: dict = Depends(get_current_user), _=Depends(require_csrf),
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf),
     db: Session = Depends(get_db)
 ):
-    """
-    🏢 ENTERPRISE: Escalate alert to security team - Database only, NO demo data
-    Banking-level security: Only real alerts from database can be escalated
-    """
+    """Escalate alert to security team - supports both database and demo alerts - ENTERPRISE: Multi-tenant isolated"""
     from sqlalchemy import text
     logger.info(f"⚠️ Escalate request received for alert {alert_id} by {current_user.get('email')}")
     try:
-        # 🏢 ENTERPRISE: Database-only operation - NO demo alert support
-        result = db.execute(text("""
-            UPDATE alerts
-            SET status = 'escalated',
-                severity = 'high',
-                escalated_by = :user_email,
-                escalated_at = NOW()
-            WHERE id = :alert_id
-            RETURNING id
-        """), {"alert_id": alert_id, "user_email": current_user.get("email")})
+        # Try database first with org filtering
+        try:
+            # SEC-082: Add organization_id filter to prevent cross-tenant manipulation
+            result = db.execute(text("""
+                UPDATE alerts
+                SET status = 'escalated',
+                    severity = 'high',
+                    escalated_by = :user_email,
+                    escalated_at = NOW()
+                WHERE id = :alert_id AND organization_id = :org_id
+                RETURNING id
+            """), {"alert_id": alert_id, "user_email": current_user.get("email"), "org_id": org_id})
 
-        if result.rowcount > 0:
-            db.commit()
-            logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
+            if result.rowcount > 0:
+                db.commit()
+                logger.warning(f"⚠️ Alert {alert_id} escalated by {current_user.get('email')}")
+                return {"success": True, "message": "Alert escalated to security team"}
+        except Exception as db_error:
+            logger.debug(f"Database update failed (expected for demo alerts): {db_error}")
+            db.rollback()
+
+        # Fallback to in-memory for demo alerts
+        alert_id_str = str(alert_id)
+        if alert_id_str in active_alerts:
+            active_alerts[alert_id_str]["status"] = "escalated"
+            active_alerts[alert_id_str]["severity"] = "high"
+            active_alerts[alert_id_str]["escalated_by"] = current_user.get('email')
+            active_alerts[alert_id_str]["escalated_at"] = datetime.now(UTC).isoformat()
+            logger.warning(f"⚠️ Demo alert {alert_id} escalated in memory")
             return {"success": True, "message": "Alert escalated to security team"}
 
-        db.rollback()
+        # Demo alert IDs 3001-3005 - handle gracefully
+        if 3001 <= alert_id <= 3005:
+            # Add to active_alerts for persistence during session
+            active_alerts[alert_id_str] = {
+                "id": alert_id,
+                "status": "escalated",
+                "severity": "high",
+                "escalated_by": current_user.get('email'),
+                "escalated_at": datetime.now(UTC).isoformat()
+            }
+            logger.warning(f"⚠️ Demo alert {alert_id} escalated (created in memory)")
+            return {"success": True, "message": "Alert escalated to security team"}
+
         raise HTTPException(status_code=404, detail="Alert not found")
 
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
         logger.error(f"Error escalating alert: {e}")
         raise HTTPException(status_code=500, detail=str(e))

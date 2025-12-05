@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from database import get_db
-from dependencies import get_current_user, require_admin, get_organization_filter, require_csrf
+from dependencies import get_current_user, require_admin, get_organization_filter
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, UTC
 import json
@@ -14,11 +14,7 @@ from pydantic import BaseModel
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '../integrations'))
-# SEC-052: Import all SIEM connectors including new Sentinel and Elastic
-from siem_connector import (
-    SIEMManager, SIEMConfig, SIEMType, SecurityEvent,
-    SplunkConnector, QRadarConnector, SentinelConnector, ElasticConnector
-)
+from siem_connector import SIEMManager, SIEMConfig, SIEMType, SplunkConnector, QRadarConnector, SecurityEvent
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/siem-integration", tags=["siem-integration"])
@@ -28,22 +24,15 @@ siem_manager = SIEMManager()
 
 # Pydantic Models
 class SIEMConfigRequest(BaseModel):
-    """SEC-052: Extended SIEM configuration supporting all connector types."""
     siem_type: str
-    host: str = ""
-    port: int = 443
-    username: str = ""
-    password: str = ""
+    host: str
+    port: int
+    username: str
+    password: str
     api_token: Optional[str] = None
     use_ssl: bool = True
     verify_ssl: bool = True
     index_name: str = "owai_security"
-    # SEC-052: Azure Sentinel specific
-    workspace_id: Optional[str] = None
-    shared_key: Optional[str] = None
-    log_type: str = "OWAISecurityEvents"
-    # SEC-052: Elastic Cloud specific
-    cloud_id: Optional[str] = None
 
 class ThreatIntelRequest(BaseModel):
     agent_id: str
@@ -99,7 +88,7 @@ async def configure_siem(
         logger.info(f"🔄 SIEM configuration requested by: {current_user.get('email', 'unknown')}")
         logger.info(f"🔧 Configuring SIEM: {config_request.siem_type} at {config_request.host}:{config_request.port}")
         
-        # SEC-052: Create SIEM configuration with all connector-specific fields
+        # Create SIEM configuration
         siem_config = SIEMConfig(
             siem_type=SIEMType(config_request.siem_type),
             host=config_request.host,
@@ -109,36 +98,14 @@ async def configure_siem(
             api_token=config_request.api_token,
             use_ssl=config_request.use_ssl,
             verify_ssl=config_request.verify_ssl,
-            index_name=config_request.index_name,
-            # SEC-052: Azure Sentinel fields
-            workspace_id=config_request.workspace_id,
-            shared_key=config_request.shared_key,
-            log_type=config_request.log_type,
-            # SEC-052: Elastic Cloud fields
-            cloud_id=config_request.cloud_id
+            index_name=config_request.index_name
         )
         
-        # SEC-052: Create appropriate connector for all supported SIEM types
+        # Create appropriate connector
         if config_request.siem_type == "splunk":
             connector = SplunkConnector(siem_config)
         elif config_request.siem_type == "qradar":
             connector = QRadarConnector(siem_config)
-        elif config_request.siem_type == "sentinel":
-            # SEC-052: Microsoft Sentinel requires workspace_id and shared_key
-            if not config_request.workspace_id or not config_request.shared_key:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Sentinel requires workspace_id and shared_key"
-                )
-            connector = SentinelConnector(siem_config)
-        elif config_request.siem_type == "elastic":
-            # SEC-052: Elastic requires either host/port or cloud_id
-            if not config_request.host and not config_request.cloud_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Elastic requires either host/port or cloud_id"
-                )
-            connector = ElasticConnector(siem_config)
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported SIEM type: {config_request.siem_type}")
         
@@ -262,23 +229,19 @@ async def forward_authorization_to_siem(
     action_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin), _=Depends(require_csrf),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
-    """Forward authorization decision to SIEM"""
+    """Forward authorization decision to SIEM - ENTERPRISE: Multi-tenant isolated"""
     try:
-        logger.info(f"🔄 Authorization forwarding to SIEM: Action {action_id} by {current_user.get('email', 'unknown')} [org_id={org_id}]")
-
-        # 🏢 ENTERPRISE: Strict multi-tenant isolation
-        if org_id is None:
-            logger.warning(f"⚠️ SECURITY: SIEM forward denied - no organization context")
-            raise HTTPException(status_code=403, detail="Organization context required")
+        logger.info(f"🔄 Authorization forwarding to SIEM: Action {action_id} by {current_user.get('email', 'unknown')}")
 
         if not siem_manager.active_connector:
             logger.warning("⚠️ SIEM not configured - authorization not forwarded")
             return {"message": "⚠️ SIEM not configured - authorization logged locally"}
 
-        # 🏢 ENTERPRISE: Get action details with org_id filter for tenant isolation
+        # SEC-082: Get action details with org filtering
         action_query = text("""
             SELECT agent_id, action_type, risk_level, status, approved, reviewed_by
             FROM agent_actions
@@ -339,19 +302,25 @@ async def get_threat_intelligence_from_siem(
         logger.info(f"🔄 Threat intelligence requested for agent {intel_request.agent_id} by {current_user.get('email', 'unknown')}")
         
         if not siem_manager.active_connector:
-            # 🏢 ENTERPRISE: NO demo data - return empty response when SIEM not configured
-            # Compliance: Multi-tenant isolation - no cross-tenant data leakage
+            # Return demo threat intelligence if no SIEM configured
             return {
-                "status": "not_configured",
-                "message": "SIEM integration not configured. Configure SIEM to enable threat intelligence.",
+                "status": "demo_mode",
                 "agent_id": intel_request.agent_id,
                 "time_period_hours": intel_request.hours,
-                "total_events": 0,
-                "high_risk_events": 0,
-                "threat_indicators": [],
-                "recommendations": [],
-                "threat_score": 0,
-                "confidence_level": 0
+                "total_events": 15,
+                "high_risk_events": 3,
+                "threat_indicators": [
+                    "Agent shows elevated activity patterns",
+                    "Multiple high-risk actions in short timeframe",
+                    "Actions outside normal business hours"
+                ],
+                "recommendations": [
+                    "Consider additional oversight for this agent",
+                    "Review recent action patterns",
+                    "Implement enhanced monitoring"
+                ],
+                "threat_score": 65,
+                "confidence_level": 87
             }
         
         # Get real threat intelligence from SIEM
@@ -378,15 +347,30 @@ async def query_siem_events(
         logger.info(f"🔄 SIEM query requested by {current_user.get('email', 'unknown')}: {query}")
         
         if not siem_manager.active_connector:
-            # 🏢 ENTERPRISE: NO demo data - return empty response when SIEM not configured
-            # Compliance: Multi-tenant isolation - no cross-tenant data leakage
+            # Return demo events if no SIEM configured
             return {
-                "status": "not_configured",
-                "message": "SIEM integration not configured. Configure SIEM to query events.",
+                "status": "demo_mode",
                 "query": query,
                 "time_range_hours": hours,
-                "events": [],
-                "total_events": 0
+                "events": [
+                    {
+                        "event_id": "demo-001",
+                        "timestamp": (datetime.now(UTC) - timedelta(hours=2)).isoformat(),
+                        "agent_id": "security-scanner-01",
+                        "action_type": "vulnerability_scan",
+                        "risk_score": 75,
+                        "status": "completed"
+                    },
+                    {
+                        "event_id": "demo-002", 
+                        "timestamp": (datetime.now(UTC) - timedelta(hours=4)).isoformat(),
+                        "agent_id": "compliance-agent",
+                        "action_type": "compliance_check",
+                        "risk_score": 55,
+                        "status": "approved"
+                    }
+                ],
+                "total_events": 2
             }
         
         # Query real SIEM
@@ -457,28 +441,23 @@ async def get_siem_integration_metrics(current_user: dict = Depends(get_current_
 async def bulk_forward_events(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_admin), _=Depends(require_csrf),
-    org_id: int = Depends(get_organization_filter)
+    current_user: dict = Depends(require_admin),
+    org_id: int = Depends(get_organization_filter),
+    _=Depends(require_csrf)
 ):
-    """Bulk forward recent events to SIEM"""
+    """Bulk forward recent events to SIEM - ENTERPRISE: Multi-tenant isolated"""
     try:
         data = await request.json()
         hours = data.get("hours", 24)
 
-        logger.info(f"🔄 Bulk SIEM forwarding requested by: {current_user.get('email', 'unknown')} for {hours} hours [org_id={org_id}]")
-
-        # 🏢 ENTERPRISE: Strict multi-tenant isolation
-        if org_id is None:
-            logger.warning(f"⚠️ SECURITY: Bulk forward denied - no organization context")
-            raise HTTPException(status_code=403, detail="Organization context required")
+        logger.info(f"🔄 Bulk SIEM forwarding requested by: {current_user.get('email', 'unknown')} for {hours} hours")
 
         if not siem_manager.active_connector:
             raise HTTPException(status_code=400, detail="No SIEM connector configured")
 
-        # Get recent events from database
+        # SEC-082: Get recent events from database filtered by organization
         cutoff_time = datetime.now(UTC) - timedelta(hours=hours)
 
-        # 🏢 ENTERPRISE: Filter by organization_id for tenant isolation
         events_query = text("""
             SELECT id, agent_id, action_type, risk_level, status, approved, created_at
             FROM agent_actions
@@ -486,7 +465,7 @@ async def bulk_forward_events(
             ORDER BY created_at DESC
             LIMIT 100
         """)
-
+        
         result = db.execute(events_query, {"cutoff_time": cutoff_time, "org_id": org_id})
         
         # Convert to SecurityEvent objects
