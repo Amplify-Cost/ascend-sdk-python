@@ -27,6 +27,7 @@ class ImmutableAuditService:
         resource_id: str,
         action: str,
         event_data: Dict[str, Any],
+        outcome: str = "SUCCESS",  # SEC-100b: Add outcome parameter
         risk_level: str = "MEDIUM",
         compliance_tags: List[str] = None,
         ip_address: str = None,
@@ -39,14 +40,19 @@ class ImmutableAuditService:
             last_log = self.db.query(ImmutableAuditLog).order_by(
                 desc(ImmutableAuditLog.sequence_number)
             ).first()
-            
+
+            # SEC-100b: Calculate next sequence number (not auto-increment since not PK)
+            next_sequence = (last_log.sequence_number + 1) if last_log else 1
+
             # Create new audit log
             audit_log = ImmutableAuditLog(
+                sequence_number=next_sequence,  # SEC-100b: Set explicitly
                 event_type=event_type,
                 actor_id=actor_id,
                 resource_type=resource_type,
                 resource_id=resource_id,
                 action=action,
+                outcome=outcome,  # SEC-100b: Set from parameter
                 event_data=event_data,
                 risk_level=risk_level,
                 compliance_tags=compliance_tags or [],
