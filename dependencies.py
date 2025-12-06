@@ -158,12 +158,28 @@ def _decode_jwt(token: str, client_ip: Optional[str] = None) -> dict:
             client_ip=client_ip
         )
 
+        # SEC-DB-003: Extract email from JWT claims
+        # Token already verified above by TokenService, safe to decode claims
+        # Email is included in additional_claims by create_enterprise_token()
+        email = None
+        try:
+            import jwt
+            unverified_claims = jwt.decode(token, options={"verify_signature": False})
+            email = unverified_claims.get("email")
+            if email:
+                logger.debug(f"SEC-DB-003: Extracted email from JWT: {email}")
+            else:
+                logger.warning("SEC-DB-003: No email claim found in JWT")
+        except Exception as e:
+            logger.warning(f"SEC-DB-003: Failed to extract email from JWT: {e}")
+            # Fail secure: email stays None, let downstream handle
+
         # Convert TenantContext to dict for backward compatibility
         # This allows existing code to continue using dict-style access
         return {
             "user_id": str(tenant_context.user_id),
             "sub": str(tenant_context.user_id),
-            "email": None,  # Not in TenantContext - will be populated from database
+            "email": email,  # SEC-DB-003: From JWT claims (was hardcoded None)
             "role": tenant_context.role,
             # SEC-DB-001: Convert UUID to integer for database compatibility
             "organization_id": _safe_org_id_to_int(tenant_context.org_id),
