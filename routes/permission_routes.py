@@ -180,7 +180,7 @@ async def get_my_permissions(
     """
     service = get_permission_service(db)
 
-    user_id = current_user.get("user_id", "unknown")
+    user_id = str(current_user.get("user_id", "unknown"))  # SEC-098: Convert to string for Pydantic
     scope = current_user.get("scope", "org")
     roles = current_user.get("cognito_groups", []) or [current_user.get("role", "Viewer")]
     permissions = service.get_user_permissions(current_user)
