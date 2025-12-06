@@ -282,42 +282,42 @@ DOCUMENT_CATEGORIES = {
         "icon": "python",
         "documents": [
             {
-                "id": "python-installation",
+                "id": "installation",  # SEC-096: Removed prefix to match path
                 "title": "Installation",
                 "description": "Python SDK setup",
                 "path": "/api/docs/category/sdk-python/installation",
                 "filename": "sdk-python/installation.md"
             },
             {
-                "id": "python-client-configuration",
+                "id": "client-configuration",  # SEC-096: Removed prefix to match path
                 "title": "Client Configuration",
                 "description": "Configure the Python client",
                 "path": "/api/docs/category/sdk-python/client-configuration",
                 "filename": "sdk-python/client-configuration.md"
             },
             {
-                "id": "python-agent-actions",
+                "id": "agent-actions",  # SEC-096: Removed prefix to match path
                 "title": "Agent Actions",
                 "description": "Submit and manage agent actions",
                 "path": "/api/docs/category/sdk-python/agent-actions",
                 "filename": "sdk-python/agent-actions.md"
             },
             {
-                "id": "python-policies",
+                "id": "policies",  # SEC-096: Removed prefix to match path
                 "title": "Policies",
                 "description": "Policy management with Python",
                 "path": "/api/docs/category/sdk-python/policies",
                 "filename": "sdk-python/policies.md"
             },
             {
-                "id": "python-error-handling",
+                "id": "error-handling",  # SEC-096: Removed prefix to match path
                 "title": "Error Handling",
                 "description": "Handle errors gracefully",
                 "path": "/api/docs/category/sdk-python/error-handling",
                 "filename": "sdk-python/error-handling.md"
             },
             {
-                "id": "python-api-reference",
+                "id": "api-reference",  # SEC-096: Removed prefix to match path
                 "title": "API Reference",
                 "description": "Complete Python API reference",
                 "path": "/api/docs/category/sdk-python/api-reference",
@@ -331,28 +331,28 @@ DOCUMENT_CATEGORIES = {
         "icon": "nodejs",
         "documents": [
             {
-                "id": "nodejs-installation",
+                "id": "installation",  # SEC-096: Removed prefix to match path
                 "title": "Installation",
                 "description": "Node.js SDK setup",
                 "path": "/api/docs/category/sdk-nodejs/installation",
                 "filename": "sdk-nodejs/installation.md"
             },
             {
-                "id": "nodejs-client-configuration",
+                "id": "client-configuration",  # SEC-096: Removed prefix to match path
                 "title": "Client Configuration",
                 "description": "Configure the Node.js client",
                 "path": "/api/docs/category/sdk-nodejs/client-configuration",
                 "filename": "sdk-nodejs/client-configuration.md"
             },
             {
-                "id": "nodejs-agent-actions",
+                "id": "agent-actions",  # SEC-096: Removed prefix to match path
                 "title": "Agent Actions",
                 "description": "Submit and manage agent actions",
                 "path": "/api/docs/category/sdk-nodejs/agent-actions",
                 "filename": "sdk-nodejs/agent-actions.md"
             },
             {
-                "id": "nodejs-error-handling",
+                "id": "error-handling",  # SEC-096: Removed prefix to match path
                 "title": "Error Handling",
                 "description": "Handle errors in Node.js",
                 "path": "/api/docs/category/sdk-nodejs/error-handling",
@@ -366,21 +366,21 @@ DOCUMENT_CATEGORIES = {
         "icon": "api",
         "documents": [
             {
-                "id": "rest-authentication",
+                "id": "authentication",  # SEC-096: Removed prefix to match path
                 "title": "Authentication",
                 "description": "API authentication methods",
                 "path": "/api/docs/category/sdk-rest/authentication",
                 "filename": "sdk-rest/authentication.md"
             },
             {
-                "id": "rest-endpoints",
+                "id": "endpoints",  # SEC-096: Removed prefix to match path
                 "title": "Endpoints",
                 "description": "Complete endpoint reference",
                 "path": "/api/docs/category/sdk-rest/endpoints",
                 "filename": "sdk-rest/endpoints.md"
             },
             {
-                "id": "rest-webhooks",
+                "id": "webhooks",  # SEC-096: Removed prefix to match path
                 "title": "Webhooks",
                 "description": "Webhook configuration and events",
                 "path": "/api/docs/category/sdk-rest/webhooks",
