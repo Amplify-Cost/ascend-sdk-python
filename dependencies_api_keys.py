@@ -21,7 +21,7 @@ import logging
 from database import get_db
 from models import User
 from models_api_keys import ApiKey, ApiKeyUsageLog, ApiKeyRateLimit
-from dependencies import get_current_user
+from dependencies import get_current_user, _decode_jwt
 from security.cookies import SESSION_COOKIE_NAME  # For JWT cookie authentication
 
 # SEC-092 HOTFIX: Import Cognito validator for production JWT verification
@@ -298,47 +298,51 @@ async def get_current_user_or_api_key(
     Raises:
         HTTPException: If neither authentication method succeeds
     """
-    # 1. Try JWT first (admin UI)
-    # SEC-092 HOTFIX: Use validate_cognito_token for Cognito JWT verification
-    # Previous fix incorrectly used TokenService.verify() which only handles internal RS256 tokens
+    # 1. Try JWT from cookie first (admin UI)
+    # SEC-092b FIX: Use _decode_jwt for cookie validation
+    # Cookies contain enterprise tokens (from create_enterprise_token in /cognito-session),
+    # NOT Cognito tokens. Must use TokenService validation (matches dependencies.py pattern).
     cookie_jwt = request.cookies.get(SESSION_COOKIE_NAME)
     if cookie_jwt:
         try:
-            # SEC-092 HOTFIX: Cognito token verification using JWKS public keys
-            user_context = validate_cognito_token(cookie_jwt, db)
+            # SEC-092b: Extract client IP for audit trail
+            client_ip = request.client.host if hasattr(request, 'client') and request.client else None
 
-            # Extract required fields from Cognito context
-            user_id = user_context.get("user_id")
-            organization_id = user_context.get("organization_id")
-            cognito_user_id = user_context.get("cognito_user_id")
+            # SEC-092b: Validate enterprise token using TokenService (same as get_current_user)
+            payload = _decode_jwt(cookie_jwt, client_ip=client_ip)
 
-            # SEC-092 HOTFIX: Lookup database user if needed
-            if user_id is None and cognito_user_id:
-                user = db.query(User).filter(User.cognito_user_id == cognito_user_id).first()
-                if user:
-                    user_id = user.id
-                    organization_id = user.organization_id
+            # SEC-092b: Extract user context from payload
+            user_id = payload.get("user_id")
+            organization_id = payload.get("organization_id")
+            cognito_sub = payload.get("cognito_sub") or payload.get("sub")
 
-            logger.debug(f"✅ SEC-092 HOTFIX: Authenticated via JWT cookie (Cognito): user_id={user_id}, org_id={organization_id}")
+            # SEC-DB-001: Ensure organization_id is integer for database queries
+            if organization_id is not None and not isinstance(organization_id, int):
+                try:
+                    organization_id = int(organization_id)
+                except (ValueError, TypeError):
+                    logger.warning(f"SEC-092b: Invalid organization_id type: {type(organization_id)}")
+
+            logger.info(f"✅ SEC-092b: Cookie auth successful: user_id={user_id}, org_id={organization_id}")
 
             return {
                 "user_id": user_id,
-                "sub": str(cognito_user_id) if cognito_user_id else str(user_id),
-                "email": user_context.get("email"),
-                "role": user_context.get("role", "user"),
+                "sub": str(cognito_sub) if cognito_sub else str(user_id),
+                "email": payload.get("email"),
+                "role": payload.get("role", "user"),
                 "organization_id": organization_id,
                 "org_id": organization_id,
-                "cognito_sub": cognito_user_id,
+                "cognito_sub": cognito_sub,
                 "auth_method": "cookie",
             }
         except HTTPException:
             # Re-raise HTTP exceptions (401, 403, etc.)
             raise
         except JWTError as e:
-            logger.debug(f"SEC-092 HOTFIX: JWT cookie validation failed: {e}")
+            logger.debug(f"SEC-092b: JWT cookie validation failed: {e}")
             pass  # Try next method
         except Exception as e:
-            logger.debug(f"SEC-092 HOTFIX: JWT cookie verification failed: {e}")
+            logger.debug(f"SEC-092b: JWT cookie verification failed: {e}")
             pass  # Try next method
 
     # Check Authorization header for JWT or API key
