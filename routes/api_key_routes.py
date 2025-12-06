@@ -12,7 +12,7 @@ Status: Production-ready
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime, timedelta, UTC
 import secrets
@@ -58,6 +58,62 @@ class GenerateKeyRequest(BaseModel):
     expires_in_days: Optional[int] = Field(None, ge=1, le=3650, description="Expiration in days (NULL = never expires)")
     permissions: Optional[List[PermissionRequest]] = Field(None, description="Specific permissions (NULL = inherit user permissions)")
     rate_limit: Optional[RateLimitRequest] = Field(None, description="Rate limit config (NULL = default 1000/hour)")
+
+    # SEC-094: Accept both string shorthand and object format for permissions
+    @field_validator('permissions', mode='before')
+    @classmethod
+    def convert_permission_strings(cls, v):
+        """
+        SEC-094: Convert string permissions to PermissionRequest format.
+
+        Accepts:
+          - "agent:read" → {"category": "agent", "actions": ["read"]}
+          - "action:submit" → {"category": "action", "actions": ["submit"]}
+          - {"category": "agent", "actions": ["read"]} → unchanged
+
+        Groups by category for efficiency (e.g., ["agent:read", "agent:write"]
+        becomes [{"category": "agent", "actions": ["read", "write"]}])
+        """
+        if v is None:
+            return v
+
+        if not isinstance(v, list):
+            return v
+
+        converted = []
+        category_map = {}  # Track categories for grouping
+
+        for item in v:
+            if isinstance(item, str):
+                # SEC-094: Parse "category:action" format
+                if ':' not in item:
+                    raise ValueError(f"SEC-094: Invalid permission format: '{item}'. Expected 'category:action' (e.g., 'agent:read')")
+
+                parts = item.split(':', 1)
+                category = parts[0].strip()
+                action = parts[1].strip()
+
+                if not category or not action:
+                    raise ValueError(f"SEC-094: Empty category or action in: '{item}'")
+
+                # Group by category for efficiency
+                if category in category_map:
+                    if action not in category_map[category]['actions']:
+                        category_map[category]['actions'].append(action)
+                else:
+                    category_map[category] = {'category': category, 'actions': [action]}
+
+            elif isinstance(item, dict):
+                # Already structured format - pass through
+                converted.append(item)
+            else:
+                raise ValueError(f"SEC-094: Invalid permission type: {type(item).__name__}. Expected string or dict.")
+
+        # Add grouped string permissions to result
+        converted.extend(category_map.values())
+
+        logger.debug(f"SEC-094: Converted permissions: {converted}")
+        return converted
 
 
 class ApiKeyResponse(BaseModel):
