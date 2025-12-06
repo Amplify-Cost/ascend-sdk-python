@@ -809,7 +809,7 @@ async def get_pending_actions(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     org_id: int = Depends(get_organization_filter)
 ):
     """Get pending actions requiring approval with enhanced filtering - filtered by organization."""
@@ -872,7 +872,7 @@ async def authorize_action_with_audit(
 @router.get("/dashboard")
 async def get_approval_dashboard(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     org_id: int = Depends(get_organization_filter)
 ):
     """Get comprehensive approval dashboard with KPIs - filtered by organization."""
@@ -1019,7 +1019,7 @@ async def get_approval_dashboard(
 @router.get("/execution-history")
 async def get_execution_history(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db),
     org_id: int = Depends(get_organization_filter)  # SEC-076: Multi-tenant isolation
 ):
@@ -1297,7 +1297,7 @@ async def authorize_action_api(
 @api_router.get("/execution-history")
 async def get_execution_history_api(
     limit: int = 50,
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db),
     org_id: int = Depends(get_organization_filter)  # SEC-076-FE: Multi-tenant isolation
 ):
@@ -1615,7 +1615,7 @@ authorization_api_router = api_router  # Alias for backward compatibility
 @router.post("/policies/create-from-natural-language")
 async def create_policy_from_natural_language(
     request: dict,
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """Create enterprise policy from natural language description"""
@@ -1644,7 +1644,7 @@ async def create_policy_from_natural_language(
 @router.post("/policies/{policy_id}/deploy")
 async def deploy_policy(
     policy_id: str,
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """Deploy approved policy to production"""
@@ -1672,7 +1672,7 @@ async def deploy_policy(
 async def rollback_policy(
     policy_id: str,
     target_version_id: str,
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """Rollback policy to previous version"""
@@ -1699,7 +1699,7 @@ async def rollback_policy(
 
 @router.post("/mcp-discovery/scan-network")
 async def scan_network_for_mcp_servers(
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """Enterprise MCP server network discovery"""
@@ -1721,7 +1721,7 @@ async def scan_network_for_mcp_servers(
 
 @router.get("/mcp-discovery/server-status")
 async def get_discovery_server_status(
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """Get status of discovered MCP servers"""
@@ -1740,7 +1740,7 @@ async def get_discovery_server_status(
 
 @router.get("/mcp-discovery/health-monitor")
 async def monitor_mcp_server_health(
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """Enterprise MCP server health monitoring"""
@@ -1763,7 +1763,7 @@ async def monitor_mcp_server_health(
 
 @api_router.get("/metrics/approval-performance", response_model=Dict[str, Any])
 async def get_approval_performance_metrics(
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db),
     org_id: int = Depends(get_organization_filter)
 ):
@@ -1910,7 +1910,7 @@ async def get_approval_performance_metrics(
 @api_router.post("/policies/evaluate-realtime")
 async def evaluate_policy_realtime(
     request: dict,
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """
@@ -2003,7 +2003,7 @@ async def evaluate_policy_realtime(
 
 @api_router.get("/policies/engine-metrics")
 async def get_policy_engine_metrics(
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """
@@ -2086,7 +2086,7 @@ async def clear_policy_cache(
 
 @api_router.post("/policies/test-evaluation")
 async def test_policy_evaluation(
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support,
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
     db: Session = Depends(get_db)
 ):
     """
