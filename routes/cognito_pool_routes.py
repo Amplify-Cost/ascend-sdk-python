@@ -389,6 +389,19 @@ async def get_pool_config_by_email(
         )
 
 
+@router.get("/pool-config/by-email-domain/{email}")
+async def get_pool_config_by_email_domain(
+    email: str,
+    request: Request,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    SEC-101: Alias for by-email route to match frontend expectation.
+    PUBLIC ENDPOINT - Required for frontend dynamic pool detection.
+    """
+    return await get_pool_config_by_email(email, request, db)
+
+
 @router.get("/pool-status/{organization_slug}")
 async def get_pool_status(
     organization_slug: str,
