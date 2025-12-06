@@ -156,6 +156,7 @@ def create_config(
             resource_type="RISK_CONFIG",
             resource_id=str(new_config.id),
             action="CREATE",
+            organization_id=org_id,  # SEC-100c: Multi-tenant audit isolation
             event_data={
                 "outcome": "SUCCESS",  # SEC-100: Moved from invalid kwarg
                 "config_id": new_config.id,
@@ -247,6 +248,7 @@ def activate_config(
             resource_type="RISK_CONFIG",
             resource_id=str(config_to_activate.id),
             action="ACTIVATE",
+            organization_id=org_id,  # SEC-100c: Multi-tenant audit isolation
             event_data={
                 "outcome": "SUCCESS",  # SEC-100: Moved from invalid kwarg
                 "config_id": config_to_activate.id,
@@ -371,6 +373,7 @@ def rollback_to_default(
             resource_type="RISK_CONFIG",
             resource_id=str(factory_default.id),
             action="ROLLBACK_TO_DEFAULT",
+            organization_id=org_id,  # SEC-100c: Multi-tenant audit isolation
             event_data={
                 "outcome": "SUCCESS",  # SEC-100: Moved from invalid kwarg
                 "factory_default_id": factory_default.id,

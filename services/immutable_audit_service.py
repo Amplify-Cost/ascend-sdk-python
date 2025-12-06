@@ -27,6 +27,7 @@ class ImmutableAuditService:
         resource_id: str,
         action: str,
         event_data: Dict[str, Any],
+        organization_id: int = None,  # SEC-100c: Add for multi-tenant isolation
         outcome: str = "SUCCESS",  # SEC-100b: Add outcome parameter
         risk_level: str = "MEDIUM",
         compliance_tags: List[str] = None,
@@ -47,6 +48,7 @@ class ImmutableAuditService:
             # Create new audit log
             audit_log = ImmutableAuditLog(
                 sequence_number=next_sequence,  # SEC-100b: Set explicitly
+                organization_id=organization_id,  # SEC-100c: Multi-tenant isolation
                 event_type=event_type,
                 actor_id=actor_id,
                 resource_type=resource_type,
