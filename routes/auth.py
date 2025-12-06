@@ -1511,7 +1511,12 @@ async def create_cognito_session(
         )
         
         logger.info("✅ Secure session cookies set (HttpOnly, Secure, SameSite=Strict)")
-        
+
+        # SEC-CSRF-001: Set CSRF cookie for double-submit protection
+        # Matches /login endpoint pattern for consistency
+        _set_csrf_cookie(response, request)
+        logger.info("🔐 SEC-CSRF-001: CSRF cookie set for double-submit protection")
+
         # Step 9: Return user data
         user_response = {
             "id": user.id,
