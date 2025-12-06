@@ -16,6 +16,7 @@ from typing import Optional
 import hashlib
 import secrets
 import logging
+from uuid import UUID  # SEC-DB-002: For user_id UUID→int conversion
 
 # Import dependencies
 from database import get_db
@@ -312,9 +313,28 @@ async def get_current_user_or_api_key(
             payload = _decode_jwt(cookie_jwt, client_ip=client_ip)
 
             # SEC-092b: Extract user context from payload
-            user_id = payload.get("user_id")
+            user_id_raw = payload.get("user_id")
             organization_id = payload.get("organization_id")
             cognito_sub = payload.get("cognito_sub") or payload.get("sub")
+
+            # SEC-DB-002: Convert user_id from UUID string to integer for database queries
+            # Pattern matches SEC-091 in dependencies.py:get_current_user()
+            user_id = None
+            if user_id_raw is not None:
+                try:
+                    if isinstance(user_id_raw, int):
+                        user_id = user_id_raw
+                    else:
+                        user_uuid = UUID(str(user_id_raw))
+                        if user_uuid.int < 1000000000:  # Reasonable database ID range
+                            user_id = user_uuid.int
+                            logger.debug(f"SEC-DB-002: Converted user_id UUID.int={user_id}")
+                        else:
+                            logger.warning(f"SEC-DB-002: user_id appears to be Cognito UUID: {user_id_raw}")
+                            user_id = user_id_raw  # Keep as-is for Cognito lookups
+                except (ValueError, AttributeError, TypeError) as e:
+                    logger.error(f"SEC-DB-002: Failed to convert user_id: {e}")
+                    user_id = user_id_raw  # Fail-open for logging
 
             # SEC-DB-001: Ensure organization_id is integer for database queries
             if organization_id is not None and not isinstance(organization_id, int):
