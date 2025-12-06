@@ -623,11 +623,23 @@ def require_csrf(request: Request):
     return True
 
 def require_admin(current_user: dict = Depends(get_current_user)):
-    """Role guard: admin."""
-    if current_user.get("role") != "admin":
-        logger.warning(f"❌ Admin access denied for: {current_user.get('email')}")
+    """
+    SEC-095: Role guard for admin access using cookie-compatible auth.
+
+    Access granted if role is one of: admin, org_admin, owner, super_admin
+    Uses get_current_user which supports enterprise tokens in cookies.
+
+    Replaces require_org_admin from dependencies_cognito.py for routes
+    that need cookie-based authentication.
+    """
+    role = current_user.get("role", "user")
+    admin_roles = {"admin", "org_admin", "owner", "super_admin"}
+
+    if role not in admin_roles:
+        logger.warning(f"SEC-095: Admin access denied for user {current_user.get('user_id')} (role={role})")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
-    logger.info(f"✅ Admin access granted: {current_user.get('email')}")
+
+    logger.debug(f"SEC-095: Admin access granted for {current_user.get('email')} (role={role})")
     return current_user
 
 def require_manager_or_admin(current_user: dict = Depends(get_current_user)):

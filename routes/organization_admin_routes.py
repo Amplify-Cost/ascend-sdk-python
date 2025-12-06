@@ -33,6 +33,7 @@ from botocore.exceptions import ClientError
 from database import get_db
 from models import User, Organization, CognitoToken, AuthAuditLog
 from dependencies_cognito import require_org_admin, log_auth_event
+from dependencies import require_admin  # SEC-095: Cookie-compatible admin auth
 from config import (
     COGNITO_USER_POOL_ID,
     COGNITO_APP_CLIENT_ID,
@@ -901,7 +902,7 @@ async def get_subscription_info_auto_org(
 @router.get("/settings")
 async def get_organization_settings(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095: Cookie-compatible admin auth
 ):
     """
     SEC-093: Get organization settings (security configuration).
