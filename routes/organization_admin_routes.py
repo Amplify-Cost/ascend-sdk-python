@@ -32,7 +32,7 @@ from botocore.exceptions import ClientError
 
 from database import get_db
 from models import User, Organization, CognitoToken, AuthAuditLog
-from dependencies_cognito import require_org_admin, log_auth_event
+from dependencies_cognito import log_auth_event  # SEC-095b: Removed require_org_admin (not cookie-compatible)
 from dependencies import require_admin  # SEC-095: Cookie-compatible admin auth
 from config import (
     COGNITO_USER_POOL_ID,
@@ -314,7 +314,7 @@ async def invite_user(
     request: InviteUserRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Invite new user to organization via AWS Cognito.
@@ -422,7 +422,7 @@ async def invite_user(
 async def list_organization_users(
     org_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     List all users in organization.
@@ -462,7 +462,7 @@ async def remove_user(
     user_id: int,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Remove user from organization.
@@ -555,7 +555,7 @@ async def update_user_role(
     request: UpdateUserRoleRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Update user role and permissions.
@@ -660,7 +660,7 @@ async def update_user_role(
 async def get_subscription_info(
     org_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Get organization subscription information including user limits.
@@ -722,7 +722,7 @@ async def invite_user_auto_org(
     request: InviteUserRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Invite new user to organization (auto-detect org from JWT token).
@@ -759,7 +759,7 @@ async def invite_user_auto_org(
 @router.get("/users", response_model=List[UserResponse])
 async def list_organization_users_auto_org(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     List all users in organization (auto-detect org from JWT token).
@@ -795,7 +795,7 @@ async def remove_user_auto_org(
     user_id: int,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Remove user from organization (auto-detect org from JWT token).
@@ -833,7 +833,7 @@ async def update_user_role_auto_org(
     request: UpdateUserRoleRequest,
     req: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Update user role and permissions (auto-detect org from JWT token).
@@ -869,7 +869,7 @@ async def update_user_role_auto_org(
 @router.get("/subscription-info")
 async def get_subscription_info_auto_org(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_org_admin)
+    current_user: dict = Depends(require_admin)  # SEC-095b: Cookie-compatible admin auth
 ):
     """
     Get organization subscription information (auto-detect org from JWT token).
