@@ -17,6 +17,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 bleach==6.3.0  # XSS protection via HTML sanitization
 requests==2.31.0  # HTTP requests for Cognito JWKS
+aiohttp>=3.9.0  # SEC-093: Async HTTP for integration suite
 
 # Enterprise JWT (SEC-081: RS256 unified authentication)
 python-jose[cryptography]==3.3.0
