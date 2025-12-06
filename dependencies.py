@@ -80,6 +80,48 @@ except ImportError:
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)  # do not auto-error: we support cookie fallback
 
+
+# ============================================================================
+# SEC-DB-001: UUID to Integer Conversion Utility
+# ============================================================================
+
+def _safe_org_id_to_int(org_id):
+    """
+    Convert TenantContext UUID org_id to integer for database queries.
+
+    SEC-DB-001: Fixes 'operator does not exist: integer = uuid' error.
+
+    The TenantContext uses UUID internally (per SEC-081), but the database
+    uses INTEGER for organization_id columns. This function safely converts
+    the UUID back to its integer representation.
+
+    Args:
+        org_id: UUID object, integer, or None
+
+    Returns:
+        int: Integer organization ID for database queries
+        None: For platform users (no org_id)
+
+    Raises:
+        ValueError: If org_id is an invalid type (fail secure - deny access)
+
+    Compliance: SOC 2 CC6.1, NIST AC-3, PCI-DSS 7.1
+    """
+    if org_id is None:
+        return None  # Platform users have no org_id
+
+    try:
+        # UUID.int extracts the integer value used to create the UUID
+        # For UUID(int=4), this returns 4
+        return org_id.int
+    except AttributeError:
+        # org_id is not a UUID object
+        if isinstance(org_id, int):
+            return org_id
+        # SEC-DB-001: Fail secure - invalid type denies access
+        logger.error(f"SEC-DB-001: Invalid org_id type: {type(org_id)} value: {org_id}")
+        raise ValueError(f"SEC-DB-001: Invalid org_id type: {type(org_id)}")
+
 # SEC-081: Use TokenService for unified JWT verification with HS256 grace period
 # Replaces: secure_jwt_decode (Phase 2)
 # Enhancement: Supports both RS256 (new) and HS256 (legacy during grace period)
@@ -123,8 +165,9 @@ def _decode_jwt(token: str, client_ip: Optional[str] = None) -> dict:
             "sub": str(tenant_context.user_id),
             "email": None,  # Not in TenantContext - will be populated from database
             "role": tenant_context.role,
-            "organization_id": str(tenant_context.org_id),
-            "org_id": str(tenant_context.org_id),
+            # SEC-DB-001: Convert UUID to integer for database compatibility
+            "organization_id": _safe_org_id_to_int(tenant_context.org_id),
+            "org_id": _safe_org_id_to_int(tenant_context.org_id),
             "tenant_id": tenant_context.tenant_id,
             "permissions": list(tenant_context.permissions),
             "session_id": tenant_context.session_id,
