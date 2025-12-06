@@ -40,9 +40,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 # High-risk action types requiring immediate approval (risk score 85-95)
-# SEC-059: Expanded action type coverage for comprehensive agent governance
 HIGH_RISK_ACTION_TYPES: Set[str] = {
-    # Original action types
     "database_write",      # Production database modifications
     "database_delete",     # Data deletion operations
     "data_export",         # Data exfiltration risk
@@ -54,69 +52,16 @@ HIGH_RISK_ACTION_TYPES: Set[str] = {
     "access_grant",        # Access control modifications
     "secret_access",       # Secrets/credentials access
     "credential_access",   # Credential operations
-    # SEC-059: New high-risk action types
-    "data_update",          # Bulk data modifications
-    "record_update",        # Record-level updates
-    "bulk_write",           # Batch write operations
-    "bulk_delete",          # Batch delete operations
-    "shell_command",        # Shell/terminal execution
-    "process_execute",      # Process spawning
-    "script_run",           # Script execution
-    "admin_action",         # Administrative operations
-    "encryption_key_access", # Cryptographic key access
-    "audit_log_modify",     # Audit tampering attempt
-    "privilege_escalation", # Privilege escalation attempt
-    "system_shutdown",      # System shutdown/reboot
-    "firewall_modify",      # Firewall rule changes
 }
 
 # Medium-risk action types requiring monitoring (risk score 55-70)
-# SEC-059: Expanded action type coverage for comprehensive agent governance
 MEDIUM_RISK_ACTION_TYPES: Set[str] = {
-    # Original action types
     "system_modification",  # System configuration changes
     "api_call",            # External API calls (context dependent)
     "file_write",          # File system modifications
     "network_access",      # Network operations
     "config_change",       # Configuration modifications
     "service_restart",     # Service control operations
-    # SEC-059: New medium-risk action types
-    "data_access",          # Generic data access operations
-    "data_read",            # Data read operations
-    "database_read",        # Database query/read
-    "database_query",       # Database query execution
-    "file_read",            # File system read
-    "file_delete",          # File deletion
-    "file_upload",          # File upload operations
-    "file_download",        # File download operations
-    "query_execute",        # Query execution
-    "external_api_call",    # External API invocation
-    "webhook_trigger",      # Webhook invocation
-    "integration_call",     # Third-party integration
-    "email_send",           # Email sending
-    "notification_send",    # Notification dispatch
-    "report_generate",      # Report generation
-    "backup_create",        # Backup operations
-    "log_write",            # Log writing
-}
-
-# SEC-059: Low-risk action types requiring minimal monitoring (risk score 20-40)
-LOW_RISK_ACTION_TYPES: Set[str] = {
-    "llm_call",             # LLM/AI model invocation
-    "model_inference",      # ML model inference
-    "embedding_generate",   # Vector embedding generation
-    "vector_search",        # Vector similarity search
-    "http_request",         # HTTP requests (read-only context)
-    "dns_lookup",           # DNS resolution
-    "log_read",             # Log file reading
-    "metrics_read",         # Metrics/telemetry reading
-    "cache_read",           # Cache access (read)
-    "cache_write",          # Cache updates
-    "status_check",         # Health/status checks
-    "ping",                 # Network ping
-    "time_sync",            # Time synchronization
-    "version_check",        # Version checking
-    "discovery",            # Service discovery
 }
 
 # Enterprise logging context
@@ -333,427 +278,6 @@ ENTERPRISE_COMPLIANCE_MAPPINGS = {
         "mitre_tactic_name": "Impact",
         "mitre_technique": "T1489",
         "mitre_technique_name": "Service Stop"
-    },
-    # =========================================================================
-    # SEC-059: New action type compliance mappings
-    # =========================================================================
-    #
-    # MITRE ATT&CK TECHNIQUE SELECTION RATIONALE
-    # ------------------------------------------
-    # Each technique was selected based on the primary attack vector or
-    # defensive monitoring need associated with the action type.
-    #
-    # AI/LLM Operations (T1059.006 - Python):
-    #   Most LLM interactions occur via Python SDKs (OpenAI, Anthropic, LangChain).
-    #   The execution context is programmatic, making T1059.006 the most accurate
-    #   technique for tracking LLM-based agent actions.
-    #
-    # Time Sync (T1070.006 - Timestomp):
-    #   Time synchronization operations can be used to alter timestamps, defeat
-    #   time-based access controls, or evade time-window-based security monitoring.
-    #
-    # Firewall Modify (T1562.004 - Disable/Modify Firewall):
-    #   Firewall modification is a classic defense evasion technique used for
-    #   opening C2 channels or creating exceptions for malware persistence.
-    #
-    # Encryption Key Access (T1552.004 - Private Keys):
-    #   Encryption key access typically targets SSH keys, API keys, TLS certs,
-    #   making T1552.004 the specific sub-technique for private key theft.
-    #
-    # Discovery (T1046 - Network Service Discovery):
-    #   Service discovery includes port scanning, service enumeration, and
-    #   network mapping activities that are precursors to lateral movement.
-    #
-    # =========================================================================
-    # HIGH-RISK: New action types
-    "data_update": {
-        "nist_control": "AC-3",
-        "nist_family": "Access Control",
-        "nist_description": "Access Enforcement",
-        "mitre_tactic": "TA0040",
-        "mitre_tactic_name": "Impact",
-        "mitre_technique": "T1565",
-        "mitre_technique_name": "Data Manipulation"
-    },
-    "record_update": {
-        "nist_control": "AC-3",
-        "nist_family": "Access Control",
-        "nist_description": "Access Enforcement",
-        "mitre_tactic": "TA0040",
-        "mitre_tactic_name": "Impact",
-        "mitre_technique": "T1565",
-        "mitre_technique_name": "Data Manipulation"
-    },
-    "bulk_write": {
-        "nist_control": "AC-3",
-        "nist_family": "Access Control",
-        "nist_description": "Access Enforcement",
-        "mitre_tactic": "TA0040",
-        "mitre_tactic_name": "Impact",
-        "mitre_technique": "T1485",
-        "mitre_technique_name": "Data Destruction"
-    },
-    "bulk_delete": {
-        "nist_control": "AC-3",
-        "nist_family": "Access Control",
-        "nist_description": "Access Enforcement",
-        "mitre_tactic": "TA0040",
-        "mitre_tactic_name": "Impact",
-        "mitre_technique": "T1485",
-        "mitre_technique_name": "Data Destruction"
-    },
-    "shell_command": {
-        "nist_control": "AU-12",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Record Generation",
-        "mitre_tactic": "TA0002",
-        "mitre_tactic_name": "Execution",
-        "mitre_technique": "T1059",
-        "mitre_technique_name": "Command and Scripting Interpreter"
-    },
-    "process_execute": {
-        "nist_control": "AU-12",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Record Generation",
-        "mitre_tactic": "TA0002",
-        "mitre_tactic_name": "Execution",
-        "mitre_technique": "T1059",
-        "mitre_technique_name": "Command and Scripting Interpreter"
-    },
-    "script_run": {
-        "nist_control": "AU-12",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Record Generation",
-        "mitre_tactic": "TA0002",
-        "mitre_tactic_name": "Execution",
-        "mitre_technique": "T1059.006",
-        "mitre_technique_name": "Python"
-    },
-    "admin_action": {
-        "nist_control": "AC-6",
-        "nist_family": "Access Control",
-        "nist_description": "Least Privilege",
-        "mitre_tactic": "TA0004",
-        "mitre_tactic_name": "Privilege Escalation",
-        "mitre_technique": "T1078",
-        "mitre_technique_name": "Valid Accounts"
-    },
-    "encryption_key_access": {
-        "nist_control": "SC-12",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Cryptographic Key Establishment and Management",
-        "mitre_tactic": "TA0006",
-        "mitre_tactic_name": "Credential Access",
-        "mitre_technique": "T1552.004",
-        "mitre_technique_name": "Private Keys"
-    },
-    "audit_log_modify": {
-        "nist_control": "AU-9",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Protection of Audit Information",
-        "mitre_tactic": "TA0005",
-        "mitre_tactic_name": "Defense Evasion",
-        "mitre_technique": "T1070",
-        "mitre_technique_name": "Indicator Removal"
-    },
-    "system_shutdown": {
-        "nist_control": "CP-10",
-        "nist_family": "Contingency Planning",
-        "nist_description": "System Recovery and Reconstitution",
-        "mitre_tactic": "TA0040",
-        "mitre_tactic_name": "Impact",
-        "mitre_technique": "T1529",
-        "mitre_technique_name": "System Shutdown/Reboot"
-    },
-    "firewall_modify": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0005",
-        "mitre_tactic_name": "Defense Evasion",
-        "mitre_technique": "T1562.004",
-        "mitre_technique_name": "Disable or Modify System Firewall"
-    },
-    # MEDIUM-RISK: New action types
-    "data_access": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "data_read": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "database_query": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "file_read": {
-        "nist_control": "AC-4",
-        "nist_family": "Access Control",
-        "nist_description": "Information Flow Enforcement",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "file_delete": {
-        "nist_control": "AC-3",
-        "nist_family": "Access Control",
-        "nist_description": "Access Enforcement",
-        "mitre_tactic": "TA0040",
-        "mitre_tactic_name": "Impact",
-        "mitre_technique": "T1485",
-        "mitre_technique_name": "Data Destruction"
-    },
-    "file_upload": {
-        "nist_control": "SC-18",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Mobile Code",
-        "mitre_tactic": "TA0001",
-        "mitre_tactic_name": "Initial Access",
-        "mitre_technique": "T1105",
-        "mitre_technique_name": "Ingress Tool Transfer"
-    },
-    "file_download": {
-        "nist_control": "AC-4",
-        "nist_family": "Access Control",
-        "nist_description": "Information Flow Enforcement",
-        "mitre_tactic": "TA0010",
-        "mitre_tactic_name": "Exfiltration",
-        "mitre_technique": "T1041",
-        "mitre_technique_name": "Exfiltration Over C2 Channel"
-    },
-    "query_execute": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "external_api_call": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0011",
-        "mitre_tactic_name": "Command and Control",
-        "mitre_technique": "T1071",
-        "mitre_technique_name": "Application Layer Protocol"
-    },
-    "webhook_trigger": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0011",
-        "mitre_tactic_name": "Command and Control",
-        "mitre_technique": "T1071.001",
-        "mitre_technique_name": "Web Protocols"
-    },
-    "integration_call": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0011",
-        "mitre_tactic_name": "Command and Control",
-        "mitre_technique": "T1071",
-        "mitre_technique_name": "Application Layer Protocol"
-    },
-    "email_send": {
-        "nist_control": "AC-4",
-        "nist_family": "Access Control",
-        "nist_description": "Information Flow Enforcement",
-        "mitre_tactic": "TA0010",
-        "mitre_tactic_name": "Exfiltration",
-        "mitre_technique": "T1048.003",
-        "mitre_technique_name": "Exfiltration Over Unencrypted Non-C2 Protocol"
-    },
-    "notification_send": {
-        "nist_control": "AC-4",
-        "nist_family": "Access Control",
-        "nist_description": "Information Flow Enforcement",
-        "mitre_tactic": "TA0011",
-        "mitre_tactic_name": "Command and Control",
-        "mitre_technique": "T1071",
-        "mitre_technique_name": "Application Layer Protocol"
-    },
-    "report_generate": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1119",
-        "mitre_technique_name": "Automated Collection"
-    },
-    "backup_create": {
-        "nist_control": "CP-9",
-        "nist_family": "Contingency Planning",
-        "nist_description": "System Backup",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "log_write": {
-        "nist_control": "AU-3",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Content of Audit Records",
-        "mitre_tactic": "TA0005",
-        "mitre_tactic_name": "Defense Evasion",
-        "mitre_technique": "T1070",
-        "mitre_technique_name": "Indicator Removal"
-    },
-    # LOW-RISK: New action types
-    "llm_call": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0002",
-        "mitre_tactic_name": "Execution",
-        "mitre_technique": "T1059.006",
-        "mitre_technique_name": "Python"
-    },
-    "model_inference": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0002",
-        "mitre_tactic_name": "Execution",
-        "mitre_technique": "T1059.006",
-        "mitre_technique_name": "Python"
-    },
-    "embedding_generate": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "vector_search": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "http_request": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0011",
-        "mitre_tactic_name": "Command and Control",
-        "mitre_technique": "T1071.001",
-        "mitre_technique_name": "Web Protocols"
-    },
-    "dns_lookup": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0011",
-        "mitre_tactic_name": "Command and Control",
-        "mitre_technique": "T1071.004",
-        "mitre_technique_name": "DNS"
-    },
-    "log_read": {
-        "nist_control": "AU-9",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Protection of Audit Information",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "metrics_read": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0007",
-        "mitre_tactic_name": "Discovery",
-        "mitre_technique": "T1082",
-        "mitre_technique_name": "System Information Discovery"
-    },
-    "cache_read": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "cache_write": {
-        "nist_control": "AU-2",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Audit Events",
-        "mitre_tactic": "TA0009",
-        "mitre_tactic_name": "Collection",
-        "mitre_technique": "T1005",
-        "mitre_technique_name": "Data from Local System"
-    },
-    "status_check": {
-        "nist_control": "SI-4",
-        "nist_family": "System and Information Integrity",
-        "nist_description": "System Monitoring",
-        "mitre_tactic": "TA0007",
-        "mitre_tactic_name": "Discovery",
-        "mitre_technique": "T1082",
-        "mitre_technique_name": "System Information Discovery"
-    },
-    "ping": {
-        "nist_control": "SC-7",
-        "nist_family": "System and Communications Protection",
-        "nist_description": "Boundary Protection",
-        "mitre_tactic": "TA0007",
-        "mitre_tactic_name": "Discovery",
-        "mitre_technique": "T1018",
-        "mitre_technique_name": "Remote System Discovery"
-    },
-    "time_sync": {
-        "nist_control": "AU-8",
-        "nist_family": "Audit and Accountability",
-        "nist_description": "Time Stamps",
-        "mitre_tactic": "TA0005",
-        "mitre_tactic_name": "Defense Evasion",
-        "mitre_technique": "T1070.006",
-        "mitre_technique_name": "Timestomp"
-    },
-    "version_check": {
-        "nist_control": "SI-4",
-        "nist_family": "System and Information Integrity",
-        "nist_description": "System Monitoring",
-        "mitre_tactic": "TA0007",
-        "mitre_tactic_name": "Discovery",
-        "mitre_technique": "T1082",
-        "mitre_technique_name": "System Information Discovery"
-    },
-    "discovery": {
-        "nist_control": "SI-4",
-        "nist_family": "System and Information Integrity",
-        "nist_description": "System Monitoring",
-        "mitre_tactic": "TA0007",
-        "mitre_tactic_name": "Discovery",
-        "mitre_technique": "T1046",
-        "mitre_technique_name": "Network Service Discovery"
     }
 }
 
@@ -1084,45 +608,6 @@ def evaluate_action_enrichment(
             f"action_type='{action_type}', risk_level='medium', db_mappings={'yes' if (db and action_id) else 'no'}"
         )
 
-    # SEC-059: Check low-risk action types
-    elif action_lower in LOW_RISK_ACTION_TYPES:
-        assessment_method = "action_type_low_risk"
-        _risk_assessment_stats["action_type_matches"] += 1
-
-        # SEC-059: Get MITRE/NIST from enterprise mappings
-        if db is not None and action_id is not None:
-            mitre_tactic, mitre_technique, nist_control, nist_description = _get_mitre_nist_from_database(
-                db=db,
-                action_id=action_id,
-                action_type=action_type,
-                normalized_action_type=action_lower,
-                description=description
-            )
-        else:
-            # Fallback to enterprise mappings (no database session)
-            enterprise_mapping = get_enterprise_compliance_mapping(
-                action_type=action_lower,
-                description=description
-            )
-            mitre_tactic = enterprise_mapping["mitre_tactic"]
-            mitre_technique = enterprise_mapping["mitre_technique"]
-            nist_control = enterprise_mapping["nist_control"]
-            nist_description = enterprise_mapping["nist_description"]
-
-        result = {
-            "risk_level": "low",
-            "mitre_tactic": mitre_tactic,
-            "mitre_technique": mitre_technique,
-            "nist_control": nist_control,
-            "nist_description": nist_description,
-            "recommendation": "Low-risk action. Standard monitoring and audit logging applies."
-        }
-
-        logger.info(
-            f"✅ SEC-059: Low-risk action type detected - "
-            f"action_type='{action_type}', risk_level='low', db_mappings={'yes' if (db and action_id) else 'no'}"
-        )
-
     # ========================================================================
     # FIX #2: EXPANDED KEYWORD PATTERN MATCHING (ENHANCED COVERAGE)
     # ========================================================================
@@ -1304,12 +789,21 @@ def evaluate_action_enrichment(
     original_risk = result["risk_level"]
 
     # Production system detection
+    # SEC-103: Check explicit environment parameter first, then fall back to keyword detection
     production_indicators = ["production", "prod", "live", "prd"]
-    is_production = any(indicator in desc_lower for indicator in production_indicators)
+    is_production = (
+        (context or {}).get("environment") == "production" or  # SEC-103: Explicit SDK parameter
+        any(indicator in desc_lower for indicator in production_indicators)
+    )
 
     # Sensitive data detection
+    # SEC-103: Check explicit data_sensitivity parameter first, then fall back to keyword detection
     sensitive_data_indicators = ["pii", "personal", "customer", "credit card", "ssn", "patient", "confidential"]
-    has_sensitive_data = any(indicator in desc_lower for indicator in sensitive_data_indicators)
+    sdk_data_sensitivity = (context or {}).get("data_sensitivity", "none")
+    has_sensitive_data = (
+        sdk_data_sensitivity in ["high_sensitivity", "pii", "sensitive"] or  # SEC-103: Explicit SDK parameter
+        any(indicator in desc_lower for indicator in sensitive_data_indicators)
+    )
 
     # Financial transaction detection
     financial_indicators = ["payment", "transaction", "billing", "invoice", "financial"]

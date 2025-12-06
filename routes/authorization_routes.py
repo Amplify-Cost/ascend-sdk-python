@@ -2265,6 +2265,11 @@ async def create_agent_action_api(
         # Platform's risk assessment engine
         try:
             # Call enrichment function with action_type and description
+            # SEC-103: Extract SDK context parameters for risk differentiation
+            sdk_context = data.get("context", {})
+            sdk_environment = sdk_context.get("environment", "development")
+            sdk_data_sensitivity = sdk_context.get("data_sensitivity", "none")
+
             enrichment = evaluate_action_enrichment(
                 action_type=data["action_type"],
                 description=data["description"],
@@ -2273,6 +2278,8 @@ async def create_agent_action_api(
                     "agent_id": data["agent_id"],
                     "tool_name": data["tool_name"],
                     "target_system": data.get("target_system"),
+                    "environment": sdk_environment,  # SEC-103
+                    "data_sensitivity": sdk_data_sensitivity,  # SEC-103
                     "nist_control": data.get("nist_control"),
                     "mitre_tactic": data.get("mitre_tactic")
                 }
@@ -2349,6 +2356,7 @@ async def create_agent_action_api(
         try:
             from services.cvss_auto_mapper import cvss_auto_mapper
 
+            # SEC-103: Use SDK parameters with keyword detection as fallback
             cvss_result = cvss_auto_mapper.auto_assess_action(
                 db=db,
                 action_id=action.id,
@@ -2356,8 +2364,11 @@ async def create_agent_action_api(
                 context={
                     "description": data["description"],  # ARCH-003: Enable normalization
                     "risk_level": risk_level,
-                    "contains_pii": "pii" in data.get("description", "").lower(),
-                    "production_system": "production" in data.get("description", "").lower(),
+                    # SEC-103: Use explicit SDK parameters, fall back to keyword detection
+                    "contains_pii": sdk_data_sensitivity in ["high_sensitivity", "pii"] or "pii" in data.get("description", "").lower(),
+                    "production_system": sdk_environment == "production" or "production" in data.get("description", "").lower(),
+                    "environment": sdk_environment,  # SEC-103: Pass for CVSS adjustment
+                    "data_sensitivity": sdk_data_sensitivity,  # SEC-103: Pass for risk elevation
                     "requires_admin": False  # ARCH-003 FIX: Don't override PR for financial transactions
                 }
             )
