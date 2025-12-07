@@ -593,6 +593,7 @@ async def submit_action(
         # ====================================================================
         return {
             "id": action.id,
+            "action_id": action.id,  # SEC-105b: Alias for SDK compatibility
             "status": action.status,
             "risk_score": action.risk_score,
             "risk_level": action.risk_level,
@@ -608,6 +609,12 @@ async def submit_action(
             "matched_smart_rules": len(smart_rules_result["matched_rules"]),
             "correlation_id": correlation_id,
             "processing_time_ms": processing_time_ms,
+            # SEC-105b: Include NIST/MITRE compliance mapping in response
+            "action_type": action.action_type,
+            "nist_control": action.nist_control,
+            "nist_description": action.nist_description,
+            "mitre_tactic": action.mitre_tactic,
+            "mitre_technique": action.mitre_technique,
             # SEC-106: Include threshold info for transparency
             "thresholds": {
                 "auto_approve_below": auto_approve_threshold,
