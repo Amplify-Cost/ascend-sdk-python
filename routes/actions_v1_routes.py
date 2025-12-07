@@ -300,7 +300,7 @@ async def submit_action(
         registered_agent = db.query(RegisteredAgent).filter(
             RegisteredAgent.agent_id == data["agent_id"],
             RegisteredAgent.organization_id == org_id,
-            RegisteredAgent.is_active == True
+            RegisteredAgent.status == "active"  # Use status column, not is_active
         ).first()
 
         # SEC-106: Get agent-specific thresholds (or use enterprise defaults)
