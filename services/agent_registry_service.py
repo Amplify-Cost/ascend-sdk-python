@@ -852,9 +852,11 @@ class AgentRegistryService:
             previous_state = AgentRegistryService._create_config_snapshot(agent)
 
             # Fields that trigger version bump
+            # SEC-108d: Added autonomous thresholds to version triggers
             version_trigger_fields = {
                 "allowed_action_types", "allowed_resources", "blocked_resources",
                 "auto_approve_below", "max_risk_threshold", "requires_mfa_above",
+                "autonomous_auto_approve_below", "autonomous_max_risk_threshold",
                 "mcp_capabilities", "agent_type"
             }
 
@@ -863,9 +865,11 @@ class AgentRegistryService:
             ) and create_version
 
             # Apply updates
+            # SEC-108d: Added autonomous_auto_approve_below and autonomous_max_risk_threshold
             allowed_fields = {
                 "display_name", "description", "agent_type", "default_risk_score",
                 "max_risk_threshold", "auto_approve_below", "requires_mfa_above",
+                "autonomous_auto_approve_below", "autonomous_max_risk_threshold",
                 "allowed_action_types", "allowed_resources", "blocked_resources",
                 "is_mcp_server", "mcp_server_url", "mcp_capabilities",
                 "alert_on_high_risk", "alert_recipients", "webhook_url",
@@ -1817,6 +1821,9 @@ class AgentRegistryService:
             "max_risk_threshold": agent.max_risk_threshold,
             "auto_approve_below": agent.auto_approve_below,
             "requires_mfa_above": agent.requires_mfa_above,
+            # SEC-108d: Include autonomous thresholds in snapshot
+            "autonomous_auto_approve_below": agent.autonomous_auto_approve_below,
+            "autonomous_max_risk_threshold": agent.autonomous_max_risk_threshold,
             "allowed_action_types": agent.allowed_action_types,
             "allowed_resources": agent.allowed_resources,
             "blocked_resources": agent.blocked_resources,

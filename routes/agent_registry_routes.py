@@ -111,6 +111,9 @@ class AgentUpdateRequest(BaseModel):
     max_risk_threshold: Optional[int] = Field(None, ge=0, le=100)
     auto_approve_below: Optional[int] = Field(None, ge=0, le=100)
     requires_mfa_above: Optional[int] = Field(None, ge=0, le=100)
+    # SEC-108d: Autonomous agent thresholds (stricter defaults)
+    autonomous_auto_approve_below: Optional[int] = Field(None, ge=0, le=100)
+    autonomous_max_risk_threshold: Optional[int] = Field(None, ge=0, le=100)
     allowed_action_types: Optional[List[str]] = None
     allowed_resources: Optional[List[str]] = None
     blocked_resources: Optional[List[str]] = None
@@ -333,7 +336,10 @@ async def get_agent(
                 "default_risk_score": agent.default_risk_score,
                 "max_risk_threshold": agent.max_risk_threshold,
                 "auto_approve_below": agent.auto_approve_below,
-                "requires_mfa_above": agent.requires_mfa_above
+                "requires_mfa_above": agent.requires_mfa_above,
+                # SEC-108d: Include autonomous thresholds
+                "autonomous_auto_approve_below": agent.autonomous_auto_approve_below,
+                "autonomous_max_risk_threshold": agent.autonomous_max_risk_threshold
             },
 
             "capabilities": {
