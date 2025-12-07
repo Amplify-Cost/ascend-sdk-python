@@ -6,6 +6,7 @@ import ErrorCard from "./enterprise/ErrorCard";
 import EmptyCard from "./enterprise/EmptyCard";
 import ENTERPRISE_THEME, { getRiskColor } from "./enterprise/EnterpriseTheme";
 import { PolicyDecisionBadge, PolicyFusionDisplay } from "./shared/PolicyFusionDisplay";
+import { formatDate } from '../utils/dateFormatter';  // SEC-108f: Enterprise-grade date formatting
 
 /**
  * Enterprise-Grade Agent Activity Feed
@@ -232,15 +233,8 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
     );
   };
 
-  // Helper: Format timestamp
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return "—";
-    try {
-      return new Date(timestamp * 1000).toLocaleString();
-    } catch {
-      return "—";
-    }
-  };
+  // SEC-108f: Use enterprise-grade formatDate utility (handles Unix epoch AND ISO 8601)
+  const formatTimestamp = (timestamp) => formatDate(timestamp, "—");
 
   // Helper: Get approval progress
   const getApprovalProgress = (activity) => {
@@ -610,7 +604,7 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
                                 <div className="flex items-center justify-between">
                                   <span className="text-gray-600 font-medium">⏰ SLA Deadline:</span>
                                   <span className="text-xs font-semibold text-yellow-800">
-                                    {new Date(activity.sla_deadline).toLocaleString()}
+                                    {formatDate(activity.sla_deadline, 'No deadline')}
                                   </span>
                                 </div>
                               </div>

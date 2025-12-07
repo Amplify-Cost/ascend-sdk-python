@@ -232,15 +232,8 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
     );
   };
 
-  // Helper: Format timestamp
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return "—";
-    try {
-      return new Date(timestamp * 1000).toLocaleString();
-    } catch {
-      return "—";
-    }
-  };
+  // SEC-108f: Use enterprise-grade formatDate utility (handles Unix epoch AND ISO 8601)
+  const formatTimestamp = (timestamp) => formatDate(timestamp, "—");
 
   // Helper: Get approval progress
   const getApprovalProgress = (activity) => {
