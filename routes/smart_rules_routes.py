@@ -412,12 +412,16 @@ async def get_ab_tests(
     try:
         logger.info(f"📊 Fetching A/B tests for user: {current_user.get('email')}")
 
-        # SEC-108b: Get user's organization/tenant for filtering
-        user_tenant = current_user.get('tenant_id') or current_user.get('organization_id') or 'default'
-        user_email = current_user.get('email')
+        # SEC-108e: Use organization_id consistently (fail-closed)
+        org_id = current_user.get('organization_id')
+        user_email = current_user.get('email', '')
 
-        # Query A/B tests from database - filtered by tenant OR created_by user
-        # SEC-108b: Multi-tenant isolation for A/B tests
+        if not org_id:
+            logger.warning(f"SEC-108e: A/B test fetch denied - no organization context for {user_email}")
+            return {"ab_tests": [], "message": "Organization context required for A/B test access"}
+
+        # Query A/B tests from database - filtered by organization_id OR created_by user
+        # SEC-108e: Multi-tenant isolation using organization_id (integer) consistently
         tests_query = db.execute(text("""
             SELECT
                 t.id, t.test_id, t.test_name, t.description,
@@ -435,9 +439,9 @@ async def get_ab_tests(
             FROM ab_tests t
             LEFT JOIN smart_rules ra ON t.variant_a_rule_id = ra.id
             LEFT JOIN smart_rules rb ON t.variant_b_rule_id = rb.id
-            WHERE t.tenant_id = :tenant_id OR t.created_by = :user_email
+            WHERE CAST(t.tenant_id AS TEXT) = CAST(:org_id AS TEXT) OR t.created_by = :user_email
             ORDER BY t.created_at DESC
-        """), {"tenant_id": user_tenant, "user_email": user_email}).fetchall()
+        """), {"org_id": str(org_id), "user_email": user_email}).fetchall()
 
         real_tests = []
         for test in tests_query:
@@ -587,8 +591,11 @@ async def create_ab_test(
     try:
         logger.info(f"🧪 ENTERPRISE: A/B test creation requested by {current_user.get('email')} for rule {rule_id}")
 
-        # SEC-108b: Get organization_id for multi-tenant isolation
+        # SEC-108e: Get organization_id for multi-tenant isolation (fail-closed)
         org_id = current_user.get('organization_id')
+        if not org_id:
+            logger.warning(f"SEC-108e: A/B test creation denied - no organization context for {current_user.get('email')}")
+            raise HTTPException(status_code=403, detail="Organization context required to create A/B tests")
 
         # Get request body
         try:
@@ -683,12 +690,13 @@ async def create_ab_test(
             "traffic_split": data.get("traffic_split", 50),
             "duration_hours": data.get("test_duration_hours", 168),
             "created_by": current_user.get("email"),
-            "tenant_id": current_user.get("tenant_id", "default")
+            # SEC-108e: Use organization_id consistently (as string for tenant_id column)
+            "tenant_id": str(org_id)
         })
 
         db.commit()
 
-        logger.info(f"✅ ENTERPRISE: A/B test {test_id} created successfully (variants: {variant_a_id}, {variant_b_id})")
+        logger.info(f"✅ ENTERPRISE: A/B test {test_id} created successfully (variants: {variant_a_id}, {variant_b_id}) for org {org_id}")
 
         return {
             "success": True,
@@ -700,7 +708,8 @@ async def create_ab_test(
             "test_name": f"A/B Test: {base_rule.name or f'Rule {rule_id}'}",
             "enterprise_metadata": {
                 "created_by": current_user.get('email'),
-                "tenant_id": current_user.get('tenant_id'),
+                # SEC-108e: Return organization_id for clarity
+                "organization_id": org_id,
                 "audit_trail_id": str(uuid.uuid4())
             }
         }
