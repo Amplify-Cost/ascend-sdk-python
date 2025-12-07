@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { formatDate } from '../utils/dateFormatter';
 
 /**
  * SEC-028: AI Alert Management System
@@ -1108,20 +1109,20 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                           </div>
                         )}
 
-                        {/* Timestamp Section */}
+                        {/* Timestamp Section - SEC-108b: Use formatDate for null safety */}
                         <div className="pt-2 border-t border-gray-100 space-y-1">
                           {alert.acknowledged_by && (
                             <div className="text-xs text-gray-600">
-                              <span className="font-medium">✅ Acknowledged:</span> {alert.acknowledged_by} • {new Date(alert.acknowledged_at).toLocaleString()}
+                              <span className="font-medium">✅ Acknowledged:</span> {alert.acknowledged_by} • {formatDate(alert.acknowledged_at)}
                             </div>
                           )}
                           {alert.escalated_by && (
                             <div className="text-xs text-gray-600">
-                              <span className="font-medium">⚠️ Escalated:</span> {alert.escalated_by} • {new Date(alert.escalated_at).toLocaleString()}
+                              <span className="font-medium">⚠️ Escalated:</span> {alert.escalated_by} • {formatDate(alert.escalated_at)}
                             </div>
                           )}
                           <div className="text-xs text-gray-500">
-                            <span className="font-medium">📅 Created:</span> {new Date(alert.timestamp).toLocaleString()}
+                            <span className="font-medium">📅 Created:</span> {formatDate(alert.timestamp)}
                           </div>
                         </div>
                       </div>
@@ -1167,7 +1168,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                         <strong>Threat Category:</strong> {group.category}
                       </div>
                       <div>
-                        <strong>Created:</strong> {new Date(group.created_at).toLocaleString()}
+                        <strong>Created:</strong> {formatDate(group.created_at)}
                       </div>
                     </div>
                     
@@ -1197,7 +1198,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                 <h3 className="text-lg font-semibold text-gray-900">Executive Security Brief</h3>
                 {executiveBrief?.generated_at && (
                   <p className="text-xs text-gray-500 mt-1">
-                    Generated: {new Date(executiveBrief.generated_at).toLocaleString()}
+                    Generated: {formatDate(executiveBrief.generated_at)}
                     {executiveBrief.is_expired && <span className="text-amber-600 ml-2">(Expired)</span>}
                     {executiveBrief.generation_method === 'llm' && <span className="text-green-600 ml-2">AI Generated</span>}
                     {executiveBrief.generation_method === 'fallback' && <span className="text-amber-600 ml-2">Fallback</span>}
@@ -1323,7 +1324,7 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                     </span>
                     {executiveBrief.expires_at && (
                       <span className="text-xs text-gray-500">
-                        Expires: {new Date(executiveBrief.expires_at).toLocaleTimeString()}
+                        Expires: {formatDate(executiveBrief.expires_at)}
                       </span>
                     )}
                   </div>
