@@ -11,7 +11,7 @@ Security Level: Enterprise
 Compliance: SOX, PCI-DSS, HIPAA, GDPR
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from datetime import datetime, timedelta, UTC
@@ -1305,13 +1305,16 @@ async def get_execution_history_api(
     return await get_execution_history(limit, current_user, db, org_id)
 
 
-@api_router.post("/test-action")
+@api_router.post("/test-action", deprecated=True)
 async def create_test_action_api(
+    response: Response,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support
 ):
     """
+    ⚠️ DEPRECATED - SEC-107: Use /api/v1/actions/submit instead
+
     🏢 ENTERPRISE: Create custom agent action from admin form
 
     Accepts custom action data from Enterprise Settings admin tool and creates
@@ -1324,7 +1327,17 @@ async def create_test_action_api(
 
     Requires: Authenticated admin user
     Returns: Created action ready for approval workflow
+
+    Migration Guide:
+    - Old: POST /api/authorization/test-action
+    - New: POST /api/v1/actions/submit
+    - The new endpoint provides configurable thresholds and threshold transparency
     """
+    # SEC-107: Add deprecation warning header
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-03-01"
+    response.headers["Link"] = "</api/v1/actions/submit>; rel=\"successor-version\""
+    logger.warning(f"SEC-107: Deprecated endpoint /api/authorization/test-action called by {current_user.get('email')}. Migrate to /api/v1/actions/submit")
     try:
         # Parse request body
         try:

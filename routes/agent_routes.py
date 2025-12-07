@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, Request, HTTPException, status, UploadFile, File, Response
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AgentAction, LogAuditTrail, Alert
@@ -19,8 +19,9 @@ router = APIRouter(tags=["Agent Actions"])
 # All routes MUST filter by organization_id to ensure tenant isolation
 # Compliance: SOC 2 CC6.1, HIPAA § 164.308, PCI-DSS 7.1
 
-@router.post("/agent-action", response_model=AgentActionOut)
+@router.post("/agent-action", response_model=AgentActionOut, deprecated=True)
 async def create_agent_action(
+    response: Response,
     request: Request,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
@@ -28,27 +29,24 @@ async def create_agent_action(
     _=Depends(require_csrf)
 ):
     """
-    DEPRECATED: Use POST /api/v1/actions/submit instead.
+    ⚠️ DEPRECATED - SEC-107: Use POST /api/v1/actions/submit instead.
 
-    This endpoint will be removed in a future version (Sunset: 2025-06-01).
+    This endpoint will be removed in a future version (Sunset: 2026-03-01).
 
     Migration Guide:
-    - Old: POST /api/agent-action
+    - Old: POST /api/agents/agent-action
     - New: POST /api/v1/actions/submit
-    - Same request/response format, improved unified architecture
+    - The new endpoint provides configurable per-agent thresholds and threshold transparency
 
     Submit a new agent action for security review - Enterprise-grade with graceful fallback
     """
-    # Add deprecation warning
-    import warnings
-    warnings.warn(
-        "POST /api/agent-action is deprecated. Use POST /api/v1/actions/submit instead.",
-        DeprecationWarning,
-        stacklevel=2
-    )
+    # SEC-107: Add deprecation warning headers
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = "2026-03-01"
+    response.headers["Link"] = "</api/v1/actions/submit>; rel=\"successor-version\""
     logger.warning(
-        "⚠️ DEPRECATED ENDPOINT CALLED: POST /api/agent-action - "
-        "Please migrate to POST /api/v1/actions/submit (Sunset: 2025-06-01)"
+        f"SEC-107: Deprecated endpoint /api/agents/agent-action called by {current_user.get('email')}. "
+        "Migrate to POST /api/v1/actions/submit"
     )
 
     try:
