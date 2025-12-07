@@ -412,7 +412,12 @@ async def get_ab_tests(
     try:
         logger.info(f"📊 Fetching A/B tests for user: {current_user.get('email')}")
 
-        # Query all A/B tests from database
+        # SEC-108b: Get user's organization/tenant for filtering
+        user_tenant = current_user.get('tenant_id') or current_user.get('organization_id') or 'default'
+        user_email = current_user.get('email')
+
+        # Query A/B tests from database - filtered by tenant OR created_by user
+        # SEC-108b: Multi-tenant isolation for A/B tests
         tests_query = db.execute(text("""
             SELECT
                 t.id, t.test_id, t.test_name, t.description,
@@ -430,8 +435,9 @@ async def get_ab_tests(
             FROM ab_tests t
             LEFT JOIN smart_rules ra ON t.variant_a_rule_id = ra.id
             LEFT JOIN smart_rules rb ON t.variant_b_rule_id = rb.id
+            WHERE t.tenant_id = :tenant_id OR t.created_by = :user_email
             ORDER BY t.created_at DESC
-        """)).fetchall()
+        """), {"tenant_id": user_tenant, "user_email": user_email}).fetchall()
 
         real_tests = []
         for test in tests_query:
@@ -581,6 +587,9 @@ async def create_ab_test(
     try:
         logger.info(f"🧪 ENTERPRISE: A/B test creation requested by {current_user.get('email')} for rule {rule_id}")
 
+        # SEC-108b: Get organization_id for multi-tenant isolation
+        org_id = current_user.get('organization_id')
+
         # Get request body
         try:
             data = await request.json()
@@ -590,22 +599,25 @@ async def create_ab_test(
         # 1. Get base rule details
         base_rule = db.execute(text("""
             SELECT name, condition, action, risk_level, description,
-                   recommendation, justification, agent_id, action_type
+                   recommendation, justification, agent_id, action_type, organization_id
             FROM smart_rules WHERE id = :rule_id
         """), {"rule_id": rule_id}).fetchone()
 
         if not base_rule:
             raise HTTPException(status_code=404, detail=f"Rule {rule_id} not found")
 
+        # SEC-108b: Use organization_id from base rule or current user
+        rule_org_id = getattr(base_rule, 'organization_id', None) or org_id
+
         # 2. Create Variant A (exact clone - control)
         variant_a_result = db.execute(text("""
             INSERT INTO smart_rules (
                 name, agent_id, action_type, description, condition, action,
-                risk_level, recommendation, justification, created_at
+                risk_level, recommendation, justification, created_at, organization_id
             ) VALUES (
                 :name, :agent_id, :action_type, :description,
                 :condition, :action, :risk_level, :recommendation,
-                :justification, NOW()
+                :justification, NOW(), :organization_id
             ) RETURNING id
         """), {
             "name": f"[A/B Test A] {base_rule.name or 'Rule'} - Control",
@@ -616,7 +628,8 @@ async def create_ab_test(
             "action": base_rule.action or "alert",
             "risk_level": base_rule.risk_level or "medium",
             "recommendation": base_rule.recommendation or "Monitor performance",
-            "justification": base_rule.justification or "A/B test control variant"
+            "justification": base_rule.justification or "A/B test control variant",
+            "organization_id": rule_org_id
         })
         variant_a_id = variant_a_result.fetchone()[0]
 
@@ -626,11 +639,11 @@ async def create_ab_test(
         variant_b_result = db.execute(text("""
             INSERT INTO smart_rules (
                 name, agent_id, action_type, description, condition, action,
-                risk_level, recommendation, justification, created_at
+                risk_level, recommendation, justification, created_at, organization_id
             ) VALUES (
                 :name, :agent_id, :action_type, :description,
                 :condition, :action, :risk_level, :recommendation,
-                :justification, NOW()
+                :justification, NOW(), :organization_id
             ) RETURNING id
         """), {
             "name": f"[A/B Test B] {base_rule.name or 'Rule'} - Optimized",
@@ -641,7 +654,8 @@ async def create_ab_test(
             "action": base_rule.action or "alert",
             "risk_level": base_rule.risk_level or "medium",
             "recommendation": "AI-optimized for reduced false positives",
-            "justification": f"Optimized version: {base_rule.justification or 'Enhanced detection'}"
+            "justification": f"Optimized version: {base_rule.justification or 'Enhanced detection'}",
+            "organization_id": rule_org_id
         })
         variant_b_id = variant_b_result.fetchone()[0]
 
