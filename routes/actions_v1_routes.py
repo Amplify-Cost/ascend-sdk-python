@@ -53,6 +53,8 @@ from models import (
     User,
     Workflow
 )
+# SEC-106: Import enterprise policy engine components
+from models_agent_registry import RegisteredAgent
 
 # Services
 from enrichment import evaluate_action_enrichment
@@ -112,10 +114,17 @@ def create_audit_log(
 def evaluate_smart_rules(
     db: Session,
     action: AgentAction,
-    organization_id: int
+    organization_id: int,
+    max_risk_threshold: int = 70
 ) -> Dict[str, Any]:
     """
-    Evaluate action against active smart rules.
+    SEC-106: Evaluate action against active smart rules with configurable threshold.
+
+    Args:
+        db: Database session
+        action: The agent action to evaluate
+        organization_id: Organization for multi-tenant isolation
+        max_risk_threshold: Risk threshold for requiring approval (default: 70)
 
     Returns:
         dict: {
@@ -149,10 +158,11 @@ def evaluate_smart_rules(
                 rule_risk = severity_map.get(rule.severity.lower(), 60)
                 highest_risk = max(highest_risk, rule_risk)
 
+        # SEC-106: Use configurable threshold instead of hardcoded 70
         return {
             "matched_rules": matched_rules,
             "highest_risk": highest_risk,
-            "requires_approval": highest_risk >= 70
+            "requires_approval": highest_risk >= max_risk_threshold
         }
 
     except Exception as e:
@@ -167,28 +177,52 @@ def evaluate_smart_rules(
 def determine_authorization_status(
     risk_score: float,
     policy_decision: str,
-    smart_rules_require_approval: bool
+    smart_rules_require_approval: bool,
+    auto_approve_threshold: int = 30,
+    max_risk_threshold: int = 80
 ) -> str:
     """
-    Determine final authorization status based on all checks.
+    SEC-106: Enterprise decision logic using configurable thresholds.
 
-    Priority:
-    1. Policy engine decision (highest priority)
-    2. Smart rules requirement
-    3. Risk score threshold
+    Decision flow:
+    1. If policy explicitly denies → denied
+    2. If risk < auto_approve_threshold → auto-approve (LOW risk)
+    3. If risk >= max_risk_threshold → require approval (HIGH risk)
+    4. If policy says require_approval → require approval
+    5. If smart rules require approval → require approval
+    6. Otherwise → approved (MEDIUM risk with no policy triggers)
+
+    Args:
+        risk_score: Calculated risk score (0-100)
+        policy_decision: Result from policy engine
+        smart_rules_require_approval: Whether smart rules flagged this action
+        auto_approve_threshold: Risk score below which to auto-approve (default: 30)
+        max_risk_threshold: Risk score at/above which to require approval (default: 80)
 
     Returns:
         str: "approved", "pending_approval", "denied"
     """
-    # Policy engine has highest priority
+    # Policy engine explicit deny has highest priority
     if policy_decision == "deny":
         return "denied"
 
-    # Check if approval required by any system
-    if policy_decision == "require_approval" or smart_rules_require_approval or risk_score >= 70:
+    # SEC-106: LOW RISK - Auto-approve below threshold
+    if risk_score < auto_approve_threshold:
+        logger.info(f"SEC-106: Auto-approving LOW risk action (score={risk_score} < threshold={auto_approve_threshold})")
+        return "approved"
+
+    # SEC-106: HIGH RISK - Always require approval above max threshold
+    if risk_score >= max_risk_threshold:
+        logger.info(f"SEC-106: Requiring approval for HIGH risk action (score={risk_score} >= threshold={max_risk_threshold})")
         return "pending_approval"
 
-    # Default to approved if all checks pass
+    # MEDIUM RISK: Check policy and smart rules
+    if policy_decision == "require_approval" or smart_rules_require_approval:
+        logger.info(f"SEC-106: Requiring approval for MEDIUM risk action (policy={policy_decision}, smart_rules={smart_rules_require_approval})")
+        return "pending_approval"
+
+    # MEDIUM RISK with no policy triggers: Approve
+    logger.info(f"SEC-106: Approving MEDIUM risk action with no policy triggers (score={risk_score})")
     return "approved"
 
 
@@ -259,6 +293,44 @@ async def submit_action(
             )
 
         logger.info(f"[{correlation_id}] Processing action submission: {data['action_type']}")
+
+        # ====================================================================
+        # SEC-106: AGENT THRESHOLD LOOKUP - Get configurable thresholds
+        # ====================================================================
+        registered_agent = db.query(RegisteredAgent).filter(
+            RegisteredAgent.agent_id == data["agent_id"],
+            RegisteredAgent.organization_id == org_id,
+            RegisteredAgent.is_active == True
+        ).first()
+
+        # SEC-106: Get agent-specific thresholds (or use enterprise defaults)
+        if registered_agent:
+            # Check if autonomous agent (stricter thresholds)
+            is_autonomous = getattr(registered_agent, 'agent_type', None) == "autonomous"
+
+            if is_autonomous:
+                auto_approve_threshold = min(
+                    registered_agent.auto_approve_below or 30,
+                    getattr(registered_agent, 'autonomous_auto_approve_below', 40) or 40
+                )
+                max_risk_threshold = min(
+                    registered_agent.max_risk_threshold or 80,
+                    getattr(registered_agent, 'autonomous_max_risk_threshold', 60) or 60
+                )
+                logger.info(f"[{correlation_id}] SEC-106: Autonomous agent '{data['agent_id']}' using stricter thresholds: auto_approve<{auto_approve_threshold}, max<{max_risk_threshold}")
+            else:
+                auto_approve_threshold = registered_agent.auto_approve_below or 30
+                max_risk_threshold = registered_agent.max_risk_threshold or 80
+                logger.info(f"[{correlation_id}] SEC-106: Registered agent '{data['agent_id']}' thresholds: auto_approve<{auto_approve_threshold}, max<{max_risk_threshold}")
+
+            agent_type = getattr(registered_agent, 'agent_type', 'supervised') or 'supervised'
+        else:
+            # Default thresholds for unregistered agents (more restrictive)
+            auto_approve_threshold = 30
+            max_risk_threshold = 70
+            is_autonomous = False
+            agent_type = "unregistered"
+            logger.info(f"[{correlation_id}] SEC-106: Unregistered agent '{data['agent_id']}' using default thresholds: auto_approve<{auto_approve_threshold}, max<{max_risk_threshold}")
 
         # ====================================================================
         # STEP 1: RISK ASSESSMENT - Security enrichment with NIST/MITRE
@@ -400,7 +472,8 @@ async def submit_action(
         # ====================================================================
         # STEP 4: SMART RULES CHECK - Custom rule evaluation
         # ====================================================================
-        smart_rules_result = evaluate_smart_rules(db, action, org_id)
+        # SEC-106: Pass agent-specific threshold to smart rules
+        smart_rules_result = evaluate_smart_rules(db, action, org_id, max_risk_threshold)
 
         logger.info(
             f"[{correlation_id}] Step 4 complete - Smart Rules: "
@@ -471,12 +544,14 @@ async def submit_action(
             logger.info(f"[{correlation_id}] Step 6 complete - No workflow required (auto-approved)")
 
         # ====================================================================
-        # DETERMINE FINAL STATUS
+        # DETERMINE FINAL STATUS - SEC-106: Use agent-specific thresholds
         # ====================================================================
         final_status = determine_authorization_status(
             risk_score=action.risk_score,
             policy_decision=policy_decision,
-            smart_rules_require_approval=smart_rules_result["requires_approval"]
+            smart_rules_require_approval=smart_rules_result["requires_approval"],
+            auto_approve_threshold=auto_approve_threshold,
+            max_risk_threshold=max_risk_threshold
         )
 
         action.status = final_status
@@ -533,6 +608,13 @@ async def submit_action(
             "matched_smart_rules": len(smart_rules_result["matched_rules"]),
             "correlation_id": correlation_id,
             "processing_time_ms": processing_time_ms,
+            # SEC-106: Include threshold info for transparency
+            "thresholds": {
+                "auto_approve_below": auto_approve_threshold,
+                "max_risk_threshold": max_risk_threshold,
+                "agent_type": agent_type,
+                "is_registered": registered_agent is not None
+            },
             "message": f"Action processed through complete governance pipeline - Status: {final_status}"
         }
 
