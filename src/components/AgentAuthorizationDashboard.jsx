@@ -3,6 +3,7 @@ import { PolicyEnforcementBadge } from "./PolicyEnforcementBadge";
 import { PolicyDecisionBadge, PolicyDetailsCard } from "./PolicyDecisionBadge";  // 🏢 NEW: Unified Policy Engine UI
 import { EnhancedPolicyTabComplete } from './EnhancedPolicyTabComplete';
 import { fetchWithAuth } from '../utils/fetchWithAuth';
+import { formatDate } from '../utils/dateFormatter';  // SEC-108e: Null-safe date formatting
 import TriggerConditionBuilder from './TriggerConditionBuilder';  // 🏢 PHASE 1: Enterprise playbook builder
 import ActionConfigurator from './ActionConfigurator';  // 🏢 PHASE 1: Enterprise action configurator
 import PlaybookTemplateLibrary from './PlaybookTemplateLibrary';  // 🏢 PHASE 2: Template library
@@ -2156,7 +2157,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                               {action.executed_at && (
                                 <div className="flex justify-between items-center mb-1">
                                   <span>Executed:</span>
-                                  <span className="font-medium">{new Date(action.executed_at).toLocaleString()}</span>
+                                  <span className="font-medium">{formatDate(action.executed_at, 'Pending')}</span>
                                 </div>
                               )}
                               {action.executed_by && (
@@ -2722,7 +2723,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Last Triggered:</span>
                     <span className="font-semibold text-xs">
-                      {playbook.last_triggered ? new Date(playbook.last_triggered).toLocaleString() : 'Never'}
+                      {formatDate(playbook.last_triggered, 'Never')}
                     </span>
                   </div>
                 </div>
@@ -3556,7 +3557,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           <div className="flex justify-between items-center mb-1">
                             <span className="text-gray-600">Executed:</span>
                             <span className="font-medium">
-                              {execution.executed_at ? new Date(execution.executed_at).toLocaleString() : 'Unknown'}
+                              {formatDate(execution.executed_at, 'Unknown')}
                             </span>
                           </div>
                           <div className="flex justify-between items-center mb-1">
@@ -3628,7 +3629,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                       <div><strong>Agent ID:</strong> {selectedAction.agent_id}</div>
                       <div><strong>Action Type:</strong> {selectedAction.action_type}</div>
                       <div><strong>Target System:</strong> {selectedAction.target_system || 'Unknown'}</div>
-                      <div><strong>Requested:</strong> {new Date(selectedAction.requested_at).toLocaleString()}</div>
+                      <div><strong>Requested:</strong> {formatDate(selectedAction.requested_at, 'N/A')}</div>
                     </div>
                   </div>
 
@@ -3719,7 +3720,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                       <div className="space-y-2 text-sm">
                         <div><strong>Status:</strong> {selectedAction.execution_status}</div>
                         {selectedAction.executed_at && (
-                          <div><strong>Executed:</strong> {new Date(selectedAction.executed_at).toLocaleString()}</div>
+                          <div><strong>Executed:</strong> {formatDate(selectedAction.executed_at, 'Pending')}</div>
                         )}
                         {selectedAction.executed_by && (
                           <div><strong>Executed by:</strong> {selectedAction.executed_by}</div>
@@ -4250,7 +4251,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                     <div><strong>Agent:</strong> {selectedExecution.agent_id}</div>
                     <div><strong>Action Type:</strong> {selectedExecution.action_type}</div>
                     <div><strong>Status:</strong> {selectedExecution.execution_status}</div>
-                    <div><strong>Executed At:</strong> {new Date(selectedExecution.executed_at).toLocaleString()}</div>
+                    <div><strong>Executed At:</strong> {formatDate(selectedExecution.executed_at, 'Pending')}</div>
                     <div><strong>Executed By:</strong> {selectedExecution.executed_by}</div>
                   </div>
                 </div>

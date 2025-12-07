@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { formatDate } from '../utils/dateFormatter';  // SEC-108e: Null-safe date formatting
 import ReplayModal from "./ReplayModal";
 import EnterpriseCard, { CompactCard } from "./enterprise/EnterpriseCard";
 import SkeletonCard, { CompactSkeleton } from "./enterprise/SkeletonCard";
@@ -577,7 +578,7 @@ const AgentActivityFeedEnterprise = ({ getAuthHeaders }) => {
                                 <div className="flex items-center justify-between">
                                   <span className="text-gray-600 font-medium">⏰ SLA Deadline:</span>
                                   <span className="text-xs font-semibold text-yellow-800">
-                                    {new Date(activity.sla_deadline).toLocaleString()}
+                                    {formatDate(activity.sla_deadline, 'No deadline')}
                                   </span>
                                 </div>
                               </div>

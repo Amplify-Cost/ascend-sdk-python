@@ -104,6 +104,9 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [description, setDescription] = useState("");
   const [riskLevel, setRiskLevel] = useState("medium");
   const [businessJustification, setBusinessJustification] = useState("");
+  // SEC-108e: Environment and Data Sensitivity form fields
+  const [environment, setEnvironment] = useState("development");
+  const [dataSensitivity, setDataSensitivity] = useState("internal");
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -170,6 +173,9 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
     setDescription("");
     setRiskLevel("medium");
     setBusinessJustification("");
+    // SEC-108e: Reset environment and data sensitivity to defaults
+    setEnvironment("development");
+    setDataSensitivity("internal");
     setMessage(null);
     setError(null);
     setLastResult(null);  // SEC-107: Clear threshold display
@@ -193,14 +199,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       console.log('🚀 Submitting enterprise agent action via unified SDK endpoint...');
 
       // SEC-108: Fix payload structure - required fields at ROOT level
-      // Map risk_level to data_sensitivity for risk calculation
-      const sensitivityMapping = {
-        "low": "public",
-        "medium": "internal",
-        "high": "confidential",
-        "critical": "restricted"
-      };
-
+      // SEC-108e: Use form-selected environment and data sensitivity
       const payload = {
         // SEC-108: Required fields at ROOT level (not inside context)
         agent_id: agentId,
@@ -208,10 +207,10 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
         tool_name: toolName || "manual",                    // ROOT level (was in context)
         description: description,                           // ROOT level (was in context)
         business_justification: businessJustification,      // ROOT level (was in context)
-        // Optional fields
+        // SEC-108e: User-selected compliance fields
         resource_type: "general",
-        data_sensitivity: sensitivityMapping[riskLevel] || "internal",
-        environment: "production",
+        data_sensitivity: dataSensitivity,                  // From form dropdown
+        environment: environment,                           // From form dropdown
         // Context for additional metadata (not required fields)
         context: {
           submitted_via: "enterprise_admin_panel",
@@ -486,6 +485,58 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
           <p className="text-xs text-gray-500 mt-1">
             Required for enterprise audit trail and compliance documentation
           </p>
+        </div>
+
+        {/* SEC-108e: Environment and Data Sensitivity fields for enterprise compliance */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Target Environment */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Target Environment <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value)}
+              className="w-full mt-1 border border-gray-300 rounded px-3 py-2 text-sm"
+              required
+            >
+              <option value="development">🟢 Development</option>
+              <option value="staging">🟡 Staging</option>
+              <option value="production">🔴 Production</option>
+            </select>
+            {environment === 'production' && (
+              <p className="text-amber-600 text-xs mt-1 flex items-center">
+                <span className="mr-1">⚠️</span>
+                Production actions have elevated risk assessment
+              </p>
+            )}
+          </div>
+
+          {/* Data Sensitivity Level */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Data Sensitivity <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={dataSensitivity}
+              onChange={(e) => setDataSensitivity(e.target.value)}
+              className="w-full mt-1 border border-gray-300 rounded px-3 py-2 text-sm"
+              required
+            >
+              <option value="public">🟢 Public (No restrictions)</option>
+              <option value="internal">🟡 Internal (Company confidential)</option>
+              <option value="confidential">🟠 Confidential (Business sensitive)</option>
+              <option value="restricted">🔴 Restricted (PII/PHI/PCI)</option>
+            </select>
+            {(dataSensitivity === 'confidential' || dataSensitivity === 'restricted') && (
+              <p className="text-amber-600 text-xs mt-1 flex items-center">
+                <span className="mr-1">🔒</span>
+                {dataSensitivity === 'restricted'
+                  ? 'Restricted data requires additional compliance review (HIPAA/PCI-DSS/GDPR)'
+                  : 'Confidential data subject to enhanced audit logging'}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-between items-center pt-4 border-t border-gray-200">
