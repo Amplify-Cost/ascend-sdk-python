@@ -52,6 +52,9 @@ const AgentRegistryManagement = () => {
     auto_approve_below: 30,
     max_risk_threshold: 80,
     requires_mfa_above: 70,
+    // SEC-106c: Autonomous Agent Thresholds (stricter defaults)
+    autonomous_auto_approve_below: 20,
+    autonomous_max_risk_threshold: 60,
     // Permissions & Restrictions (Enterprise)
     allowed_action_types: [],
     allowed_resources: "",      // Comma-separated patterns
@@ -303,6 +306,9 @@ const AgentRegistryManagement = () => {
         auto_approve_below: registerForm.auto_approve_below,
         max_risk_threshold: registerForm.max_risk_threshold,
         requires_mfa_above: registerForm.requires_mfa_above,
+        // SEC-106c: Autonomous Agent Thresholds
+        autonomous_auto_approve_below: registerForm.autonomous_auto_approve_below,
+        autonomous_max_risk_threshold: registerForm.autonomous_max_risk_threshold,
         // Permissions (convert comma-separated to arrays)
         allowed_action_types: registerForm.allowed_action_types,
         allowed_resources: registerForm.allowed_resources.split(",").map(r => r.trim()).filter(Boolean),
@@ -334,6 +340,9 @@ const AgentRegistryManagement = () => {
         auto_approve_below: 30,
         max_risk_threshold: 80,
         requires_mfa_above: 70,
+        // SEC-106c: Autonomous Agent Thresholds
+        autonomous_auto_approve_below: 20,
+        autonomous_max_risk_threshold: 60,
         allowed_action_types: [],
         allowed_resources: "",
         blocked_resources: "",
@@ -615,6 +624,9 @@ const AgentRegistryManagement = () => {
         auto_approve_below: agent.risk_config?.auto_approve_below || 30,
         max_risk_threshold: agent.risk_config?.max_risk_threshold || 80,
         requires_mfa_above: agent.risk_config?.requires_mfa_above || 70,
+        // SEC-106c: Autonomous Agent Thresholds
+        autonomous_auto_approve_below: agent.risk_config?.autonomous_auto_approve_below || 20,
+        autonomous_max_risk_threshold: agent.risk_config?.autonomous_max_risk_threshold || 60,
         // Permissions
         allowed_action_types: agent.allowed_action_types || [],
         allowed_resources: (agent.allowed_resources || []).join(", "),
@@ -651,6 +663,9 @@ const AgentRegistryManagement = () => {
         auto_approve_below: editForm.auto_approve_below,
         max_risk_threshold: editForm.max_risk_threshold,
         requires_mfa_above: editForm.requires_mfa_above,
+        // SEC-106c: Autonomous Agent Thresholds
+        autonomous_auto_approve_below: editForm.autonomous_auto_approve_below,
+        autonomous_max_risk_threshold: editForm.autonomous_max_risk_threshold,
         // Permissions
         allowed_action_types: editForm.allowed_action_types,
         allowed_resources: editForm.allowed_resources.split(",").map(r => r.trim()).filter(Boolean),
@@ -1423,6 +1438,51 @@ if result.can_proceed:
                     <p className="text-xs text-gray-500 mt-1">Actions above this require escalation</p>
                   </div>
                 </div>
+
+                {/* SEC-106c: Autonomous Agent Thresholds (stricter, shown only for autonomous agents) */}
+                {registerForm.agent_type === "autonomous" && (
+                  <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-orange-600 dark:text-orange-400">⚠️</span>
+                      <h5 className="font-medium text-orange-800 dark:text-orange-300 text-sm">
+                        Autonomous Mode Thresholds (Stricter)
+                      </h5>
+                    </div>
+                    <p className="text-xs text-orange-700 dark:text-orange-400 mb-3">
+                      Autonomous agents operate without human oversight. These stricter thresholds override the standard thresholds above.
+                    </p>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-orange-700 dark:text-orange-300 mb-1">
+                          Autonomous Auto-Approve Below
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={registerForm.auto_approve_below}
+                          className="w-full px-3 py-2 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={registerForm.autonomous_auto_approve_below}
+                          onChange={(e) => setRegisterForm({ ...registerForm, autonomous_auto_approve_below: parseInt(e.target.value) || 20 })}
+                        />
+                        <p className="text-xs text-orange-600 mt-1">Must be ≤ standard threshold ({registerForm.auto_approve_below})</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-orange-700 dark:text-orange-300 mb-1">
+                          Autonomous Max Risk Threshold
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={registerForm.max_risk_threshold}
+                          className="w-full px-3 py-2 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={registerForm.autonomous_max_risk_threshold}
+                          onChange={(e) => setRegisterForm({ ...registerForm, autonomous_max_risk_threshold: parseInt(e.target.value) || 60 })}
+                        />
+                        <p className="text-xs text-orange-600 mt-1">Must be ≤ standard threshold ({registerForm.max_risk_threshold})</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SEC-060: Enterprise Allowed Action Types - Categorized by Risk */}
@@ -2539,6 +2599,48 @@ if result.can_proceed:
                     />
                   </div>
                 </div>
+
+                {/* SEC-106c: Autonomous Agent Thresholds (stricter, shown only for autonomous agents) */}
+                {editForm.agent_type === "autonomous" && (
+                  <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-orange-600 dark:text-orange-400">⚠️</span>
+                      <h5 className="font-medium text-orange-800 dark:text-orange-300 text-sm">
+                        Autonomous Mode Thresholds (Stricter)
+                      </h5>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-orange-700 dark:text-orange-300 mb-1">
+                          Autonomous Auto-Approve Below
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={editForm.auto_approve_below}
+                          className="w-full px-3 py-2 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={editForm.autonomous_auto_approve_below}
+                          onChange={(e) => setEditForm({ ...editForm, autonomous_auto_approve_below: parseInt(e.target.value) || 20 })}
+                        />
+                        <p className="text-xs text-orange-600 mt-1">≤ {editForm.auto_approve_below}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-orange-700 dark:text-orange-300 mb-1">
+                          Autonomous Max Threshold
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={editForm.max_risk_threshold}
+                          className="w-full px-3 py-2 border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                          value={editForm.autonomous_max_risk_threshold}
+                          onChange={(e) => setEditForm({ ...editForm, autonomous_max_risk_threshold: parseInt(e.target.value) || 60 })}
+                        />
+                        <p className="text-xs text-orange-600 mt-1">≤ {editForm.max_risk_threshold}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* SEC-060: Enterprise Allowed Action Types - Categorized by Risk */}

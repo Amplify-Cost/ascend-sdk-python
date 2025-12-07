@@ -10,6 +10,8 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  // SEC-107: Track last result for threshold transparency
+  const [lastResult, setLastResult] = useState(null);
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -73,12 +75,14 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
     setBusinessJustification("");
     setMessage(null);
     setError(null);
+    setLastResult(null);  // SEC-107: Clear threshold display
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage(null);
     setError(null);
+    setLastResult(null);
     setLoading(true);
 
     // Enterprise validation
@@ -89,70 +93,87 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
     }
 
     try {
-      console.log('🚀 Submitting enterprise agent action...');
-      
+      console.log('🚀 Submitting enterprise agent action via unified SDK endpoint...');
+
+      // SEC-107: Map to unified v1/actions/submit payload format
+      // Map risk_level to data_sensitivity for risk calculation
+      const sensitivityMapping = {
+        "low": "public",
+        "medium": "internal",
+        "high": "confidential",
+        "critical": "restricted"
+      };
+
       const payload = {
         agent_id: agentId,
         action_type: actionType,
-        tool_name: toolName,
-        description: description,
-        risk_level: riskLevel,
-        business_justification: businessJustification,
-        submitted_via: "enterprise_admin_panel",
-        timestamp: Math.floor(Date.now() / 1000),
+        context: {
+          tool_name: toolName,
+          description: description,
+          business_justification: businessJustification,
+          submitted_via: "enterprise_admin_panel",
+          timestamp: Math.floor(Date.now() / 1000),
+          requested_risk_level: riskLevel  // For audit trail
+        },
+        resource_details: {
+          resource: `${actionType}/${toolName || 'manual'}`,
+          action: actionType
+        },
+        data_sensitivity: sensitivityMapping[riskLevel] || "internal",
+        environment: "production"
       };
 
-      console.log('📤 Payload:', payload);
+      console.log('📤 Unified API Payload:', payload);
 
-      // 🏢 ENTERPRISE: Use the correct test action endpoint
-      const endpoints = [
-        `${API_BASE_URL}/api/authorization/test-action`
-      ];
+      // SEC-107: Use unified v1/actions/submit endpoint
+      const endpoint = `${API_BASE_URL}/api/v1/actions/submit`;
+      console.log(`🔍 Calling unified endpoint: ${endpoint}`);
 
-      let success = false;
-      let lastError = null;
+      const res = await fetch(endpoint, {
+        credentials: "include",
+        method: "POST",
+        headers: {
+          ...getAuthHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      for (const endpoint of endpoints) {
-        try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
-          
-          const res = await fetch(endpoint, {
-            credentials: "include",
-            method: "POST",
-            headers: {
-              ...getAuthHeaders(),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
+      console.log(`📊 Response status: ${res.status}`);
 
-          console.log(`📊 Response status: ${res.status}`);
-          
-          if (res.ok) {
-            const result = await res.json();
-            console.log('✅ Success response:', result);
-            
-            setMessage(`✅ Enterprise agent action submitted successfully! 
-                       Action ID: ${result.action_id || result.authorization_id || 'Generated'}
-                       Status: Pending approval workflow`);
-            
-            // Clear form after successful submission
-            clearForm();
-            success = true;
-            break;
-          } else {
-            const errorText = await res.text();
-            console.log(`❌ Error response: ${res.status} - ${errorText}`);
-            lastError = `${res.status}: ${errorText}`;
-          }
-        } catch (fetchError) {
-          console.log(`🔥 Fetch error for ${endpoint}:`, fetchError);
-          lastError = fetchError.message;
+      if (res.ok) {
+        const result = await res.json();
+        console.log('✅ Success response:', result);
+
+        // SEC-107: Store result for threshold display
+        setLastResult(result);
+
+        // Build status message with threshold transparency
+        const thresholds = result.thresholds || {};
+        const statusEmoji = result.status === "approved" ? "✅" :
+                           result.status === "denied" ? "❌" : "⏳";
+
+        let statusMessage = `${statusEmoji} Agent action submitted successfully!\n`;
+        statusMessage += `Action ID: ${result.action_id || 'Generated'}\n`;
+        statusMessage += `Status: ${result.status || 'pending_approval'}\n`;
+        statusMessage += `Risk Score: ${result.risk_score || 'N/A'}\n`;
+
+        // SEC-106c: Add threshold transparency
+        if (thresholds.auto_approve_below !== undefined) {
+          statusMessage += `\n📊 Threshold Info:\n`;
+          statusMessage += `• Auto-approve below: ${thresholds.auto_approve_below}\n`;
+          statusMessage += `• Max risk threshold: ${thresholds.max_risk_threshold}\n`;
+          statusMessage += `• Agent type: ${thresholds.agent_type || 'unregistered'}\n`;
         }
-      }
 
-      if (!success) {
-        throw new Error(`All endpoints failed. Last error: ${lastError}`);
+        setMessage(statusMessage);
+
+        // Don't clear form - let user see what was submitted
+        // clearForm();
+      } else {
+        const errorText = await res.text();
+        console.log(`❌ Error response: ${res.status} - ${errorText}`);
+        throw new Error(`${res.status}: ${errorText}`);
       }
 
     } catch (err) {
@@ -195,6 +216,91 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* SEC-106c: Why Pending / Authorization Decision Explanation */}
+      {lastResult && (
+        <div className={`border rounded-lg p-4 ${
+          lastResult.status === "approved" ? "bg-green-50 border-green-200" :
+          lastResult.status === "denied" ? "bg-red-50 border-red-200" :
+          "bg-amber-50 border-amber-200"
+        }`}>
+          <h5 className={`font-medium mb-3 ${
+            lastResult.status === "approved" ? "text-green-800" :
+            lastResult.status === "denied" ? "text-red-800" :
+            "text-amber-800"
+          }`}>
+            {lastResult.status === "approved" ? "✅ Auto-Approved" :
+             lastResult.status === "denied" ? "❌ Denied" :
+             "⏳ Pending Approval - Why?"}
+          </h5>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            {/* Risk Assessment */}
+            <div>
+              <p className="font-medium text-gray-700 mb-1">Risk Assessment</p>
+              <ul className="space-y-1 text-gray-600">
+                <li>• Risk Score: <span className="font-mono">{lastResult.risk_score || 'N/A'}</span></li>
+                <li>• Risk Level: <span className="font-mono">{lastResult.risk_level || 'N/A'}</span></li>
+                {lastResult.policy_decision && (
+                  <li>• Policy Decision: <span className="font-mono">{lastResult.policy_decision}</span></li>
+                )}
+              </ul>
+            </div>
+
+            {/* Threshold Info */}
+            {lastResult.thresholds && (
+              <div>
+                <p className="font-medium text-gray-700 mb-1">Agent Thresholds</p>
+                <ul className="space-y-1 text-gray-600">
+                  <li>• Auto-approve below: <span className="font-mono">{lastResult.thresholds.auto_approve_below}</span></li>
+                  <li>• Escalate above: <span className="font-mono">{lastResult.thresholds.max_risk_threshold}</span></li>
+                  <li>• Agent Type: <span className="font-mono">{lastResult.thresholds.agent_type || 'unregistered'}</span></li>
+                  <li>• Registered: <span className="font-mono">{lastResult.thresholds.is_registered ? 'Yes' : 'No'}</span></li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Explanation */}
+          {lastResult.status === "pending_approval" && (
+            <div className="mt-3 pt-3 border-t border-amber-200">
+              <p className="text-amber-700 text-sm">
+                <strong>Why pending?</strong>{' '}
+                {lastResult.risk_score >= (lastResult.thresholds?.max_risk_threshold || 70)
+                  ? `Risk score (${lastResult.risk_score}) exceeds max threshold (${lastResult.thresholds?.max_risk_threshold || 70}). Requires human approval.`
+                  : lastResult.risk_score >= (lastResult.thresholds?.auto_approve_below || 30)
+                    ? `Risk score (${lastResult.risk_score}) is in medium range (${lastResult.thresholds?.auto_approve_below || 30}-${lastResult.thresholds?.max_risk_threshold || 70}). Policy requires approval for this risk level.`
+                    : 'Policy or smart rules require approval for this action type.'
+                }
+              </p>
+            </div>
+          )}
+
+          {lastResult.status === "approved" && (
+            <div className="mt-3 pt-3 border-t border-green-200">
+              <p className="text-green-700 text-sm">
+                <strong>Why approved?</strong>{' '}
+                Risk score ({lastResult.risk_score}) is below auto-approve threshold ({lastResult.thresholds?.auto_approve_below || 30}).
+              </p>
+            </div>
+          )}
+
+          {/* Compliance Info */}
+          {(lastResult.nist_control || lastResult.mitre_tactic) && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="font-medium text-gray-700 mb-1 text-xs">Compliance Mapping</p>
+              <div className="flex gap-4 text-xs text-gray-600">
+                {lastResult.nist_control && (
+                  <span>NIST: <span className="font-mono">{lastResult.nist_control}</span></span>
+                )}
+                {lastResult.mitre_tactic && (
+                  <span>MITRE: <span className="font-mono">{lastResult.mitre_tactic}</span></span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
