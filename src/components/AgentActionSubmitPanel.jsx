@@ -1,5 +1,102 @@
 import React, { useState } from "react";
 
+// SEC-108: Enterprise Action Types aligned with backend cvss_auto_mapper.py (57+ types)
+const ACTION_TYPES = [
+  // Data Operations
+  { value: 'database_read', label: 'Database Read', category: 'Data' },
+  { value: 'database_write', label: 'Database Write', category: 'Data' },
+  { value: 'database_delete', label: 'Database Delete', category: 'Data' },
+  { value: 'data_export', label: 'Data Export', category: 'Data' },
+  { value: 'data_import', label: 'Data Import', category: 'Data' },
+  { value: 'bulk_write', label: 'Bulk Write', category: 'Data' },
+  { value: 'bulk_delete', label: 'Bulk Delete', category: 'Data' },
+
+  // File Operations
+  { value: 'file_read', label: 'File Read', category: 'File' },
+  { value: 'file_write', label: 'File Write', category: 'File' },
+  { value: 'file_delete', label: 'File Delete', category: 'File' },
+  { value: 'file_upload', label: 'File Upload', category: 'File' },
+  { value: 'file_download', label: 'File Download', category: 'File' },
+
+  // Financial Operations (Banking/FinTech)
+  { value: 'execute_trade', label: 'Execute Trade', category: 'Financial' },
+  { value: 'funds_transfer', label: 'Funds Transfer', category: 'Financial' },
+  { value: 'payment_process', label: 'Payment Process', category: 'Financial' },
+  { value: 'credit_decision', label: 'Credit Decision', category: 'Financial' },
+  { value: 'loan_approval', label: 'Loan Approval', category: 'Financial' },
+
+  // Healthcare/HIPAA
+  { value: 'phi_access', label: 'PHI Access', category: 'Healthcare' },
+  { value: 'phi_modify', label: 'PHI Modify', category: 'Healthcare' },
+  { value: 'prescription_write', label: 'Prescription Write', category: 'Healthcare' },
+  { value: 'medical_record_access', label: 'Medical Record Access', category: 'Healthcare' },
+
+  // PII/Privacy (GDPR/CCPA)
+  { value: 'pii_access', label: 'PII Access', category: 'Privacy' },
+  { value: 'pii_modify', label: 'PII Modify', category: 'Privacy' },
+  { value: 'pii_delete', label: 'PII Delete', category: 'Privacy' },
+  { value: 'consent_update', label: 'Consent Update', category: 'Privacy' },
+
+  // System/Infrastructure
+  { value: 'shell_execute', label: 'Shell Execute', category: 'System' },
+  { value: 'code_execute', label: 'Code Execute', category: 'System' },
+  { value: 'config_change', label: 'Config Change', category: 'System' },
+  { value: 'system_modification', label: 'System Modification', category: 'System' },
+  { value: 'privilege_escalation', label: 'Privilege Escalation', category: 'System' },
+  { value: 'credential_access', label: 'Credential Access', category: 'System' },
+  { value: 'secret_access', label: 'Secret Access', category: 'System' },
+  { value: 'encryption_key_access', label: 'Encryption Key Access', category: 'System' },
+
+  // API Operations
+  { value: 'api_call', label: 'API Call', category: 'API' },
+  { value: 'api_read', label: 'API Read', category: 'API' },
+  { value: 'api_write', label: 'API Write', category: 'API' },
+  { value: 'external_api_call', label: 'External API Call', category: 'API' },
+  { value: 'webhook_trigger', label: 'Webhook Trigger', category: 'API' },
+
+  // User Management
+  { value: 'user_create', label: 'User Create', category: 'User' },
+  { value: 'user_modify', label: 'User Modify', category: 'User' },
+  { value: 'user_delete', label: 'User Delete', category: 'User' },
+  { value: 'permission_grant', label: 'Permission Grant', category: 'User' },
+  { value: 'permission_revoke', label: 'Permission Revoke', category: 'User' },
+  { value: 'role_assign', label: 'Role Assign', category: 'User' },
+
+  // HR/Employee
+  { value: 'employee_record_access', label: 'Employee Record Access', category: 'HR' },
+  { value: 'employee_record_modify', label: 'Employee Record Modify', category: 'HR' },
+  { value: 'payroll_modify', label: 'Payroll Modify', category: 'HR' },
+  { value: 'benefits_modify', label: 'Benefits Modify', category: 'HR' },
+
+  // Security Operations
+  { value: 'vulnerability_scan', label: 'Vulnerability Scan', category: 'Security' },
+  { value: 'compliance_check', label: 'Compliance Check', category: 'Security' },
+  { value: 'threat_analysis', label: 'Threat Analysis', category: 'Security' },
+  { value: 'access_review', label: 'Access Review', category: 'Security' },
+  { value: 'forensic_analysis', label: 'Forensic Analysis', category: 'Security' },
+  { value: 'network_monitoring', label: 'Network Monitoring', category: 'Security' },
+  { value: 'audit_log_access', label: 'Audit Log Access', category: 'Security' },
+
+  // Operations
+  { value: 'data_backup', label: 'Data Backup', category: 'Operations' },
+  { value: 'backup_restore', label: 'Backup Restore', category: 'Operations' },
+  { value: 'system_maintenance', label: 'System Maintenance', category: 'Operations' },
+  { value: 'service_restart', label: 'Service Restart', category: 'Operations' },
+  { value: 'deployment', label: 'Deployment', category: 'Operations' },
+
+  // Custom
+  { value: 'custom', label: 'Custom (specify in description)', category: 'Other' },
+];
+
+// Group action types by category for dropdown
+const getGroupedActionTypes = () => {
+  return ACTION_TYPES.reduce((acc, type) => {
+    if (!acc[type.category]) acc[type.category] = [];
+    acc[type.category].push(type);
+    return acc;
+  }, {});
+};
+
 const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
   const [agentId, setAgentId] = useState("");
   const [actionType, setActionType] = useState("");
@@ -95,7 +192,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
     try {
       console.log('🚀 Submitting enterprise agent action via unified SDK endpoint...');
 
-      // SEC-107: Map to unified v1/actions/submit payload format
+      // SEC-108: Fix payload structure - required fields at ROOT level
       // Map risk_level to data_sensitivity for risk calculation
       const sensitivityMapping = {
         "low": "public",
@@ -105,12 +202,18 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
       };
 
       const payload = {
+        // SEC-108: Required fields at ROOT level (not inside context)
         agent_id: agentId,
         action_type: actionType,
+        tool_name: toolName || "manual",                    // ROOT level (was in context)
+        description: description,                           // ROOT level (was in context)
+        business_justification: businessJustification,      // ROOT level (was in context)
+        // Optional fields
+        resource_type: "general",
+        data_sensitivity: sensitivityMapping[riskLevel] || "internal",
+        environment: "production",
+        // Context for additional metadata (not required fields)
         context: {
-          tool_name: toolName,
-          description: description,
-          business_justification: businessJustification,
           submitted_via: "enterprise_admin_panel",
           timestamp: Math.floor(Date.now() / 1000),
           requested_risk_level: riskLevel  // For audit trail
@@ -119,8 +222,7 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
           resource: `${actionType}/${toolName || 'manual'}`,
           action: actionType
         },
-        data_sensitivity: sensitivityMapping[riskLevel] || "internal",
-        environment: "production"
+        parameters: {}
       };
 
       console.log('📤 Unified API Payload:', payload);
@@ -332,14 +434,14 @@ const AgentActionSubmitPanel = ({ getAuthHeaders }) => {
               required
             >
               <option value="">Select Action Type</option>
-              <option value="vulnerability_scan">Vulnerability Scan</option>
-              <option value="compliance_check">Compliance Check</option>
-              <option value="threat_analysis">Threat Analysis</option>
-              <option value="data_backup">Data Backup</option>
-              <option value="system_maintenance">System Maintenance</option>
-              <option value="forensic_analysis">Forensic Analysis</option>
-              <option value="network_monitoring">Network Monitoring</option>
-              <option value="access_review">Access Review</option>
+              {/* SEC-108: Grouped action types (70+ enterprise types) */}
+              {Object.entries(getGroupedActionTypes()).map(([category, types]) => (
+                <optgroup key={category} label={`── ${category} ──`}>
+                  {types.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
           </div>
 

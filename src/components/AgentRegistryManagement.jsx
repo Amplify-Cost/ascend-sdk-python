@@ -973,6 +973,35 @@ const AgentRegistryManagement = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
+              {/* SEC-108: Prominent warning for DRAFT agents that need activation */}
+              {agents.filter(a => a.status === "draft").length > 0 && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 text-2xl mr-3">⚠️</div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-yellow-800">
+                        {agents.filter(a => a.status === "draft").length} Agent(s) Pending Activation
+                      </h3>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        Agents in <strong>DRAFT</strong> status cannot submit actions.
+                        Click the <strong className="text-green-700">Activate</strong> button to enable each agent for production use.
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {agents.filter(a => a.status === "draft").map(agent => (
+                          <button
+                            key={agent.agent_id}
+                            onClick={() => handleActivateAgent(agent.agent_id)}
+                            disabled={actionLoading === agent.agent_id}
+                            className="inline-flex items-center px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                          >
+                            {actionLoading === agent.agent_id ? "..." : `✅ Activate ${agent.display_name}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
