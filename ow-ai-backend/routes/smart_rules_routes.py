@@ -5,13 +5,13 @@ from sqlalchemy.orm import Session
 from models import SmartRule
 from schemas import SmartRuleOut, SmartRuleOutEnhanced
 from database import get_db
-from dependencies import get_current_user, require_admin, require_csrf
+from dependencies import get_current_user, require_admin, require_csrf, get_organization_filter
 from llm_utils import generate_smart_rule
 from datetime import datetime, timedelta, timezone, UTC 
 import logging
 import openai
 import json
-import random
+# SEC-089: Removed 'import random' - no longer used after fake data removal
 from typing import Dict, Any
 from sqlalchemy import text
 import uuid
@@ -23,27 +23,61 @@ router = APIRouter(tags=["Enterprise Smart Rules"])
 # In-memory storage for A/B tests (enterprise demo memory)
 enterprise_ab_tests_storage: Dict[str, Dict[str, Any]] = {}
 
-# 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - FIXED
-@router.get("", response_model=list[SmartRuleOutEnhanced]) 
+# 🧠 ENTERPRISE: Enhanced rule listing with performance metrics - SEC-082 FIXED
+@router.get("", response_model=list[SmartRuleOutEnhanced])
 def list_smart_rules(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """📋 ENTERPRISE: List all smart rules with performance analytics - RAW SQL VERSION"""
+    """
+    SEC-082: List all smart rules for current organization only.
+    SECURITY: Multi-tenant isolation via organization_id filter.
+    """
     try:
-        # Use raw SQL to query only existing columns
+        # SEC-082: Use raw SQL with organization_id filter
         result = db.execute(text("""
             SELECT id, agent_id, action_type, description, condition, action,
                    risk_level, recommendation, justification, created_at, name
             FROM smart_rules
+            WHERE organization_id = :org_id
             ORDER BY created_at DESC
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
         
-        # Convert raw SQL results to enhanced rules
+        # Convert raw SQL results to enhanced rules with REAL metrics
         enhanced_rules = []
         for row in result:
+            rule_id = row[0]
+
+            # SEC-089: Query REAL performance metrics from alerts table
+            # Replaces fake random.randint() data with actual database values
+            metrics_result = db.execute(text("""
+                SELECT
+                    COUNT(*) as total_triggers,
+                    COUNT(CASE WHEN timestamp >= NOW() - INTERVAL '24 hours' THEN 1 END) as triggers_24h,
+                    COUNT(CASE WHEN is_false_positive = true THEN 1 END) as false_positives,
+                    MAX(timestamp) as last_triggered
+                FROM alerts
+                WHERE detected_by_rule_id = :rule_id
+                  AND organization_id = :org_id
+            """), {"rule_id": rule_id, "org_id": org_id}).fetchone()
+
+            total_triggers = metrics_result[0] if metrics_result else 0
+            triggers_24h = metrics_result[1] if metrics_result else 0
+            false_positives = metrics_result[2] if metrics_result else 0
+            last_triggered = metrics_result[3] if metrics_result else None
+
+            # Calculate performance score: (total - false_positives) / total * 100
+            # Returns null if no data (honest empty state)
+            if total_triggers > 0:
+                performance_score = round(((total_triggers - false_positives) / total_triggers) * 100, 1)
+                effectiveness_rating = "high" if performance_score >= 90 else ("medium" if performance_score >= 70 else "low")
+            else:
+                performance_score = None  # No execution history - frontend shows "No data yet"
+                effectiveness_rating = None
+
             enhanced_rule = {
-                "id": row[0],
+                "id": rule_id,
                 "agent_id": row[1] or "ai-generated",
                 "action_type": row[2] or "smart_rule",
                 "description": row[3] or "Enterprise security rule",
@@ -54,12 +88,13 @@ def list_smart_rules(
                 "justification": row[8] or "Security enhancement",
                 "created_at": row[9] if row[9] else datetime.now(UTC),
                 "name": row[10] or row[3],  # Use name if available, fallback to description
-                # Enterprise performance metrics
-                "performance_score": random.randint(75, 95),
-                "triggers_last_24h": random.randint(0, 25),
-                "false_positives": random.randint(0, 3),
-                "effectiveness_rating": "high" if random.randint(85, 100) > 90 else "medium",
-                "last_triggered": (datetime.now(UTC) - timedelta(hours=random.randint(1, 48))).isoformat()
+                # SEC-089: REAL performance metrics from database (or null if no data)
+                "performance_score": performance_score,
+                "triggers_last_24h": triggers_24h,
+                "false_positives": false_positives,
+                "effectiveness_rating": effectiveness_rating,
+                "last_triggered": last_triggered.isoformat() if last_triggered else None,
+                "has_execution_history": total_triggers > 0
             }
             enhanced_rules.append(enhanced_rule)
         
@@ -71,24 +106,31 @@ def list_smart_rules(
         # Return empty list - no 500 error
         return []
 
-# 📊 ENTERPRISE: Advanced analytics dashboard with REAL DATA
+# 📊 ENTERPRISE: Advanced analytics dashboard with REAL DATA - SEC-082 FIXED
 @router.get("/analytics")
 async def get_rule_analytics(
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     db: Session = Depends(get_db)
 ):
-    """📊 ENTERPRISE: Real rule performance analytics calculated from alerts and actions"""
+    """
+    SEC-082: Real rule performance analytics for current organization only.
+    SECURITY: Multi-tenant isolation via organization_id filter.
+    """
     try:
         # ============================================================================
-        # QUERY 1: Basic Rule Counts
+        # SEC-082: QUERY 1 - Basic Rule Counts (org-scoped)
         # ============================================================================
-        result = db.execute(text("SELECT COUNT(*) FROM smart_rules")).fetchone()
+        result = db.execute(text("""
+            SELECT COUNT(*) FROM smart_rules
+            WHERE organization_id = :org_id
+        """), {"org_id": org_id}).fetchone()
         total_rules = result[0] if result else 0
 
-        logger.info(f"📊 Found {total_rules} total smart rules")
+        logger.info(f"📊 SEC-082: Found {total_rules} smart rules for org_id={org_id}")
 
         # ============================================================================
-        # QUERY 2: Calculate Performance from REAL Alerts
+        # SEC-082: QUERY 2 - Calculate Performance from REAL Alerts (org-scoped)
         # Match alerts to rules by checking if rule name appears in alert message
         # ============================================================================
         perf_metrics = db.execute(text("""
@@ -110,7 +152,9 @@ async def get_rule_analytics(
                     OR a.message LIKE '%' || sr.name || '%'
                 )
                 AND a.timestamp >= NOW() - INTERVAL '24 hours'
-                WHERE sr.name IS NOT NULL AND sr.name != ''
+                AND a.organization_id = :org_id
+                WHERE sr.organization_id = :org_id
+                  AND sr.name IS NOT NULL AND sr.name != ''
                 GROUP BY sr.id, sr.name
             )
             SELECT
@@ -124,16 +168,16 @@ async def get_rule_analytics(
                     THEN (false_positives::float / triggers * 100)
                     ELSE 0 END) as fp_rate
             FROM rule_performance
-        """)).fetchone()
+        """), {"org_id": org_id}).fetchone()
 
         total_triggers_24h = int(perf_metrics[0] or 0) if perf_metrics else 0
         avg_performance_score = round(float(perf_metrics[1] or 88.0), 1) if perf_metrics else 88.0
         false_positive_rate = round(float(perf_metrics[2] or 5.0), 1) if perf_metrics else 5.0
 
-        logger.info(f"📊 Performance: {total_triggers_24h} triggers, {avg_performance_score}% avg score, {false_positive_rate}% FP rate")
+        logger.info(f"📊 SEC-082: Performance for org_id={org_id}: {total_triggers_24h} triggers, {avg_performance_score}% avg score, {false_positive_rate}% FP rate")
 
         # ============================================================================
-        # QUERY 3: Top Performing Rules (highest escalation rate = best detection)
+        # SEC-082: QUERY 3 - Top Performing Rules (org-scoped)
         # ============================================================================
         top_rules = db.execute(text("""
             WITH rule_stats AS (
@@ -152,7 +196,9 @@ async def get_rule_analytics(
                     OR a.message LIKE '%' || sr.name || '%'
                 )
                 AND a.timestamp >= NOW() - INTERVAL '7 days'
-                WHERE sr.name IS NOT NULL AND sr.name != ''
+                AND a.organization_id = :org_id
+                WHERE sr.organization_id = :org_id
+                  AND sr.name IS NOT NULL AND sr.name != ''
                 GROUP BY sr.id, sr.name, sr.risk_level
             )
             SELECT id, name, performance_score, risk_level
@@ -160,7 +206,7 @@ async def get_rule_analytics(
             WHERE triggers > 0
             ORDER BY performance_score DESC, triggers DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         top_performing_rules = [
             {
@@ -173,7 +219,7 @@ async def get_rule_analytics(
         ] if top_rules else []
 
         # ============================================================================
-        # QUERY 4: Performance Trends (this month vs last month)
+        # SEC-082: QUERY 4 - Performance Trends (org-scoped)
         # ============================================================================
         trends = db.execute(text("""
             WITH this_month AS (
@@ -188,6 +234,8 @@ async def get_rule_analytics(
                     OR a.message LIKE '%' || sr.name || '%'
                 )
                 WHERE a.timestamp >= DATE_TRUNC('month', NOW())
+                  AND a.organization_id = :org_id
+                  AND sr.organization_id = :org_id
                   AND sr.name IS NOT NULL
             ),
             last_month AS (
@@ -364,7 +412,16 @@ async def get_ab_tests(
     try:
         logger.info(f"📊 Fetching A/B tests for user: {current_user.get('email')}")
 
-        # Query all A/B tests from database
+        # SEC-108e: Use organization_id consistently (fail-closed)
+        org_id = current_user.get('organization_id')
+        user_email = current_user.get('email', '')
+
+        if not org_id:
+            logger.warning(f"SEC-108e: A/B test fetch denied - no organization context for {user_email}")
+            return {"ab_tests": [], "message": "Organization context required for A/B test access"}
+
+        # Query A/B tests from database - filtered by organization_id OR created_by user
+        # SEC-108e: Multi-tenant isolation using organization_id (integer) consistently
         tests_query = db.execute(text("""
             SELECT
                 t.id, t.test_id, t.test_name, t.description,
@@ -382,8 +439,9 @@ async def get_ab_tests(
             FROM ab_tests t
             LEFT JOIN smart_rules ra ON t.variant_a_rule_id = ra.id
             LEFT JOIN smart_rules rb ON t.variant_b_rule_id = rb.id
+            WHERE CAST(t.tenant_id AS TEXT) = CAST(:org_id AS TEXT) OR t.created_by = :user_email
             ORDER BY t.created_at DESC
-        """)).fetchall()
+        """), {"org_id": str(org_id), "user_email": user_email}).fetchall()
 
         real_tests = []
         for test in tests_query:
@@ -498,123 +556,16 @@ async def get_ab_tests(
 
             real_tests.append(test_data)
 
-        # Add demo tests for reference (marked with [DEMO])
-        # Use high IDs to prevent collision with real database IDs
-        demo_tests = [
-            {
-                "id": 999001,
-                "test_id": "demo-enterprise-001",
-                "rule_id": 12,
-                "test_name": "[DEMO] Data Exfiltration Detection Optimization",
-                "description": "Example: Testing AI-enhanced detection vs current rule",
-                "variant_a": "Current rule: file_access > 100 AND time = 'after_hours'",
-                "variant_b": "AI-optimized: ML_pattern_detection + context_analysis",
-                "variant_a_performance": 78,
-                "variant_b_performance": 94,
-                "confidence_level": 95,
-                "status": "completed",
-                "created_by": current_user.get("email", "enterprise-system"),
-                "created_at": "2025-08-16T20:30:00Z",
-                "completed_at": "2025-08-16T22:30:00Z",
-                "progress_percentage": 100,
-                "winner": "variant_b",
-                "statistical_significance": "high",
-                "improvement": "+20.5% accuracy improvement",
-                "sample_size": 2847,
-                "traffic_split": 50,
-                "duration_hours": 48,
-                "enterprise_insights": {
-                    "cost_savings": "$18,500/month in reduced false positives",
-                    "false_positive_reduction": "31% fewer false alerts",
-                    "efficiency_gain": "+16 hours/week saved for security team",
-                    "recommendation": "✅ Deploy Variant B - Significant performance improvement confirmed"
-                },
-                "results": {
-                    "threat_detection_rate": {"variant_a": "78%", "variant_b": "94%"},
-                    "false_positive_rate": {"variant_a": "12%", "variant_b": "3.2%"},
-                    "response_time": {"variant_a": "2.4s", "variant_b": "1.1s"}
-                }
-            },
-            {
-                "id": 999002,
-                "test_id": "demo-enterprise-002",
-                "rule_id": 11,
-                "test_name": "[DEMO] Privilege Escalation Alert Tuning",
-                "description": "Example: Reducing false positives while maintaining detection accuracy",
-                "variant_a": "Current rule: sudo_attempts > 3 AND user_type = 'standard'", 
-                "variant_b": "Enhanced rule: ML_behavior_analysis + time_context + user_history",
-                "variant_a_performance": 71,
-                "variant_b_performance": 89,
-                "confidence_level": 92,
-                "status": "running",
-                "created_by": current_user.get("email", "enterprise-system"),
-                "created_at": "2025-08-16T18:00:00Z",
-                "progress_percentage": 75,
-                "winner": None,
-                "statistical_significance": "medium",
-                "improvement": "+25.4% pending confirmation",
-                "sample_size": 1456,
-                "traffic_split": 50,
-                "duration_hours": 72,
-                "enterprise_insights": {
-                    "cost_savings": "$12,300/month projected savings",
-                    "false_positive_reduction": "42% reduction projected", 
-                    "efficiency_gain": "+12 hours/week projected",
-                    "recommendation": "🔄 Test in progress - Strong positive indicators"
-                },
-                "results": {
-                    "threat_detection_rate": {"variant_a": "71%", "variant_b": "89%"},
-                    "false_positive_rate": {"variant_a": "18%", "variant_b": "7.8%"},
-                    "response_time": {"variant_a": "3.1s", "variant_b": "1.8s"}
-                }
-            },
-            {
-                "id": 999003,
-                "test_id": "demo-enterprise-003",
-                "rule_id": 7,
-                "test_name": "[DEMO] Network Anomaly Detection Enhancement",
-                "description": "Example: AI-powered network pattern analysis vs signature-based detection",
-                "variant_a": "Signature-based: known_attack_patterns AND traffic_volume > threshold",
-                "variant_b": "AI-enhanced: neural_network_analysis + behavioral_baseline + geo_context",
-                "variant_a_performance": 82,
-                "variant_b_performance": 91,
-                "confidence_level": 88,
-                "status": "running",
-                "created_by": current_user.get("email", "enterprise-system"),
-                "created_at": "2025-08-16T21:15:00Z", 
-                "progress_percentage": 35,
-                "winner": None,
-                "statistical_significance": "low",
-                "improvement": "+10.2% early indicator",
-                "sample_size": 634,
-                "traffic_split": 50,
-                "duration_hours": 96,
-                "enterprise_insights": {
-                    "cost_savings": "$8,900/month projected",
-                    "false_positive_reduction": "23% reduction expected",
-                    "efficiency_gain": "+8 hours/week estimated", 
-                    "recommendation": "⏳ Early stage - Monitor for 48 more hours"
-                },
-                "results": {
-                    "threat_detection_rate": {"variant_a": "82%", "variant_b": "91%"},
-                    "false_positive_rate": {"variant_a": "9.2%", "variant_b": "5.1%"},
-                    "response_time": {"variant_a": "1.9s", "variant_b": "1.4s"}
-                }
-            }
-        ]
+        # SEC-089: REMOVED all demo A/B tests (IDs 999001-999003)
+        # Enterprise standard: Real data or honest empty state - never fake metrics
+        # The frontend will show "No A/B tests configured" when list is empty
 
-        # ENTERPRISE: Only show 1 demo test when there are NO real tests (for onboarding)
-        # Once users create real tests, hide all demos
         if len(real_tests) == 0:
-            # Show only the first demo as an example
-            all_tests = [demo_tests[0]]
-            logger.info(f"✅ ENTERPRISE: No real tests yet - showing 1 demo example for onboarding")
+            logger.info(f"✅ SEC-089: No A/B tests for org_id={org_id} - returning empty list (honest empty state)")
         else:
-            # User has real tests - show only real data
-            all_tests = real_tests
-            logger.info(f"✅ ENTERPRISE: Returned {len(real_tests)} real tests (no demos - user has real data)")
+            logger.info(f"✅ SEC-089: Returned {len(real_tests)} real A/B tests for org_id={org_id}")
 
-        return all_tests
+        return real_tests
 
     except Exception as e:
         logger.error(f"❌ ENTERPRISE: A/B tests retrieval error: {e}")
@@ -640,6 +591,12 @@ async def create_ab_test(
     try:
         logger.info(f"🧪 ENTERPRISE: A/B test creation requested by {current_user.get('email')} for rule {rule_id}")
 
+        # SEC-108e: Get organization_id for multi-tenant isolation (fail-closed)
+        org_id = current_user.get('organization_id')
+        if not org_id:
+            logger.warning(f"SEC-108e: A/B test creation denied - no organization context for {current_user.get('email')}")
+            raise HTTPException(status_code=403, detail="Organization context required to create A/B tests")
+
         # Get request body
         try:
             data = await request.json()
@@ -649,22 +606,25 @@ async def create_ab_test(
         # 1. Get base rule details
         base_rule = db.execute(text("""
             SELECT name, condition, action, risk_level, description,
-                   recommendation, justification, agent_id, action_type
+                   recommendation, justification, agent_id, action_type, organization_id
             FROM smart_rules WHERE id = :rule_id
         """), {"rule_id": rule_id}).fetchone()
 
         if not base_rule:
             raise HTTPException(status_code=404, detail=f"Rule {rule_id} not found")
 
+        # SEC-108b: Use organization_id from base rule or current user
+        rule_org_id = getattr(base_rule, 'organization_id', None) or org_id
+
         # 2. Create Variant A (exact clone - control)
         variant_a_result = db.execute(text("""
             INSERT INTO smart_rules (
                 name, agent_id, action_type, description, condition, action,
-                risk_level, recommendation, justification, created_at
+                risk_level, recommendation, justification, created_at, organization_id
             ) VALUES (
                 :name, :agent_id, :action_type, :description,
                 :condition, :action, :risk_level, :recommendation,
-                :justification, NOW()
+                :justification, NOW(), :organization_id
             ) RETURNING id
         """), {
             "name": f"[A/B Test A] {base_rule.name or 'Rule'} - Control",
@@ -675,7 +635,8 @@ async def create_ab_test(
             "action": base_rule.action or "alert",
             "risk_level": base_rule.risk_level or "medium",
             "recommendation": base_rule.recommendation or "Monitor performance",
-            "justification": base_rule.justification or "A/B test control variant"
+            "justification": base_rule.justification or "A/B test control variant",
+            "organization_id": rule_org_id
         })
         variant_a_id = variant_a_result.fetchone()[0]
 
@@ -685,11 +646,11 @@ async def create_ab_test(
         variant_b_result = db.execute(text("""
             INSERT INTO smart_rules (
                 name, agent_id, action_type, description, condition, action,
-                risk_level, recommendation, justification, created_at
+                risk_level, recommendation, justification, created_at, organization_id
             ) VALUES (
                 :name, :agent_id, :action_type, :description,
                 :condition, :action, :risk_level, :recommendation,
-                :justification, NOW()
+                :justification, NOW(), :organization_id
             ) RETURNING id
         """), {
             "name": f"[A/B Test B] {base_rule.name or 'Rule'} - Optimized",
@@ -700,7 +661,8 @@ async def create_ab_test(
             "action": base_rule.action or "alert",
             "risk_level": base_rule.risk_level or "medium",
             "recommendation": "AI-optimized for reduced false positives",
-            "justification": f"Optimized version: {base_rule.justification or 'Enhanced detection'}"
+            "justification": f"Optimized version: {base_rule.justification or 'Enhanced detection'}",
+            "organization_id": rule_org_id
         })
         variant_b_id = variant_b_result.fetchone()[0]
 
@@ -728,12 +690,13 @@ async def create_ab_test(
             "traffic_split": data.get("traffic_split", 50),
             "duration_hours": data.get("test_duration_hours", 168),
             "created_by": current_user.get("email"),
-            "tenant_id": current_user.get("tenant_id", "default")
+            # SEC-108e: Use organization_id consistently (as string for tenant_id column)
+            "tenant_id": str(org_id)
         })
 
         db.commit()
 
-        logger.info(f"✅ ENTERPRISE: A/B test {test_id} created successfully (variants: {variant_a_id}, {variant_b_id})")
+        logger.info(f"✅ ENTERPRISE: A/B test {test_id} created successfully (variants: {variant_a_id}, {variant_b_id}) for org {org_id}")
 
         return {
             "success": True,
@@ -745,7 +708,8 @@ async def create_ab_test(
             "test_name": f"A/B Test: {base_rule.name or f'Rule {rule_id}'}",
             "enterprise_metadata": {
                 "created_by": current_user.get('email'),
-                "tenant_id": current_user.get('tenant_id'),
+                # SEC-108e: Return organization_id for clarity
+                "organization_id": org_id,
                 "audit_trail_id": str(uuid.uuid4())
             }
         }
@@ -1641,15 +1605,21 @@ async def generate_rule_from_natural_language(
                 "false_positive_likelihood": "3-7%"
             }
 
+        # SEC-108: Get organization_id from current user for multi-tenant isolation
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            raise HTTPException(status_code=403, detail="User has no organization")
+
         # Create the rule using RAW SQL - INSERT ONLY INTO EXISTING COLUMNS
+        # SEC-108: Include organization_id for multi-tenant isolation
         try:
             result = db.execute(text("""
                 INSERT INTO smart_rules (
                     agent_id, action_type, description, condition, action,
-                    risk_level, recommendation, justification, created_at
+                    risk_level, recommendation, justification, created_at, organization_id
                 ) VALUES (
                     :agent_id, :action_type, :description, :condition, :action,
-                    :risk_level, :recommendation, :justification, :created_at
+                    :risk_level, :recommendation, :justification, :created_at, :organization_id
                 ) RETURNING id
             """), {
                 "agent_id": "enterprise-ai-generated",
@@ -1660,7 +1630,8 @@ async def generate_rule_from_natural_language(
                 "risk_level": rule_data["risk_level"],
                 "recommendation": rule_data.get("recommendation", "Enterprise security review required"),
                 "justification": rule_data["justification"],
-                "created_at": datetime.now(UTC)
+                "created_at": datetime.now(UTC),
+                "organization_id": org_id  # SEC-108: Multi-tenant isolation
             })
 
             new_rule_id = result.fetchone()[0]
@@ -1805,68 +1776,71 @@ async def create_manual_rule(
         raise HTTPException(status_code=500, detail=f"Failed to create manual rule: {str(e)}")
 
 
-# 🎯 ENTERPRISE: Advanced rule optimization
+# 🎯 ENTERPRISE: Advanced rule optimization - SEC-089 FIXED
 @router.post("/optimize/{rule_id}")
 async def optimize_rule_performance(
     rule_id: int,
     current_user: dict = Depends(require_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    org_id: int = Depends(get_organization_filter)
 ):
-    """🎯 ENTERPRISE: Use advanced ML to optimize rule performance"""
+    """🎯 SEC-089: Rule optimization with REAL metrics (no fake random data)"""
     try:
         rule = db.query(SmartRule).filter(SmartRule.id == rule_id).first()
         if not rule:
             raise HTTPException(status_code=404, detail="Rule not found")
         
-        # 💾 Save optimization to database (rule_optimizations table)
-        try:
-            db.execute(text("""
-                INSERT INTO rule_optimizations 
-                (rule_id, optimization_type, original_condition, optimized_condition, 
-                 performance_gain, confidence_score, applied, created_at)
-                VALUES 
-                (:rule_id, 'ml_performance', :original, :optimized, :gain, :confidence, false, NOW())
-            """), {
-                "rule_id": rule_id,
-                "original": rule.condition,
-                "optimized": f"AI-optimized: {rule.condition}",
-                "gain": float(random.randint(15, 30)),
-                "confidence": 88.0
-            })
-            db.commit()
-        except Exception as db_err:
-            logger.warning(f"Could not save optimization to DB: {db_err}")
-            # Continue anyway - optimization result is still valid
-        
-        
-        # Enterprise ML optimization simulation
+        # SEC-089: Query REAL rule performance metrics from alerts
+        # Calculate actual performance based on historical data
+        perf_result = db.execute(text("""
+            SELECT
+                COUNT(*) as total_triggers,
+                COUNT(CASE WHEN is_false_positive = true THEN 1 END) as false_positives,
+                AVG(detection_time_ms) as avg_detection_ms
+            FROM alerts
+            WHERE detected_by_rule_id = :rule_id
+              AND organization_id = :org_id
+              AND timestamp >= NOW() - INTERVAL '30 days'
+        """), {"rule_id": rule_id, "org_id": org_id}).fetchone()
+
+        total_triggers = perf_result[0] if perf_result and perf_result[0] else 0
+        false_positives = perf_result[1] if perf_result and perf_result[1] else 0
+        avg_detection_ms = perf_result[2] if perf_result and perf_result[2] else None
+
+        # Calculate actual performance score
+        if total_triggers > 0:
+            original_performance = round(((total_triggers - false_positives) / total_triggers) * 100, 1)
+            false_positive_rate = round((false_positives / total_triggers) * 100, 1)
+        else:
+            original_performance = None
+            false_positive_rate = None
+
+        # SEC-089: Return honest data - no random fake metrics
+        # If no historical data, return "analysis pending" state
         optimization_result = {
             "rule_id": rule_id,
-            "original_performance": random.randint(70, 85),
-            "optimized_performance": random.randint(85, 95),
-            "improvements": [
-                f"Reduced false positive rate by {random.randint(20, 35)}%",
-                f"Improved threat detection accuracy by {random.randint(12, 25)}%", 
-                f"Optimized response time by {random.randint(15, 30)}%",
-                "Enhanced correlation with threat intelligence feeds",
-                "Improved enterprise compliance scoring"
-            ],
-            "confidence": random.randint(85, 95),
-            "estimated_impact": f"{random.randint(15, 25)}% reduction in security incidents",
+            "status": "analysis_complete" if total_triggers > 0 else "insufficient_data",
+            "original_performance": original_performance,
+            "optimized_performance": None,  # Would need actual ML model to predict
+            "data_points_analyzed": total_triggers,
+            "analysis_period_days": 30,
+            "current_metrics": {
+                "total_triggers_30d": total_triggers,
+                "false_positives_30d": false_positives,
+                "false_positive_rate": f"{false_positive_rate}%" if false_positive_rate is not None else None,
+                "avg_detection_time_ms": round(avg_detection_ms, 1) if avg_detection_ms else None
+            },
+            "optimization_available": total_triggers >= 10,  # Need minimum data for optimization
             "optimization_techniques": [
-                "Advanced machine learning threshold tuning",
-                "Behavioral pattern recognition enhancement",
+                "Machine learning threshold tuning",
+                "Behavioral pattern recognition",
                 "Threat intelligence integration",
-                "Enterprise context awareness"
-            ],
-            "enterprise_benefits": {
-                "cost_savings": f"${random.randint(5000, 15000):,}/month",
-                "compliance_improvement": f"+{random.randint(5, 12)}%",
-                "operational_efficiency": f"+{random.randint(15, 30)}%"
-            }
+                "Context-aware analysis"
+            ] if total_triggers >= 10 else [],
+            "message": "Optimization recommendations available" if total_triggers >= 10 else "Insufficient data - rule needs more execution history for optimization analysis"
         }
-        
-        logger.info(f"🎯 Enterprise rule {rule_id} optimized by {current_user['email']}")
+
+        logger.info(f"🎯 SEC-089: Rule {rule_id} analysis - {total_triggers} data points analyzed for org_id={org_id}")
         return optimization_result
         
     except HTTPException:
@@ -1962,60 +1936,5 @@ async def generate_smart_rule_endpoint(
             detail="Failed to generate smart rule"
         )
 
-@router.post("/seed")
-def seed_smart_rules(
-    db: Session = Depends(get_db),
-    admin_user: dict = Depends(require_admin),
-    
-):
-    """Seed demo smart rules"""
-    try:
-        demo_rules = [
-            SmartRule(
-                agent_id="demo-agent-001",
-                action_type="data_exfiltration",
-                description="Detect potential data exfiltration attempts",
-                condition="action_type == 'data_exfiltration' and tool_name in ['curl', 'wget']",
-                action="block_and_alert",
-                risk_level="high",
-                recommendation="Immediately investigate and block network access",
-                justification="Data exfiltration attempts pose high security risk",
-                created_at=datetime.now(UTC)
-            ),
-            SmartRule(
-                agent_id="demo-agent-002",
-                action_type="privilege_escalation",
-                description="Detect privilege escalation attempts",
-                condition="action_type == 'privilege_escalation' and risk_level == 'high'",
-                action="quarantine",
-                risk_level="high",
-                recommendation="Quarantine agent and review permissions",
-                justification="Unauthorized privilege escalation must be prevented",
-                created_at=datetime.now(UTC)
-            ),
-            SmartRule(
-                agent_id="demo-agent-003",
-                action_type="suspicious_network",
-                description="Monitor unusual network activity",
-                condition="tool_name == 'network_scanner' and description contains 'internal'",
-                action="monitor_closely",
-                risk_level="medium",
-                recommendation="Monitor network traffic and log activities",
-                justification="Internal network scanning may indicate reconnaissance",
-                created_at=datetime.now(UTC)
-            )
-        ]
-
-        db.add_all(demo_rules)
-        db.commit()
-
-        logger.info(f"Demo smart rules seeded by {admin_user['email']}")
-        return {"message": f"✅ {len(demo_rules)} demo smart rules seeded"}
-
-    except Exception as e:
-        logger.error(f"Failed to seed smart rules: {str(e)}")
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to seed demo rules"
-        )
+# SEC-089: REMOVED /seed endpoint - production should never have demo data injection
+# Demo seeding endpoints are a security risk and should only exist in development environments
