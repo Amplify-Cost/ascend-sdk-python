@@ -1582,15 +1582,21 @@ async def generate_rule_from_natural_language(
                 "false_positive_likelihood": "3-7%"
             }
 
+        # SEC-108: Get organization_id from current user for multi-tenant isolation
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            raise HTTPException(status_code=403, detail="User has no organization")
+
         # Create the rule using RAW SQL - INSERT ONLY INTO EXISTING COLUMNS
+        # SEC-108: Include organization_id for multi-tenant isolation
         try:
             result = db.execute(text("""
                 INSERT INTO smart_rules (
                     agent_id, action_type, description, condition, action,
-                    risk_level, recommendation, justification, created_at
+                    risk_level, recommendation, justification, created_at, organization_id
                 ) VALUES (
                     :agent_id, :action_type, :description, :condition, :action,
-                    :risk_level, :recommendation, :justification, :created_at
+                    :risk_level, :recommendation, :justification, :created_at, :organization_id
                 ) RETURNING id
             """), {
                 "agent_id": "enterprise-ai-generated",
@@ -1601,7 +1607,8 @@ async def generate_rule_from_natural_language(
                 "risk_level": rule_data["risk_level"],
                 "recommendation": rule_data.get("recommendation", "Enterprise security review required"),
                 "justification": rule_data["justification"],
-                "created_at": datetime.now(UTC)
+                "created_at": datetime.now(UTC),
+                "organization_id": org_id  # SEC-108: Multi-tenant isolation
             })
 
             new_rule_id = result.fetchone()[0]
