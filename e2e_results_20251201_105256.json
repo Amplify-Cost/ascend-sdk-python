@@ -1,0 +1,204 @@
+{
+  "url": "https://pilot.owkai.app",
+  "timestamp": "2025-12-01T10:52:56.965203",
+  "results": [
+    {
+      "test": "Health endpoint",
+      "passed": true,
+      "details": "Status: 200",
+      "timestamp": "2025-12-01T10:52:54.358669"
+    },
+    {
+      "test": "Deployment info",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:54.414695"
+    },
+    {
+      "test": "OpenAPI spec available",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:55.081151"
+    },
+    {
+      "test": "Login with credentials",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:55.666693"
+    },
+    {
+      "test": "Get current user",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:55.722253"
+    },
+    {
+      "test": "CSRF token endpoint",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:55.775998"
+    },
+    {
+      "test": "Auth diagnostic",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:55.821879"
+    },
+    {
+      "test": "List agent actions",
+      "passed": true,
+      "details": "Count: 0",
+      "timestamp": "2025-12-01T10:52:55.877220"
+    },
+    {
+      "test": "Submit agent action",
+      "passed": false,
+      "details": "Action ID: None",
+      "timestamp": "2025-12-01T10:52:55.927047"
+    },
+    {
+      "test": "List pending actions",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:55.970134"
+    },
+    {
+      "test": "Authorization metrics",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.015696"
+    },
+    {
+      "test": "List governance policies",
+      "passed": false,
+      "details": "Count: 0",
+      "timestamp": "2025-12-01T10:52:56.060168"
+    },
+    {
+      "test": "Get policy templates",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.109347"
+    },
+    {
+      "test": "Get audit events",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.158630"
+    },
+    {
+      "test": "List alerts",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.209353"
+    },
+    {
+      "test": "Alert statistics",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.258171"
+    },
+    {
+      "test": "List smart rules",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.313141"
+    },
+    {
+      "test": "Get rule templates",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.360807"
+    },
+    {
+      "test": "Risk trends",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.409519"
+    },
+    {
+      "test": "Action trends",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.456128"
+    },
+    {
+      "test": "AI insights",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.507984"
+    },
+    {
+      "test": "Get organization",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.557034"
+    },
+    {
+      "test": "List enterprise users",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.602286"
+    },
+    {
+      "test": "Audit logs",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.651983"
+    },
+    {
+      "test": "Retention policies",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.700076"
+    },
+    {
+      "test": "List webhooks",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.761703"
+    },
+    {
+      "test": "Notification channels",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.815800"
+    },
+    {
+      "test": "Integration status",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.862808"
+    },
+    {
+      "test": "List API keys",
+      "passed": false,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.908662"
+    },
+    {
+      "test": "X-Frame-Options: DENY",
+      "passed": true,
+      "details": "DENY",
+      "timestamp": "2025-12-01T10:52:56.962394"
+    },
+    {
+      "test": "X-Content-Type-Options: nosniff",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.962406"
+    },
+    {
+      "test": "X-XSS-Protection enabled",
+      "passed": true,
+      "details": "",
+      "timestamp": "2025-12-01T10:52:56.962409"
+    },
+    {
+      "test": "HSTS enabled",
+      "passed": false,
+      "details": "missing",
+      "timestamp": "2025-12-01T10:52:56.962414"
+    }
+  ]
+}

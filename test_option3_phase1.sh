@@ -22,7 +22,7 @@ echo "🔐 Authenticating to production..."
 TOKEN=$(curl -s 'https://pilot.owkai.app/api/auth/token' \
   -X POST \
   -H 'Content-Type: application/json' \
-  -d '{" email":"admin@owkai.com","password":"admin123"}' | \
+  -d '{"email":"admin@owkai.com","password":"admin123"}' | \
   python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
 
 echo "✅ Authenticated"

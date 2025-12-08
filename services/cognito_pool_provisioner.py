@@ -243,7 +243,7 @@ You will be prompted to change your password on first login.
 Best regards,
 The Ascend Team
 ''',
-                        'SMSMessage': 'Your Ascend temp password is {####}'
+                        'SMSMessage': '{username}, your Ascend temp password is {####}'
                     }
                 },
                 Schema=[

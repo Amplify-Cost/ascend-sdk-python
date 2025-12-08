@@ -28,16 +28,10 @@ class EnterpriseUnifiedLoader:
     Merges agent_actions + mcp_server_actions into single queue
     """
 
-    def load_all_pending_actions(self, db: Session, org_id: int = None) -> Dict:
+    def load_all_pending_actions(self, db: Session) -> Dict:
         """
         Load ALL pending actions from both tables
         Returns unified, sorted list with common schema
-
-        SEC-023: Now filters by organization_id for multi-tenant isolation
-
-        Args:
-            db: Database session
-            org_id: Organization ID for multi-tenant filtering (required for data isolation)
 
         Returns:
             {
@@ -60,7 +54,7 @@ class EnterpriseUnifiedLoader:
 
             # 🏢 ENTERPRISE FIX: Query using status field for pending actions
             # Handles: status='pending_stage_1/2/3', status='pending', status='pending_approval', workflow-based approvals
-            query = db.query(AgentAction).filter(
+            agent_actions = db.query(AgentAction).filter(
                 or_(
                     # Workflow stage statuses (pending_stage_1, pending_stage_2, pending_stage_3)
                     AgentAction.status.like("pending%"),
@@ -72,15 +66,8 @@ class EnterpriseUnifiedLoader:
                         AgentAction.workflow_stage.like("pending%")
                     )
                 )
-            )
-
-            # SEC-023: Filter by organization_id for multi-tenant isolation
-            if org_id is not None:
-                query = query.filter(AgentAction.organization_id == org_id)
-                logger.info(f"🏢 SEC-023: Filtering agent actions by org_id={org_id}")
-
-            agent_actions = query.all()
-            logger.info(f"✅ ENTERPRISE: Loaded {len(agent_actions)} agent actions (org_id={org_id})")
+            ).all()
+            logger.info(f"✅ ENTERPRISE: Loaded {len(agent_actions)} agent actions (handles NULL status + multiple fields)")
         except Exception as e:
             logger.error(f"Failed to query agent_actions: {e}")
             agent_actions = []
@@ -88,17 +75,10 @@ class EnterpriseUnifiedLoader:
         # Query 2: MCP Server Actions (status = 'pending'/'PENDING' or 'evaluate'/'EVALUATE')
         # 🏢 ENTERPRISE FIX: Handle both uppercase and lowercase status values
         try:
-            mcp_query = db.query(MCPServerAction).filter(
+            mcp_actions = db.query(MCPServerAction).filter(
                 MCPServerAction.status.in_(["PENDING", "EVALUATE", "pending", "evaluate"])
-            )
-
-            # SEC-023: Filter by organization_id for multi-tenant isolation
-            if org_id is not None:
-                mcp_query = mcp_query.filter(MCPServerAction.organization_id == org_id)
-                logger.info(f"🏢 SEC-023: Filtering MCP actions by org_id={org_id}")
-
-            mcp_actions = mcp_query.all()
-            logger.info(f"Loaded {len(mcp_actions)} MCP actions (org_id={org_id})")
+            ).all()
+            logger.info(f"Loaded {len(mcp_actions)} MCP actions with status=pending/PENDING/evaluate/EVALUATE")
         except Exception as e:
             logger.error(f"Failed to query mcp_server_actions: {e}")
             mcp_actions = []
