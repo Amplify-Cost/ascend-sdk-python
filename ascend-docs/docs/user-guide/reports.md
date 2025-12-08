@@ -73,7 +73,7 @@ curl https://pilot.owkai.app/api/executive-briefs/latest \
   -H "Authorization: Bearer owkai_your_api_key"
 ```
 
-**Performance**: <100ms (indexed query)
+**Performance**: &lt;100ms (indexed query)
 
 ### Behavior
 
