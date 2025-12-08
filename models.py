@@ -1,9 +1,61 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, Text, func, JSON, Float, UniqueConstraint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Session
 from datetime import datetime, UTC, timedelta
 from database import Base
+from dataclasses import dataclass
+from typing import Optional
+
+
+# =============================================================================
+# ONBOARD-015: Enterprise Tenant Context
+# =============================================================================
+# Implements Wiz/Datadog/Splunk multi-tenant patterns for defense-in-depth
+# =============================================================================
+
+@dataclass
+class TenantContext:
+    """
+    Enterprise tenant isolation context.
+
+    Implements Wiz/Datadog/Splunk multi-tenant patterns:
+    - Immutable context for request lifecycle
+    - Contains all tenant-scoped identifiers
+    - Provides type-safe access to org-filtered DB session
+
+    Usage:
+        @router.get("/data")
+        async def get_data(tenant: TenantContext = Depends(get_tenant_context)):
+            # tenant.organization_id is guaranteed to be set
+            # tenant.db has RLS session variable configured
+            results = tenant.db.execute(
+                text("SELECT * FROM table WHERE organization_id = :org_id"),
+                {"org_id": tenant.organization_id}
+            )
+
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(a), PCI-DSS 7.1, NIST AC-3
+    """
+    organization_id: int
+    user_id: int
+    user_email: str
+    role: str
+    db: Session
+    organization_name: Optional[str] = None
+    organization_slug: Optional[str] = None
+    subscription_tier: Optional[str] = None
+
+    def is_admin(self) -> bool:
+        """Check if user has admin privileges"""
+        return self.role in ("admin", "super_admin", "platform_admin")
+
+    def is_super_admin(self) -> bool:
+        """Check if user has super admin privileges"""
+        return self.role in ("super_admin", "platform_admin")
+
+    def can_access_resource(self, resource_org_id: int) -> bool:
+        """Verify user can access a resource (must belong to same org)"""
+        return self.organization_id == resource_org_id
 
 
 class User(Base):

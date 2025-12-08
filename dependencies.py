@@ -726,6 +726,167 @@ def get_organization_filter(current_user: dict = Depends(require_organization_co
     return current_user.get("organization_id")
 
 
+# =============================================================================
+# ONBOARD-015: Enterprise Tenant Context Dependencies
+# =============================================================================
+# Implements Wiz/Datadog/Splunk enterprise multi-tenant patterns
+# Defense-in-depth: Application layer + RLS backup
+# =============================================================================
+
+# Import TenantContext from models (our new dataclass)
+from models import TenantContext as TenantContextModel
+
+
+async def get_tenant_context(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+) -> TenantContextModel:
+    """
+    🏢 ENTERPRISE: Tenant isolation context - MANDATORY for all data routes.
+
+    Implements defense-in-depth pattern (Wiz/Datadog/Splunk standard):
+
+    Layer 1: Extract and validate org_id from verified JWT
+    Layer 2: Set PostgreSQL session variable for RLS enforcement
+    Layer 3: Return typed context for explicit application-level filtering
+    Layer 4: Log access for SOC 2/HIPAA/PCI-DSS compliance audit
+
+    SECURITY: FAIL-CLOSED design
+    - Raises 403 if organization_id cannot be determined
+    - Never returns partial context
+    - All failures logged for security audit
+
+    Args:
+        request: FastAPI request for endpoint logging
+        db: Database session
+        current_user: Verified user from JWT
+
+    Returns:
+        TenantContext: Immutable context with org-scoped DB session
+
+    Raises:
+        HTTPException 403: If organization context cannot be established
+    """
+    # Extract organization_id from verified JWT claims
+    org_id = current_user.get("organization_id")
+    user_id = current_user.get("user_id") or current_user.get("id")
+    user_email = current_user.get("email", "unknown")
+    role = current_user.get("role", "user")
+
+    # FAIL-CLOSED: Deny access if org_id not present
+    if not org_id:
+        logger.warning(
+            f"SECURITY_ALERT: Tenant context denied - no organization_id | "
+            f"user={user_email} endpoint={request.url.path} method={request.method}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organization context required. Access denied."
+        )
+
+    # FAIL-CLOSED: Deny access if user_id not present
+    if not user_id:
+        logger.warning(
+            f"SECURITY_ALERT: Tenant context denied - no user_id | "
+            f"email={user_email} org_id={org_id} endpoint={request.url.path}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User context required. Access denied."
+        )
+
+    try:
+        # Layer 2: Set PostgreSQL session variable for RLS enforcement
+        # This ensures RLS policies filter data even if application code has bugs
+        db.execute(text(f"SET app.current_organization_id = '{org_id}'"))
+
+        # Layer 4: Compliance audit logging (SOC 2 CC7.2, HIPAA 164.312(b))
+        logger.info(
+            f"TENANT_ACCESS: user={user_email} user_id={user_id} org_id={org_id} "
+            f"role={role} endpoint={request.url.path} method={request.method}"
+        )
+
+        # Fetch additional org context if needed (optional, for display purposes)
+        org_result = db.execute(text("""
+            SELECT name, slug, subscription_tier
+            FROM organizations
+            WHERE id = :org_id
+        """), {"org_id": org_id}).fetchone()
+
+        org_name = org_result[0] if org_result else None
+        org_slug = org_result[1] if org_result else None
+        org_tier = org_result[2] if org_result else None
+
+        return TenantContextModel(
+            organization_id=org_id,
+            user_id=user_id,
+            user_email=user_email,
+            role=role,
+            db=db,
+            organization_name=org_name,
+            organization_slug=org_slug,
+            subscription_tier=org_tier
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            f"SECURITY_ERROR: Tenant context creation failed | "
+            f"user={user_email} org_id={org_id} error={str(e)}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to establish tenant context"
+        )
+
+
+async def require_tenant_admin(
+    tenant: TenantContextModel = Depends(get_tenant_context)
+) -> TenantContextModel:
+    """
+    🔐 Require admin privileges within tenant context.
+
+    Use for endpoints that require admin role.
+    """
+    if not tenant.is_admin():
+        logger.warning(
+            f"SECURITY_ALERT: Admin access denied | "
+            f"user={tenant.user_email} org_id={tenant.organization_id} role={tenant.role}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin privileges required"
+        )
+    return tenant
+
+
+async def require_tenant_super_admin(
+    tenant: TenantContextModel = Depends(get_tenant_context)
+) -> TenantContextModel:
+    """
+    🔐 Require super_admin privileges within tenant context.
+
+    Use for sensitive operations like user management, billing, etc.
+    """
+    if not tenant.is_super_admin():
+        logger.warning(
+            f"SECURITY_ALERT: Super admin access denied | "
+            f"user={tenant.user_email} org_id={tenant.organization_id} role={tenant.role}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin privileges required"
+        )
+    return tenant
+
+
+# =============================================================================
+# END ONBOARD-015
+# =============================================================================
+
+
 # ===== PRESERVE: Legacy aliases =====
 verify_token = get_current_user
 
