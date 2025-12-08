@@ -60,6 +60,11 @@ class CognitoPoolProvisioner:
     - Resource cleanup on failure
     """
 
+    # ONBOARD-008: SES Configuration for Production Email Delivery
+    SES_DOMAIN = "ow-kai.com"
+    SES_FROM_ADDRESS = "Ascend Platform <donald.king@ow-kai.com>"
+    SES_REPLY_TO = "donald.king@ow-kai.com"
+
     def __init__(self, region: str = 'us-east-2'):
         """
         Initialize provisioner
@@ -69,7 +74,22 @@ class CognitoPoolProvisioner:
         """
         self.region = region
         self.cognito_client = boto3.client('cognito-idp', region_name=region)
+        self._account_id = None  # Cached account ID
         logger.info(f"🔐 Cognito provisioner initialized (region: {region})")
+
+    def _get_account_id(self) -> str:
+        """
+        ONBOARD-008: Get AWS account ID for SES ARN construction.
+        Cached to avoid repeated STS calls.
+        """
+        if self._account_id is None:
+            sts = boto3.client('sts', region_name=self.region)
+            self._account_id = sts.get_caller_identity()['Account']
+        return self._account_id
+
+    def _get_ses_source_arn(self) -> str:
+        """ONBOARD-008: Get SES identity ARN for email configuration."""
+        return f"arn:aws:ses:{self.region}:{self._get_account_id()}:identity/{self.SES_DOMAIN}"
 
     async def create_organization_pool(
         self,
@@ -196,6 +216,33 @@ class CognitoPoolProvisioner:
                     'RecoveryMechanisms': [
                         {'Name': 'verified_email', 'Priority': 1}
                     ]
+                },
+                # ONBOARD-008: Use production SES for email delivery
+                EmailConfiguration={
+                    'SourceArn': self._get_ses_source_arn(),
+                    'EmailSendingAccount': 'DEVELOPER',
+                    'From': self.SES_FROM_ADDRESS,
+                    'ReplyToEmailAddress': self.SES_REPLY_TO
+                },
+                # ONBOARD-008: Customize invite email for AdminCreateUser
+                AdminCreateUserConfig={
+                    'AllowAdminCreateUserOnly': True,
+                    'InviteMessageTemplate': {
+                        'EmailSubject': 'Welcome to Ascend - Your Login Credentials',
+                        'EmailMessage': f'''Hello,
+
+Welcome to Ascend by OW-KAI!
+
+Your temporary password is: {{####}}
+
+Please login at: https://pilot.owkai.app
+
+After logging in, you will be prompted to set a new password.
+
+Best regards,
+The Ascend Team
+'''
+                    }
                 },
                 Schema=[
                     {
