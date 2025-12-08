@@ -43,10 +43,11 @@ from typing import Optional, Dict, Any, Tuple
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import json
 import boto3
-from botocore.exceptions import ClientError
-from sqlalchemy.orm import Session
-from database import engine, SessionLocal
+from botocore.exceptions import ClientError, NoCredentialsError
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from models import Organization, User
 from models_api_keys import ApiKey
 from services.cognito_pool_provisioner import CognitoPoolProvisioner, get_provisioner
@@ -60,6 +61,102 @@ logger = logging.getLogger(__name__)
 # ============================================
 
 AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
+
+# ONBOARD-006: Production database configuration
+AWS_SECRETS_MANAGER_DB_KEY = "/owkai/pilot/backend/DB_URL"
+
+
+# ============================================
+# ONBOARD-006: DATABASE URL AUTO-FETCH
+# ============================================
+
+def get_database_url() -> str:
+    """
+    ONBOARD-006: Get DATABASE_URL with automatic fallback to AWS Secrets Manager.
+
+    Priority:
+    1. Environment variable DATABASE_URL (allows override for testing)
+    2. AWS Secrets Manager (production default)
+
+    Returns:
+        str: PostgreSQL connection string
+
+    Raises:
+        SystemExit: If no valid DATABASE_URL can be obtained
+    """
+    # Check environment first (allows manual override)
+    env_url = os.environ.get("DATABASE_URL")
+    if env_url:
+        # Don't use localhost default
+        if "localhost" not in env_url and "127.0.0.1" not in env_url:
+            print(f"      ℹ️  Using DATABASE_URL from environment")
+            return env_url
+        else:
+            print(f"      ⚠️  Ignoring localhost DATABASE_URL, fetching from Secrets Manager...")
+
+    # Fetch from AWS Secrets Manager
+    print(f"      ℹ️  Fetching DATABASE_URL from AWS Secrets Manager...")
+
+    try:
+        client = boto3.client('secretsmanager', region_name=AWS_REGION)
+        response = client.get_secret_value(SecretId=AWS_SECRETS_MANAGER_DB_KEY)
+
+        db_url = response.get('SecretString')
+
+        if not db_url:
+            print(f"      ❌ Secret {AWS_SECRETS_MANAGER_DB_KEY} exists but is empty")
+            sys.exit(1)
+
+        # Handle JSON-wrapped secrets
+        if db_url.startswith('{'):
+            secret_dict = json.loads(db_url)
+            # Try common key names
+            db_url = secret_dict.get('DATABASE_URL') or secret_dict.get('url') or secret_dict.get('connection_string')
+            if not db_url:
+                print(f"      ❌ Could not find DATABASE_URL in secret JSON: {list(secret_dict.keys())}")
+                sys.exit(1)
+
+        print(f"      ✅ DATABASE_URL retrieved from Secrets Manager")
+        return db_url.strip()
+
+    except NoCredentialsError:
+        print(f"""
+      ❌ AWS credentials not configured.
+
+      Please run: aws configure
+      Or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.
+""")
+        sys.exit(1)
+
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == 'ResourceNotFoundException':
+            print(f"      ❌ Secret {AWS_SECRETS_MANAGER_DB_KEY} not found in Secrets Manager")
+        elif error_code == 'AccessDeniedException':
+            print(f"      ❌ Access denied to secret {AWS_SECRETS_MANAGER_DB_KEY}")
+            print(f"         Check IAM permissions for secretsmanager:GetSecretValue")
+        else:
+            print(f"      ❌ AWS error: {e.response['Error']['Message']}")
+        sys.exit(1)
+
+    except Exception as e:
+        print(f"      ❌ Unexpected error fetching DATABASE_URL: {e}")
+        sys.exit(1)
+
+
+def get_db_session() -> Session:
+    """
+    ONBOARD-006: Create database session using production DATABASE_URL.
+    Auto-fetches from AWS Secrets Manager if not in environment.
+
+    Returns:
+        Session: SQLAlchemy database session
+    """
+    database_url = get_database_url()
+
+    engine = create_engine(database_url, pool_pre_ping=True)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return SessionLocal()
 
 # Pilot tier limits (generous for testing)
 PILOT_TIER_CONFIG = {
@@ -945,7 +1042,12 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
 
     print("\n" + "-" * 60)
 
-    db = SessionLocal()
+    # ONBOARD-006: Connect to database (auto-fetches URL from Secrets Manager)
+    print("\n  [0/6] Connecting to database...")
+    db = get_db_session()
+    print()
+
+    print("-" * 60)
 
     try:
         if dry_run:
@@ -1113,7 +1215,10 @@ After running:
             print("Usage: python scripts/onboard_pilot_customer.py --verify-only --org-slug kc-executive-protection")
             sys.exit(1)
 
-        db = SessionLocal()
+        # ONBOARD-006: Connect to database (auto-fetches URL from Secrets Manager)
+        print("\n  [0] Connecting to database...")
+        db = get_db_session()
+        print()
         try:
             asyncio.run(verify_existing_organization(db, args.org_slug))
         finally:
