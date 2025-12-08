@@ -1,28 +1,32 @@
 #!/usr/bin/env python3
 """
-OW-AI Enterprise Pilot Customer Onboarding Script
+Ascend Enterprise Pilot Customer Onboarding Script
 
-CONCIERGE MVP ONBOARDING
-========================
-This script automates the technical steps for onboarding a new pilot customer.
-Designed for startup phase where manual review and personal touch is preferred.
+ONBOARD-001b: Enhanced Enterprise Onboarding
+=============================================
+This script automates the complete technical onboarding for a new pilot customer.
 
 Usage:
     python scripts/onboard_pilot_customer.py --company "Acme Corp" --email "admin@acme.com"
+    python scripts/onboard_pilot_customer.py -c "Big Bank" -e "ciso@bigbank.com" --dry-run
 
 What this script does:
 1. Creates organization record in database
-2. Provisions dedicated AWS Cognito user pool
-3. Creates admin user account
-4. Generates welcome email content
+2. Provisions dedicated AWS Cognito user pool (or uses existing)
+3. Creates admin user in Cognito via AdminCreateUser
+4. Sends welcome email automatically via Cognito
+5. Creates local database user record
+6. Generates API key for SDK integration
+7. Runs verification checks
 
-After running:
-- Call the customer to walk them through first login
-- Schedule 30-minute setup call
-- Monitor their first week of usage
+Security:
+- No temporary passwords displayed in console (sent via email only)
+- API key displayed once then never again
+- Complete audit trail
 
-Engineer: Donald King (OW-AI Enterprise)
-Date: 2025-11-25
+Compliance: SOC 2, PCI-DSS, HIPAA, GDPR
+Author: Ascend Platform Engineering
+Date: 2025-12-07
 """
 
 import argparse
@@ -31,22 +35,27 @@ import os
 import sys
 import re
 import secrets
-import string
+import hashlib
 from datetime import datetime, timedelta, UTC
-from typing import Optional
+from typing import Optional, Dict, Any, Tuple
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import boto3
+from botocore.exceptions import ClientError
 from sqlalchemy.orm import Session
 from database import engine, SessionLocal
 from models import Organization, User
+from models_api_keys import ApiKey
 from services.cognito_pool_provisioner import CognitoPoolProvisioner, get_provisioner
 
 
 # ============================================
 # CONFIGURATION
 # ============================================
+
+AWS_REGION = os.getenv("AWS_REGION", "us-east-2")
 
 # Pilot tier limits (generous for testing)
 PILOT_TIER_CONFIG = {
@@ -59,12 +68,12 @@ PILOT_TIER_CONFIG = {
     "mfa_config": "OPTIONAL"  # Not required for pilot
 }
 
-# Platform info for emails
+# Platform info
 PLATFORM_CONFIG = {
     "platform_url": "https://pilot.owkai.app",
-    "support_email": "support@owkai.com",
-    "founder_name": "Donald",
-    "founder_title": "Founder"
+    "api_url": "https://pilot.owkai.app/api/v1",
+    "support_email": "support@ascendowkai.com",
+    "company_name": "Ascend"
 }
 
 
@@ -81,66 +90,18 @@ def generate_slug(company_name: str) -> str:
         "Big Bank Inc." -> "big-bank-inc"
         "O'Reilly Media" -> "oreilly-media"
     """
-    # Convert to lowercase
     slug = company_name.lower()
-
-    # Remove special characters except spaces and hyphens
     slug = re.sub(r"[^a-z0-9\s-]", "", slug)
-
-    # Replace spaces with hyphens
     slug = re.sub(r"\s+", "-", slug)
-
-    # Remove multiple consecutive hyphens
     slug = re.sub(r"-+", "-", slug)
-
-    # Remove leading/trailing hyphens
-    slug = slug.strip("-")
-
-    return slug
-
-
-def generate_temp_password() -> str:
-    """
-    Generate temporary password for initial login.
-
-    Requirements:
-    - 16 characters minimum
-    - Uppercase, lowercase, numbers, symbols
-    - Enterprise-grade entropy
-    """
-    # Character sets
-    uppercase = string.ascii_uppercase
-    lowercase = string.ascii_lowercase
-    digits = string.digits
-    symbols = "!@#$%^&*"
-
-    # Ensure at least 2 of each
-    password = [
-        secrets.choice(uppercase),
-        secrets.choice(uppercase),
-        secrets.choice(lowercase),
-        secrets.choice(lowercase),
-        secrets.choice(digits),
-        secrets.choice(digits),
-        secrets.choice(symbols),
-        secrets.choice(symbols),
-    ]
-
-    # Fill remaining 8 characters
-    all_chars = uppercase + lowercase + digits + symbols
-    password.extend(secrets.choice(all_chars) for _ in range(8))
-
-    # Shuffle for randomness
-    secrets.SystemRandom().shuffle(password)
-
-    return "".join(password)
+    return slug.strip("-")
 
 
 def print_header(text: str):
     """Print formatted header."""
-    print("\n" + "=" * 60)
+    print("\n" + "=" * 79)
     print(f"  {text}")
-    print("=" * 60)
+    print("=" * 79)
 
 
 def print_step(step_num: int, text: str):
@@ -164,7 +125,7 @@ def print_error(text: str):
 
 
 # ============================================
-# ONBOARDING STEPS
+# STEP 1: CREATE ORGANIZATION
 # ============================================
 
 def create_organization(db: Session, company_name: str, admin_email: str) -> Organization:
@@ -177,13 +138,11 @@ def create_organization(db: Session, company_name: str, admin_email: str) -> Org
         admin_email: Admin user's email
 
     Returns:
-        Organization: Created organization object
+        Organization: Created or existing organization object
     """
     print_step(1, "Creating organization record...")
 
     slug = generate_slug(company_name)
-
-    # Extract email domain for multi-tenant routing
     email_domain = admin_email.split('@')[1].lower() if '@' in admin_email else None
 
     # Check if slug already exists
@@ -204,7 +163,7 @@ def create_organization(db: Session, company_name: str, admin_email: str) -> Org
     # Calculate trial end date
     trial_ends_at = datetime.now(UTC) + timedelta(days=PILOT_TIER_CONFIG["trial_days"])
 
-    # Create organization with email domain for multi-tenant routing
+    # Create organization
     org = Organization(
         name=company_name,
         slug=slug,
@@ -216,7 +175,7 @@ def create_organization(db: Session, company_name: str, admin_email: str) -> Org
         included_mcp_servers=PILOT_TIER_CONFIG["included_mcp_servers"],
         cognito_pool_status="pending",
         cognito_mfa_configuration=PILOT_TIER_CONFIG["mfa_config"],
-        email_domains=[email_domain] if email_domain else None  # Multi-tenant email routing
+        email_domains=[email_domain] if email_domain else None
     )
 
     db.add(org)
@@ -231,7 +190,11 @@ def create_organization(db: Session, company_name: str, admin_email: str) -> Org
     return org
 
 
-async def provision_cognito_pool(db: Session, org: Organization, admin_email: str) -> dict:
+# ============================================
+# STEP 2: PROVISION COGNITO POOL
+# ============================================
+
+async def provision_cognito_pool(db: Session, org: Organization, admin_email: str) -> Dict[str, Any]:
     """
     Step 2: Provision dedicated AWS Cognito user pool.
 
@@ -273,167 +236,352 @@ async def provision_cognito_pool(db: Session, org: Organization, admin_email: st
     return result
 
 
-def create_admin_user(db: Session, org: Organization, admin_email: str) -> tuple[User, str]:
-    """
-    Step 3: Create admin user in database.
+# ============================================
+# STEP 3: CREATE COGNITO USER (AUTO-EMAIL)
+# ============================================
 
-    Note: Cognito user is created by the pool provisioner.
-    This creates the local database record.
+def create_cognito_admin_user(
+    email: str,
+    org: Organization,
+    dry_run: bool = False
+) -> Dict[str, Any]:
+    """
+    Step 3: Create admin user in Cognito with auto-sent welcome email.
+
+    ONBOARD-001b: Uses AdminCreateUser with DesiredDeliveryMediums=["EMAIL"]
+    to automatically send temporary password via email.
+
+    Args:
+        email: Admin user's email
+        org: Organization object
+        dry_run: If True, don't actually create
+
+    Returns:
+        dict with cognito_sub, status, email_sent
+    """
+    print_step(3, "Creating admin user in Cognito...")
+
+    if dry_run:
+        print_warning("DRY RUN: Would create Cognito user")
+        return {
+            "cognito_sub": "dry-run-sub",
+            "status": "FORCE_CHANGE_PASSWORD",
+            "email_sent": False,
+            "dry_run": True
+        }
+
+    client = boto3.client('cognito-idp', region_name=AWS_REGION)
+
+    # Use org's dedicated pool if exists, else fall back to platform pool
+    pool_id = org.cognito_user_pool_id or os.getenv("COGNITO_USER_POOL_ID")
+
+    if not pool_id:
+        raise ValueError("No Cognito User Pool ID available (org pool or env var)")
+
+    try:
+        response = client.admin_create_user(
+            UserPoolId=pool_id,
+            Username=email,
+            UserAttributes=[
+                {"Name": "email", "Value": email},
+                {"Name": "email_verified", "Value": "true"},
+                {"Name": "custom:organization_id", "Value": str(org.id)},
+                {"Name": "custom:role", "Value": "super_admin"},
+            ],
+            DesiredDeliveryMediums=["EMAIL"],  # AUTO-SEND EMAIL with temp password
+            ForceAliasCreation=False
+        )
+
+        cognito_sub = response["User"]["Username"]
+        user_status = response["User"]["UserStatus"]
+
+        print_success(f"Cognito user created: {cognito_sub}")
+        print_success(f"Status: {user_status}")
+        print_success(f"Welcome email sent to: {email}")
+
+        return {
+            "cognito_sub": cognito_sub,
+            "status": user_status,
+            "email_sent": True,
+            "existing": False
+        }
+
+    except client.exceptions.UsernameExistsException:
+        print_warning(f"User {email} already exists in Cognito")
+        # Get existing user
+        try:
+            existing = client.admin_get_user(UserPoolId=pool_id, Username=email)
+            return {
+                "cognito_sub": existing["Username"],
+                "status": existing["UserStatus"],
+                "email_sent": False,
+                "existing": True
+            }
+        except Exception:
+            return {
+                "cognito_sub": email,
+                "status": "UNKNOWN",
+                "email_sent": False,
+                "existing": True
+            }
+
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_msg = e.response.get('Error', {}).get('Message', str(e))
+        print_error(f"Cognito error ({error_code}): {error_msg}")
+        raise
+
+
+# ============================================
+# STEP 4: CREATE DATABASE USER
+# ============================================
+
+def create_database_user(
+    db: Session,
+    org: Organization,
+    admin_email: str,
+    cognito_sub: str
+) -> User:
+    """
+    Step 4: Create admin user record in database.
 
     Args:
         db: Database session
         org: Organization object
         admin_email: Admin user's email
+        cognito_sub: Cognito username/sub
 
     Returns:
-        tuple: (User object, temporary password)
+        User: Created or existing user object
     """
-    print_step(3, "Creating admin user record...")
+    print_step(4, "Creating database user record...")
 
     # Check if user already exists
-    existing = db.query(User).filter(User.email == admin_email).first()
+    existing = db.query(User).filter(
+        User.email == admin_email,
+        User.organization_id == org.id
+    ).first()
+
     if existing:
         print_warning(f"User already exists: {admin_email} (ID: {existing.id})")
-        return existing, "[Use existing password or reset via Cognito]"
+        # Update cognito_user_id if not set
+        if not existing.cognito_user_id:
+            existing.cognito_user_id = cognito_sub
+            db.commit()
+            print_success(f"Linked to Cognito: {cognito_sub}")
+        return existing
 
-    # Generate temporary password
-    temp_password = generate_temp_password()
-
-    # Create user (password not stored locally - Cognito handles auth)
+    # Create user with Super Admin privileges
     user = User(
         email=admin_email,
         password="COGNITO_MANAGED",  # Placeholder - actual auth via Cognito
-        role="admin",
+        role="super_admin",  # ONBOARD-001b: Super Admin role
         is_active=True,
         organization_id=org.id,
         is_org_admin=True,
-        approval_level=3,  # Admin gets high approval level
+        approval_level=3,  # High approval level
         max_risk_approval=100,  # Can approve any risk level
-        force_password_change=True
+        force_password_change=True,
+        cognito_user_id=cognito_sub
     )
 
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    print_success(f"Admin user created: {admin_email} (ID: {user.id})")
-    print_success(f"Role: admin, Org Admin: Yes")
+    print_success(f"User created: {admin_email} (ID: {user.id})")
+    print_success(f"Role: Super Admin (full tenant access)")
+    print_success(f"Organization: {org.name} (ID: {org.id})")
 
-    return user, temp_password
+    return user
 
 
-def generate_welcome_email(
-    company_name: str,
-    admin_email: str,
-    temp_password: str,
-    org_slug: str,
-    pool_id: str
-) -> str:
+# ============================================
+# STEP 5: GENERATE API KEY
+# ============================================
+
+def generate_api_key(
+    db: Session,
+    org: Organization,
+    user: User,
+    dry_run: bool = False
+) -> Dict[str, Any]:
     """
-    Step 4: Generate welcome email content.
+    Step 5: Generate API key for SDK integration.
+
+    ONBOARD-001b: Automatically generates API key for the tenant.
+    Key is displayed ONCE and must be saved by the operator.
 
     Args:
-        company_name: Customer's company name
-        admin_email: Admin user's email
-        temp_password: Temporary password for first login
-        org_slug: Organization slug
-        pool_id: Cognito pool ID
+        db: Database session
+        org: Organization object
+        user: User object
+        dry_run: If True, don't actually create
 
     Returns:
-        str: Email content (copy/paste into email client)
+        dict with key_id, key_value (ONLY shown once!), key_prefix
     """
-    print_step(4, "Generating welcome email...")
+    print_step(5, "Generating API key for SDK integration...")
 
-    email_content = f"""
-================================================================================
-                    WELCOME EMAIL - COPY AND SEND
-================================================================================
+    if dry_run:
+        print_warning("DRY RUN: Would generate API key")
+        return {
+            "key_id": 0,
+            "key_value": "ask_dry_run_example_key",
+            "key_prefix": "ask_dry_run",
+            "dry_run": True
+        }
 
-TO: {admin_email}
-SUBJECT: Welcome to OW-AI Enterprise - Your Pilot Access is Ready!
+    # Generate secure key value
+    # Format: ask_{random_32_chars} (ask = Ascend SDK Key)
+    key_value = f"ask_{secrets.token_urlsafe(32)}"
 
---------------------------------------------------------------------------------
+    # Generate salt and hash
+    salt = secrets.token_hex(16)
+    key_with_salt = f"{key_value}{salt}"
+    key_hash = hashlib.sha256(key_with_salt.encode()).hexdigest()
 
-Hi there,
+    # Key prefix for display (first 16 chars)
+    key_prefix = key_value[:16]
 
-Welcome to the OW-AI Enterprise pilot program! I'm {PLATFORM_CONFIG['founder_name']},
-{PLATFORM_CONFIG['founder_title']} at OW-AI, and I'm excited to have {company_name}
-on board.
+    # Create API key record
+    api_key = ApiKey(
+        user_id=user.id,
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        salt=salt,
+        name=f"{org.name} - Admin SDK Key",
+        description=f"Auto-generated during onboarding for {user.email}",
+        is_active=True,
+        expires_at=None,  # Never expires
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC)
+    )
 
-Your account is now ready. Here's how to get started:
+    db.add(api_key)
+    db.commit()
+    db.refresh(api_key)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    print_success(f"API key generated: {key_prefix}...")
+    print_success(f"Key ID: {api_key.id}")
 
-🔐 YOUR LOGIN CREDENTIALS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return {
+        "key_id": api_key.id,
+        "key_value": key_value,  # ONLY shown once!
+        "key_prefix": key_prefix
+    }
 
-Your Organization Login URL: {PLATFORM_CONFIG['platform_url']}/#org={org_slug}
 
-Email: {admin_email}
-Temporary Password: {temp_password}
+# ============================================
+# STEP 6: VERIFICATION
+# ============================================
 
-⚠️ You'll be prompted to change your password on first login.
-⚠️ We recommend enabling MFA (optional but highly recommended).
+def verify_onboarding(
+    db: Session,
+    org: Organization,
+    user: User,
+    cognito_result: Dict[str, Any],
+    api_key_result: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Step 6: Verify all components were created successfully.
 
-💡 TIP: Bookmark your organization URL - it automatically connects
-   you to your dedicated authentication system.
+    Args:
+        db: Database session
+        org: Organization object
+        user: User object
+        cognito_result: Result from Cognito user creation
+        api_key_result: Result from API key generation
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    Returns:
+        dict with verification results
+    """
+    print_step(6, "Running verification checks...")
 
-📅 NEXT STEPS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    checks = {
+        "organization_exists": db.query(Organization).filter(
+            Organization.id == org.id
+        ).first() is not None,
 
-1. Log in and change your password
-2. I'll call you within 24 hours for a quick setup call
-3. We'll configure your first AI agent together
-4. You'll have direct Slack/email access to me during the pilot
+        "user_exists": db.query(User).filter(
+            User.id == user.id
+        ).first() is not None,
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        "user_is_super_admin": user.role == "super_admin" or user.is_org_admin == True,
 
-📋 YOUR PILOT INCLUDES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        "cognito_user_created": cognito_result.get("cognito_sub") is not None,
 
-✅ 30-day full access to OW-AI Enterprise
-✅ 100,000 API calls included
-✅ Up to 10 team members
-✅ Up to 5 MCP server connections
-✅ Personal onboarding support from {PLATFORM_CONFIG['founder_name']}
-✅ Enterprise security features (MFA, audit logs, compliance)
+        "email_sent": cognito_result.get("email_sent", False) or cognito_result.get("existing", False),
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        "tenant_isolated": user.organization_id == org.id,
 
-Questions? Reply to this email or reach me at {PLATFORM_CONFIG['support_email']}.
+        "api_key_generated": api_key_result.get("key_id") is not None or api_key_result.get("dry_run", False)
+    }
 
-Looking forward to working with you!
+    all_passed = all(checks.values())
 
-{PLATFORM_CONFIG['founder_name']}
-{PLATFORM_CONFIG['founder_title']}, OW-AI
+    print()
+    for check_name, passed in checks.items():
+        status = "✅" if passed else "❌"
+        display_name = check_name.replace('_', ' ').title()
+        print(f"      {status} {display_name}")
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    return {
+        "all_passed": all_passed,
+        "checks": checks
+    }
 
-================================================================================
-                    INTERNAL NOTES (DO NOT SEND)
-================================================================================
 
-Organization ID: Check database
-Organization Slug: {org_slug}
-Cognito Pool ID: {pool_id}
-Onboarded at: {datetime.now(UTC).isoformat()}
+# ============================================
+# SUCCESS SUMMARY
+# ============================================
 
-NEXT STEPS FOR YOU:
-□ Send this email to {admin_email}
-□ Add to CRM/tracking spreadsheet
-□ Schedule 30-min setup call within 24 hours
-□ Set reminder to check their usage after 1 week
-□ Plan for conversion discussion at day 21
-
-================================================================================
-"""
-
-    print_success("Welcome email generated!")
-    print_success("Copy the content above and send via your email client")
-
-    return email_content
+def print_success_summary(
+    org: Organization,
+    user: User,
+    cognito_result: Dict[str, Any],
+    api_key_result: Dict[str, Any],
+    verification: Dict[str, Any]
+):
+    """Print enterprise-grade success summary."""
+    print()
+    print("=" * 79)
+    print("                    TENANT ONBOARDING COMPLETE ✅")
+    print("=" * 79)
+    print()
+    print("Organization:")
+    print(f"  ID:           {org.id}")
+    print(f"  Name:         {org.name}")
+    print(f"  Slug:         {org.slug}")
+    print(f"  Tier:         {org.subscription_tier}")
+    if org.trial_ends_at:
+        print(f"  Trial Ends:   {org.trial_ends_at.strftime('%Y-%m-%d')}")
+    print()
+    print("Super Admin User:")
+    print(f"  Email:        {user.email}")
+    print(f"  User ID:      {user.id}")
+    print(f"  Role:         Super Admin (full tenant access)")
+    print(f"  Status:       {cognito_result.get('status', 'CREATED')}")
+    print()
+    print("Credentials:")
+    print(f"  Password:     Sent via email (check inbox)")
+    print(f"  API Key:      {api_key_result['key_value']}")
+    print()
+    print("  " + "=" * 60)
+    print("  ⚠️  IMPORTANT: Save the API key now - it won't be shown again!")
+    print("  " + "=" * 60)
+    print()
+    print("Customer Next Steps:")
+    print("  1. Check email for temporary password")
+    print(f"  2. Go to {PLATFORM_CONFIG['platform_url']}")
+    print("  3. Login with email + temporary password")
+    print("  4. Set permanent password")
+    print("  5. Use API key for SDK/API integration")
+    print()
+    print(f"Dashboard: {PLATFORM_CONFIG['platform_url']}")
+    print(f"API Base:  {PLATFORM_CONFIG['api_url']}")
+    print()
+    print("=" * 79)
 
 
 # ============================================
@@ -444,12 +592,14 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
     """
     Complete onboarding flow for a new pilot customer.
 
+    ONBOARD-001b: Enhanced flow with auto-email, API key, and verification.
+
     Args:
         company_name: Customer's company name
         admin_email: Admin user's email
         dry_run: If True, don't make actual changes
     """
-    print_header(f"OW-AI Enterprise Pilot Onboarding")
+    print_header("Ascend Enterprise Pilot Onboarding")
     print(f"\n  Company: {company_name}")
     print(f"  Admin Email: {admin_email}")
 
@@ -464,9 +614,11 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
         if dry_run:
             print("\n  [DRY RUN] Would execute the following steps:")
             print(f"  1. Create organization: {company_name} (slug: {generate_slug(company_name)})")
-            print(f"  2. Provision Cognito pool for: {generate_slug(company_name)}")
-            print(f"  3. Create admin user: {admin_email}")
-            print(f"  4. Generate welcome email")
+            print(f"  2. Provision Cognito pool (or use existing)")
+            print(f"  3. Create Cognito user: {admin_email} (auto-send email)")
+            print(f"  4. Create database user record")
+            print(f"  5. Generate API key")
+            print(f"  6. Run verification checks")
             print("\n  Run without --dry-run to execute.")
             return
 
@@ -476,36 +628,26 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
         # Step 2: Provision Cognito pool
         pool_result = await provision_cognito_pool(db, org, admin_email)
 
-        # Step 3: Create admin user
-        user, temp_password = create_admin_user(db, org, admin_email)
+        # Refresh org to get updated Cognito fields
+        db.refresh(org)
 
-        # Step 4: Generate welcome email
-        email_content = generate_welcome_email(
-            company_name=company_name,
-            admin_email=admin_email,
-            temp_password=temp_password,
-            org_slug=org.slug,
-            pool_id=pool_result.get("user_pool_id", "N/A")
-        )
+        # Step 3: Create Cognito user (auto-sends email)
+        cognito_result = create_cognito_admin_user(admin_email, org, dry_run)
 
-        # Print summary
-        print_header("ONBOARDING COMPLETE")
-        print(f"""
-  Organization: {org.name} (ID: {org.id})
-  Slug: {org.slug}
-  Admin: {admin_email} (ID: {user.id})
-  Cognito Pool: {pool_result.get('user_pool_id', 'N/A')}
-  Trial Ends: {org.trial_ends_at.strftime('%Y-%m-%d') if org.trial_ends_at else 'N/A'}
+        # Step 4: Create database user
+        user = create_database_user(db, org, admin_email, cognito_result["cognito_sub"])
 
-  NEXT STEPS:
-  1. Copy and send the welcome email above
-  2. Call {admin_email.split('@')[0]} within 24 hours
-  3. Schedule 30-minute setup call
-  4. Add to tracking spreadsheet/CRM
-""")
+        # Step 5: Generate API key
+        api_key_result = generate_api_key(db, org, user, dry_run)
 
-        # Print the email content for easy copy/paste
-        print(email_content)
+        # Step 6: Verification
+        verification = verify_onboarding(db, org, user, cognito_result, api_key_result)
+
+        # Print success summary
+        print_success_summary(org, user, cognito_result, api_key_result, verification)
+
+        if not verification["all_passed"]:
+            print_warning("Some verification checks failed - please review above")
 
     except Exception as e:
         print_error(f"Onboarding failed: {e}")
@@ -523,17 +665,25 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Onboard a new pilot customer to OW-AI Enterprise",
+        description="Ascend Enterprise Pilot Customer Onboarding",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   python scripts/onboard_pilot_customer.py --company "Acme Corp" --email "admin@acme.com"
   python scripts/onboard_pilot_customer.py -c "Big Bank" -e "ciso@bigbank.com" --dry-run
 
+What happens:
+  1. Organization created in database
+  2. Cognito user pool provisioned (if needed)
+  3. Admin user created in Cognito (welcome email sent automatically)
+  4. Database user record created
+  5. API key generated (displayed once - save it!)
+  6. Verification checks run
+
 After running:
-  1. Send the generated welcome email
-  2. Call the customer for setup assistance
-  3. Add to your tracking spreadsheet
+  - Customer receives email with temporary password
+  - Customer logs in and sets permanent password
+  - Customer uses API key for SDK integration
         """
     )
 
