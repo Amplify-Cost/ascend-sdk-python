@@ -60,6 +60,21 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'API Reference',
+      collapsed: false,
+      items: [
+        'api-reference/overview',
+        'api-reference/authentication',
+        'api-reference/actions',
+        'api-reference/agents',
+        'api-reference/smart-rules',
+        'api-reference/analytics',
+        'api-reference/mcp-governance',
+        'api-reference/error-codes',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Python SDK',
       collapsed: true,
       items: [
