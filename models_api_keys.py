@@ -42,9 +42,8 @@ class ApiKey(Base):
 
     # Primary identification
     id = Column(Integer, primary_key=True, index=True)
-    # SEC-018: ENTERPRISE Multi-tenant isolation (Banking-Level: SOC 2 CC6.1)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)  # ONBOARD-003: Tenant isolation
 
     # Cryptographic storage (NEVER stores plaintext)
     key_hash = Column(String(64), nullable=False, unique=True, index=True)  # SHA-256 hash

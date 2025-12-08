@@ -65,7 +65,7 @@ PILOT_TIER_CONFIG = {
     "included_users": 10,
     "included_mcp_servers": 5,
     "trial_days": 30,
-    "mfa_config": "OPTIONAL"  # Not required for pilot
+    "mfa_config": "OFF"  # OFF for pilot (OPTIONAL requires SMS config)
 }
 
 # Platform info
@@ -95,6 +95,34 @@ def generate_slug(company_name: str) -> str:
     slug = re.sub(r"\s+", "-", slug)
     slug = re.sub(r"-+", "-", slug)
     return slug.strip("-")
+
+
+def sanitize_for_cognito(name: str) -> str:
+    """
+    ONBOARD-003: Sanitize company name for AWS Cognito tags.
+
+    AWS Cognito tags only allow: letters, numbers, spaces, and _ . : / = + - @
+    Invalid characters: & < > \\ ^ and non-ASCII
+
+    Examples:
+        "K&C Executive Protection" -> "K and C Executive Protection"
+        "Acme Corp <test>" -> "Acme Corp test"
+    """
+    # Replace common symbols with words
+    sanitized = name.replace("&", "and")
+
+    # Remove invalid characters for AWS tags
+    sanitized = sanitized.replace("<", "").replace(">", "")
+    sanitized = sanitized.replace("\\", "").replace("^", "")
+    sanitized = sanitized.replace("=", "").replace("|", "")
+
+    # Remove non-ASCII characters
+    sanitized = ''.join(c for c in sanitized if ord(c) < 128)
+
+    # Clean up multiple spaces
+    sanitized = re.sub(r"\s+", " ", sanitized)
+
+    return sanitized.strip()
 
 
 def print_header(text: str):
@@ -447,6 +475,7 @@ def generate_api_key(
     # Create API key record
     api_key = ApiKey(
         user_id=user.id,
+        organization_id=org.id,  # ONBOARD-003: Required for tenant isolation
         key_hash=key_hash,
         key_prefix=key_prefix,
         salt=salt,
@@ -588,7 +617,7 @@ def print_success_summary(
 # MAIN ONBOARDING FLOW
 # ============================================
 
-async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = False):
+async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = False, use_platform_pool: bool = False):
     """
     Complete onboarding flow for a new pilot customer.
 
@@ -598,6 +627,7 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
         company_name: Customer's company name
         admin_email: Admin user's email
         dry_run: If True, don't make actual changes
+        use_platform_pool: If True, use existing platform pool instead of creating new one
     """
     print_header("Ascend Enterprise Pilot Onboarding")
     print(f"\n  Company: {company_name}")
@@ -605,6 +635,9 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
 
     if dry_run:
         print("\n  ⚠️  DRY RUN MODE - No changes will be made")
+
+    if use_platform_pool:
+        print("\n  ℹ️  PLATFORM POOL MODE - Using existing Cognito pool")
 
     print("\n" + "-" * 60)
 
@@ -614,7 +647,10 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
         if dry_run:
             print("\n  [DRY RUN] Would execute the following steps:")
             print(f"  1. Create organization: {company_name} (slug: {generate_slug(company_name)})")
-            print(f"  2. Provision Cognito pool (or use existing)")
+            if use_platform_pool:
+                print(f"  2. Use existing platform Cognito pool")
+            else:
+                print(f"  2. Provision Cognito pool (or use existing)")
             print(f"  3. Create Cognito user: {admin_email} (auto-send email)")
             print(f"  4. Create database user record")
             print(f"  5. Generate API key")
@@ -625,8 +661,29 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
         # Step 1: Create organization
         org = create_organization(db, company_name, admin_email)
 
-        # Step 2: Provision Cognito pool
-        pool_result = await provision_cognito_pool(db, org, admin_email)
+        # Step 2: Provision Cognito pool or use platform pool
+        if use_platform_pool:
+            # Use existing platform pool (don't update org - unique constraint)
+            platform_pool_id = os.getenv("COGNITO_USER_POOL_ID", "us-east-2_kRgol6Zxu")
+            platform_client_id = os.getenv("COGNITO_APP_CLIENT_ID", "26j75u2q9uf4g67qac6lik8j9c")
+
+            print_step(2, "Using existing platform Cognito pool...")
+            print_success(f"Pool ID: {platform_pool_id}")
+            print_success(f"App client: {platform_client_id}")
+            print_warning("Platform pool mode - org shares platform pool")
+
+            # Set org fields only if not already set (to avoid unique constraint)
+            if not org.cognito_user_pool_id:
+                org.cognito_pool_status = "platform"  # Mark as platform-shared
+                db.commit()
+
+            pool_result = {
+                "user_pool_id": platform_pool_id,
+                "app_client_id": platform_client_id,
+                "status": "platform"
+            }
+        else:
+            pool_result = await provision_cognito_pool(db, org, admin_email)
 
         # Refresh org to get updated Cognito fields
         db.refresh(org)
@@ -705,6 +762,12 @@ After running:
         help="Preview what would happen without making changes"
     )
 
+    parser.add_argument(
+        "--use-platform-pool",
+        action="store_true",
+        help="Use existing platform Cognito pool instead of creating new one (recommended for pilot)"
+    )
+
     args = parser.parse_args()
 
     # Validate email format
@@ -716,7 +779,8 @@ After running:
     asyncio.run(onboard_customer(
         company_name=args.company,
         admin_email=args.email,
-        dry_run=args.dry_run
+        dry_run=args.dry_run,
+        use_platform_pool=args.use_platform_pool
     ))
 
 
