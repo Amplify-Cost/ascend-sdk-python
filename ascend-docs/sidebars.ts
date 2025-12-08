@@ -20,6 +20,20 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'User Guide',
+      collapsed: false,
+      items: [
+        'user-guide/dashboard',
+        'user-guide/agent-registry',
+        'user-guide/action-approval',
+        'user-guide/smart-rules',
+        'user-guide/alerts',
+        'user-guide/activity-feed',
+        'user-guide/reports',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Core Concepts',
       collapsed: false,
       items: [
@@ -94,6 +108,7 @@ const sidebars: SidebarsConfig = {
         'enterprise/slack-teams',
         'enterprise/compliance',
         'enterprise/analytics',
+        'enterprise/system-diagnostics',
       ],
     },
     {
