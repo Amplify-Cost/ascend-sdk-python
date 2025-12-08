@@ -160,6 +160,29 @@ const sidebars: SidebarsConfig = {
         'security/responsible-disclosure',
       ],
     },
+    {
+      type: 'category',
+      label: 'Compliance',
+      collapsed: true,
+      items: [
+        'compliance/overview',
+        'compliance/soc2',
+        'compliance/hipaa',
+        'compliance/nist-800-53',
+        'compliance/mitre-attack',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Reference',
+      collapsed: true,
+      items: [
+        'reference/action-types',
+        'reference/risk-levels',
+        'reference/glossary',
+        'reference/faq',
+      ],
+    },
   ],
 };
 
