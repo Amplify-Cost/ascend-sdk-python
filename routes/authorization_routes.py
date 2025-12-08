@@ -1116,11 +1116,18 @@ async def get_pending_actions_api(
     risk_filter: Optional[str] = None,
     emergency_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user_or_api_key)  # SEC-102: SDK API key support
+    current_user: dict = Depends(get_current_user_or_api_key),  # SEC-102: SDK API key support
+    org_id: int = Depends(get_organization_filter)
 ):
-    """API version of pending actions for Authorization Center frontend compatibility."""
+    """
+    API version of pending actions for Authorization Center frontend compatibility.
+
+    ONBOARD-018: Fixed critical data leak - now filters by organization_id
+    Security: Tenant-isolated via organization_id filter
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(a)(1)
+    """
     try:
-        result = AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user)
+        result = AuthorizationService.get_pending_actions(db, risk_filter, emergency_only, current_user, org_id=org_id)
         
         if result.get("success", False):
             return result["actions"]

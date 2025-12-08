@@ -50,7 +50,9 @@ class AlertEngine:
                             "message": AlertEngine._generate_alert_message(rule, metrics_data),
                             "triggered_at": datetime.now(UTC).isoformat(),
                             "metrics_snapshot": metrics_data,
-                            "status": "active"
+                            "status": "active",
+                            # ONBOARD-018: Store org_id for tenant isolation
+                            "organization_id": org_id
                         }
                         
                         triggered_alerts.append(alert)
@@ -186,17 +188,26 @@ class AlertEngine:
 @router.get("/active")
 async def get_active_alerts(
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     db: Session = Depends(get_db)
 ):
+    """
+    Get all currently active alerts for the user's organization.
 
-    """Get all currently active alerts"""
+    ONBOARD-018: Fixed critical data leak - now filters by organization_id
+    Security: Tenant-isolated via organization_id filter
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(a)(1)
+    """
     try:
-        logger.info(f"🚨 Active alerts requested by: {current_user.get('email')}")
-        
-        # Filter alerts based on user role (if needed)
-        user_alerts = list(active_alerts.values())
-        
-        # Add alert statistics
+        logger.info(f"🚨 Active alerts requested by: {current_user.get('email')} [org_id={org_id}]")
+
+        # ONBOARD-018: Filter alerts by organization_id for tenant isolation
+        user_alerts = [
+            alert for alert in active_alerts.values()
+            if alert.get("organization_id") == org_id
+        ]
+
+        # Add alert statistics (tenant-scoped)
         stats = {
             "total_active": len(user_alerts),
             "by_severity": {
@@ -206,13 +217,13 @@ async def get_active_alerts(
                 "low": len([a for a in user_alerts if a.get("severity") == "low"])
             }
         }
-        
+
         return {
             "alerts": user_alerts,
             "statistics": stats,
             "last_updated": datetime.now(UTC).isoformat()
         }
-        
+
     except Exception as e:
         logger.error(f"Error fetching active alerts: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch alerts")

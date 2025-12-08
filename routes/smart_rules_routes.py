@@ -170,9 +170,11 @@ async def get_rule_analytics(
             FROM rule_performance
         """), {"org_id": org_id}).fetchone()
 
-        total_triggers_24h = int(perf_metrics[0] or 0) if perf_metrics else 0
-        avg_performance_score = round(float(perf_metrics[1] or 88.0), 1) if perf_metrics else 88.0
-        false_positive_rate = round(float(perf_metrics[2] or 5.0), 1) if perf_metrics else 5.0
+        # ONBOARD-018: Removed hardcoded fallbacks (SEC-009 pattern)
+        # Enterprise requirement: New tenants see 0/empty state, not misleading demo data
+        total_triggers_24h = int(perf_metrics[0]) if perf_metrics and perf_metrics[0] else 0
+        avg_performance_score = round(float(perf_metrics[1]), 1) if perf_metrics and perf_metrics[1] else 0.0
+        false_positive_rate = round(float(perf_metrics[2]), 1) if perf_metrics and perf_metrics[2] else 0.0
 
         logger.info(f"📊 SEC-082: Performance for org_id={org_id}: {total_triggers_24h} triggers, {avg_performance_score}% avg score, {false_positive_rate}% FP rate")
 
@@ -1242,14 +1244,24 @@ async def setup_ab_testing_table_smart_rules(
 @router.get("/suggestions")
 async def get_ml_rule_suggestions(
     current_user: dict = Depends(get_current_user),
+    org_id: int = Depends(get_organization_filter),
     db: Session = Depends(get_db)
 ):
-    """💡 ENTERPRISE: Machine learning analysis of security patterns to suggest new rules"""
+    """
+    💡 ENTERPRISE: Machine learning analysis of security patterns to suggest new rules
+
+    ONBOARD-018: Fixed critical data leak - now filters by organization_id
+    Security: Tenant-isolated via organization_id filter
+    Compliance: SOC 2 CC6.1, HIPAA 164.312(a)(1)
+    """
     try:
         suggestions = []
 
+        logger.info(f"💡 ML suggestions requested by {current_user.get('email')} [org_id={org_id}]")
+
         # ============================================================================
         # QUERY 1: Gap Analysis - High-volume alert types without dedicated rules
+        # ONBOARD-018: Added organization_id filter for tenant isolation
         # ============================================================================
         gap_analysis = db.execute(text("""
             SELECT
@@ -1268,17 +1280,19 @@ async def get_ml_rule_suggestions(
                 AVG(EXTRACT(EPOCH FROM (a.acknowledged_at - a.timestamp))/60) as avg_response_time
             FROM alerts a
             WHERE a.timestamp >= NOW() - INTERVAL '30 days'
-              -- Exclude alert types that already have smart rules
+              AND a.organization_id = :org_id
+              -- Exclude alert types that already have smart rules for THIS org
               AND a.alert_type NOT IN (
                   SELECT DISTINCT LOWER(REPLACE(name, ' ', '_'))
                   FROM smart_rules
                   WHERE name IS NOT NULL AND name != ''
+                    AND organization_id = :org_id
               )
             GROUP BY a.alert_type
             HAVING COUNT(*) >= 10  -- Minimum 10 occurrences for pattern validity
             ORDER BY occurrence_count DESC, escalation_rate DESC
             LIMIT 10
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Gap analysis found {len(gap_analysis)} alert patterns without rules")
 
@@ -1336,6 +1350,7 @@ async def get_ml_rule_suggestions(
 
         # ============================================================================
         # QUERY 2: Temporal Patterns - Peak hours requiring enhanced monitoring
+        # ONBOARD-018: Added organization_id filter for tenant isolation
         # ============================================================================
         temporal_patterns = db.execute(text("""
             WITH hourly_stats AS (
@@ -1348,6 +1363,7 @@ async def get_ml_rule_suggestions(
                         NULLIF(COUNT(*), 0) * 100 as escalation_rate
                 FROM alerts
                 WHERE timestamp >= NOW() - INTERVAL '30 days'
+                  AND organization_id = :org_id
                 GROUP BY EXTRACT(HOUR FROM timestamp)
             ),
             avg_hourly AS (
@@ -1362,7 +1378,7 @@ async def get_ml_rule_suggestions(
             WHERE hs.alert_count > ah.avg_count * 1.5  -- 50% above average
             ORDER BY hs.alert_count DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Temporal analysis found {len(temporal_patterns)} peak hour patterns")
 
@@ -1397,6 +1413,7 @@ async def get_ml_rule_suggestions(
 
         # ============================================================================
         # QUERY 3: Agent Behavior Patterns - Agents generating high FP rates
+        # ONBOARD-018: Added organization_id filter for tenant isolation
         # ============================================================================
         agent_patterns = db.execute(text("""
             SELECT
@@ -1410,6 +1427,7 @@ async def get_ml_rule_suggestions(
             FROM alerts a
             WHERE a.timestamp >= NOW() - INTERVAL '30 days'
               AND a.agent_id IS NOT NULL
+              AND a.organization_id = :org_id
             GROUP BY a.agent_id
             HAVING COUNT(*) >= 15
                AND COUNT(CASE WHEN a.escalated_at IS NULL AND a.acknowledged_at IS NOT NULL
@@ -1417,7 +1435,7 @@ async def get_ml_rule_suggestions(
                          THEN 1 END)::float / NULLIF(COUNT(*), 0) * 100 > 20  -- >20% FP rate
             ORDER BY fp_rate DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Agent analysis found {len(agent_patterns)} agents needing tuning")
 
@@ -1450,6 +1468,7 @@ async def get_ml_rule_suggestions(
 
         # ============================================================================
         # QUERY 4: Repetitive Manual Actions - Automation opportunities
+        # ONBOARD-018: Added organization_id filter for tenant isolation
         # ============================================================================
         manual_patterns = db.execute(text("""
             SELECT
@@ -1460,13 +1479,14 @@ async def get_ml_rule_suggestions(
             FROM agent_actions aa
             WHERE aa.created_at >= NOW() - INTERVAL '30 days'
               AND aa.status IN ('approved', 'rejected')
+              AND aa.organization_id = :org_id
             GROUP BY aa.action_type
             HAVING COUNT(*) >= 10
                AND COUNT(CASE WHEN aa.status = 'approved' THEN 1 END)::float /
                    NULLIF(COUNT(*), 0) * 100 > 80  -- >80% approval rate
             ORDER BY occurrence_count DESC
             LIMIT 3
-        """)).fetchall()
+        """), {"org_id": org_id}).fetchall()
 
         logger.info(f"💡 Found {len(manual_patterns)} automation opportunities")
 

@@ -144,8 +144,8 @@ def get_trend_data(
             logger.warning(f"Enriched actions query failed: {e}")
             enriched_actions = []
         
-        # Get pending approval count
-        pending_count = pending_service.get_pending_count(db)
+        # ONBOARD-018: Get pending approval count with org_id for tenant isolation
+        pending_count = pending_service.get_pending_count(db, org_id=org_id)
         
         result = {
             "high_risk_actions_by_day": high_risk_by_day,

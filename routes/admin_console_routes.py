@@ -1535,12 +1535,14 @@ async def get_billing_details(
     ).count()
 
     # SEC-046: Count MCP servers and agents for limits display
+    # ONBOARD-018: Added org_id filter for tenant isolation
     mcp_servers_count = 0
     agents_count = 0
     try:
         from models_mcp_governance import MCPServer
         mcp_servers_count = db.query(MCPServer).filter(
-            MCPServer.is_active == True
+            MCPServer.is_active == True,
+            MCPServer.organization_id == org.id
         ).count()
     except Exception:
         pass
@@ -1976,12 +1978,14 @@ async def get_analytics_overview(
 
     # ========================================
     # SEC-046: MCP Server Count
+    # ONBOARD-018: Added org_id filter for tenant isolation
     # ========================================
     mcp_servers_count = 0
     try:
         from models_mcp_governance import MCPServer
         mcp_servers_count = db.query(MCPServer).filter(
-            MCPServer.is_active == True
+            MCPServer.is_active == True,
+            MCPServer.organization_id == org_id
         ).count()
     except Exception:
         pass
