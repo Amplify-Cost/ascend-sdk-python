@@ -1386,6 +1386,41 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
       {/* Enhanced Threat Intelligence Tab */}
       {activeTab === "intelligence" && threatIntelligence && (
         <div className="space-y-6">
+          {/* ONBOARD-026: Feature Not Enabled - Show Coming Soon */}
+          {threatIntelligence.status === "feature_not_enabled" ? (
+            <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg p-8">
+              <div className="text-center max-w-2xl mx-auto">
+                <div className="text-6xl mb-4">🔮</div>
+                <h3 className="text-2xl font-semibold mb-4">Threat Intelligence Coming Soon</h3>
+                <p className="text-gray-200 mb-6">
+                  Enterprise threat intelligence feeds are being integrated. This feature will provide
+                  real-time threat data from industry-leading sources including MITRE ATT&CK,
+                  AlienVault OTX, and premium threat feeds.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                  <div className="bg-white/10 rounded-lg p-4">
+                    <div className="text-2xl mb-2">📡</div>
+                    <div className="font-medium">Threat Feeds</div>
+                    <div className="text-sm text-gray-300">Multiple premium sources</div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-4">
+                    <div className="text-2xl mb-2">🎯</div>
+                    <div className="font-medium">IOC Matching</div>
+                    <div className="text-sm text-gray-300">Automatic indicator correlation</div>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-4">
+                    <div className="text-2xl mb-2">⚔️</div>
+                    <div className="font-medium">Campaign Tracking</div>
+                    <div className="text-sm text-gray-300">Active threat campaign monitoring</div>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-300 mt-6">
+                  Contact your administrator for early access to this feature.
+                </p>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Intelligence Summary Dashboard */}
           <div className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg p-6">
             <h3 className="text-xl font-semibold mb-4">🌐 Global Threat Intelligence</h3>
@@ -1720,6 +1755,8 @@ const AIAlertManagementSystem = ({ getAuthHeaders, user }) => {
                 </span>
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       )}

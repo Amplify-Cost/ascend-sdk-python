@@ -30,6 +30,8 @@ const RiskConfigurationTab = ({ getAuthHeaders }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  // ONBOARD-026: Track "no config exists" state for 404 handling
+  const [noConfigExists, setNoConfigExists] = useState(false);
 
   // API Integration
   useEffect(() => {
@@ -47,6 +49,13 @@ const RiskConfigurationTab = ({ getAuthHeaders }) => {
         const data = await response.json();
         setActiveConfig(data);
         setConfigDraft(data); // Initialize draft with active config
+        setNoConfigExists(false);
+      } else if (response.status === 404) {
+        // ONBOARD-026: 404 means no config exists yet - show create option
+        console.log("No risk config exists for this organization - showing create option");
+        setNoConfigExists(true);
+        setActiveConfig(null);
+        setConfigDraft(null);
       } else {
         console.error("Failed to fetch active config:", response.statusText);
       }
@@ -283,6 +292,74 @@ const RiskConfigurationTab = ({ getAuthHeaders }) => {
         <div className="text-center">
           <div className="animate-spin h-12 w-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Loading risk configuration...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ONBOARD-026: Show empty state with Create Configuration option for new organizations
+  if (noConfigExists) {
+    const defaultConfig = {
+      config_version: "1.0.0",
+      algorithm_version: "1.0.0",
+      environment_weights: { production: 100, staging: 60, development: 20 },
+      action_weights: { delete: 100, write: 60, read: 20 },
+      resource_multipliers: { rds: 1.5, s3: 1.2, lambda: 1.0 },
+      pii_weights: { high_sensitivity: 100, medium_sensitivity: 60, low_sensitivity: 20 },
+      component_percentages: { environment: 30, data_sensitivity: 30, action_type: 25, operational_context: 15 },
+      description: "Initial enterprise risk scoring configuration"
+    };
+
+    return (
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-8">
+        <div className="text-center max-w-2xl mx-auto">
+          <div className="text-6xl mb-4">⚙️</div>
+          <h3 className="text-2xl font-semibold text-gray-900 mb-4">No Risk Configuration Found</h3>
+          <p className="text-gray-600 mb-6">
+            Your organization doesn't have a risk scoring configuration yet.
+            Create one to customize how risk scores are calculated for agent actions.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 text-left">
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="font-medium text-gray-900 mb-2">🌍 Environment Weights</div>
+              <p className="text-sm text-gray-600">
+                Configure how production, staging, and development environments affect risk scores.
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="font-medium text-gray-900 mb-2">⚡ Action Weights</div>
+              <p className="text-sm text-gray-600">
+                Set risk levels for delete, write, and read operations.
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="font-medium text-gray-900 mb-2">☁️ Resource Multipliers</div>
+              <p className="text-sm text-gray-600">
+                Adjust risk based on resource types like RDS, S3, and Lambda.
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="font-medium text-gray-900 mb-2">🔒 Data Sensitivity</div>
+              <p className="text-sm text-gray-600">
+                Configure how PII and sensitive data affect risk calculations.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              setConfigDraft(defaultConfig);
+              setNoConfigExists(false);
+            }}
+            className="mt-8 px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm"
+          >
+            ✨ Create Default Configuration
+          </button>
+
+          <p className="text-sm text-gray-500 mt-4">
+            You can customize all settings after creation.
+          </p>
         </div>
       </div>
     );
