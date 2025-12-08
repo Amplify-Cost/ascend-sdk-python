@@ -225,23 +225,25 @@ class CognitoPoolProvisioner:
                     'ReplyToEmailAddress': self.SES_REPLY_TO
                 },
                 # ONBOARD-008: Customize invite email for AdminCreateUser
+                # ONBOARD-009: {username} is REQUIRED by AWS Cognito
                 AdminCreateUserConfig={
                     'AllowAdminCreateUserOnly': True,
                     'InviteMessageTemplate': {
                         'EmailSubject': 'Welcome to Ascend - Your Login Credentials',
-                        'EmailMessage': f'''Hello,
+                        'EmailMessage': '''Hello {username},
 
 Welcome to Ascend by OW-KAI!
 
-Your temporary password is: {{####}}
+Your temporary password is: {####}
 
 Please login at: https://pilot.owkai.app
 
-After logging in, you will be prompted to set a new password.
+You will be prompted to change your password on first login.
 
 Best regards,
 The Ascend Team
-'''
+''',
+                        'SMSMessage': 'Your Ascend temp password is {####}'
                     }
                 },
                 Schema=[
