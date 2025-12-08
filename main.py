@@ -527,106 +527,40 @@ app.include_router(auth_router)
 # ALERT AI ENDPOINTS - Defined before router to ensure proper registration
 # ============================================================================
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ONBOARD-023: Threat Intelligence Feature - Returning Empty State
+# ═══════════════════════════════════════════════════════════════════════════════
+# Decision: Greg King, 2025-12-08
+# Reason: Feature was over-engineered for MVP, showed hardcoded fake campaigns
+# Enterprise Note: Real threat intel requires integration with external feeds
+#                  (MITRE ATT&CK, CVE, CISA, VirusTotal, etc.)
+# Future: Re-enable with real threat feed integration
+# ═══════════════════════════════════════════════════════════════════════════════
 @app.get("/api/alerts/threat-intelligence")
 async def get_threat_intelligence(
     current_user: dict = Depends(get_current_user),
     org_id: int = Depends(get_organization_filter)
 ):
-    """📡 ENTERPRISE: Global threat intelligence feed with real-time data
-    🏢 ENTERPRISE: Filter by organization_id for multi-tenant isolation
     """
-    try:
-        # 🏢 ENTERPRISE: Validate organization context
-        if org_id is None:
-            logger.warning(f"⚠️ SECURITY: No organization context for threat-intelligence by {current_user.get('email')}")
-            return {
-                "active_campaigns": [],
-                "ioc_matches": 0,
-                "new_indicators": 0,
-                "threat_actors": []
-            }
+    Threat Intelligence - Feature not yet enabled for production.
 
-        db: Session = next(get_db())
+    Enterprise Note: Real threat intelligence requires integration
+    with external feeds (MITRE ATT&CK, CVE, CISA, etc.)
 
-        try:
-            # Get threat indicators from recent alerts - 🏢 ENTERPRISE: Filter by org_id
-            recent_threats = db.execute(text("""
-                SELECT alert_type, severity, agent_id, COUNT(*) as frequency
-                FROM alerts
-                WHERE (timestamp >= NOW() - INTERVAL '7 days' OR timestamp IS NULL)
-                AND organization_id = :org_id
-                GROUP BY alert_type, severity, agent_id
-                ORDER BY frequency DESC
-                LIMIT 10
-            """), {"org_id": org_id}).fetchall()
-
-            threat_count = len(recent_threats)
-            high_severity_count = len([t for t in recent_threats if t[1] == 'high'])
-
-        except Exception as db_error:
-            logger.warning(f"Threat intelligence query failed: {db_error}")
-            threat_count = 0
-            high_severity_count = 0
-        finally:
-            db.close()
-        
-        # Generate dynamic threat intelligence based on real data
-        current_date = datetime.now(UTC).strftime("%Y-%m-%d")
-        
-        threat_intel = {
-            "active_campaigns": [
-                {
-                    "name": "Operation CloudStrike 2025",
-                    "severity": "high" if high_severity_count > 2 else "medium", 
-                    "targets": "Cloud Infrastructure, SaaS Platforms",
-                    "first_seen": current_date,
-                    "indicators": 15 + threat_count,
-                    "description": f"Sophisticated APT campaign targeting cloud environments - {threat_count} related indicators detected"
-                },
-                {
-                    "name": "Ransomware-as-a-Service Evolution",
-                    "severity": "critical" if high_severity_count > 4 else "high",
-                    "targets": "Healthcare, Finance, Critical Infrastructure", 
-                    "first_seen": (datetime.now(UTC) - timedelta(days=3)).strftime("%Y-%m-%d"),
-                    "indicators": 32 + (high_severity_count * 2),
-                    "description": "Next-generation ransomware with AI-powered evasion techniques targeting enterprise networks"
-                },
-                {
-                    "name": "Supply Chain Infiltration",
-                    "severity": "medium",
-                    "targets": "Software Vendors, DevOps Pipelines",
-                    "first_seen": (datetime.now(UTC) - timedelta(days=5)).strftime("%Y-%m-%d"),
-                    "indicators": 18,
-                    "description": "Advanced persistent threat targeting software supply chains and CI/CD infrastructure"
-                }
-            ],
-            "ioc_matches": 7 + (threat_count // 2),
-            "new_indicators": 23 + threat_count, 
-            "threat_actors": [
-                {
-                    "name": "APT-2025-Alpha", 
-                    "activity": "Active" if high_severity_count > 3 else "Monitoring", 
-                    "risk_level": "Critical" if high_severity_count > 4 else "High"
-                },
-                {
-                    "name": "Lazarus Group", 
-                    "activity": "Monitoring", 
-                    "risk_level": "Critical"
-                },
-                {
-                    "name": "Quantum Spider", 
-                    "activity": "Active" if threat_count > 5 else "Low", 
-                    "risk_level": "High"
-                }
-            ]
-        }
-        
-        logger.info(f"📡 Threat intelligence generated: {len(threat_intel['active_campaigns'])} campaigns, {threat_intel['ioc_matches']} IoC matches")
-        return threat_intel
-        
-    except Exception as e:
-        logger.error(f"Threat intelligence fetch failed: {str(e)}")
-        raise HTTPException(status_code=500, detail="Failed to fetch threat intelligence")
+    Returns empty state until real threat feed integration is implemented.
+    """
+    logger.info(f"📡 Threat intelligence requested by {current_user.get('email')} [org_id={org_id}] - returning empty state (feature not enabled)")
+    return {
+        "status": "feature_not_enabled",
+        "message": "Threat intelligence feed integration coming soon",
+        "active_campaigns": [],
+        "threat_actors": [],
+        "ioc_matches": 0,
+        "new_indicators": 0,
+        "feed_sources": [],
+        "threat_landscape": None,
+        "intelligence_summary": None
+    }
 
 @app.get("/api/alerts/ai-insights")
 async def get_ai_insights(

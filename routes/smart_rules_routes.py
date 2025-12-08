@@ -160,9 +160,10 @@ async def get_rule_analytics(
             SELECT
                 SUM(triggers) as total_triggers_24h,
                 -- Performance score: (true_positives / triggers) * 100
+                -- ONBOARD-023: Changed ELSE 90 to ELSE 0 (no fake metrics for new tenants)
                 AVG(CASE WHEN triggers > 0
                     THEN (true_positives::float / triggers * 100)
-                    ELSE 90 END) as avg_performance,
+                    ELSE 0 END) as avg_performance,
                 -- False positive rate: (false_positives / triggers) * 100
                 AVG(CASE WHEN triggers > 0
                     THEN (false_positives::float / triggers * 100)
@@ -189,9 +190,10 @@ async def get_rule_analytics(
                     sr.risk_level,
                     COUNT(a.id) as triggers,
                     -- Performance = escalation rate (higher = better detection)
+                    -- ONBOARD-023: Changed ELSE 90 to ELSE 0 (no fake metrics)
                     CASE WHEN COUNT(a.id) > 0
                          THEN (COUNT(CASE WHEN a.escalated_at IS NOT NULL THEN 1 END)::float / COUNT(a.id) * 100)
-                         ELSE 90 END as performance_score
+                         ELSE 0 END as performance_score
                 FROM smart_rules sr
                 LEFT JOIN alerts a ON (
                     a.alert_type LIKE '%' || LOWER(REPLACE(sr.name, ' ', '_')) || '%'
@@ -373,13 +375,14 @@ async def get_rule_analytics(
         logger.error(f"❌ Analytics calculation failed: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
-        # Return minimal fallback
+        # ONBOARD-023: Return zeros, not fake metrics (88.0, 5.0 removed)
+        # Enterprise requirement: No misleading data in compliance dashboards
         return {
             "total_rules": total_rules if 'total_rules' in locals() else 0,
             "active_rules": total_rules if 'total_rules' in locals() else 0,
-            "avg_performance_score": 88.0,
+            "avg_performance_score": 0.0,  # ONBOARD-023: Changed from 88.0
             "total_triggers_24h": 0,
-            "false_positive_rate": 5.0,
+            "false_positive_rate": 0.0,    # ONBOARD-023: Changed from 5.0
             "top_performing_rules": [],
             "performance_trends": {
                 "accuracy_improvement": "+0%",
@@ -387,16 +390,16 @@ async def get_rule_analytics(
                 "false_positive_reduction": "+0%"
             },
             "ml_insights": {
-                "pattern_recognition_accuracy": 88,
+                "pattern_recognition_accuracy": 0,   # ONBOARD-023: Changed from 88
                 "events_analyzed": 0,
                 "new_patterns_identified": 0,
-                "prediction_confidence": 88
+                "prediction_confidence": 0           # ONBOARD-023: Changed from 88
             },
             "enterprise_metrics": {
                 "cost_savings_monthly": "$0",
                 "incidents_prevented": 0,
                 "automation_rate": "0%",
-                "compliance_score": "94%"
+                "compliance_score": "0%"             # ONBOARD-023: Changed from 94%
             }
         }
 

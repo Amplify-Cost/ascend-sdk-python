@@ -63,16 +63,14 @@ def get_trend_data(
                 ORDER BY DATE(timestamp)
             """), {"start_date": seven_days_ago, "org_id": org_id}).fetchall()
             
+            # ONBOARD-023: Return empty array for new tenants (no placeholder data)
             high_risk_by_day = [
-                {"date": str(row[0]), "count": row[1]} 
+                {"date": str(row[0]), "count": row[1]}
                 for row in daily_actions
-            ] if daily_actions else [
-                {"date": "2025-07-24", "count": 0},
-                {"date": "2025-07-25", "count": 0}
-            ]
+            ] if daily_actions else []
         except Exception as e:
             logger.warning(f"Daily actions query failed: {e}")
-            high_risk_by_day = [{"date": "2025-07-24", "count": 0}]
+            high_risk_by_day = []  # ONBOARD-023: Empty array, not fake dates
         
         # ✅ REAL: Top agents (by action count) - FILTERED BY ORG
         try:
@@ -86,15 +84,14 @@ def get_trend_data(
                 LIMIT 10
             """), {"start_date": seven_days_ago, "org_id": org_id}).fetchall()
             
+            # ONBOARD-023: Return empty array for new tenants (no placeholder data)
             top_agents = [
-                {"agent": row[0], "count": row[1]} 
+                {"agent": row[0], "count": row[1]}
                 for row in top_agents_query
-            ] if top_agents_query else [
-                {"agent": "No agents yet", "count": 0}
-            ]
+            ] if top_agents_query else []
         except Exception as e:
             logger.warning(f"Top agents query failed: {e}")
-            top_agents = [{"agent": "No agents", "count": 0}]
+            top_agents = []  # ONBOARD-023: Empty array, not placeholder text
         
         # ✅ REAL: Top tools (by usage count) - FILTERED BY ORG
         try:
@@ -109,15 +106,14 @@ def get_trend_data(
                 LIMIT 10
             """), {"start_date": seven_days_ago, "org_id": org_id}).fetchall()
             
+            # ONBOARD-023: Return empty array for new tenants (no placeholder data)
             top_tools = [
-                {"tool": row[0], "count": row[1]} 
+                {"tool": row[0], "count": row[1]}
                 for row in top_tools_query
-            ] if top_tools_query else [
-                {"tool": "No tools yet", "count": 0}
-            ]
+            ] if top_tools_query else []
         except Exception as e:
             logger.warning(f"Top tools query failed: {e}")
-            top_tools = [{"tool": "No tools", "count": 0}]
+            top_tools = []  # ONBOARD-023: Empty array, not placeholder text
         
         # ✅ REAL: Latest enriched actions - FILTERED BY ORG
         try:
@@ -1059,31 +1055,40 @@ def get_system_performance(
                 "note": "These metrics are calculated from ECS task logs"
             }
 
-        # ===== DATABASE METRICS - ALWAYS AVAILABLE =====
-        # Get real database connection stats
+        # ===== DATABASE METRICS =====
+        # ONBOARD-023: Restrict infrastructure metrics to platform_admin only
+        # Security: Minimize information disclosure to tenant users
+        user_role = current_user.get("role", "")
+        is_platform_admin = user_role == "platform_admin"
+
         try:
-            # Query for active database connections (PostgreSQL specific)
-            db_connections_result = db.execute(text("""
-                SELECT
-                    COUNT(*) FILTER (WHERE state = 'active') as active,
-                    COUNT(*) FILTER (WHERE state = 'idle') as idle,
-                    COUNT(*) as total
-                FROM pg_stat_activity
-                WHERE datname = current_database()
-            """)).fetchone()
+            if is_platform_admin:
+                # Platform admins see real database connection stats
+                db_connections_result = db.execute(text("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE state = 'active') as active,
+                        COUNT(*) FILTER (WHERE state = 'idle') as idle,
+                        COUNT(*) as total
+                    FROM pg_stat_activity
+                    WHERE datname = current_database()
+                """)).fetchone()
 
-            if db_connections_result:
-                active_conns = db_connections_result[0] or 0
-                idle_conns = db_connections_result[1] or 0
-                total_conns = db_connections_result[2] or 0
+                if db_connections_result:
+                    active_conns = db_connections_result[0] or 0
+                    idle_conns = db_connections_result[1] or 0
+                    total_conns = db_connections_result[2] or 0
+                else:
+                    active_conns = idle_conns = total_conns = 0
+
+                # Get database max connections
+                max_conns_result = db.execute(text("SHOW max_connections")).scalar()
+                max_connections = int(max_conns_result) if max_conns_result else 100
             else:
+                # ONBOARD-023: Tenants don't see infrastructure details
                 active_conns = idle_conns = total_conns = 0
+                max_connections = 0
 
-            # Get database max connections
-            max_conns_result = db.execute(text("SHOW max_connections")).scalar()
-            max_connections = int(max_conns_result) if max_conns_result else 100
-
-            # Query performance from recent actions - FILTERED BY ORG
+            # Query performance from recent actions - FILTERED BY ORG (all users can see this)
             recent_actions = db.query(func.count(AgentAction.id)).filter(
                 and_(
                     AgentAction.timestamp >= hour_ago,
@@ -1103,32 +1108,47 @@ def get_system_performance(
                 )
             ).scalar() or 0
 
-            database_metrics = {
-                "connections": {
-                    "active": active_conns,
-                    "idle": idle_conns,
-                    "total": total_conns,
-                    "max": max_connections,
-                    "utilization": round((total_conns / max_connections * 100), 1) if max_connections > 0 else 0,
-                    "status": "healthy" if total_conns < (max_connections * 0.8) else "high",
-                    "source": "postgresql"
-                },
-                "query_performance": {
-                    "recent_queries": recent_actions,
-                    "slow_queries_estimate": slow_query_estimate,
-                    "status": "optimal" if slow_query_estimate == 0 else "degraded",
-                    "source": "agent_actions_table",
-                    "note": "Enable pg_stat_statements for detailed query analytics"
+            if is_platform_admin:
+                database_metrics = {
+                    "connections": {
+                        "active": active_conns,
+                        "idle": idle_conns,
+                        "total": total_conns,
+                        "max": max_connections,
+                        "utilization": round((total_conns / max_connections * 100), 1) if max_connections > 0 else 0,
+                        "status": "healthy" if total_conns < (max_connections * 0.8) else "high",
+                        "source": "postgresql"
+                    },
+                    "query_performance": {
+                        "recent_queries": recent_actions,
+                        "slow_queries_estimate": slow_query_estimate,
+                        "status": "optimal" if slow_query_estimate == 0 else "degraded",
+                        "source": "agent_actions_table",
+                        "note": "Enable pg_stat_statements for detailed query analytics"
+                    }
                 }
-            }
+            else:
+                # ONBOARD-023: Tenants see query performance but not infrastructure connections
+                database_metrics = {
+                    "connections": {
+                        "status": "restricted",
+                        "message": "Infrastructure metrics restricted to platform administrators"
+                    },
+                    "query_performance": {
+                        "recent_queries": recent_actions,
+                        "slow_queries_estimate": slow_query_estimate,
+                        "status": "optimal" if slow_query_estimate == 0 else "degraded",
+                        "source": "agent_actions_table"
+                    }
+                }
 
         except Exception as db_error:
             logger.warning(f"Database metrics fallback: {db_error}")
             database_metrics = {
                 "status": "partial_data",
                 "message": "Some database metrics unavailable",
-                "error": str(db_error),
-                "note": "This may be due to insufficient database permissions"
+                "error": str(db_error) if is_platform_admin else "Contact administrator",
+                "note": "This may be due to insufficient database permissions" if is_platform_admin else None
             }
 
         # ===== BUILD RESPONSE =====
