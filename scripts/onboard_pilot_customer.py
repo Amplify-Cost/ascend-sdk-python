@@ -290,10 +290,11 @@ async def verify_and_activate_cognito_pool(db: Session, org: Organization) -> di
         pool_response = client.describe_user_pool(UserPoolId=org.cognito_user_pool_id)
         verification["pool_exists"] = True
         pool_status = pool_response['UserPool'].get('Status', 'Unknown')
-        verification["pool_active"] = (pool_status == 'Active')
+        # ONBOARD-007: AWS Cognito returns 'Enabled' for healthy pools, not 'Active'
+        verification["pool_active"] = pool_status in ('Active', 'Enabled')
 
         if not verification["pool_active"]:
-            verification["issues"].append(f"Pool status is '{pool_status}', expected 'Active'")
+            verification["issues"].append(f"Pool status is '{pool_status}', expected 'Active' or 'Enabled'")
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceNotFoundException':
             verification["issues"].append(f"Pool {org.cognito_user_pool_id} not found in AWS")

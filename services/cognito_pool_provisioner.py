@@ -17,6 +17,7 @@ Date: 2025-11-20
 """
 
 import boto3
+import json
 import logging
 import time
 from typing import Dict, Any, Optional
@@ -474,7 +475,8 @@ class CognitoPoolProvisioner:
                     'action': action,
                     'pool_id': user_pool_id,
                     'status': status,
-                    'details': details,
+                    # ONBOARD-007: Serialize dict to JSON string for PostgreSQL
+                    'details': json.dumps(details) if isinstance(details, dict) else details,
                     'error': error_message,
                     'performed_by': 'CognitoPoolProvisioner',
                     'duration': duration_ms
