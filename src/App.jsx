@@ -460,23 +460,23 @@ const AppContent = () => {
           </div>
         );
       case "auth":
-        return user?.role === "admin" ? 
+        return ["admin", "super_admin"].includes(user?.role) ? 
           contentWithTransition(<AgentAuthorizationDashboard getAuthHeaders={getAuthHeaders} user={user} />) : 
           adminRequiredMessage;
       case "ai-alerts":
-        return user?.role === "admin" ? 
+        return ["admin", "super_admin"].includes(user?.role) ? 
           contentWithTransition(<AIAlertManagementSystem getAuthHeaders={getAuthHeaders} user={user} />) : 
           adminRequiredMessage;
       case "smartRules":
-        return user?.role === "admin" ? 
+        return ["admin", "super_admin"].includes(user?.role) ? 
           contentWithTransition(<SmartRuleGen getAuthHeaders={getAuthHeaders} user={user} />) : 
           adminRequiredMessage;
       case "users":
-        return user?.role === "admin" ? 
+        return ["admin", "super_admin"].includes(user?.role) ? 
           contentWithTransition(<EnterpriseUserManagement getAuthHeaders={getAuthHeaders} user={user} />) : 
           adminRequiredMessage;
       case "settings":
-        return user?.role === "admin" ?
+        return ["admin", "super_admin"].includes(user?.role) ?
           contentWithTransition(<EnterpriseSettings getAuthHeaders={getAuthHeaders} user={user} API_BASE_URL={API_BASE_URL} />) :
           adminRequiredMessage;
       case 'alerts':
@@ -491,12 +491,12 @@ const AppContent = () => {
         );
       // SEC-024: Enterprise Agent Registry - MCP Server & Agent Governance
       case "agent-registry":
-        return user?.role === "admin" ?
+        return ["admin", "super_admin"].includes(user?.role) ?
           contentWithTransition(<AgentRegistryManagement getAuthHeaders={getAuthHeaders} user={user} />) :
           adminRequiredMessage;
       // SEC-022: Admin Console - Organization Management
       case "admin-console":
-        return (user?.role === "admin" || user?.role === "org_admin") ?
+        return (["admin", "super_admin"].includes(user?.role) || user?.role === "org_admin") ?
           contentWithTransition(<AdminConsole />) :
           adminRequiredMessage;
       // DOC-003: Enterprise Documentation Viewer

@@ -102,7 +102,8 @@ const Sidebar = ({ activeTab, setActiveTab, user, handleLogout }) => {
   ];
 
   // SEC-040: Consolidated admin features with single Admin Console entry point
-  if (user?.role === "admin") {
+  // ONBOARD-012: Include super_admin in admin role checks
+  if (user?.role === "admin" || user?.role === "super_admin") {
     menuItems.push(
       {
         label: "Authorization Center",

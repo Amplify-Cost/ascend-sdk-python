@@ -181,7 +181,7 @@ const AlertPanel = ({ getAuthHeaders, user }) => {
                 <span className={`text-xs px-2 py-1 rounded-full ${statusColor(alert.status)}`}>
                   {(alert.status || "new").replace("_", " ")}
                 </span>
-                {user?.role === "admin" && (
+                {["admin", "super_admin"].includes(user?.role) && (
                   <select
                     value={alert.status || "new"}
                     onChange={(e) => handleStatusChange(alert.id, e.target.value)}

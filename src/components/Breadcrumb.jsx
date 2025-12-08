@@ -87,7 +87,7 @@ const Breadcrumb = ({ activeTab, user }) => {
       ))}
       
       {/* Admin Badge */}
-      {user?.role === 'admin' && ['auth', 'ai-alerts', 'smartRules', 'users', 'settings'].includes(activeTab) && (
+      {["admin", "super_admin"].includes(user?.role) && ['auth', 'ai-alerts', 'smartRules', 'users', 'settings'].includes(activeTab) && (
         <div className={`ml-3 px-2 py-1 rounded-full text-xs font-medium transition-colors duration-300 ${
           isDarkMode 
             ? 'bg-blue-900/30 text-blue-300 border border-blue-500/30' 

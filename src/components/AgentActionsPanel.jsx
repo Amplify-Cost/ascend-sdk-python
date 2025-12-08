@@ -49,7 +49,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
   // 🟢 ENTERPRISE: Approve action with live database update
   const updateActionStatus = async (id, statusType) => {
     try {
-      console.log(`🎯 ${user?.role === 'admin' ? 'Admin' : 'User'} clicked ${statusType} for action ${id}`);
+      console.log(`🎯 ${["admin", "super_admin"].includes(user?.role) ? 'Admin' : 'User'} clicked ${statusType} for action ${id}`);
       console.log(`🎯 Starting ${statusType} for action ${id}`);
       setLoading(true);
       
@@ -212,7 +212,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
         </div>
         
         {/* 🔧 ENTERPRISE ADMIN CONTROLS */}
-        {user?.role === 'admin' && (
+        {["admin", "super_admin"].includes(user?.role) && (
           <div className="flex space-x-2">
             <button
               onClick={checkEnterpriseStatus}
@@ -275,7 +275,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
             <h3 className="font-semibold">No Agent Actions Found</h3>
             <p className="text-sm">Create sample records to get started with enterprise testing</p>
           </div>
-          {user?.role === 'admin' && (
+          {["admin", "super_admin"].includes(user?.role) && (
             <button
               onClick={createSampleRecords}
               disabled={loading}
@@ -298,7 +298,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Description</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-700">Reviewed By</th>
-                {user?.role === 'admin' && (
+                {["admin", "super_admin"].includes(user?.role) && (
                   <th className="px-4 py-3 text-left font-medium text-gray-700">Enterprise Actions</th>
                 )}
               </tr>
@@ -355,7 +355,7 @@ const AgentActionsPanel = ({ getAuthHeaders, user }) => {
                       <span className="text-gray-400 text-xs">Not reviewed</span>
                     )}
                   </td>
-                  {user?.role === 'admin' && (
+                  {["admin", "super_admin"].includes(user?.role) && (
                     <td className="px-4 py-3">
                       {action.status === 'pending' ? (
                         <div className="flex space-x-1">

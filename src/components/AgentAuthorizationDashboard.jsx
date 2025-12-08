@@ -152,10 +152,10 @@ useEffect(() => {
         user_info: {
           email: user?.email || 'admin@enterprise.com',
           role: user?.role || 'admin', 
-          approval_level: user?.role === 'admin' ? 5 : 1,
-          max_risk_approval: user?.role === 'admin' ? 100 : 50,
-          is_emergency_approver: user?.role === 'admin',
-          enterprise_privileges: user?.role === 'admin'
+          approval_level: ["admin", "super_admin"].includes(user?.role) ? 5 : 1,
+          max_risk_approval: ["admin", "super_admin"].includes(user?.role) ? 100 : 50,
+          is_emergency_approver: ["admin", "super_admin"].includes(user?.role),
+          enterprise_privileges: ["admin", "super_admin"].includes(user?.role)
         },
         summary: dashboardData.summary || {  // ✅ FIX: Changed from pending_summary to summary
           total_pending: pendingActions.length,
@@ -1832,10 +1832,10 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   dashboardData.user_info = {
     email: user?.email || 'admin@enterprise.com',
     role: user?.role || 'admin', 
-    approval_level: user?.role === 'admin' ? 5 : 1,
-    max_risk_approval: user?.role === 'admin' ? 100 : 50,
-    is_emergency_approver: user?.role === 'admin',
-    enterprise_privileges: user?.role === 'admin'
+    approval_level: ["admin", "super_admin"].includes(user?.role) ? 5 : 1,
+    max_risk_approval: ["admin", "super_admin"].includes(user?.role) ? 100 : 50,
+    is_emergency_approver: ["admin", "super_admin"].includes(user?.role),
+    enterprise_privileges: ["admin", "super_admin"].includes(user?.role)
   };
 }
 
@@ -2192,7 +2192,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                           📋 Review Details
                         </button>
                         
-                        {(user?.role === 'admin' || action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 0)) && (
+                        {(["admin", "super_admin"].includes(user?.role) || action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 0)) && (
   <>
     <button
       onClick={() => handleApproval(action.id, 'approved', 'Quick approval')}
@@ -2209,7 +2209,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
   </>
 )}
                         
-                        {(user?.role === 'admin' || action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 0)) && (
+                        {(["admin", "super_admin"].includes(user?.role) || action.ai_risk_score <= (dashboardData?.user_info?.max_risk_approval || 0)) && (
   <button
     onClick={() => handleApproval(action.id, 'escalated', 'Escalating to next level', {escalate_to_level: action.current_approval_level + 2})}
     className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm transition-colors"
@@ -2409,7 +2409,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">⚙️ Interactive Workflow Configuration</h3>
             <p className="text-gray-600 mb-4">
               Configure custom approval workflows based on risk levels and action types. 
-              {user?.role === 'admin' ? ' Click "Edit" to modify any workflow.' : ' Admin access required to modify workflows.'}
+              {["admin", "super_admin"].includes(user?.role) ? ' Click "Edit" to modify any workflow.' : ' Admin access required to modify workflows.'}
             </p>
           </div>
 
@@ -2426,7 +2426,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                     </div>
                   </div>
 
-                  {user?.role === 'admin' && (
+                  {["admin", "super_admin"].includes(user?.role) && (
                     <button
                       onClick={() => setEditingWorkflow({ workflowId, workflow })}
                       className="bg-white bg-opacity-50 hover:bg-opacity-75 text-gray-800 px-3 py-1 rounded text-sm transition-colors"
@@ -2546,7 +2546,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">🤖 Automated Response Playbooks</h3>
         <div className="flex gap-2">
-          {user?.role === 'admin' && (
+          {["admin", "super_admin"].includes(user?.role) && (
             <>
               <button
                 onClick={() => setShowTemplateLibrary(true)}
@@ -2651,7 +2651,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                   </div>
                 </div>
                 
-                {user?.role === 'admin' && (
+                {["admin", "super_admin"].includes(user?.role) && (
                   <div className="flex gap-1">
                     <button
                       onClick={() => togglePlaybook(playbookId)}
@@ -2765,7 +2765,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">🔄 Workflow Orchestrations</h3>
         <div className="flex gap-2">
-          {user?.role === 'admin' && (
+          {["admin", "super_admin"].includes(user?.role) && (
             <button
               onClick={() => setShowWorkflowBuilder(true)}
               className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
@@ -3260,7 +3260,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
           <h4 className="text-lg font-medium text-gray-900 mb-2">No Active Workflows</h4>
           <p className="text-gray-500 mb-4">Create workflow orchestrations to automate complex multi-step processes.</p>
           <div className="flex gap-2 justify-center">
-            {user?.role === 'admin' && (
+            {["admin", "super_admin"].includes(user?.role) && (
               <button
                 onClick={() => setShowWorkflowBuilder(true)}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
@@ -4133,7 +4133,7 @@ if (dashboardData && !dashboardData.user_info && dashboardData.user_context) {
                 >
                   Close
                 </button>
-                {user?.role === 'admin' && (
+                {["admin", "super_admin"].includes(user?.role) && (
                   <button
                     onClick={() => {
                       setPlaybookToTest(selectedPlaybook);

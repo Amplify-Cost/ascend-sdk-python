@@ -207,7 +207,7 @@ const Alerts = ({ getAuthHeaders, user }) => {
                   >
                     {(alert.status || "new").replace("_", " ")}
                   </span>
-                  {user?.role === "admin" && (
+                  {["admin", "super_admin"].includes(user?.role) && (
                     <select
                       value={alert.status || "new"}
                       onChange={(e) => updateAlertStatus(alert.id, e.target.value)}
