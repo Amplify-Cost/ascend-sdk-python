@@ -46,41 +46,51 @@ def get_active_config(
 
         if not active_config:
             # ONBOARD-028: Return factory default configuration instead of 404
-            # This ensures the Risk Configuration tab always loads with sensible defaults
+            # ONBOARD-030: Aligned with frontend schema and Org 1 working config format
             # Enterprise Pattern: Wiz/Datadog/Splunk provide defaults for new tenants
             logger.info(f"No active config found for org_id={org_id}, returning factory default")
             return {
                 "id": 0,  # Synthetic ID indicating factory default
                 "config_version": "1.0.0-default",
                 "algorithm_version": "2.0.0",
+                # Environment weights (0-100 scale) - matches frontend WeightSlider
                 "environment_weights": {
-                    "production": 150,
-                    "staging": 120,
-                    "development": 80
+                    "production": 35,      # Highest risk
+                    "staging": 20,         # Medium risk
+                    "development": 5       # Lower risk
                 },
+                # Action type weights (0-100 scale) - matches frontend field names
                 "action_weights": {
-                    "database_write": 90,
-                    "database_delete": 100,
-                    "system_command": 85,
-                    "file_access": 70,
-                    "network_request": 60
+                    "delete": 25,          # Highest risk - destructive
+                    "write": 20,           # High risk - data modification
+                    "read": 10,            # Lower risk - data access
+                    "describe": 5,         # Low risk - metadata only
+                    "list": 8              # Low risk - enumeration
                 },
+                # Resource type multipliers (0.8-1.2 scale) - matches frontend
                 "resource_multipliers": {
-                    "pii_data": 1.3,
-                    "financial": 1.4,
-                    "health_records": 1.5,
-                    "credentials": 1.6
+                    "rds": 1.2,            # Database - high value
+                    "dynamodb": 1.2,       # NoSQL database
+                    "s3": 1.1,             # Storage
+                    "lambda": 0.9,         # Compute - lower risk
+                    "ec2": 1.0,            # Compute
+                    "iam": 1.2,            # Identity - critical
+                    "secretsmanager": 1.2, # Secrets - critical
+                    "kms": 1.2             # Encryption keys
                 },
+                # PII/sensitive data weights (0-100 scale) - matches frontend
                 "pii_weights": {
-                    "contains_ssn": 150,
-                    "contains_email": 110,
-                    "contains_phone": 120,
-                    "contains_address": 115
+                    "high_sensitivity": 30,    # SSN, health records, financial
+                    "medium_sensitivity": 20,  # Email, phone, address
+                    "low_sensitivity": 10,     # Name, general PII
+                    "none": 0                  # No PII
                 },
+                # Component percentages (must sum to 100%) - matches frontend
                 "component_percentages": {
-                    "cvss_weight": 40,
-                    "policy_weight": 30,
-                    "context_weight": 30
+                    "environment": 35,         # Environment impact
+                    "data_sensitivity": 33,    # PII sensitivity impact
+                    "action_type": 25,         # Action risk impact
+                    "operational_context": 7   # Context factors
                 },
                 "description": "Factory default configuration - customize as needed",
                 "is_active": False,
