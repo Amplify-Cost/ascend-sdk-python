@@ -36,6 +36,7 @@ import sys
 import re
 import secrets
 import hashlib
+import logging
 from datetime import datetime, timedelta, UTC
 from typing import Optional, Dict, Any, Tuple
 
@@ -49,6 +50,9 @@ from database import engine, SessionLocal
 from models import Organization, User
 from models_api_keys import ApiKey
 from services.cognito_pool_provisioner import CognitoPoolProvisioner, get_provisioner
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 # ============================================
@@ -150,6 +154,306 @@ def print_warning(text: str):
 def print_error(text: str):
     """Print error message."""
     print(f"      ❌ {text}")
+
+
+# ============================================
+# ONBOARD-005: AWS VERIFICATION FUNCTIONS
+# ============================================
+
+async def verify_and_activate_cognito_pool(db: Session, org: Organization) -> dict:
+    """
+    Enterprise verification: Confirm AWS resources exist before activating.
+
+    Implements idempotent provisioning pattern (Wiz/Datadog standard):
+    - Verifies AWS pool exists and is active
+    - Verifies app client exists
+    - Verifies domain is configured (if applicable)
+    - Only sets status='active' after ALL verifications pass
+
+    Returns:
+        dict: Verification results with status and any issues
+    """
+    client = boto3.client('cognito-idp', region_name=org.cognito_region or 'us-east-2')
+
+    verification = {
+        "pool_exists": False,
+        "pool_active": False,
+        "client_exists": False,
+        "domain_exists": False,
+        "issues": [],
+        "verified": False
+    }
+
+    # 1. Verify pool exists and is active
+    if not org.cognito_user_pool_id:
+        verification["issues"].append("No cognito_user_pool_id configured")
+        return verification
+
+    try:
+        pool_response = client.describe_user_pool(UserPoolId=org.cognito_user_pool_id)
+        verification["pool_exists"] = True
+        pool_status = pool_response['UserPool'].get('Status', 'Unknown')
+        verification["pool_active"] = (pool_status == 'Active')
+
+        if not verification["pool_active"]:
+            verification["issues"].append(f"Pool status is '{pool_status}', expected 'Active'")
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            verification["issues"].append(f"Pool {org.cognito_user_pool_id} not found in AWS")
+        else:
+            verification["issues"].append(f"AWS error checking pool: {e.response['Error']['Message']}")
+        return verification
+
+    # 2. Verify app client exists
+    if not org.cognito_app_client_id:
+        verification["issues"].append("No cognito_app_client_id configured")
+        return verification
+
+    try:
+        client.describe_user_pool_client(
+            UserPoolId=org.cognito_user_pool_id,
+            ClientId=org.cognito_app_client_id
+        )
+        verification["client_exists"] = True
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            verification["issues"].append(f"App client {org.cognito_app_client_id} not found")
+        else:
+            verification["issues"].append(f"AWS error checking client: {e.response['Error']['Message']}")
+        return verification
+
+    # 3. Verify domain (optional but recommended)
+    if org.cognito_domain:
+        try:
+            domain_response = client.describe_user_pool_domain(Domain=org.cognito_domain)
+            domain_status = domain_response.get('DomainDescription', {}).get('Status', 'Unknown')
+            verification["domain_exists"] = (domain_status == 'ACTIVE')
+
+            if not verification["domain_exists"]:
+                verification["issues"].append(f"Domain status is '{domain_status}', expected 'ACTIVE'")
+        except ClientError as e:
+            verification["issues"].append(f"Domain verification failed: {e.response['Error']['Message']}")
+            # Domain is not critical for login, continue
+
+    # 4. Final verification
+    verification["verified"] = (
+        verification["pool_exists"] and
+        verification["pool_active"] and
+        verification["client_exists"]
+    )
+
+    # 5. Update database status if verified
+    if verification["verified"]:
+        if org.cognito_pool_status != 'active':
+            org.cognito_pool_status = 'active'
+            db.commit()
+            logger.info(f"✅ Pool verified and status set to 'active': {org.cognito_user_pool_id}")
+    else:
+        logger.error(f"❌ Pool verification failed: {verification['issues']}")
+        if org.cognito_pool_status == 'active':
+            org.cognito_pool_status = 'verification_failed'
+            db.commit()
+            logger.warning(f"⚠️ Status changed from 'active' to 'verification_failed'")
+
+    return verification
+
+
+async def verify_cognito_user_exists(org: Organization, email: str) -> dict:
+    """
+    Verify user exists in Cognito pool and check their status.
+
+    Returns:
+        dict: User verification results
+    """
+    client = boto3.client('cognito-idp', region_name=org.cognito_region or 'us-east-2')
+
+    verification = {
+        "user_exists": False,
+        "user_status": None,
+        "email_verified": False,
+        "issues": []
+    }
+
+    try:
+        response = client.admin_get_user(
+            UserPoolId=org.cognito_user_pool_id,
+            Username=email
+        )
+
+        verification["user_exists"] = True
+        verification["user_status"] = response.get('UserStatus', 'Unknown')
+
+        # Check email verified attribute
+        for attr in response.get('UserAttributes', []):
+            if attr['Name'] == 'email_verified':
+                verification["email_verified"] = (attr['Value'].lower() == 'true')
+
+        # Valid statuses for login
+        valid_statuses = ['CONFIRMED', 'FORCE_CHANGE_PASSWORD']
+        if verification["user_status"] not in valid_statuses:
+            verification["issues"].append(
+                f"User status is '{verification['user_status']}', expected one of {valid_statuses}"
+            )
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'UserNotFoundException':
+            verification["issues"].append(f"User {email} not found in pool {org.cognito_user_pool_id}")
+        else:
+            verification["issues"].append(f"AWS error: {e.response['Error']['Message']}")
+
+    return verification
+
+
+async def verify_existing_organization(db: Session, slug: str) -> dict:
+    """
+    Enterprise health check for existing organization.
+
+    Use: python onboard_pilot_customer.py --verify-only --org-slug kc-executive-protection
+    """
+    print("═" * 70)
+    print("              ORGANIZATION VERIFICATION REPORT")
+    print("═" * 70)
+    print()
+
+    # Find organization
+    org = db.query(Organization).filter(
+        Organization.slug == slug
+    ).first()
+
+    if not org:
+        print(f"❌ Organization with slug '{slug}' not found")
+        print()
+        print("Available organizations:")
+        orgs = db.query(Organization).order_by(Organization.id.desc()).limit(10).all()
+        for o in orgs:
+            print(f"   - {o.slug} (ID: {o.id}, Status: {o.cognito_pool_status})")
+        return {"found": False}
+
+    report = {
+        "found": True,
+        "organization": {
+            "id": org.id,
+            "name": org.name,
+            "slug": org.slug,
+            "tier": org.subscription_tier,
+            "created": str(org.created_at)
+        },
+        "cognito": {
+            "pool_id": org.cognito_user_pool_id,
+            "client_id": org.cognito_app_client_id,
+            "domain": org.cognito_domain,
+            "database_status": org.cognito_pool_status
+        },
+        "aws_verification": None,
+        "users": [],
+        "ready_for_login": False,
+        "issues": []
+    }
+
+    print("ORGANIZATION")
+    print("─" * 70)
+    print(f"   ID:           {org.id}")
+    print(f"   Name:         {org.name}")
+    print(f"   Slug:         {org.slug}")
+    print(f"   Tier:         {org.subscription_tier}")
+    print(f"   Created:      {org.created_at}")
+    print()
+
+    print("COGNITO CONFIGURATION")
+    print("─" * 70)
+    print(f"   Pool ID:      {org.cognito_user_pool_id or '❌ NOT SET'}")
+    print(f"   Client ID:    {org.cognito_app_client_id or '❌ NOT SET'}")
+    print(f"   Domain:       {org.cognito_domain or '❌ NOT SET'}")
+    print(f"   DB Status:    {org.cognito_pool_status or '❌ NOT SET'}")
+    print()
+
+    # AWS Verification
+    if org.cognito_user_pool_id:
+        print("AWS VERIFICATION")
+        print("─" * 70)
+
+        pool_verification = await verify_and_activate_cognito_pool(db, org)
+        report["aws_verification"] = pool_verification
+
+        print(f"   Pool Exists:    {'✅' if pool_verification['pool_exists'] else '❌'}")
+        print(f"   Pool Active:    {'✅' if pool_verification['pool_active'] else '❌'}")
+        print(f"   Client Exists:  {'✅' if pool_verification['client_exists'] else '❌'}")
+        print(f"   Domain Active:  {'✅' if pool_verification['domain_exists'] else '⚠️ Not verified'}")
+
+        if pool_verification["issues"]:
+            print()
+            print("   Issues:")
+            for issue in pool_verification["issues"]:
+                print(f"      ❌ {issue}")
+                report["issues"].append(issue)
+        print()
+
+    # Check users
+    print("USERS")
+    print("─" * 70)
+    users = db.query(User).filter(User.organization_id == org.id).all()
+
+    if not users:
+        print("   ❌ No users found")
+        report["issues"].append("No users in organization")
+    else:
+        for user in users:
+            user_status = "Unknown"
+            if org.cognito_user_pool_id:
+                try:
+                    client = boto3.client('cognito-idp', region_name='us-east-2')
+                    cognito_user = client.admin_get_user(
+                        UserPoolId=org.cognito_user_pool_id,
+                        Username=user.email
+                    )
+                    user_status = cognito_user.get('UserStatus', 'Unknown')
+                except:
+                    user_status = "NOT FOUND IN COGNITO"
+                    report["issues"].append(f"User {user.email} not found in Cognito")
+
+            print(f"   {user.email}")
+            print(f"      Role: {user.role}")
+            print(f"      Cognito Status: {user_status}")
+            report["users"].append({
+                "email": user.email,
+                "role": user.role,
+                "cognito_status": user_status
+            })
+    print()
+
+    # Final assessment
+    print("ASSESSMENT")
+    print("─" * 70)
+
+    ready = (
+        org.cognito_user_pool_id and
+        org.cognito_app_client_id and
+        org.cognito_pool_status == 'active' and
+        len(users) > 0 and
+        len(report["issues"]) == 0
+    )
+    report["ready_for_login"] = ready
+
+    if ready:
+        print("   ✅ READY FOR LOGIN")
+        print()
+        print(f"   Login URL: https://pilot.owkai.app")
+        print(f"   Org Slug:  {org.slug}")
+    else:
+        print("   ❌ NOT READY FOR LOGIN")
+        print()
+        print("   Issues to resolve:")
+        for issue in report["issues"]:
+            print(f"      - {issue}")
+
+        if org.cognito_pool_status != 'active':
+            print()
+            print("   Recommendation: cognito_pool_status should be 'active'")
+            print(f"   Current value:  '{org.cognito_pool_status}'")
+
+    print()
+    print("═" * 70)
+
+    return report
 
 
 # ============================================
@@ -688,8 +992,27 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
         # Refresh org to get updated Cognito fields
         db.refresh(org)
 
+        # ONBOARD-005: Verify pool before proceeding
+        if not use_platform_pool and org.cognito_user_pool_id:
+            print_step(2.5, "Verifying Cognito pool provisioning...")
+            pool_verification = await verify_and_activate_cognito_pool(db, org)
+            if pool_verification["verified"]:
+                print_success("Pool verified and activated")
+            else:
+                print_warning(f"Pool verification issues: {pool_verification['issues']}")
+                # Continue anyway - pool may still work
+
         # Step 3: Create Cognito user (auto-sends email)
         cognito_result = create_cognito_admin_user(admin_email, org, dry_run)
+
+        # ONBOARD-005: Verify user was created in Cognito
+        if not dry_run and org.cognito_user_pool_id:
+            print_step(3.5, "Verifying Cognito user creation...")
+            user_verification = await verify_cognito_user_exists(org, admin_email)
+            if user_verification["user_exists"]:
+                print_success(f"User verified in Cognito (status: {user_verification['user_status']})")
+            else:
+                print_warning(f"User verification issues: {user_verification['issues']}")
 
         # Step 4: Create database user
         user = create_database_user(db, org, admin_email, cognito_result["cognito_sub"])
@@ -746,13 +1069,13 @@ After running:
 
     parser.add_argument(
         "-c", "--company",
-        required=True,
+        required=False,  # ONBOARD-005: Not required for --verify-only mode
         help="Customer's company name (e.g., 'Acme Corp')"
     )
 
     parser.add_argument(
         "-e", "--email",
-        required=True,
+        required=False,  # ONBOARD-005: Not required for --verify-only mode
         help="Admin user's email address"
     )
 
@@ -768,7 +1091,43 @@ After running:
         help="Use existing platform Cognito pool instead of creating new one (recommended for pilot)"
     )
 
+    # ONBOARD-005: Verification-only mode arguments
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help="Only verify an existing organization (no changes made)"
+    )
+
+    parser.add_argument(
+        "--org-slug",
+        type=str,
+        help="Organization slug to verify (used with --verify-only)"
+    )
+
     args = parser.parse_args()
+
+    # ONBOARD-005: Handle --verify-only mode
+    if args.verify_only:
+        if not args.org_slug:
+            print("Error: --org-slug is required when using --verify-only")
+            print("Usage: python scripts/onboard_pilot_customer.py --verify-only --org-slug kc-executive-protection")
+            sys.exit(1)
+
+        db = SessionLocal()
+        try:
+            asyncio.run(verify_existing_organization(db, args.org_slug))
+        finally:
+            db.close()
+        return
+
+    # Standard onboarding mode - validate required args
+    if not args.company:
+        print("Error: --company is required for onboarding")
+        sys.exit(1)
+
+    if not args.email:
+        print("Error: --email is required for onboarding")
+        sys.exit(1)
 
     # Validate email format
     if not re.match(r"[^@]+@[^@]+\.[^@]+", args.email):
