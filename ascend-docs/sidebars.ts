@@ -34,6 +34,20 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Admin Guide',
+      collapsed: false,
+      items: [
+        'admin-guide/organization-setup',
+        'admin-guide/user-management',
+        'admin-guide/api-keys',
+        'admin-guide/policy-configuration',
+        'admin-guide/threshold-tuning',
+        'admin-guide/mfa-setup',
+        'admin-guide/audit-logs',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Core Concepts',
       collapsed: false,
       items: [
