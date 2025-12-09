@@ -280,19 +280,8 @@ except Exception as jwt_validation_error:
 async def lifespan(app: FastAPI):
     # Startup
     print("🔧 Running enterprise startup checks...")
-    try:
-        db = next(get_db())
-        correct_hash = hash_password("admin123")
-        result = db.execute(text("""
-            UPDATE users 
-            SET password = :hash
-            WHERE email = 'admin@owkai.com'
-        """), {"hash": correct_hash})
-        if result.rowcount > 0:
-            db.commit()
-            print("✅ Admin password synchronized")
-    except Exception as e:
-        print(f"⚠️ Startup admin fix failed: {e}")
+    # CR-20251208-ADMIN: Removed hardcoded admin password sync
+    # Users are managed ONLY via onboard_pilot_customer.py script
 
     # Start alert monitoring background task
     import asyncio
