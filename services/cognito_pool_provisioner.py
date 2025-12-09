@@ -376,37 +376,16 @@ The Ascend Team
                 audit_details['domain_note'] = 'Domain already existed'
 
             # ============================================
-            # STEP 6: Create Initial Admin User
+            # ONBOARD-043: User creation removed from provisioner
+            # ============================================
+            # User is now created by onboard_pilot_customer.py which:
+            #   - Uses the correct role from --role argument
+            #   - Sends welcome email (no SUPPRESS)
+            #   - Ensures single point of user creation
             # ============================================
 
-            logger.info(f"👤 Creating initial admin user: {admin_email}...")
-
-            try:
-                self.cognito_client.admin_create_user(
-                    UserPoolId=user_pool_id,
-                    Username=admin_email,
-                    UserAttributes=[
-                        {'Name': 'email', 'Value': admin_email},
-                        {'Name': 'email_verified', 'Value': 'true'},
-                        {'Name': 'custom:organization_id', 'Value': str(organization_id)},
-                        {'Name': 'custom:organization_slug', 'Value': organization_slug},
-                        {'Name': 'custom:role', 'Value': 'admin'},
-                        {'Name': 'custom:is_org_admin', 'Value': 'true'}
-                    ],
-                    DesiredDeliveryMediums=['EMAIL'],
-                    MessageAction='SUPPRESS'  # Don't send email yet (testing)
-                )
-
-                logger.info(f"✅ Admin user created: {admin_email}")
-                audit_details['admin_user'] = admin_email
-
-            except self.cognito_client.exceptions.UsernameExistsException:
-                logger.warn(f"⚠️ Admin user already exists: {admin_email}")
-                audit_details['admin_user'] = admin_email
-                audit_details['admin_note'] = 'User already existed'
-
             # ============================================
-            # STEP 7: Update Database
+            # STEP 6: Update Database
             # ============================================
 
             logger.info(f"💾 Updating database with pool configuration...")
