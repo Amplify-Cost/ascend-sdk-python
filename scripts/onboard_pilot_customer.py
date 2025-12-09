@@ -674,6 +674,7 @@ async def provision_cognito_pool(db: Session, org: Organization, admin_email: st
 def create_cognito_admin_user(
     email: str,
     org: Organization,
+    role: str = "super_admin",
     dry_run: bool = False
 ) -> Dict[str, Any]:
     """
@@ -685,6 +686,7 @@ def create_cognito_admin_user(
     Args:
         email: Admin user's email
         org: Organization object
+        role: User role (super_admin, admin, analyst, viewer)
         dry_run: If True, don't actually create
 
     Returns:
@@ -717,7 +719,7 @@ def create_cognito_admin_user(
                 {"Name": "email", "Value": email},
                 {"Name": "email_verified", "Value": "true"},
                 {"Name": "custom:organization_id", "Value": str(org.id)},
-                {"Name": "custom:role", "Value": "super_admin"},
+                {"Name": "custom:role", "Value": role},  # ONBOARD-039: Use selected role
             ],
             DesiredDeliveryMediums=["EMAIL"],  # AUTO-SEND EMAIL with temp password
             ForceAliasCreation=False
@@ -771,7 +773,8 @@ def create_database_user(
     db: Session,
     org: Organization,
     admin_email: str,
-    cognito_sub: str
+    cognito_sub: str,
+    role: str = "super_admin"
 ) -> User:
     """
     Step 4: Create admin user record in database.
@@ -781,6 +784,7 @@ def create_database_user(
         org: Organization object
         admin_email: Admin user's email
         cognito_sub: Cognito username/sub
+        role: User role (super_admin, admin, analyst, viewer)
 
     Returns:
         User: Created or existing user object
@@ -802,16 +806,21 @@ def create_database_user(
             print_success(f"Linked to Cognito: {cognito_sub}")
         return existing
 
-    # Create user with Super Admin privileges
+    # ONBOARD-039: Create user with selected role
+    # Determine permissions based on role
+    is_org_admin = role in ('super_admin', 'admin')
+    approval_level = 3 if role == 'super_admin' else (2 if role == 'admin' else 1)
+    max_risk_approval = 100 if role in ('super_admin', 'admin') else 50
+
     user = User(
         email=admin_email,
         password="COGNITO_MANAGED",  # Placeholder - actual auth via Cognito
-        role="super_admin",  # ONBOARD-001b: Super Admin role
+        role=role,  # ONBOARD-039: Use selected role
         is_active=True,
         organization_id=org.id,
-        is_org_admin=True,
-        approval_level=3,  # High approval level
-        max_risk_approval=100,  # Can approve any risk level
+        is_org_admin=is_org_admin,
+        approval_level=approval_level,
+        max_risk_approval=max_risk_approval,
         force_password_change=True,
         cognito_user_id=cognito_sub
     )
@@ -821,7 +830,7 @@ def create_database_user(
     db.refresh(user)
 
     print_success(f"User created: {admin_email} (ID: {user.id})")
-    print_success(f"Role: Super Admin (full tenant access)")
+    print_success(f"Role: {role}")
     print_success(f"Organization: {org.name} (ID: {org.id})")
 
     return user
@@ -1020,7 +1029,7 @@ def print_success_summary(
 # MAIN ONBOARDING FLOW
 # ============================================
 
-async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = False, use_platform_pool: bool = False):
+async def onboard_customer(company_name: str, admin_email: str, role: str = "super_admin", dry_run: bool = False, use_platform_pool: bool = False):
     """
     Complete onboarding flow for a new pilot customer.
 
@@ -1029,12 +1038,14 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
     Args:
         company_name: Customer's company name
         admin_email: Admin user's email
+        role: User role (super_admin, admin, analyst, viewer)
         dry_run: If True, don't make actual changes
         use_platform_pool: If True, use existing platform pool instead of creating new one
     """
     print_header("Ascend Enterprise Pilot Onboarding")
     print(f"\n  Company: {company_name}")
     print(f"  Admin Email: {admin_email}")
+    print(f"  Role: {role}")
 
     if dry_run:
         print("\n  ⚠️  DRY RUN MODE - No changes will be made")
@@ -1107,7 +1118,7 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
                 # Continue anyway - pool may still work
 
         # Step 3: Create Cognito user (auto-sends email)
-        cognito_result = create_cognito_admin_user(admin_email, org, dry_run)
+        cognito_result = create_cognito_admin_user(admin_email, org, role, dry_run)
 
         # ONBOARD-005: Verify user was created in Cognito
         if not dry_run and org.cognito_user_pool_id:
@@ -1119,7 +1130,7 @@ async def onboard_customer(company_name: str, admin_email: str, dry_run: bool = 
                 print_warning(f"User verification issues: {user_verification['issues']}")
 
         # Step 4: Create database user
-        user = create_database_user(db, org, admin_email, cognito_result["cognito_sub"])
+        user = create_database_user(db, org, admin_email, cognito_result["cognito_sub"], role)
 
         # Step 5: Generate API key
         api_key_result = generate_api_key(db, org, user, dry_run)
@@ -1181,6 +1192,14 @@ After running:
         "-e", "--email",
         required=False,  # ONBOARD-005: Not required for --verify-only mode
         help="Admin user's email address"
+    )
+
+    # ONBOARD-039: Role selection for new users
+    parser.add_argument(
+        "-r", "--role",
+        choices=['super_admin', 'admin', 'analyst', 'viewer'],
+        default='super_admin',
+        help="Role for the new user (default: super_admin)"
     )
 
     parser.add_argument(
@@ -1245,6 +1264,7 @@ After running:
     asyncio.run(onboard_customer(
         company_name=args.company,
         admin_email=args.email,
+        role=args.role,  # ONBOARD-039: Pass selected role
         dry_run=args.dry_run,
         use_platform_pool=args.use_platform_pool
     ))
