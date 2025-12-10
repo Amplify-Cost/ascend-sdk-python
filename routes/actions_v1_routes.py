@@ -483,15 +483,17 @@ async def submit_action(
 
         # ====================================================================
         # STEP 5: ALERT GENERATION - High-risk action alerts
+        # SEC-110: Lowered threshold from 80 to 70 to align with HIGH risk tier
+        # Risk Tiers: LOW (0-39), MEDIUM (40-69), HIGH (70-84), CRITICAL (85+)
         # ====================================================================
         alert_triggered = False
         alert_id = None
 
-        if action.risk_score >= 80:
+        if action.risk_score >= 70:  # SEC-110: Align with HIGH risk tier (was 80)
             try:
                 alert = Alert(
                     alert_type="High Risk Agent Action",
-                    severity="critical" if action.risk_score >= 90 else "high",
+                    severity="critical" if action.risk_score >= 85 else "high",
                     message=f"{data['agent_id']}: {data['description']}",
                     agent_id=data['agent_id'],
                     agent_action_id=action.id,
@@ -506,12 +508,12 @@ async def submit_action(
                 alert_triggered = True
                 alert_id = alert.id
 
-                logger.info(f"[{correlation_id}] Step 5 complete - Alert created: ID={alert_id}")
+                logger.info(f"[{correlation_id}] Step 5 complete - Alert created: ID={alert_id} (risk={action.risk_score})")
 
             except Exception as alert_error:
                 logger.error(f"[{correlation_id}] Alert creation failed: {alert_error}")
         else:
-            logger.info(f"[{correlation_id}] Step 5 complete - No alert required (risk={action.risk_score})")
+            logger.info(f"[{correlation_id}] Step 5 complete - No alert required (risk={action.risk_score} < 70)")
 
         # ====================================================================
         # STEP 6: WORKFLOW ROUTING - Approval workflow assignment
