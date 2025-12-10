@@ -11,6 +11,7 @@ Status: Production-ready
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from datetime import datetime, UTC, timedelta
 from typing import Optional
 import hashlib
@@ -74,6 +75,11 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
         prefix = provided_key[:16]
 
         # 3. Look up key by prefix (fast index scan)
+        # SEC-RLS-001: Bootstrap RLS context for API key authentication
+        # API key lookup is a special case - we need the key to determine org_id,
+        # but RLS requires org_id. Use platform owner context (org_id=1) for lookup only.
+        db.execute(text("SET LOCAL app.current_organization_id = '1'"))
+
         api_key = db.query(ApiKey).filter(
             ApiKey.key_prefix == prefix,
             ApiKey.is_active == True
