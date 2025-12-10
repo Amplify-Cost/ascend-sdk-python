@@ -1,4 +1,7 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
+# SEC-095: Enforce AMD64 architecture for ECS Fargate compatibility
+# This prevents ARM64 images from being built on Mac M1/M2 machines
+FROM --platform=linux/amd64 python:3.11-slim
 
 WORKDIR /app
 

@@ -329,7 +329,9 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", 
 #### Build and Push Image
 ```bash
 # Build Docker image
-docker build -t owkai/backend:latest .
+# SEC-095: CRITICAL - Always specify --platform for ECS Fargate (AMD64)
+# Without this flag, Mac M1/M2 will build ARM64 images that fail on ECS
+docker build --platform linux/amd64 -t owkai/backend:latest .
 
 # Tag for ECR (replace with your ECR URI)
 docker tag owkai/backend:latest 123456789012.dkr.ecr.us-east-1.amazonaws.com/owkai/backend:latest
