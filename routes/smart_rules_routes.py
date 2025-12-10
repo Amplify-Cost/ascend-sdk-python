@@ -1292,7 +1292,7 @@ async def get_ml_rule_suggestions(
                     AND organization_id = :org_id
               )
             GROUP BY a.alert_type
-            HAVING COUNT(*) >= 10  -- Minimum 10 occurrences for pattern validity
+            HAVING COUNT(*) >= 3  -- SEC-114: Lowered for pilot phase - consider increasing to 10 for production scale
             ORDER BY occurrence_count DESC, escalation_rate DESC
             LIMIT 10
         """), {"org_id": org_id}).fetchall()
