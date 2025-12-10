@@ -47,7 +47,7 @@ class ApiKey(Base):
 
     # Cryptographic storage (NEVER stores plaintext)
     key_hash = Column(String(64), nullable=False, unique=True, index=True)  # SHA-256 hash
-    key_prefix = Column(String(20), nullable=False, index=True)  # For display: "owkai_admin_a1b2..."
+    key_prefix = Column(String(40), nullable=False, index=True)  # SEC-096: 32-char prefix for uniqueness
     salt = Column(String(32), nullable=False)  # Random salt for hashing
 
     # Key metadata

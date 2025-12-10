@@ -72,45 +72,61 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
             )
 
         # 2. Extract prefix for lookup
-        prefix = provided_key[:16]
+        # SEC-096: Increased from 16 to 32 chars to prevent collisions
+        # Role prefix "owkai_super_admin_" = 18 chars, so 32 includes 14 random chars
+        prefix = provided_key[:32]
 
         # 3. Look up key by prefix using SECURITY DEFINER function
         # SEC-RLS-002: Enterprise Zero Trust authentication bootstrap
         # Uses SECURITY DEFINER function to bypass RLS in a controlled manner
         # Function is scoped ONLY to authentication - cannot be exploited for data exfiltration
         # Compliance: SOC 2 CC6.1, PCI-DSS 7.1, HIPAA 164.312(a)(1), NIST 800-53 AC-3
-        result = db.execute(
+        results = db.execute(
             text("SELECT * FROM auth_lookup_api_key(:prefix)"),
             {"prefix": prefix}
-        ).fetchone()
+        ).fetchall()
 
-        if not result:
+        if not results:
             logger.warning(f"API key not found or inactive: {prefix}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key"
             )
 
-        # Map function result to named attributes for downstream code
-        api_key_id = result.id
-        api_key_hash = result.key_hash
-        api_key_salt = result.salt
-        api_key_user_id = result.user_id
-        api_key_org_id = result.organization_id
-        api_key_expires_at = result.expires_at
+        # SEC-RLS-003 DEBUG: Log number of candidate keys returned
+        logger.info(f"SEC-RLS-003: Found {len(results)} candidate key(s) for prefix {prefix}")
+        for i, r in enumerate(results):
+            logger.debug(f"  Candidate {i+1}: id={r.id}, org_id={r.organization_id}")
 
-        # 4. Hash provided key with stored salt
-        provided_hash = hashlib.sha256((provided_key + api_key_salt).encode()).hexdigest()
+        # 4. Find matching key by verifying hash against each candidate
+        # Multiple keys may share the same prefix (first 16 chars)
+        matched_key = None
+        for candidate in results:
+            candidate_hash = hashlib.sha256((provided_key + candidate.salt).encode()).hexdigest()
+            # 5. Constant-time comparison (prevent timing attacks)
+            if secrets.compare_digest(candidate_hash, candidate.key_hash):
+                matched_key = candidate
+                logger.info(f"SEC-RLS-003: Hash matched for key id={candidate.id}, org_id={candidate.organization_id}")
+                break
+            else:
+                logger.debug(f"SEC-RLS-003: Hash mismatch for key id={candidate.id}")
 
-        # 5. Constant-time comparison (prevent timing attacks)
-        if not secrets.compare_digest(provided_hash, api_key_hash):
-            logger.warning(f"API key hash mismatch: {prefix}")
-            # Log failed attempt
-            _log_failed_auth_attempt(db, api_key_id, "invalid_key")
+        if not matched_key:
+            logger.warning(f"API key hash mismatch: {prefix} (checked {len(results)} candidates)")
+            # Log failed attempt for first candidate (for audit trail)
+            _log_failed_auth_attempt(db, results[0].id, "invalid_key")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key"
             )
+
+        # Map matched key to named attributes for downstream code
+        api_key_id = matched_key.id
+        api_key_hash = matched_key.key_hash
+        api_key_salt = matched_key.salt
+        api_key_user_id = matched_key.user_id
+        api_key_org_id = matched_key.organization_id
+        api_key_expires_at = matched_key.expires_at
 
         # 6. Check expiration
         if api_key_expires_at and api_key_expires_at < datetime.now(UTC):

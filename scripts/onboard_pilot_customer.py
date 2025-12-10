@@ -881,8 +881,9 @@ def generate_api_key(
     key_with_salt = f"{key_value}{salt}"
     key_hash = hashlib.sha256(key_with_salt.encode()).hexdigest()
 
-    # Key prefix for display (first 16 chars)
-    key_prefix = key_value[:16]
+    # SEC-096: Key prefix for display (first 32 chars for uniqueness)
+    # 32 chars includes role prefix + 14 random chars to prevent collisions
+    key_prefix = key_value[:32]
 
     # Create API key record
     api_key = ApiKey(

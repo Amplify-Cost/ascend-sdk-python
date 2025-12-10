@@ -163,8 +163,9 @@ def generate_cryptographic_key(role: str) -> tuple[str, str, str, str]:
     role_prefix = f"owkai_{role}_"
     full_key = role_prefix + raw_key
 
-    # Extract display prefix (first 16 chars)
-    key_prefix = full_key[:16]
+    # SEC-096: Extract display prefix (first 32 chars for uniqueness)
+    # Role prefix "owkai_super_admin_" = 18 chars, so 32 includes 14 random chars
+    key_prefix = full_key[:32]
 
     # Generate salt and hash
     salt = secrets.token_hex(16)  # 32 characters
