@@ -397,3 +397,68 @@ class MCPServerConfig(Base):
 
     # Relationships
     organization = relationship("Organization", backref="mcp_server_configs")
+
+
+class ControlCommandType(str, enum.Enum):
+    """Types of agent control commands for kill-switch functionality."""
+    BLOCK = "BLOCK"              # Immediately stop all agent operations
+    UNBLOCK = "UNBLOCK"          # Resume agent operations
+    SUSPEND = "SUSPEND"          # Graceful suspension
+    RESUME = "RESUME"            # Resume from suspension
+    RATE_LIMIT = "RATE_LIMIT"    # Apply rate limiting
+    QUARANTINE = "QUARANTINE"    # Isolate for investigation
+
+
+class AgentControlCommand(Base):
+    """
+    SEC-103/104/105: Agent Control Command Audit Log
+
+    Tracks all kill-switch and control commands sent to agents via SNS/SQS.
+    Provides enterprise audit trail for compliance and forensics.
+
+    Architecture:
+    - Admin triggers command → Backend publishes to SNS
+    - SNS fans out to per-org SQS queues (filter policy)
+    - SDK agents poll SQS with long-polling (5s default)
+    - Commands acknowledged and logged
+
+    Compliance: SOC 2 CC6.2, NIST IR-4, HIPAA 164.308(a)(6)
+    """
+    __tablename__ = "agent_control_commands"
+
+    __table_args__ = (
+        Index('ix_agent_control_org', 'organization_id'),
+        Index('ix_agent_control_agent', 'agent_id'),
+        Index('ix_agent_control_command_id', 'command_id'),
+        Index('ix_agent_control_created', 'created_at'),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # Unique command identifier (UUID for SNS message deduplication)
+    command_id = Column(String(36), nullable=False, unique=True, index=True)
+
+    # Target scope
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    agent_id = Column(String(255), nullable=True)  # Null = broadcast to all org agents
+
+    # Command details
+    command_type = Column(String(50), nullable=False)  # BLOCK, UNBLOCK, SUSPEND, RESUME
+    reason = Column(Text, nullable=False)
+    parameters = Column(JSONB, default=dict)  # {"duration_seconds": 3600, "scope": "all"}
+
+    # Execution tracking
+    status = Column(String(50), default="pending", nullable=False)  # pending, delivered, acknowledged, failed
+    sns_message_id = Column(String(100), nullable=True)  # AWS SNS message ID
+    delivered_at = Column(DateTime, nullable=True)
+    acknowledged_at = Column(DateTime, nullable=True)
+    acknowledged_by_agents = Column(JSONB, default=list)  # ["agent-1", "agent-2"]
+
+    # Audit fields
+    issued_by = Column(String(255), nullable=False)  # Email of admin who issued
+    issued_via = Column(String(50), default="api", nullable=False)  # api, dashboard, automation
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    expires_at = Column(DateTime, nullable=True)  # Command expiration (for RATE_LIMIT, etc.)
+
+    # Relationships
+    organization = relationship("Organization", backref="control_commands")

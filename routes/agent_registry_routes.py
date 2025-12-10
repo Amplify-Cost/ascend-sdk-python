@@ -60,6 +60,7 @@ from database import get_db
 from dependencies import get_current_user, require_admin, get_organization_filter
 from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth
 from services.agent_registry_service import agent_registry_service
+from services.agent_control_service import agent_control_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/registry", tags=["Agent Registry"])
@@ -1601,12 +1602,15 @@ async def emergency_suspend_agent(
     org_id: int = Depends(get_organization_filter)
 ):
     """
-    SEC-068: Emergency suspension of an agent.
+    SEC-068 + SEC-103: Emergency suspension of an agent with real-time kill-switch.
 
     Immediately suspends the agent, bypassing normal workflows.
     Use for security incidents or policy violations.
 
-    Compliance: SOC 2 CC6.2, NIST IR-4
+    SEC-103 Enhancement: Also publishes BLOCK command to SNS for real-time
+    agent notification via SQS polling. Target latency: < 500ms.
+
+    Compliance: SOC 2 CC6.2, NIST IR-4, HIPAA 164.308(a)(6)
     """
     try:
         agent = agent_registry_service.get_agent(db, org_id, agent_id=agent_id)
@@ -1616,16 +1620,32 @@ async def emergency_suspend_agent(
         if agent.status == "suspended":
             raise HTTPException(status_code=400, detail="Agent is already suspended")
 
-        # Perform emergency suspension
+        # Perform emergency suspension in database
         agent_registry_service.auto_suspend_agent(
             db, agent,
             reason=f"EMERGENCY: {request.reason}",
             trigger="emergency_manual"
         )
 
+        # SEC-103: Publish BLOCK command to SNS for real-time agent notification
+        control_result = None
+        try:
+            control_result = agent_control_service.send_block_command(
+                db=db,
+                organization_id=org_id,
+                agent_id=agent_id,
+                reason=f"EMERGENCY SUSPENSION: {request.reason}",
+                issued_by=current_user.get("email", "unknown"),
+                issued_via="dashboard"
+            )
+            logger.info(f"SEC-103: BLOCK command sent for agent {agent_id}, command_id={control_result.get('command_id')}")
+        except Exception as sns_error:
+            # Log but don't fail - database suspension is the primary action
+            logger.error(f"SEC-103: Failed to send BLOCK command to SNS (non-fatal): {sns_error}")
+
         logger.warning(f"SEC-068 EMERGENCY: Agent {agent_id} suspended by {current_user.get('email')}: {request.reason}")
 
-        return {
+        response = {
             "success": True,
             "agent_id": agent_id,
             "status": "suspended",
@@ -1633,8 +1653,19 @@ async def emergency_suspend_agent(
             "suspended_by": current_user.get("email"),
             "suspended_at": datetime.utcnow().isoformat(),
             "alert": "EMERGENCY SUSPENSION - All stakeholders notified",
-            "compliance": "SEC-068 / SOC 2 CC6.2 / NIST IR-4"
+            "compliance": "SEC-068 / SEC-103 / SOC 2 CC6.2 / NIST IR-4"
         }
+
+        # Include kill-switch details if SNS publish succeeded
+        if control_result:
+            response["kill_switch"] = {
+                "command_id": control_result.get("command_id"),
+                "sns_message_id": control_result.get("sns_message_id"),
+                "status": "delivered",
+                "note": "BLOCK command sent to agent via SNS/SQS"
+            }
+
+        return response
 
     except HTTPException:
         raise
