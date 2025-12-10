@@ -181,6 +181,11 @@ class Alert(Base):
     is_true_positive = Column(Boolean, nullable=True)  # NULL = not yet determined
     is_false_positive = Column(Boolean, default=False)
 
+    # SEC-110: Auto-resolution tracking for analytics
+    auto_resolved = Column(Boolean, default=False, nullable=False)  # Was alert auto-resolved by system
+    auto_resolved_at = Column(DateTime(timezone=True), nullable=True)  # When auto-resolved
+    auto_resolved_reason = Column(String(255), nullable=True)  # Reason for auto-resolution
+
 class Log(Base):
     __tablename__ = "logs"
 
