@@ -3,12 +3,13 @@
 ## Table of Contents
 1. [Base URLs & Environment](#base-urls--environment)
 2. [Authentication](#authentication)
-3. [Authorization Center APIs](#authorization-center-apis)
-4. [Alert Management APIs](#alert-management-apis)
-5. [Smart Rules Engine APIs](#smart-rules-engine-apis)
-6. [Enterprise User Management APIs](#enterprise-user-management-apis)
-7. [Error Handling](#error-handling)
-8. [Rate Limiting](#rate-limiting)
+3. [Actions API v1 (SDK)](#actions-api-v1-sdk)
+4. [Authorization Center APIs](#authorization-center-apis)
+5. [Alert Management APIs](#alert-management-apis)
+6. [Smart Rules Engine APIs](#smart-rules-engine-apis)
+7. [Enterprise User Management APIs](#enterprise-user-management-apis)
+8. [Error Handling](#error-handling)
+9. [Rate Limiting](#rate-limiting)
 
 ## Base URLs & Environment
 
@@ -139,6 +140,118 @@ curl -X GET https://pilot.owkai.app/auth/me \
   "cleared_tokens": true
 }
 ```
+
+---
+
+## Actions API v1 (SDK)
+
+The Actions API v1 provides SDK integration endpoints for submitting actions to the governance pipeline. These endpoints use API key authentication instead of JWT tokens.
+
+### Authentication
+
+SDK endpoints use the `X-API-Key` header for authentication:
+
+```bash
+X-API-Key: owkai_xxx_your_api_key_here
+```
+
+### POST /api/v1/actions/submit
+
+**Description:** Submit an action for governance evaluation through the complete pipeline.
+
+**Authentication:** API Key (X-API-Key header)
+
+**Request Body:**
+```json
+{
+  "action_type": "s3.delete_bucket",
+  "tool_name": "aws_s3",
+  "description": "Delete production backup bucket",
+  "parameters": {
+    "Bucket": "production-backups-2024"
+  },
+  "agent_id": "boto3-agent-abc123"
+}
+```
+
+**Response 200 (Success):**
+```json
+{
+  "id": 923,
+  "action_id": 923,
+  "status": "pending_approval",
+  "risk_score": 71.0,
+  "risk_level": "high",
+  "alert_triggered": true,
+  "alert_id": 717,
+  "requires_approval": true,
+  "message": "Action processed through complete governance pipeline"
+}
+```
+
+**Example:**
+```bash
+curl -X POST "https://pilot.owkai.app/api/v1/actions/submit" \
+  -H "X-API-Key: owkai_admin_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"action_type": "s3.delete_bucket", "tool_name": "aws_s3", "description": "Delete bucket"}'
+```
+
+### GET /api/v1/actions
+
+**Description:** List actions for the authenticated organization.
+
+**Authentication:** API Key (X-API-Key header)
+
+**Query Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| status | string | all | Filter: `pending_approval`, `approved`, `denied` |
+| limit | integer | 50 | Maximum results (1-100) |
+
+**Response 200:**
+```json
+{
+  "actions": [
+    {
+      "id": 923,
+      "action_type": "s3.delete_bucket",
+      "status": "pending_approval",
+      "risk_score": 85.0,
+      "created_at": "2025-12-10T15:30:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+### GET /api/v1/actions/{id}/status
+
+**Description:** Poll action status (optimized for SDK polling).
+
+**Authentication:** API Key (X-API-Key header)
+
+**Response 200:**
+```json
+{
+  "id": 923,
+  "status": "approved",
+  "risk_score": 71.0,
+  "approved_by": "admin@company.com",
+  "approved_at": "2025-12-10T15:35:00Z"
+}
+```
+
+### Risk Score Thresholds
+
+| Risk Score | Risk Level | Alert Generated |
+|------------|------------|-----------------|
+| 0-29 | Low | No |
+| 30-69 | Medium | No |
+| 70-84 | High | **Yes** |
+| 85-100 | Critical | **Yes** |
+
+**Note:** Actions with `risk_score >= 70` automatically trigger alerts in the Alert Management system.
 
 ---
 
