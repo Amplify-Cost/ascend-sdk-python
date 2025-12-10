@@ -74,47 +74,61 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
         # 2. Extract prefix for lookup
         prefix = provided_key[:16]
 
-        # 3. Look up key by prefix (fast index scan)
-        # SEC-RLS-001: Bootstrap RLS context for API key authentication
-        # API key lookup is a special case - we need the key to determine org_id,
-        # but RLS requires org_id. Use platform owner context (org_id=1) for lookup only.
-        db.execute(text("SET LOCAL app.current_organization_id = '1'"))
+        # 3. Look up key by prefix using SECURITY DEFINER function
+        # SEC-RLS-002: Enterprise Zero Trust authentication bootstrap
+        # Uses SECURITY DEFINER function to bypass RLS in a controlled manner
+        # Function is scoped ONLY to authentication - cannot be exploited for data exfiltration
+        # Compliance: SOC 2 CC6.1, PCI-DSS 7.1, HIPAA 164.312(a)(1), NIST 800-53 AC-3
+        result = db.execute(
+            text("SELECT * FROM auth_lookup_api_key(:prefix)"),
+            {"prefix": prefix}
+        ).fetchone()
 
-        api_key = db.query(ApiKey).filter(
-            ApiKey.key_prefix == prefix,
-            ApiKey.is_active == True
-        ).first()
-
-        if not api_key:
+        if not result:
             logger.warning(f"API key not found or inactive: {prefix}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key"
             )
 
+        # Map function result to named attributes for downstream code
+        api_key_id = result.id
+        api_key_hash = result.key_hash
+        api_key_salt = result.salt
+        api_key_user_id = result.user_id
+        api_key_org_id = result.organization_id
+        api_key_expires_at = result.expires_at
+
         # 4. Hash provided key with stored salt
-        provided_hash = hashlib.sha256((provided_key + api_key.salt).encode()).hexdigest()
+        provided_hash = hashlib.sha256((provided_key + api_key_salt).encode()).hexdigest()
 
         # 5. Constant-time comparison (prevent timing attacks)
-        if not secrets.compare_digest(provided_hash, api_key.key_hash):
+        if not secrets.compare_digest(provided_hash, api_key_hash):
             logger.warning(f"API key hash mismatch: {prefix}")
             # Log failed attempt
-            _log_failed_auth_attempt(db, api_key.id, "invalid_key")
+            _log_failed_auth_attempt(db, api_key_id, "invalid_key")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key"
             )
 
         # 6. Check expiration
-        if api_key.expires_at and api_key.expires_at < datetime.now(UTC):
+        if api_key_expires_at and api_key_expires_at < datetime.now(UTC):
             logger.warning(f"API key expired: {prefix}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="API key expired"
             )
 
-        # 7. Check rate limit
-        rate_limit_ok, retry_after = await check_rate_limit(api_key.id, db)
+        # SEC-RLS-002: Set RLS context with ACTUAL authenticated org_id
+        # All subsequent queries in this transaction will be tenant-isolated
+        db.execute(
+            text("SET LOCAL app.current_organization_id = :org_id"),
+            {"org_id": str(api_key_org_id)}
+        )
+
+        # 7. Check rate limit (now with correct RLS context)
+        rate_limit_ok, retry_after = await check_rate_limit(api_key_id, db)
         if not rate_limit_ok:
             logger.warning(f"Rate limit exceeded for API key: {prefix}")
             raise HTTPException(
@@ -124,12 +138,15 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
             )
 
         # 8. Update usage tracking
-        api_key.last_used_at = datetime.now(UTC)
-        api_key.usage_count += 1
-        db.commit()
+        # Need to fetch the actual ApiKey object for ORM update
+        api_key = db.query(ApiKey).filter(ApiKey.id == api_key_id).first()
+        if api_key:
+            api_key.last_used_at = datetime.now(UTC)
+            api_key.usage_count += 1
+            db.commit()
 
-        # 9. Load user
-        user = db.query(User).filter(User.id == api_key.user_id).first()
+        # 9. Load user (now with correct RLS context)
+        user = db.query(User).filter(User.id == api_key_user_id).first()
         if not user:
             logger.error(f"User not found for API key: {prefix}")
             raise HTTPException(
@@ -138,7 +155,8 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
             )
 
         # SEC-020: Include organization_id for multi-tenant data isolation
-        organization_id = user.organization_id if hasattr(user, 'organization_id') else api_key.organization_id
+        # SEC-RLS-002: Use org_id from authenticated API key (already verified)
+        organization_id = user.organization_id if hasattr(user, 'organization_id') else api_key_org_id
         logger.info(f"✅ API key authenticated: {prefix} (user: {user.email}, org_id={organization_id})")
 
         # 10. Return user context with organization_id for tenant isolation
@@ -147,7 +165,7 @@ async def verify_api_key(provided_key: str, db: Session) -> dict:
             "email": user.email,
             "role": user.role,
             "organization_id": organization_id,  # SEC-020: CRITICAL for multi-tenant isolation
-            "api_key_id": api_key.id,
+            "api_key_id": api_key_id,
             "api_key_prefix": prefix,
             "auth_method": "api_key"
         }
