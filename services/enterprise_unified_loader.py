@@ -28,10 +28,17 @@ class EnterpriseUnifiedLoader:
     Merges agent_actions + mcp_server_actions into single queue
     """
 
-    def load_all_pending_actions(self, db: Session) -> Dict:
+    def load_all_pending_actions(self, db: Session, org_id: int) -> Dict:
         """
-        Load ALL pending actions from both tables
-        Returns unified, sorted list with common schema
+        Load ALL pending actions from both tables for a specific organization.
+        Returns unified, sorted list with common schema.
+
+        SEC-110: Added org_id parameter for multi-tenant isolation.
+        Compliance: SOC 2 CC6.1, HIPAA §164.312(a)(1), NIST 800-53 AC-3
+
+        Args:
+            db: Database session
+            org_id: Organization ID for multi-tenant filtering (REQUIRED)
 
         Returns:
             {
@@ -49,12 +56,14 @@ class EnterpriseUnifiedLoader:
         """
 
         # Query 1: Agent Actions (ENTERPRISE: Handle NULL status + multiple status fields)
+        # SEC-110: Added organization_id filter for multi-tenant isolation
         try:
             from sqlalchemy import or_, and_
 
             # 🏢 ENTERPRISE FIX: Query using status field for pending actions
             # Handles: status='pending_stage_1/2/3', status='pending', status='pending_approval', workflow-based approvals
             agent_actions = db.query(AgentAction).filter(
+                AgentAction.organization_id == org_id,  # SEC-110: Multi-tenant isolation
                 or_(
                     # Workflow stage statuses (pending_stage_1, pending_stage_2, pending_stage_3)
                     AgentAction.status.like("pending%"),
@@ -67,20 +76,21 @@ class EnterpriseUnifiedLoader:
                     )
                 )
             ).all()
-            logger.info(f"✅ ENTERPRISE: Loaded {len(agent_actions)} agent actions (handles NULL status + multiple fields)")
+            logger.info(f"✅ SEC-110: Loaded {len(agent_actions)} agent actions for org_id={org_id}")
         except Exception as e:
-            logger.error(f"Failed to query agent_actions: {e}")
+            logger.error(f"Failed to query agent_actions for org_id={org_id}: {e}")
             agent_actions = []
 
         # Query 2: MCP Server Actions (status = 'pending'/'PENDING' or 'evaluate'/'EVALUATE')
-        # 🏢 ENTERPRISE FIX: Handle both uppercase and lowercase status values
+        # SEC-110: Added organization_id filter for multi-tenant isolation
         try:
             mcp_actions = db.query(MCPServerAction).filter(
+                MCPServerAction.organization_id == org_id,  # SEC-110: Multi-tenant isolation
                 MCPServerAction.status.in_(["PENDING", "EVALUATE", "pending", "evaluate"])
             ).all()
-            logger.info(f"Loaded {len(mcp_actions)} MCP actions with status=pending/PENDING/evaluate/EVALUATE")
+            logger.info(f"✅ SEC-110: Loaded {len(mcp_actions)} MCP actions for org_id={org_id}")
         except Exception as e:
-            logger.error(f"Failed to query mcp_server_actions: {e}")
+            logger.error(f"Failed to query mcp_server_actions for org_id={org_id}: {e}")
             mcp_actions = []
 
         # Transform both to unified schema
@@ -108,7 +118,7 @@ class EnterpriseUnifiedLoader:
         # Calculate counts
         high_risk_count = len([a for a in unified_actions if a.get("risk_score", 0) >= 70])
 
-        logger.info(f"✅ Unified {len(unified_actions)} total actions (agent={len(agent_actions)}, MCP={len(mcp_actions)}, high_risk={high_risk_count})")
+        logger.info(f"✅ SEC-110: Unified {len(unified_actions)} total actions for org_id={org_id} (agent={len(agent_actions)}, MCP={len(mcp_actions)}, high_risk={high_risk_count})")
 
         return {
             "success": True,
