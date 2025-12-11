@@ -1,8 +1,14 @@
-# OW-AI Enterprise Action Blocking Architecture
+---
+Document ID: ASCEND-BLOCK-001
+Version: 1.0.0
+Author: Ascend Engineering Team
+Publisher: OW-kai Technologies Inc.
+Classification: Enterprise Client Documentation
+Last Updated: December 2025
+Compliance: SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4
+---
 
-**Document Version:** 1.0
-**Classification:** INTERNAL - ENGINEERING
-**Last Updated:** 2025-01-15
+# OW-AI Enterprise Action Blocking Architecture
 **Author:** OW-AI Enterprise Engineering
 
 ---
