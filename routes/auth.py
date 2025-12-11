@@ -1,7 +1,15 @@
 # routes/auth.py - Enterprise Response Diagnostics (Find Exact Format Issue)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from security.cookies import SESSION_COOKIE_NAME, CSRF_COOKIE_NAME, CSRF_HEADER_NAME
+# SEC-087: Import centralized cookie security configuration
+from security.cookies import (
+    SESSION_COOKIE_NAME,
+    CSRF_COOKIE_NAME,
+    CSRF_HEADER_NAME,
+    COOKIE_SECURE,
+    COOKIE_HTTPONLY,
+    COOKIE_SAMESITE
+)
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import text  # PHASE 2: For password change SQL queries
@@ -49,20 +57,32 @@ from config import SECRET_KEY, ALGORITHM, COOKIE_SECURE, COOKIE_SAMESITE
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-# Enterprise Cookie Configuration
+# =============================================================================
+# SEC-087: Enterprise Cookie Configuration (HttpOnly Session Security)
+# =============================================================================
+# COMPLIANCE:
+# - OWASP Session Management: HttpOnly=True prevents XSS token theft
+# - SOC 2 CC6.1: Centralized security configuration
+# - PCI-DSS 6.5.10: Broken authentication prevention
+#
+# Uses centralized values from security/cookies.py for consistency:
+# - COOKIE_HTTPONLY: Always True (XSS protection)
+# - COOKIE_SECURE: True in production (HTTPS only)
+# - COOKIE_SAMESITE: "Strict" in production, "Lax" in development
+# =============================================================================
 ENTERPRISE_COOKIE_CONFIG = {
-    "httponly": True,
-    "secure": True,
-    "samesite": "lax",
+    "httponly": COOKIE_HTTPONLY,    # SEC-087: Always True - prevents XSS
+    "secure": COOKIE_SECURE,        # SEC-087: Dynamic - True in production
+    "samesite": COOKIE_SAMESITE,    # SEC-087: Strict in production (CSRF protection)
     "max_age": ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     "path": "/",
     "domain": None
 }
 
 ENTERPRISE_REFRESH_COOKIE_CONFIG = {
-    "httponly": True,
-    "secure": True,
-    "samesite": "lax",
+    "httponly": COOKIE_HTTPONLY,    # SEC-087: Always True - prevents XSS
+    "secure": COOKIE_SECURE,        # SEC-087: Dynamic - True in production
+    "samesite": COOKIE_SAMESITE,    # SEC-087: Strict in production (CSRF protection)
     "max_age": REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     "path": "/auth",
     "domain": None

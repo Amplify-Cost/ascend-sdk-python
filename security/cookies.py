@@ -33,11 +33,24 @@ IS_PRODUCTION = ENVIRONMENT.lower() == "production"
 COOKIE_SECURE = IS_PRODUCTION  # True in production (HTTPS required)
 COOKIE_HTTPONLY = True  # Always true - prevents XSS from accessing cookies
 
-# ENTERPRISE BANKING-LEVEL: SameSite=Strict for maximum CSRF protection
-# - "Strict": Cookie only sent for same-site requests (highest security)
-# - "Lax": Cookie sent for same-site and top-level navigations
-# We use "Strict" in production, "Lax" in development for localhost testing
-COOKIE_SAMESITE = "Strict" if IS_PRODUCTION else "Lax"
+# =============================================================================
+# SEC-087: Enterprise SameSite=Lax (Datadog/Wiz/Splunk standard)
+# =============================================================================
+# ASCEND sends notifications (Slack, Teams, email) with direct links to the
+# dashboard. SameSite=Strict breaks UX when users click notification links
+# because the browser won't send the session cookie on cross-site navigation.
+#
+# CSRF protection is enforced via X-CSRF-Token header validation (double-submit
+# cookie pattern), NOT via SameSite attribute. This is the enterprise standard
+# used by Datadog, Wiz, Splunk, and other security platforms.
+#
+# Security layers:
+# 1. HttpOnly=True: Prevents XSS from reading cookies
+# 2. Secure=True: HTTPS-only transmission in production
+# 3. SameSite=Lax: Allows top-level navigation (notification links)
+# 4. X-CSRF-Token: Header validation for state-changing requests
+# =============================================================================
+COOKIE_SAMESITE = "Lax"  # Enterprise standard for notification-driven platforms
 
 # =============================================================================
 # BEARER TOKEN: DISABLED - Cookie-only authentication

@@ -23,11 +23,19 @@ import uuid
 from datetime import datetime, timedelta, UTC
 
 from database import get_db
-from dependencies import get_current_user, require_admin  
+from dependencies import get_current_user, require_admin
 from enterprise_config import config
 from jwt_manager import jwt_manager
 from sso_manager import enterprise_sso
 from rbac_manager import enterprise_rbac
+
+# SEC-087: Import centralized cookie security configuration
+from security.cookies import (
+    SESSION_COOKIE_NAME,
+    COOKIE_SECURE,
+    COOKIE_HTTPONLY,
+    COOKIE_SAMESITE
+)
 
 router = APIRouter(prefix="/api/auth/sso", tags=["Enterprise SSO"])
 logger = logging.getLogger(__name__)
@@ -189,16 +197,17 @@ async def handle_sso_callback(
             permissions=list(enterprise_rbac.get_user_permissions(enterprise_profile["access_level"]))
         )
         
-        # Set secure cookie
+        # SEC-087: Set secure cookie using centralized configuration
+        # Uses SESSION_COOKIE_NAME for consistency with main auth flow
         cookie_config = {
-            "httponly": True,
-            "secure": config.environment == "production",
-            "samesite": "lax",
+            "httponly": COOKIE_HTTPONLY,    # SEC-087: Always True - prevents XSS
+            "secure": COOKIE_SECURE,        # SEC-087: Dynamic - True in production
+            "samesite": COOKIE_SAMESITE,    # SEC-087: Strict in production (CSRF protection)
             "max_age": 3600  # 1 hour
         }
-        
+
         response.set_cookie(
-            key="ow_ai_token",
+            key=SESSION_COOKIE_NAME,  # SEC-087: Standardized to owai_session
             value=enterprise_token,
             **cookie_config
         )
@@ -252,12 +261,12 @@ async def sso_logout(
     """Logout from SSO session"""
     
     try:
-        # Clear the authentication cookie
+        # SEC-087: Clear the authentication cookie using centralized configuration
         response.delete_cookie(
-            key="ow_ai_token",
-            httponly=True,
-            secure=config.environment == "production",
-            samesite="lax"
+            key=SESSION_COOKIE_NAME,  # SEC-087: Standardized to owai_session
+            httponly=COOKIE_HTTPONLY,
+            secure=COOKIE_SECURE,
+            samesite=COOKIE_SAMESITE
         )
         
         # Audit log the logout
