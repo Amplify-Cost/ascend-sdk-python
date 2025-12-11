@@ -61,6 +61,9 @@ from dependencies import get_current_user, require_admin, get_organization_filte
 from dependencies_api_keys import get_current_user_or_api_key, get_organization_filter_dual_auth
 from services.agent_registry_service import agent_registry_service
 from services.agent_control_service import agent_control_service
+from services.notification_service import NotificationService
+from models_notifications import NotificationEventType, NotificationPriority
+import asyncio
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/registry", tags=["Agent Registry"])
@@ -1645,6 +1648,44 @@ async def emergency_suspend_agent(
 
         logger.warning(f"SEC-068 EMERGENCY: Agent {agent_id} suspended by {current_user.get('email')}: {request.reason}")
 
+        # SEC-107: Fire-and-forget notification dispatch (async, non-blocking)
+        # Only dispatch AFTER SNS publish succeeds to avoid notification without actual block
+        if control_result:
+            try:
+                async def send_agent_blocked_notification():
+                    """Async fire-and-forget notification - does not block kill-switch."""
+                    try:
+                        notification_service = NotificationService()
+                        await notification_service.send_notification(
+                            organization_id=org_id,
+                            event_type=NotificationEventType.AGENT_BLOCKED,
+                            title=f"🛑 AGENT BLOCKED: {agent_id}",
+                            message=f"Agent '{agent.display_name}' has been blocked via emergency kill-switch.\n\n"
+                                    f"**Reason:** {request.reason}\n"
+                                    f"**Blocked by:** {current_user.get('email')}\n"
+                                    f"**Command ID:** {control_result.get('command_id')}",
+                            priority=NotificationPriority.URGENT,
+                            metadata={
+                                "agent_id": agent_id,
+                                "agent_display_name": agent.display_name,
+                                "command_id": control_result.get("command_id"),
+                                "sns_message_id": control_result.get("sns_message_id"),
+                                "blocked_by": current_user.get("email"),
+                                "reason": request.reason
+                            },
+                            related_entity_type="agent",
+                            related_entity_id=agent.id
+                        )
+                        logger.info(f"SEC-107: AGENT_BLOCKED notification sent for {agent_id}")
+                    except Exception as notif_err:
+                        # Log but never fail - notifications are fire-and-forget
+                        logger.error(f"SEC-107: Notification dispatch failed (non-fatal): {notif_err}")
+
+                # Fire-and-forget: create_task schedules without awaiting
+                asyncio.create_task(send_agent_blocked_notification())
+            except Exception as task_error:
+                logger.error(f"SEC-107: Failed to schedule notification task (non-fatal): {task_error}")
+
         response = {
             "success": True,
             "agent_id": agent_id,
@@ -1653,7 +1694,7 @@ async def emergency_suspend_agent(
             "suspended_by": current_user.get("email"),
             "suspended_at": datetime.utcnow().isoformat(),
             "alert": "EMERGENCY SUSPENSION - All stakeholders notified",
-            "compliance": "SEC-068 / SEC-103 / SOC 2 CC6.2 / NIST IR-4"
+            "compliance": "SEC-068 / SEC-103 / SEC-107 / SOC 2 CC6.2 / NIST IR-4"
         }
 
         # Include kill-switch details if SNS publish succeeded
@@ -1663,6 +1704,11 @@ async def emergency_suspend_agent(
                 "sns_message_id": control_result.get("sns_message_id"),
                 "status": "delivered",
                 "note": "BLOCK command sent to agent via SNS/SQS"
+            }
+            response["notifications"] = {
+                "status": "dispatched",
+                "event_type": "agent.blocked",
+                "note": "SEC-107: Async notification sent to subscribed channels"
             }
 
         return response

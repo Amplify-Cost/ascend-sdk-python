@@ -95,6 +95,12 @@ class NotificationEventType(str, Enum):
     RISK_THRESHOLD_EXCEEDED = "risk.threshold_exceeded"
     RISK_CRITICAL_ACTION = "risk.critical_action"
 
+    # Agent control events (SEC-106)
+    AGENT_BLOCKED = "agent.blocked"
+    AGENT_UNBLOCKED = "agent.unblocked"
+    AGENT_SUSPENDED = "agent.suspended"
+    AGENT_QUARANTINED = "agent.quarantined"
+
 
 # ============================================
 # SQLAlchemy Models
@@ -575,6 +581,32 @@ EVENT_TYPE_CONFIG = {
         "color": "#ffc107",
         "icon": ":hand:",
         "teams_theme_color": "FFFF00"
+    },
+
+    # Agent control events (SEC-106) - Always URGENT
+    NotificationEventType.AGENT_BLOCKED: {
+        "priority": NotificationPriority.URGENT,
+        "color": "#dc3545",  # Red
+        "icon": ":octagonal_sign:",
+        "teams_theme_color": "FF0000"
+    },
+    NotificationEventType.AGENT_UNBLOCKED: {
+        "priority": NotificationPriority.HIGH,
+        "color": "#28a745",  # Green
+        "icon": ":white_check_mark:",
+        "teams_theme_color": "00FF00"
+    },
+    NotificationEventType.AGENT_SUSPENDED: {
+        "priority": NotificationPriority.URGENT,
+        "color": "#dc3545",  # Red
+        "icon": ":pause_button:",
+        "teams_theme_color": "FF0000"
+    },
+    NotificationEventType.AGENT_QUARANTINED: {
+        "priority": NotificationPriority.URGENT,
+        "color": "#dc3545",  # Red
+        "icon": ":biohazard:",
+        "teams_theme_color": "FF0000"
     },
 }
 
