@@ -1,8 +1,8 @@
 # ASCEND SDK Integration Guide
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 **Classification:** INTERNAL - ENGINEERING
-**Last Updated:** 2025-12-10
+**Last Updated:** 2025-12-11
 **Author:** ASCEND Engineering Team
 
 ---
@@ -15,8 +15,11 @@
 4. [Risk Scoring & Thresholds](#risk-scoring--thresholds)
 5. [AI Rule Manager Integration](#ai-rule-manager-integration)
 6. [Boto3 Governance Wrapper](#boto3-governance-wrapper)
-7. [Error Handling](#error-handling)
-8. [Troubleshooting](#troubleshooting)
+7. [Real-Time Kill-Switch (SEC-103)](#real-time-kill-switch-sec-103)
+8. [Agent Control Notifications (SEC-106/107)](#agent-control-notifications-sec-106107)
+9. [Agent Suspension API (SEC-115)](#agent-suspension-api-sec-115)
+10. [Error Handling](#error-handling)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -335,6 +338,300 @@ The wrapper classifies AWS operations by risk:
 | `put_*`, `create_*` | Medium | 45-69 |
 | `delete_*`, `terminate_*` | High | 70-84 |
 | `delete_bucket`, `delete_stack` | Critical | 85-100 |
+
+---
+
+## Real-Time Kill-Switch (SEC-103)
+
+The ASCEND SDK includes real-time kill-switch capability via SNS/SQS messaging. This allows administrators to immediately block agent operations when security incidents occur.
+
+### Architecture Overview
+
+```
+┌─────────────────┐    ┌─────────────────────────┐    ┌─────────────────────┐
+│ Admin Dashboard │───▶│ SNS Topic               │───▶│ SQS Queue           │
+│ Emergency Stop  │    │ ascend-agent-control    │    │ org-{id} specific   │
+└─────────────────┘    └─────────────────────────┘    └─────────────────────┘
+                                                              │
+                                                              ▼
+                                                      ┌─────────────────────┐
+                                                      │ SDK Agent           │
+                                                      │ AgentControlClient  │
+                                                      │ Polls every 5s      │
+                                                      └─────────────────────┘
+```
+
+**Latency:** < 1 second from command issue to agent stop
+
+### AgentControlClient Usage
+
+```python
+from ascend_boto3.control import AgentControlClient, create_control_client
+
+# Create control client for your organization
+control = create_control_client(
+    organization_id=34,           # Your org ID
+    agent_id="my-boto3-agent",    # Unique agent identifier
+    region="us-east-2"
+)
+
+# Start background polling (non-blocking)
+control.start_polling()
+
+# Check if agent is blocked before operations
+if control.is_blocked:
+    print(f"Agent blocked: {control.block_reason}")
+    # Handle graceful shutdown
+else:
+    # Proceed with normal operations
+    pass
+
+# Alternative: Raise exception if blocked
+control.assert_not_blocked()  # Raises RuntimeError if blocked
+
+# Stop polling on shutdown
+control.stop_polling()
+```
+
+### Command Types
+
+| Command | Description | Effect |
+|---------|-------------|--------|
+| `BLOCK` | Immediately stop agent | Sets `is_blocked=True` |
+| `UNBLOCK` | Resume agent operations | Sets `is_blocked=False` |
+| `SUSPEND` | Temporary pause | Treated as BLOCK |
+| `QUARANTINE` | Security isolation | Treated as BLOCK |
+| `RESUME` | Resume from suspend | Treated as UNBLOCK |
+
+### Callbacks for Custom Handling
+
+```python
+def on_blocked(command):
+    """Called when BLOCK command received."""
+    print(f"Agent blocked! Reason: {command.get('reason')}")
+    # Gracefully stop current operations
+    # Save state if needed
+
+def on_unblocked(command):
+    """Called when UNBLOCK command received."""
+    print(f"Agent unblocked! Resuming operations...")
+
+control = create_control_client(
+    organization_id=34,
+    agent_id="my-agent",
+    on_block=on_blocked,
+    on_unblock=on_unblocked
+)
+```
+
+### Integration with Governance Wrapper
+
+```python
+from ascend_boto3 import enable_governance
+from ascend_boto3.control import create_control_client
+
+# Enable governance
+enable_governance(api_key="owkai_admin_xxx")
+
+# Enable kill-switch polling
+control = create_control_client(organization_id=34, agent_id="my-agent")
+control.start_polling()
+
+# Before each operation, check block status
+def safe_operation(func, *args, **kwargs):
+    control.assert_not_blocked()  # Raises if blocked
+    return func(*args, **kwargs)
+
+# Use in your agent
+s3 = boto3.client('s3')
+safe_operation(s3.delete_bucket, Bucket='my-bucket')
+```
+
+### Compliance
+
+| Standard | Control | Implementation |
+|----------|---------|----------------|
+| SOC 2 CC6.2 | Access Revocation | Real-time BLOCK via SNS |
+| NIST IR-4 | Incident Handling | Emergency suspension capability |
+| HIPAA 164.308(a)(6) | Security Procedures | Immediate response to incidents |
+
+---
+
+## Agent Control Notifications (SEC-106/107)
+
+When kill-switch commands are issued, notifications are automatically sent to configured channels.
+
+### Agent Control Event Types
+
+| Event Type | Priority | Description |
+|------------|----------|-------------|
+| `agent.blocked` | URGENT | Agent blocked via kill-switch |
+| `agent.unblocked` | HIGH | Agent unblocked and resumed |
+| `agent.suspended` | URGENT | Agent suspended (temporary) |
+| `agent.quarantined` | URGENT | Agent isolated for security |
+
+### Notification Channels
+
+| Channel | Configuration | Delivery |
+|---------|--------------|----------|
+| Slack | Webhook URL in dashboard | Real-time |
+| Microsoft Teams | Webhook URL in dashboard | Real-time |
+| Webhook | Custom HTTP endpoint | Real-time |
+| Email | User email settings | Near real-time |
+
+### Notification Message Format
+
+**Slack/Teams Example:**
+```
+🛑 AGENT BLOCKED: boto3-agent-001
+
+Agent 'Production Data Agent' has been blocked via emergency kill-switch.
+
+**Reason:** Suspicious activity detected
+**Blocked by:** admin@company.com
+**Command ID:** cmd-abc-123-def
+
+Compliance: SOC 2 CC6.2 | NIST IR-4
+```
+
+### Subscribe to Agent Events
+
+Configure notification preferences in the ASCEND Dashboard:
+
+1. Navigate to **Settings** → **Notifications**
+2. Select channels (Slack, Teams, Webhook)
+3. Enable **Agent Control Events** category
+4. Choose priority threshold (Recommended: HIGH and above)
+
+### Webhook Payload
+
+```json
+{
+  "event_type": "agent.blocked",
+  "priority": "urgent",
+  "timestamp": "2025-12-11T01:30:00Z",
+  "data": {
+    "agent_id": "boto3-agent-001",
+    "agent_display_name": "Production Data Agent",
+    "command_id": "cmd-abc-123-def",
+    "reason": "Suspicious activity detected",
+    "blocked_by": "admin@company.com",
+    "organization_id": 34
+  }
+}
+```
+
+---
+
+## Agent Suspension API (SEC-115)
+
+ASCEND provides two levels of agent suspension with different severity and effects.
+
+### Two-Tier Suspension Architecture
+
+| Endpoint | Type | SNS | Notifications | Use Case |
+|----------|------|-----|---------------|----------|
+| `/suspend` | Soft Pause | ❌ No | ❌ No | Routine maintenance, temporary pause |
+| `/emergency-suspend` | Kill-Switch | ✅ Yes | ✅ Yes | Security incidents, policy violations |
+
+### POST /api/registry/agents/{id}/suspend
+
+**Description:** Soft suspension - updates database status only.
+
+**Request:**
+```bash
+curl -X POST "https://pilot.owkai.app/api/registry/agents/my-agent-001/suspend?reason=Routine+maintenance" \
+  -H "Authorization: Bearer <JWT_TOKEN>"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Agent suspended: my-agent-001",
+  "agent": {
+    "id": 42,
+    "agent_id": "my-agent-001",
+    "status": "suspended"
+  },
+  "reason": "Routine maintenance"
+}
+```
+
+### POST /api/registry/agents/{id}/emergency-suspend
+
+**Description:** Emergency kill-switch - suspends agent AND publishes BLOCK command via SNS.
+
+**Request:**
+```bash
+curl -X POST "https://pilot.owkai.app/api/registry/agents/my-agent-001/emergency-suspend" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reason": "Suspicious activity detected - immediate termination required"
+  }'
+```
+
+**Request Body:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `reason` | string | Yes | Explanation for emergency suspension (min 10 chars) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "agent_id": "my-agent-001",
+  "status": "suspended",
+  "reason": "Suspicious activity detected - immediate termination required",
+  "suspended_by": "admin@company.com",
+  "suspended_at": "2025-12-11T01:30:00Z",
+  "alert": "EMERGENCY SUSPENSION - All stakeholders notified",
+  "compliance": "SEC-068 / SEC-103 / SEC-107 / SOC 2 CC6.2 / NIST IR-4",
+  "kill_switch": {
+    "command_id": "cmd-abc-123-def",
+    "sns_message_id": "msg-xyz-789",
+    "status": "delivered",
+    "note": "BLOCK command sent to agent via SNS/SQS"
+  },
+  "notifications": {
+    "status": "dispatched",
+    "event_type": "agent.blocked",
+    "note": "SEC-107: Async notification sent to subscribed channels"
+  }
+}
+```
+
+### POST /api/registry/agents/{id}/activate
+
+**Description:** Reactivate a suspended agent.
+
+**Request:**
+```bash
+curl -X POST "https://pilot.owkai.app/api/registry/agents/my-agent-001/activate" \
+  -H "Authorization: Bearer <JWT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Issue resolved, resuming operations"}'
+```
+
+### When to Use Each
+
+| Scenario | Use | Reason |
+|----------|-----|--------|
+| Scheduled maintenance | `/suspend` | No urgency, planned downtime |
+| Agent behaving unexpectedly | `/emergency-suspend` | Need immediate stop |
+| Security incident | `/emergency-suspend` | Must notify stakeholders |
+| Policy violation detected | `/emergency-suspend` | Compliance requirement |
+| Temporary pause for debugging | `/suspend` | No security concern |
+
+### Compliance
+
+| Standard | Control | Implementation |
+|----------|---------|----------------|
+| SOC 2 CC6.2 | Logical Access Controls | Emergency suspension with audit |
+| NIST IR-4 | Incident Handling | Real-time response capability |
+| HIPAA 164.308(a)(6) | Security Incident Procedures | Notification + audit trail |
 
 ---
 

@@ -5,10 +5,11 @@
 2. [User Roles and Permissions](#user-roles-and-permissions)
 3. [Authorization Center](#authorization-center)
 4. [Alert Management](#alert-management)
-5. [Smart Rules Engine](#smart-rules-engine)
-6. [User Account Management](#user-account-management)
-7. [Troubleshooting](#troubleshooting)
-8. [FAQ](#faq)
+5. [Emergency Agent Suspension](#emergency-agent-suspension)
+6. [Smart Rules Engine](#smart-rules-engine)
+7. [User Account Management](#user-account-management)
+8. [Troubleshooting](#troubleshooting)
+9. [FAQ](#faq)
 
 ## Getting Started
 
@@ -337,6 +338,189 @@ The system automatically correlates related alerts to help identify:
 - **Attack Patterns**: Multiple alerts indicating coordinated attack
 - **System Issues**: Multiple alerts from same source system
 - **False Positive Clusters**: Groups of alerts that are typically benign
+
+## Emergency Agent Suspension
+
+The Emergency Agent Suspension feature provides immediate control over AI agents that exhibit dangerous, unauthorized, or anomalous behavior. This is a critical security control for enterprise compliance.
+
+**Compliance**: SOC 2 CC6.2 (Incident Response), NIST SP 800-53 IR-4 (Incident Handling), HIPAA 164.308(a)(6) (Security Incident Procedures)
+
+### Understanding Suspension Types
+
+The platform provides a two-tier suspension architecture to match the severity of the situation:
+
+#### Standard Suspension (Soft Stop)
+**Use when:** Agent is behaving unexpectedly but not causing immediate harm
+
+**What it does:**
+- Marks the agent as suspended in the database
+- Agent continues current operation to completion (graceful shutdown)
+- Agent will not start new operations
+- Reversible through the Agent Registry Management interface
+
+**Example scenarios:**
+- Agent is processing data slower than expected
+- Agent is accessing more resources than planned
+- Agent is behaving differently than documented
+
+#### Emergency Suspension (Hard Stop / Kill-Switch)
+**Use when:** Agent poses immediate security risk requiring instant termination
+
+**What it does:**
+- Sends real-time kill signal via AWS SNS to agent immediately
+- Agent terminates current operation within milliseconds
+- Agent receives block notification in all environments
+- Creates audit trail for compliance review
+- Triggers notification to security team (if configured)
+
+**Example scenarios:**
+- Agent is accessing unauthorized sensitive data
+- Agent is exhibiting signs of prompt injection attack
+- Agent is attempting to escalate privileges
+- Agent is communicating with unauthorized external endpoints
+- Agent behavior indicates potential compromise
+
+### Accessing Emergency Suspension
+
+#### From the Agent Registry Management Dashboard
+
+**For Admin and Security Analyst roles:**
+
+1. Navigate to **Dashboard** → **Agent Registry Management**
+2. Locate the agent requiring suspension in the agent list
+3. You'll see agent details including:
+   - Agent name and ID
+   - Current status (Active, Suspended, Blocked)
+   - Last activity timestamp
+   - Organization assignment
+
+### Performing Emergency Suspension
+
+#### Step-by-Step Instructions
+
+1. **Locate the Emergency Button**
+   - In the Agent Registry Management view, find the red **"🛑 Emergency"** button
+   - This button is prominently displayed in RED to indicate critical action
+   - Located in the agent action toolbar
+
+2. **Click the Emergency Button**
+   - A confirmation modal will appear
+   - The modal is designed to prevent accidental suspensions
+
+3. **Complete the Confirmation Flow**
+   - **Reason Field** (Required): Enter a detailed explanation for the suspension
+     - Include what behavior triggered the suspension
+     - Reference any related alerts or incidents
+     - Be specific for audit purposes
+   - **Confirmation Input**: Type `SUSPEND` exactly as shown
+     - Case-sensitive input prevents accidental clicks
+     - This deliberate friction ensures intentional action
+
+4. **Submit the Emergency Suspension**
+   - Click **"Confirm Emergency Suspend"**
+   - The system will:
+     - Publish kill signal to SNS topic immediately
+     - Mark agent as blocked in the database
+     - Create audit log entry
+     - Send notification to configured recipients (if enabled)
+
+5. **Verify Suspension Success**
+   - Agent status will change to **"Blocked"** (red indicator)
+   - Confirmation toast notification will appear
+   - Audit log will show the suspension event
+
+### Post-Suspension Actions
+
+#### Immediate Steps
+1. **Document the Incident**: Create a security incident report
+2. **Review Agent Logs**: Examine what the agent was doing before suspension
+3. **Check Related Alerts**: Look for correlated security alerts
+4. **Notify Stakeholders**: Inform relevant team members
+
+#### Investigation
+1. **Analyze Agent Behavior**: Review recent activity patterns
+2. **Check for Compromise Indicators**: Look for signs of attack
+3. **Review Audit Trail**: Examine the full agent history
+4. **Document Findings**: Record investigation results
+
+#### Resolution Options
+After investigation, you can:
+- **Reinstate Agent**: If the suspension was precautionary and agent is safe
+- **Modify Agent Configuration**: If the agent needs restrictions
+- **Permanently Block**: If the agent poses ongoing risk
+- **Escalate**: If the incident requires external investigation
+
+### Kill-Switch Notification System
+
+When Emergency Suspension is triggered, the following notification chain executes:
+
+1. **Immediate**: SNS message published to `ascend-agent-control` topic
+2. **Within seconds**: All subscribed agent SDKs receive the block command
+3. **Real-time**: Dashboard notifications update (if notification integration is enabled)
+4. **Async**: Email/webhook notifications sent to configured recipients
+
+#### Notification Event Types
+- `agent.blocked` - Emergency suspension was triggered
+- `agent.suspended` - Standard suspension was initiated
+- `agent.quarantined` - Agent was isolated for investigation
+- `agent.unblocked` - Agent was reinstated after review
+
+### Permissions Required
+
+| Action | Admin | Security Analyst | Approver | Viewer |
+|--------|-------|------------------|----------|--------|
+| View Agent Status | ✅ | ✅ | ✅ | ✅ |
+| Standard Suspension | ✅ | ✅ | ❌ | ❌ |
+| Emergency Suspension | ✅ | ✅ | ❌ | ❌ |
+| Reinstate Agent | ✅ | ✅ | ❌ | ❌ |
+| View Audit Logs | ✅ | ✅ | ❌ | ❌ |
+
+### Best Practices
+
+#### When to Use Emergency Suspension
+- **DO** use for active security threats
+- **DO** use when agent is accessing prohibited resources
+- **DO** use when you observe anomalous behavior indicating compromise
+- **DON'T** use for routine maintenance (use standard suspension)
+- **DON'T** use for performance issues (use standard suspension)
+- **DON'T** use without documenting the reason
+
+#### Documentation Requirements
+For compliance purposes, always record:
+- The specific behavior that triggered the suspension
+- Any related alert IDs or incident numbers
+- The time you first observed the issue
+- Actions taken before suspension (if any)
+
+#### Response Time Guidelines
+- **Critical threats**: Suspend immediately, document after
+- **Suspicious behavior**: Document briefly, then suspend
+- **Uncertain situations**: Gather evidence quickly, escalate if needed
+
+### Troubleshooting Emergency Suspension
+
+#### Problem: Emergency button is not visible
+**Possible causes:**
+- You don't have Admin or Security Analyst role
+- Agent is already blocked/suspended
+- Page needs to be refreshed
+
+**Solution:** Verify your role permissions with your administrator
+
+#### Problem: Suspension completed but agent is still running
+**Possible causes:**
+- Agent SDK not polling for control messages
+- Network connectivity issues
+- Agent is operating in offline mode
+
+**Solution:** Contact your DevOps team to manually terminate the agent process
+
+#### Problem: Cannot type SUSPEND in confirmation
+**Possible causes:**
+- Caps lock is on (input is case-sensitive)
+- Browser autocomplete is interfering
+
+**Solution:** Ensure exact case: `SUSPEND` (all uppercase)
 
 ## Smart Rules Engine
 
