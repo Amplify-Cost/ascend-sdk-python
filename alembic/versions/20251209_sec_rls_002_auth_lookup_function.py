@@ -40,12 +40,17 @@ def upgrade():
 
     # Step 1: Create dedicated auth service role (if not exists)
     # This role has minimal privileges - ONLY what's needed for authentication
+    # BYPASSRLS is required so the SECURITY DEFINER function can bypass RLS
     op.execute("""
         DO $$
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'auth_service') THEN
-                CREATE ROLE auth_service NOLOGIN;
-                RAISE NOTICE 'Created auth_service role';
+                CREATE ROLE auth_service NOLOGIN BYPASSRLS;
+                RAISE NOTICE 'Created auth_service role with BYPASSRLS';
+            ELSE
+                -- Ensure existing role has BYPASSRLS
+                ALTER ROLE auth_service BYPASSRLS;
+                RAISE NOTICE 'Updated auth_service role with BYPASSRLS';
             END IF;
         END
         $$;
@@ -79,14 +84,15 @@ def upgrade():
         AS $func$
         BEGIN
             -- SEC-RLS-002: Authentication bootstrap - bypasses RLS by design
-            -- This function runs as auth_service role, not the application user
-            -- Only returns data needed for authentication, nothing else
+            -- This function runs as auth_service role (with BYPASSRLS), not the application user
+            -- Returns ALL matching keys so application can verify hash against each
+            -- (Multiple keys may share the same 16-char prefix)
             --
             -- Security controls:
             -- 1. SECURITY DEFINER - runs with function owner privileges
             -- 2. SET search_path - prevents search_path injection attacks
-            -- 3. LIMIT 1 - prevents enumeration attacks
-            -- 4. Minimal columns - only auth-required fields returned
+            -- 3. Minimal columns - only auth-required fields returned
+            -- 4. Hash verification done in application layer (constant-time comparison)
 
             RETURN QUERY
             SELECT
@@ -99,8 +105,7 @@ def upgrade():
                 ak.is_active
             FROM api_keys ak
             WHERE ak.key_prefix = p_prefix
-              AND ak.is_active = true
-            LIMIT 1;
+              AND ak.is_active = true;
         END;
         $func$;
     """)
