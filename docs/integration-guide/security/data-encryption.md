@@ -232,6 +232,47 @@ curl -X DELETE https://pilot.owkai.app/api/keys/{key_id} \
 
 **Source**: `/ow-ai-backend/routes/api_key_routes.py`
 
+## BYOK/CMK Encryption (Enterprise)
+
+For enterprise customers requiring complete control over encryption keys, ASCEND supports Bring Your Own Key (BYOK) with AWS KMS Customer Managed Keys (CMK).
+
+### Overview
+
+With BYOK enabled:
+- Your CMK lives in **your AWS account**
+- Data is encrypted using envelope encryption with your key
+- You can revoke ASCEND's access at any time
+- All key operations are logged in your CloudTrail
+
+### Quick Reference
+
+| Resource | Location |
+|----------|----------|
+| Feature Overview | [BYOK/CMK Feature Guide](/docs/features/byok-cmk.md) |
+| Customer Setup Guide | [Customer KMS Setup](/docs/byok/CUSTOMER_KMS_SETUP.md) |
+| API Endpoints | [BYOK API Reference](/docs/api/byok-endpoints.md) |
+| Integration Guide | [BYOK Integration](/docs/guides/byok-integration.md) |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/byok/keys` | POST | Register your CMK |
+| `/api/v1/byok/keys` | GET | Get key status |
+| `/api/v1/byok/keys` | DELETE | Revoke/remove key |
+| `/api/v1/byok/keys/rotate` | POST | Trigger DEK rotation |
+| `/api/v1/byok/health` | GET | Check key health |
+| `/api/v1/byok/audit` | GET | View audit log |
+
+### FAIL SECURE Design
+
+BYOK is designed to FAIL SECURE:
+- If your CMK becomes inaccessible, data operations are blocked
+- If you revoke ASCEND's access, data becomes unreadable
+- If you delete your CMK, data is **permanently lost**
+
+See [BYOK/CMK Encryption Feature Guide](/docs/features/byok-cmk.md) for complete documentation.
+
 ## Audit Log Integrity
 
 ### Immutable Audit Trails

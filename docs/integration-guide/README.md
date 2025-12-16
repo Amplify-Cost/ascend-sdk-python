@@ -322,6 +322,29 @@ if (result.approved) {
 
 ---
 
+## Gateway Integrations (Zero-Code)
+
+For infrastructure-level governance without application code changes, use our gateway integrations:
+
+### Available Gateways
+
+| Gateway | Best For | Deployment |
+|---------|----------|------------|
+| **[AWS Lambda Authorizer](./gateway/lambda-authorizer/)** | AWS API Gateway | CloudFormation/SAM |
+| **[Kong Plugin](./gateway/kong-plugin/)** | Kong Gateway | LuaRocks |
+| **[Envoy/Istio ext_authz](./gateway/envoy-istio/)** | Kubernetes/Service Mesh | Helm |
+
+### When to Use Gateway Integration
+
+- **Zero Application Changes**: Governance enforced at infrastructure layer
+- **Uniform Policy Enforcement**: All traffic governed regardless of client
+- **FAIL SECURE Design**: Requests blocked on any error (default behavior)
+- **Existing Infrastructure**: Integrate with your current API gateway or service mesh
+
+See the **[Gateway Integration Overview](./gateway/)** for detailed comparison and decision matrix.
+
+---
+
 ## Integration Endpoints
 
 ### Action Submission
@@ -528,10 +551,18 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 3. [SDK Integration Guide](./SDK_GUIDE.md) - Python and Node.js SDK usage with evaluate_action()
 4. [API Reference](./API_REFERENCE.md) - Complete endpoint documentation
 
+### Gateway Integrations (Zero-Code)
+
+5. [Gateway Integration Overview](./gateway/) - Comparison and decision matrix for all gateways
+6. [AWS Lambda Authorizer](./gateway/lambda-authorizer/) - API Gateway integration with CloudFormation
+7. [Kong Gateway Plugin](./gateway/kong-plugin/) - Kong plugin with LuaRocks packaging
+8. [Envoy/Istio ext_authz](./gateway/envoy-istio/) - Service mesh integration with Helm
+
 ### Advanced Topics
 
-5. [Risk Scoring Deep Dive](./RISK_SCORING.md) - Multi-layer risk scoring architecture
-6. [Architecture Overview](./ARCHITECTURE.md) - Platform components and data flow
+9. [Risk Scoring Deep Dive](./RISK_SCORING.md) - Multi-layer risk scoring architecture
+10. [Architecture Overview](./ARCHITECTURE.md) - Platform components and data flow
+11. [BYOK/CMK Encryption](/docs/byok/CUSTOMER_KMS_SETUP.md) - Bring Your Own Key encryption setup
 
 ---
 
