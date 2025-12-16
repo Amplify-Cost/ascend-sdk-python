@@ -1,0 +1,297 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ASCEND Lambda Authorizer - Zero-code AI governance for AWS API Gateway.
+  Provides real-time authorization decisions for AI agent API calls.
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: ascend-lambda-authorizer
+    Description: ASCEND Platform Lambda Authorizer for AI agent governance
+    Author: OW-KAI Platform Engineering
+    SpdxLicenseId: Apache-2.0
+    LicenseUrl: ../LICENSE
+    ReadmeUrl: ../README.md
+    Labels: ['ai', 'governance', 'security', 'authorization', 'api-gateway']
+    HomePageUrl: https://owkai.app
+    SemanticVersion: 1.0.0
+    SourceCodeUrl: https://github.com/owkai/ascend-lambda-authorizer
+
+Parameters:
+  AscendApiUrl:
+    Type: String
+    Description: ASCEND Platform API URL
+    Default: https://api.ascend.owkai.app
+
+  AscendApiKeySecret:
+    Type: String
+    Description: ARN of Secrets Manager secret containing ASCEND API key
+    NoEcho: true
+
+  Environment:
+    Type: String
+    Description: Deployment environment
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+      - development
+
+  CacheTtlSeconds:
+    Type: Number
+    Description: Cache TTL for approved decisions (seconds)
+    Default: 60
+    MinValue: 0
+    MaxValue: 300
+
+  TimeoutSeconds:
+    Type: Number
+    Description: API timeout in seconds (max 4 for Lambda authorizer)
+    Default: 4
+    MinValue: 1
+    MaxValue: 4
+
+  LogLevel:
+    Type: String
+    Description: Logging level
+    Default: INFO
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+
+  EnableMetrics:
+    Type: String
+    Description: Enable CloudWatch metrics
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+
+  LambdaMemorySize:
+    Type: Number
+    Description: Lambda memory size (MB)
+    Default: 256
+    MinValue: 128
+    MaxValue: 1024
+
+Globals:
+  Function:
+    Timeout: 5
+    Runtime: python3.11
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        ASCEND_API_URL: !Ref AscendApiUrl
+        ASCEND_API_KEY_SECRET_ARN: !Ref AscendApiKeySecret
+        ASCEND_ENVIRONMENT: !Ref Environment
+        ASCEND_CACHE_TTL: !Ref CacheTtlSeconds
+        ASCEND_TIMEOUT: !Ref TimeoutSeconds
+        LOG_LEVEL: !Ref LogLevel
+        ASCEND_METRICS_ENABLED: !Ref EnableMetrics
+
+Resources:
+  # Lambda Authorizer Function
+  AscendAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'ascend-authorizer-${Environment}'
+      Description: ASCEND Platform Lambda Authorizer for AI agent governance
+      CodeUri: ../src/
+      Handler: handler.lambda_handler
+      MemorySize: !Ref LambdaMemorySize
+      ReservedConcurrentExecutions: 100
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # Read API key from Secrets Manager
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Ref AscendApiKeySecret
+            # CloudWatch Logs
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/ascend-authorizer-${Environment}:*'
+            # CloudWatch Metrics (EMF)
+            - Effect: Allow
+              Action:
+                - cloudwatch:PutMetricData
+              Resource: '*'
+              Condition:
+                StringEquals:
+                  cloudwatch:namespace: AscendAuthorizer
+      Tags:
+        Application: ASCEND
+        Component: Lambda-Authorizer
+        Environment: !Ref Environment
+
+  # CloudWatch Log Group with retention
+  AuthorizerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/ascend-authorizer-${Environment}'
+      RetentionInDays: 90
+      Tags:
+        - Key: Application
+          Value: ASCEND
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Dashboard
+  AuthorizerDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub 'ASCEND-Authorizer-${Environment}'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AscendAuthorizer", "Decisions", "Status", "approved"],
+                  [".", ".", ".", "pending_approval"],
+                  [".", ".", ".", "denied"],
+                  [".", ".", ".", "error"]
+                ],
+                "title": "Authorization Decisions",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AscendAuthorizer", "Latency", {"stat": "p50"}],
+                  [".", ".", {"stat": "p90"}],
+                  [".", ".", {"stat": "p99"}]
+                ],
+                "title": "Authorization Latency",
+                "region": "${AWS::Region}",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AscendAuthorizer", "CacheHits"],
+                  [".", "CacheMisses"]
+                ],
+                "title": "Cache Performance",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AscendAuthorizer", "Errors", "ErrorType", "TIMEOUT"],
+                  [".", ".", ".", "AUTH_ERROR"],
+                  [".", ".", ".", "API_ERROR"],
+                  [".", ".", ".", "INTERNAL_ERROR"]
+                ],
+                "title": "Errors by Type",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "ascend-authorizer-${Environment}"],
+                  [".", "Errors", ".", "."],
+                  [".", "Throttles", ".", "."]
+                ],
+                "title": "Lambda Metrics",
+                "region": "${AWS::Region}",
+                "stat": "Sum",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarms
+  HighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'ASCEND-Authorizer-HighErrorRate-${Environment}'
+      AlarmDescription: High error rate in ASCEND Lambda Authorizer
+      MetricName: Errors
+      Namespace: AscendAuthorizer
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  HighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'ASCEND-Authorizer-HighLatency-${Environment}'
+      AlarmDescription: High latency in ASCEND Lambda Authorizer
+      MetricName: Latency
+      Namespace: AscendAuthorizer
+      ExtendedStatistic: p99
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  AuthorizerFunctionArn:
+    Description: Lambda Authorizer function ARN
+    Value: !GetAtt AscendAuthorizerFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthorizerArn'
+
+  AuthorizerFunctionName:
+    Description: Lambda Authorizer function name
+    Value: !Ref AscendAuthorizerFunction
+
+  AuthorizerInvokeUri:
+    Description: Lambda Authorizer invoke URI for API Gateway
+    Value: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AscendAuthorizerFunction.Arn}/invocations'
+
+  DashboardUrl:
+    Description: CloudWatch Dashboard URL
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=ASCEND-Authorizer-${Environment}'
+
+  LogGroupName:
+    Description: CloudWatch Log Group name
+    Value: !Ref AuthorizerLogGroup

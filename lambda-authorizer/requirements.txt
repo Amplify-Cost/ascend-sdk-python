@@ -1,0 +1,10 @@
+# ASCEND Lambda Authorizer - Dependencies
+# ========================================
+# Note: This Lambda uses only Python standard library for minimal cold start.
+# boto3 is provided by AWS Lambda runtime.
+
+# Development/Testing dependencies only:
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+moto>=4.0.0  # AWS mock for testing
