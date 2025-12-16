@@ -1,0 +1,12 @@
+{
+  "label": "BYOK/CMK Encryption",
+  "position": 2,
+  "collapsed": false,
+  "link": {
+    "type": "doc",
+    "id": "security/byok/index"
+  },
+  "customProps": {
+    "description": "Bring Your Own Key encryption for complete data sovereignty"
+  }
+}

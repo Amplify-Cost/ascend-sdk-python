@@ -3,6 +3,9 @@ import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
 /**
  * Ascend Documentation Sidebars
  * Enterprise AI Governance Platform
+ *
+ * Updated: 2025-12-16
+ * Added: Gateway Integrations, BYOK/CMK Encryption
  */
 const sidebars: SidebarsConfig = {
   docsSidebar: [
@@ -111,9 +114,35 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Integrations',
-      collapsed: true,
+      collapsed: false,  // EXPANDED - high traffic section
       items: [
         'integrations/overview',
+        {
+          type: 'category',
+          label: 'Gateway Integrations',
+          collapsed: false,  // EXPANDED - customers need to see options
+          link: {
+            type: 'doc',
+            id: 'integrations/gateway/index',
+          },
+          items: [
+            {
+              type: 'doc',
+              id: 'integrations/gateway/aws-lambda-authorizer',
+              label: 'AWS API Gateway',
+            },
+            {
+              type: 'doc',
+              id: 'integrations/gateway/kong-plugin',
+              label: 'Kong Gateway',
+            },
+            {
+              type: 'doc',
+              id: 'integrations/gateway/envoy-istio',
+              label: 'Envoy / Istio',
+            },
+          ],
+        },
         'integrations/mcp-server',
         'integrations/langchain',
         'integrations/claude-code',
@@ -152,9 +181,35 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Security',
-      collapsed: true,
+      collapsed: false,  // EXPANDED - enterprise customers check this first
       items: [
         'security/overview',
+        {
+          type: 'category',
+          label: 'BYOK/CMK Encryption',
+          collapsed: false,  // EXPANDED - key enterprise feature
+          link: {
+            type: 'doc',
+            id: 'security/byok/index',
+          },
+          items: [
+            {
+              type: 'doc',
+              id: 'security/byok/setup-guide',
+              label: 'Setup Guide',
+            },
+            {
+              type: 'doc',
+              id: 'security/byok/api-reference',
+              label: 'API Reference',
+            },
+            {
+              type: 'doc',
+              id: 'security/byok/troubleshooting',
+              label: 'Troubleshooting',
+            },
+          ],
+        },
         'security/data-encryption',
         'security/compliance',
         'security/responsible-disclosure',

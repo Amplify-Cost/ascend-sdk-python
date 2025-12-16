@@ -1,0 +1,12 @@
+{
+  "label": "Gateway Integrations",
+  "position": 2,
+  "collapsed": false,
+  "link": {
+    "type": "doc",
+    "id": "integrations/gateway/index"
+  },
+  "customProps": {
+    "description": "Zero-code AI governance for your API Gateway"
+  }
+}
