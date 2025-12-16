@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ascend-boto3-wrapper"
+version = "1.0.0"
+description = "ASCEND AI Governance wrapper for boto3 - Automatic governance for AWS SDK operations"
+readme = "README.md"
+license = {text = "Proprietary"}
+requires-python = ">=3.9"
+authors = [
+    {name = "OW-kai Corporation", email = "support@ascendowkai.com"}
+]
+keywords = [
+    "ascend",
+    "governance",
+    "ai-governance",
+    "boto3",
+    "aws",
+    "sdk",
+    "enterprise",
+    "security",
+    "compliance"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "boto3>=1.28.0",
+    "ascend-ai-sdk>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-asyncio>=0.23.0",
+    "moto>=5.0.0",
+]
+
+[project.urls]
+Homepage = "https://docs.ascendowkai.com"
+Documentation = "https://docs.ascendowkai.com/sdk/boto3"
+Repository = "https://github.com/owkai/ascend-boto3-wrapper"
+Changelog = "https://github.com/owkai/ascend-boto3-wrapper/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ascend_boto3*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

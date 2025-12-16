@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ascend-langchain"
+version = "1.0.0"
+description = "ASCEND governance integration for LangChain AI agents"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "OW-KAI Platform Engineering", email = "platform@owkai.app"}
+]
+maintainers = [
+    {name = "ASCEND Security", email = "security@ascendai.app"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["ascend", "langchain", "ai", "governance", "security", "agents", "llm"]
+requires-python = ">=3.8"
+dependencies = [
+    "ascend-ai-sdk>=1.0.0",
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+openai = ["langchain-openai>=0.1.0"]
+anthropic = ["langchain-anthropic>=0.1.0"]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+]
+all = [
+    "ascend-langchain[openai]",
+    "ascend-langchain[anthropic]",
+]
+
+[project.urls]
+Homepage = "https://owkai.app"
+Documentation = "https://docs.owkai.app/integration/frameworks/langchain"
+Repository = "https://github.com/owkai/ascend-langchain"
+Changelog = "https://github.com/owkai/ascend-langchain/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ascend_langchain*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

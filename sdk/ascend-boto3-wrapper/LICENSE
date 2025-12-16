@@ -1,0 +1,41 @@
+ASCEND Boto3 Wrapper - Proprietary License
+Copyright (c) 2024 OW-kai Corporation. All Rights Reserved.
+
+PROPRIETARY AND CONFIDENTIAL
+
+This software and associated documentation files (the "Software") are the
+exclusive property of OW-kai Corporation ("Company").
+
+NO LICENSE GRANTED
+-------------------
+No license, express or implied, is granted to any person or entity to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software without the prior written consent of the Company.
+
+RESTRICTIONS
+------------
+You may NOT:
+- Copy, reproduce, or duplicate the Software
+- Modify, adapt, or create derivative works
+- Distribute, transfer, or sublicense the Software
+- Reverse engineer, decompile, or disassemble the Software
+- Use the Software for any purpose without a valid license agreement
+
+USAGE RIGHTS
+------------
+Usage of this Software is permitted ONLY under a valid commercial license
+agreement with OW-kai Corporation. Contact sales@owkai.app for licensing.
+
+WARRANTY DISCLAIMER
+-------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. THE COMPANY DISCLAIMS ALL WARRANTIES INCLUDING MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+LIMITATION OF LIABILITY
+-----------------------
+IN NO EVENT SHALL THE COMPANY BE LIABLE FOR ANY DAMAGES ARISING FROM THE
+USE OF THIS SOFTWARE.
+
+For licensing inquiries: sales@owkai.app
+Website: https://ascend.owkai.app
