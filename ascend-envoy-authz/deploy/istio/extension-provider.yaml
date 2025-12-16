@@ -1,0 +1,59 @@
+# ASCEND Istio Extension Provider Configuration
+#
+# This configures Istio to use ASCEND as an external authorization provider.
+#
+# Installation Options:
+#
+# Option 1: Patch existing Istio ConfigMap
+#   kubectl get configmap istio -n istio-system -o yaml > istio-cm.yaml
+#   # Add extensionProviders to mesh config
+#   kubectl apply -f istio-cm.yaml
+#
+# Option 2: Use IstioOperator (recommended for new installs)
+#   kubectl apply -f extension-provider.yaml
+#
+# Option 3: Use istioctl
+#   istioctl install -f extension-provider.yaml
+#
+# Author: ASCEND Platform Engineering
+---
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: ascend-authz-config
+  namespace: istio-system
+spec:
+  meshConfig:
+    extensionProviders:
+    - name: "ascend-ext-authz"
+      envoyExtAuthzGrpc:
+        service: "ascend-authz.ascend-system.svc.cluster.local"
+        port: 50051
+        timeout: 5s
+        # FAIL SECURE: Do not allow requests if authz service is unavailable
+        failOpen: false
+        # Headers to include in authorization check
+        includeRequestHeadersInCheck:
+        - "x-ascend-agent-id"
+        - "authorization"
+        - "content-type"
+        - "x-request-id"
+        # Status on error (for observability)
+        statusOnError: "503"
+---
+# Alternative: ConfigMap patch for existing Istio installations
+#
+# Use this if you already have Istio installed and don't want to
+# modify the IstioOperator:
+#
+# kubectl patch configmap istio -n istio-system --type merge -p '
+# data:
+#   mesh: |
+#     extensionProviders:
+#     - name: "ascend-ext-authz"
+#       envoyExtAuthzGrpc:
+#         service: "ascend-authz.ascend-system.svc.cluster.local"
+#         port: 50051
+#         timeout: 5s
+#         failOpen: false
+# '

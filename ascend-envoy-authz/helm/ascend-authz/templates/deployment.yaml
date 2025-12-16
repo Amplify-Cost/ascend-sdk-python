@@ -1,0 +1,130 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ascend-authz.fullname" . }}
+  labels:
+    {{- include "ascend-authz.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ascend-authz.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.service.metricsPort }}"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "ascend-authz.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ascend-authz.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: authz
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.service.metricsPort }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "{{ .Values.service.port }}"
+            - name: METRICS_PORT
+              value: "{{ .Values.service.metricsPort }}"
+            - name: ASCEND_API_URL
+              value: {{ .Values.ascend.apiUrl | quote }}
+            - name: ASCEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ascend-authz.secretName" . }}
+                  key: {{ .Values.ascend.existingSecretKey | default "api_key" }}
+            - name: AGENT_ID_HEADER
+              value: {{ .Values.agentId.header | quote }}
+            {{- if .Values.agentId.defaultValue }}
+            - name: DEFAULT_AGENT_ID
+              value: {{ .Values.agentId.defaultValue | quote }}
+            {{- end }}
+            - name: REQUIRE_AGENT_ID
+              value: {{ .Values.agentId.required | quote }}
+            - name: FAIL_OPEN
+              value: {{ .Values.behavior.failOpen | quote }}
+            - name: BLOCK_ON_PENDING
+              value: {{ .Values.behavior.blockOnPending | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.behavior.environment | quote }}
+            - name: DATA_SENSITIVITY
+              value: {{ .Values.behavior.dataSensitivity | quote }}
+            - name: TIMEOUT
+              value: {{ .Values.performance.timeout | quote }}
+            - name: RETRY_COUNT
+              value: {{ .Values.performance.retryCount | quote }}
+            - name: RETRY_DELAY
+              value: {{ .Values.performance.retryDelay | quote }}
+            - name: CACHE_TTL
+              value: {{ .Values.performance.cacheTTL | quote }}
+            - name: CIRCUIT_BREAKER_ENABLED
+              value: {{ .Values.circuitBreaker.enabled | quote }}
+            - name: CIRCUIT_BREAKER_THRESHOLD
+              value: {{ .Values.circuitBreaker.threshold | quote }}
+            - name: CIRCUIT_BREAKER_TIMEOUT
+              value: {{ .Values.circuitBreaker.resetTimeout | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.logging.format | quote }}
+            - name: LOG_DECISIONS
+              value: {{ .Values.logging.logDecisions | quote }}
+            - name: EXCLUDED_PATHS
+              value: {{ join "," .Values.excludedPaths | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            grpc:
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            grpc:
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

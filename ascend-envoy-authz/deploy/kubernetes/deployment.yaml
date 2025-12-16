@@ -1,0 +1,178 @@
+# ASCEND ext_authz Kubernetes Deployment
+# Author: ASCEND Platform Engineering
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ascend-authz
+  namespace: ascend-system
+  labels:
+    app: ascend-authz
+    app.kubernetes.io/name: ascend-authz
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: authorization
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ascend-authz
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: ascend-authz
+        app.kubernetes.io/name: ascend-authz
+        app.kubernetes.io/version: "1.0.0"
+      annotations:
+        # Disable Istio sidecar - authz service should not be governed
+        sidecar.istio.io/inject: "false"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: ascend-authz
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: authz
+        image: owkai/ascend-envoy-authz:1.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: grpc
+          containerPort: 50051
+          protocol: TCP
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "50051"
+        - name: METRICS_PORT
+          value: "8080"
+        - name: ASCEND_API_URL
+          valueFrom:
+            configMapKeyRef:
+              name: ascend-authz-config
+              key: api_url
+        - name: ASCEND_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ascend-authz-secret
+              key: api_key
+        - name: AGENT_ID_HEADER
+          valueFrom:
+            configMapKeyRef:
+              name: ascend-authz-config
+              key: agent_id_header
+              optional: true
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: ascend-authz-config
+              key: environment
+              optional: true
+        - name: FAIL_OPEN
+          value: "false"  # FAIL SECURE
+        - name: CACHE_TTL
+          value: "60s"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: LOG_FORMAT
+          value: "json"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        livenessProbe:
+          grpc:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: ascend-authz
+              topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: ascend-authz
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ascend-authz
+  namespace: ascend-system
+  labels:
+    app: ascend-authz
+spec:
+  selector:
+    app: ascend-authz
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+    protocol: TCP
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ascend-authz
+  namespace: ascend-system
+  labels:
+    app: ascend-authz
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ascend-authz-config
+  namespace: ascend-system
+data:
+  api_url: "https://pilot.owkai.app"
+  agent_id_header: "x-ascend-agent-id"
+  environment: "production"
+---
+# Secret should be created separately or via external secrets operator
+# kubectl create secret generic ascend-authz-secret \
+#   --from-literal=api_key=your_api_key \
+#   -n ascend-system
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ascend-authz-secret
+  namespace: ascend-system
+type: Opaque
+stringData:
+  api_key: "REPLACE_WITH_YOUR_API_KEY"

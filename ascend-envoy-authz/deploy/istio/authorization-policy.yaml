@@ -1,0 +1,119 @@
+# ASCEND Istio AuthorizationPolicy Examples
+#
+# These policies enable ASCEND governance for your workloads.
+# Choose the policy that matches your deployment model.
+#
+# Author: ASCEND Platform Engineering
+---
+# Option 1: Namespace-scoped policy with label selector
+#
+# Apply governance only to pods with the label ascend.io/governed: "true"
+# This is the RECOMMENDED approach for gradual rollout.
+#
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ascend-governance
+  namespace: production  # Change to your namespace
+spec:
+  # Only apply to pods with this label
+  selector:
+    matchLabels:
+      ascend.io/governed: "true"
+
+  # CUSTOM action delegates to external authorizer
+  action: CUSTOM
+
+  # Reference the extension provider
+  provider:
+    name: "ascend-ext-authz"
+
+  # Rules specify when to trigger authorization
+  rules:
+  - to:
+    - operation:
+        # All paths (customize as needed)
+        paths: ["/*"]
+        # Exclude health/metrics endpoints
+        notPaths: ["/health", "/ready", "/metrics", "/healthz", "/readyz"]
+---
+# Option 2: Namespace-wide policy (all pods in namespace)
+#
+# Apply governance to ALL pods in the namespace.
+# Use with caution - ensure excluded paths are configured.
+#
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ascend-governance-namespace
+  namespace: ai-agents  # Change to your AI agents namespace
+spec:
+  # No selector = applies to all pods in namespace
+  action: CUSTOM
+  provider:
+    name: "ascend-ext-authz"
+  rules:
+  - to:
+    - operation:
+        paths: ["/*"]
+        notPaths: ["/health", "/ready", "/metrics"]
+---
+# Option 3: Global policy (mesh-wide)
+#
+# Apply governance to the entire mesh.
+# Deploy in istio-system namespace for global effect.
+# CAUTION: This affects ALL services in the mesh.
+#
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ascend-governance-global
+  namespace: istio-system  # Root namespace = global
+spec:
+  action: CUSTOM
+  provider:
+    name: "ascend-ext-authz"
+  rules:
+  - to:
+    - operation:
+        paths: ["/*"]
+        notPaths: ["/health", "/ready", "/metrics", "/healthz", "/readyz", "/livez"]
+    # Optionally filter by source (only AI agent service accounts)
+    from:
+    - source:
+        principals: ["cluster.local/ns/*/sa/ai-agent-*"]
+---
+# Option 4: Workload-specific policy
+#
+# Apply governance to a specific deployment.
+#
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ascend-governance-myagent
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: my-ai-agent  # Target specific deployment
+  action: CUSTOM
+  provider:
+    name: "ascend-ext-authz"
+  rules:
+  - to:
+    - operation:
+        # Only govern API calls
+        paths: ["/api/*"]
+        # Only govern write operations
+        methods: ["POST", "PUT", "PATCH", "DELETE"]
+---
+# Namespace setup example
+#
+# Create the ascend-system namespace if it doesn't exist
+#
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ascend-system
+  labels:
+    istio-injection: disabled  # Don't inject sidecar into authz service

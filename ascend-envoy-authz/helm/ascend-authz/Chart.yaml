@@ -1,0 +1,23 @@
+apiVersion: v2
+name: ascend-authz
+description: ASCEND External Authorization Service for Envoy/Istio
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - ascend
+  - authorization
+  - envoy
+  - istio
+  - ext_authz
+  - governance
+  - ai-agents
+home: https://ascend.owkai.app
+sources:
+  - https://github.com/owkai/ascend-envoy-authz
+maintainers:
+  - name: ASCEND Platform Engineering
+    email: platform@owkai.app
+annotations:
+  artifacthub.io/license: Proprietary
+  artifacthub.io/category: security
