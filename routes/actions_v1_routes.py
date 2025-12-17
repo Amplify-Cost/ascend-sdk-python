@@ -60,6 +60,7 @@ from models_agent_registry import RegisteredAgent
 from enrichment import evaluate_action_enrichment
 from services.cvss_auto_mapper import cvss_auto_mapper
 from services.unified_policy_evaluation_service import UnifiedPolicyEvaluationService
+from services.code_analysis_service import CodeAnalysisService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -374,8 +375,71 @@ async def submit_action(
             enrichment = {}
 
         # ====================================================================
+        # STEP 1.5: CODE ANALYSIS - Dangerous pattern detection (Phase 9)
+        # ====================================================================
+        code_analysis_result = None
+        code_blocked = False
+        try:
+            code_service = CodeAnalysisService(db, org_id)
+            code_analysis_result = code_service.analyze_for_action(
+                action_type=data["action_type"],
+                parameters={
+                    "description": data.get("description", ""),
+                    "query": data.get("action_details", {}).get("query", ""),
+                    "code": data.get("action_details", {}).get("code", ""),
+                    "command": data.get("action_details", {}).get("command", ""),
+                    **data.get("action_details", {})
+                },
+                agent_id=data["agent_id"]  # Phase 9: Pass agent_id for per-agent thresholds
+            )
+
+            if code_analysis_result.code_analyzed:
+                # Add code analysis info to enrichment
+                enrichment["code_analysis"] = {
+                    "analyzed": True,
+                    "language": code_analysis_result.language,
+                    "findings_count": len(code_analysis_result.findings),
+                    "max_severity": code_analysis_result.max_severity,
+                    "patterns_matched": code_analysis_result.patterns_matched,
+                    "config_mode": code_analysis_result.config_mode,  # enforce, monitor, off
+                }
+
+                # Adjust risk score if findings detected
+                if code_analysis_result.risk_adjustment > 0:
+                    original_risk = risk_score
+                    risk_score = max(risk_score, code_analysis_result.risk_adjustment)
+                    logger.info(
+                        f"[{correlation_id}] Code analysis adjusted risk: "
+                        f"{original_risk} -> {risk_score} (max_severity={code_analysis_result.max_severity})"
+                    )
+
+                # Update risk level based on code analysis severity
+                if code_analysis_result.max_severity == "critical" and risk_level != "critical":
+                    risk_level = "critical"
+                elif code_analysis_result.max_severity == "high" and risk_level in ("low", "medium"):
+                    risk_level = "high"
+
+                # Check if action should be blocked
+                if code_analysis_result.blocked:
+                    code_blocked = True
+                    logger.warning(
+                        f"[{correlation_id}] Code analysis BLOCKED action: "
+                        f"{code_analysis_result.block_reason}"
+                    )
+
+            logger.info(f"[{correlation_id}] Step 1.5 complete - Code analysis done")
+
+        except Exception as code_err:
+            logger.warning(f"[{correlation_id}] Code analysis failed (non-blocking): {code_err}")
+
+        # ====================================================================
         # CREATE INITIAL AGENT ACTION RECORD
         # ====================================================================
+        # Build extra_data with code analysis findings (preserving any existing data)
+        extra_data = data.get("extra_data", {}) or {}
+        if code_analysis_result and code_analysis_result.code_analyzed:
+            extra_data["code_analysis"] = code_analysis_result.to_dict()
+
         action = AgentAction(
             agent_id=data["agent_id"],
             action_type=data["action_type"],
@@ -392,7 +456,8 @@ async def submit_action(
             mitre_tactic=enrichment.get("mitre_tactic"),
             mitre_technique=enrichment.get("mitre_technique"),
             nist_description=enrichment.get("nist_description"),
-            recommendation=enrichment.get("recommendation")
+            recommendation=enrichment.get("recommendation"),
+            extra_data=extra_data if extra_data else None
         )
 
         db.add(action)
@@ -556,6 +621,19 @@ async def submit_action(
             max_risk_threshold=max_risk_threshold
         )
 
+        # Phase 9: Override status if code analysis blocked the action
+        if code_blocked and code_analysis_result:
+            final_status = "denied"
+            policy_decision = "denied"
+            # Add blocking reason to extra_data
+            if action.extra_data:
+                action.extra_data["code_blocked"] = True
+                action.extra_data["code_block_reason"] = code_analysis_result.block_reason
+            logger.warning(
+                f"[{correlation_id}] Final status overridden to DENIED by code analysis: "
+                f"{code_analysis_result.block_reason}"
+            )
+
         action.status = final_status
         db.add(action)
         db.commit()
@@ -566,6 +644,29 @@ async def submit_action(
         # ====================================================================
         processing_time_ms = int((time.time() - start_time) * 1000)
 
+        # Build audit metadata including code analysis results
+        audit_metadata = {
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": request.headers.get("user-agent"),
+            "action_id": action.id,
+            "risk_score": action.risk_score,
+            "cvss_score": action.cvss_score,
+            "policy_decision": policy_decision,
+            "matched_smart_rules": len(smart_rules_result["matched_rules"]),
+            "processing_time_ms": processing_time_ms
+        }
+
+        # Phase 9: Add code analysis metadata to audit log
+        if code_analysis_result and code_analysis_result.code_analyzed:
+            audit_metadata["code_analysis"] = {
+                "analyzed": True,
+                "language": code_analysis_result.language,
+                "findings_count": len(code_analysis_result.findings),
+                "max_severity": code_analysis_result.max_severity,
+                "patterns_matched": code_analysis_result.patterns_matched,
+                "blocked": code_analysis_result.blocked
+            }
+
         create_audit_log(
             db=db,
             user_id=current_user.get("user_id"),
@@ -573,16 +674,7 @@ async def submit_action(
             action_type="action_submitted",
             details=f"Action {action.id} submitted: {data['action_type']} - {final_status}",
             correlation_id=correlation_id,
-            metadata={
-                "ip_address": request.client.host if request.client else None,
-                "user_agent": request.headers.get("user-agent"),
-                "action_id": action.id,
-                "risk_score": action.risk_score,
-                "cvss_score": action.cvss_score,
-                "policy_decision": policy_decision,
-                "matched_smart_rules": len(smart_rules_result["matched_rules"]),
-                "processing_time_ms": processing_time_ms
-            }
+            metadata=audit_metadata
         )
 
         logger.info(
@@ -624,6 +716,16 @@ async def submit_action(
                 "agent_type": agent_type,
                 "is_registered": registered_agent is not None
             },
+            # Phase 9: Code analysis results
+            "code_analysis": {
+                "analyzed": code_analysis_result.code_analyzed if code_analysis_result else False,
+                "language": code_analysis_result.language if code_analysis_result else None,
+                "findings_count": len(code_analysis_result.findings) if code_analysis_result else 0,
+                "max_severity": code_analysis_result.max_severity if code_analysis_result else None,
+                "patterns_matched": code_analysis_result.patterns_matched if code_analysis_result else [],
+                "blocked": code_blocked,
+                "block_reason": code_analysis_result.block_reason if code_analysis_result and code_blocked else None
+            } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}"
         }
 
