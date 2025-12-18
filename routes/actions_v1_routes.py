@@ -376,9 +376,12 @@ async def submit_action(
 
         # ====================================================================
         # STEP 1.5: CODE ANALYSIS - Dangerous pattern detection (Phase 9)
+        # SEC-PHASE9-001: Risk adjustment moved OUTSIDE try-except to ensure execution
         # ====================================================================
         code_analysis_result = None
         code_blocked = False
+
+        # SEC-PHASE9-001: Isolated try-except - only wraps the service call
         try:
             code_service = CodeAnalysisService(db, org_id)
             code_analysis_result = code_service.analyze_for_action(
@@ -392,50 +395,51 @@ async def submit_action(
                 },
                 agent_id=data["agent_id"]  # Phase 9: Pass agent_id for per-agent thresholds
             )
+        except Exception as code_err:
+            code_analysis_result = None  # SEC-PHASE9-001: Explicit None on failure
+            logger.warning(f"[{correlation_id}] Code analysis failed (non-blocking): {code_err}")
 
-            if code_analysis_result.code_analyzed:
-                # Add code analysis info to enrichment
-                enrichment["code_analysis"] = {
-                    "analyzed": True,
-                    "language": code_analysis_result.language,
-                    "findings_count": len(code_analysis_result.findings),
-                    "max_severity": code_analysis_result.max_severity,
-                    "patterns_matched": code_analysis_result.patterns_matched,
-                    "config_mode": code_analysis_result.config_mode,  # enforce, monitor, off
-                }
+        # SEC-PHASE9-001: Risk adjustment OUTSIDE try-except - guaranteed to execute
+        if code_analysis_result and code_analysis_result.code_analyzed:
+            # Add code analysis info to enrichment
+            enrichment["code_analysis"] = {
+                "analyzed": True,
+                "language": code_analysis_result.language,
+                "findings_count": len(code_analysis_result.findings),
+                "max_severity": code_analysis_result.max_severity,
+                "patterns_matched": code_analysis_result.patterns_matched,
+                "config_mode": code_analysis_result.config_mode,  # enforce, monitor, off
+            }
 
-                # Adjust risk score if findings detected
+            # Adjust risk score if findings detected
+            logger.info(
+                f"[{correlation_id}] [SEC-PHASE9-001] Code analysis check: "
+                f"risk_adjustment={code_analysis_result.risk_adjustment}, "
+                f"current_risk_score={risk_score}"
+            )
+            if code_analysis_result.risk_adjustment > 0:
+                original_risk = risk_score
+                risk_score = max(risk_score, code_analysis_result.risk_adjustment)
                 logger.info(
-                    f"[{correlation_id}] [PHASE9-DEBUG] Code analysis check: "
-                    f"risk_adjustment={code_analysis_result.risk_adjustment}, "
-                    f"current_risk_score={risk_score}"
+                    f"[{correlation_id}] [SEC-PHASE9-001] Risk adjusted: "
+                    f"{original_risk} -> {risk_score} (max_severity={code_analysis_result.max_severity})"
                 )
-                if code_analysis_result.risk_adjustment > 0:
-                    original_risk = risk_score
-                    risk_score = max(risk_score, code_analysis_result.risk_adjustment)
-                    logger.info(
-                        f"[{correlation_id}] [PHASE9-DEBUG] Code analysis APPLIED: "
-                        f"{original_risk} -> {risk_score} (max_severity={code_analysis_result.max_severity})"
-                    )
 
-                # Update risk level based on code analysis severity
-                if code_analysis_result.max_severity == "critical" and risk_level != "critical":
-                    risk_level = "critical"
-                elif code_analysis_result.max_severity == "high" and risk_level in ("low", "medium"):
-                    risk_level = "high"
+            # Update risk level based on code analysis severity
+            if code_analysis_result.max_severity == "critical" and risk_level != "critical":
+                risk_level = "critical"
+            elif code_analysis_result.max_severity == "high" and risk_level in ("low", "medium"):
+                risk_level = "high"
 
-                # Check if action should be blocked
-                if code_analysis_result.blocked:
-                    code_blocked = True
-                    logger.warning(
-                        f"[{correlation_id}] Code analysis BLOCKED action: "
-                        f"{code_analysis_result.block_reason}"
-                    )
+            # Check if action should be blocked
+            if code_analysis_result.blocked:
+                code_blocked = True
+                logger.warning(
+                    f"[{correlation_id}] Code analysis BLOCKED action: "
+                    f"{code_analysis_result.block_reason}"
+                )
 
             logger.info(f"[{correlation_id}] Step 1.5 complete - Code analysis done")
-
-        except Exception as code_err:
-            logger.warning(f"[{correlation_id}] Code analysis failed (non-blocking): {code_err}")
 
         # ====================================================================
         # CREATE INITIAL AGENT ACTION RECORD
