@@ -487,7 +487,9 @@ async def submit_action(
             action.cvss_score = cvss_result["base_score"]
             action.cvss_severity = cvss_result["severity"]
             action.cvss_vector = cvss_result["vector_string"]
-            action.risk_score = cvss_result["base_score"] * 10  # 0-100 scale
+            # Phase 9: Use max() to preserve code analysis risk adjustment
+            cvss_risk = cvss_result["base_score"] * 10  # 0-100 scale
+            action.risk_score = max(action.risk_score, cvss_risk)
 
             db.add(action)
             db.flush()
