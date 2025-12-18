@@ -1,3 +1,4 @@
+# SEC-PHASE9-001-V6 CACHE BUST: 2025-12-18T17:30:00Z - Force fresh deployment
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -461,12 +462,22 @@ async def submit_action(
 
         logger.info(f"[{correlation_id}] Action created: ID={action.id}")
 
+        # SEC-PHASE9-001-V6: UNCONDITIONAL DIAGNOSTIC - Check object state before condition
+        logger.warning(
+            f"[{correlation_id}] [SEC-PHASE9-001-V6-DIAGNOSTIC] "
+            f"code_analysis_result={code_analysis_result is not None}, "
+            f"code_analyzed={getattr(code_analysis_result, 'code_analyzed', 'N/A')}, "
+            f"risk_adjustment={getattr(code_analysis_result, 'risk_adjustment', 'N/A')}"
+        )
+
         # ====================================================================
         # SEC-PHASE9-001: Apply code analysis risk adjustment AFTER action creation
         # This ensures we modify the action object directly, not a local variable
         # ====================================================================
         if code_analysis_result and code_analysis_result.code_analyzed:
+            logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V6] ENTERED IF BLOCK")
             if code_analysis_result.risk_adjustment > 0:
+                logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V6] ENTERED RISK ADJUSTMENT BLOCK")
                 original_risk = action.risk_score
                 action.risk_score = max(action.risk_score, code_analysis_result.risk_adjustment)
                 if action.risk_score != original_risk:
@@ -754,7 +765,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V5"  # SEC-PHASE9-001: Alternative implementation - modify action directly
+            "api_version": "SEC-PHASE9-001-V6"  # SEC-PHASE9-001-V6: Added diagnostic logging + cache bust
         }
 
     except HTTPException:
