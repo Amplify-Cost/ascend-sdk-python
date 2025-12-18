@@ -201,7 +201,10 @@ class EnterpriseUnifiedLoader:
             "is_emergency": risk_score >= 90,
             "requires_executive_approval": risk_score >= 80,
             "time_remaining": "No deadline",
-            "sla_status": "normal"
+            "sla_status": "normal",
+
+            # Phase 9: Code Analysis - Include extra_data for frontend display
+            "extra_data": action.extra_data
         }
 
     def _transform_mcp_action(self, mcp: MCPServerAction) -> Dict:
