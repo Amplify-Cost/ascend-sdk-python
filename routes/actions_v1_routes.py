@@ -1,4 +1,4 @@
-# SEC-PHASE9-001-V7 CACHE BUST: 2025-12-18T17:45:00Z - Add db.commit() after risk adjustment
+# SEC-PHASE9-001-V8 CACHE BUST: 2025-12-18T18:00:00Z - Full SQLAlchemy pattern
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -494,11 +494,14 @@ async def submit_action(
                 action.risk_level = "high"
                 logger.info(f"[{correlation_id}] [SEC-PHASE9-001] Risk level upgraded to high")
 
-            # SEC-PHASE9-001-V7: COMMIT THE CHANGES TO DATABASE
+            # SEC-PHASE9-001-V8: COMMIT THE CHANGES TO DATABASE
+            # Must use full SQLAlchemy pattern: add -> flush -> commit -> refresh
+            db.add(action)
+            db.flush()
             db.commit()
             db.refresh(action)
             logger.info(
-                f"[{correlation_id}] [SEC-PHASE9-001-V7] Risk adjustment committed to database: "
+                f"[{correlation_id}] [SEC-PHASE9-001-V8] Risk adjustment committed: "
                 f"risk_score={action.risk_score}, risk_level={action.risk_level}"
             )
 
@@ -773,7 +776,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V7"  # SEC-PHASE9-001-V7: Add db.commit() after risk adjustment
+            "api_version": "SEC-PHASE9-001-V8"  # SEC-PHASE9-001-V8: Full SQLAlchemy pattern for risk adjustment
         }
 
     except HTTPException:
