@@ -744,10 +744,12 @@ async def submit_action(
                 "max_severity": code_analysis_result.max_severity if code_analysis_result else None,
                 "patterns_matched": code_analysis_result.patterns_matched if code_analysis_result else [],
                 "blocked": code_blocked,
-                "block_reason": code_analysis_result.block_reason if code_analysis_result and code_blocked else None
+                "block_reason": code_analysis_result.block_reason if code_analysis_result and code_blocked else None,
+                # SEC-PHASE9-001: Debug - show risk_adjustment to trace issue
+                "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V3"  # SEC-PHASE9-001: Verify fix deployed
+            "api_version": "SEC-PHASE9-001-V4"  # SEC-PHASE9-001: Debug risk_adjustment in response
         }
 
     except HTTPException:
