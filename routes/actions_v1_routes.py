@@ -411,25 +411,8 @@ async def submit_action(
                 "config_mode": code_analysis_result.config_mode,  # enforce, monitor, off
             }
 
-            # Adjust risk score if findings detected
-            logger.info(
-                f"[{correlation_id}] [SEC-PHASE9-001] Code analysis check: "
-                f"risk_adjustment={code_analysis_result.risk_adjustment}, "
-                f"current_risk_score={risk_score}"
-            )
-            if code_analysis_result.risk_adjustment > 0:
-                original_risk = risk_score
-                risk_score = max(risk_score, code_analysis_result.risk_adjustment)
-                logger.info(
-                    f"[{correlation_id}] [SEC-PHASE9-001] Risk adjusted: "
-                    f"{original_risk} -> {risk_score} (max_severity={code_analysis_result.max_severity})"
-                )
-
-            # Update risk level based on code analysis severity
-            if code_analysis_result.max_severity == "critical" and risk_level != "critical":
-                risk_level = "critical"
-            elif code_analysis_result.max_severity == "high" and risk_level in ("low", "medium"):
-                risk_level = "high"
+            # SEC-PHASE9-001: Risk adjustment moved to AFTER action creation (see line ~480)
+            # This ensures we modify the action object directly, not a local variable
 
             # Check if action should be blocked
             if code_analysis_result.blocked:
@@ -477,6 +460,28 @@ async def submit_action(
         db.refresh(action)
 
         logger.info(f"[{correlation_id}] Action created: ID={action.id}")
+
+        # ====================================================================
+        # SEC-PHASE9-001: Apply code analysis risk adjustment AFTER action creation
+        # This ensures we modify the action object directly, not a local variable
+        # ====================================================================
+        if code_analysis_result and code_analysis_result.code_analyzed:
+            if code_analysis_result.risk_adjustment > 0:
+                original_risk = action.risk_score
+                action.risk_score = max(action.risk_score, code_analysis_result.risk_adjustment)
+                if action.risk_score != original_risk:
+                    logger.info(
+                        f"[{correlation_id}] [SEC-PHASE9-001] Code analysis risk applied: "
+                        f"{original_risk} -> {action.risk_score}"
+                    )
+
+            # SEC-PHASE9-001: Update risk_level to match risk_score
+            if code_analysis_result.max_severity == "critical" and action.risk_level != "critical":
+                action.risk_level = "critical"
+                logger.info(f"[{correlation_id}] [SEC-PHASE9-001] Risk level upgraded to critical")
+            elif code_analysis_result.max_severity == "high" and action.risk_level in ("low", "medium"):
+                action.risk_level = "high"
+                logger.info(f"[{correlation_id}] [SEC-PHASE9-001] Risk level upgraded to high")
 
         # ====================================================================
         # STEP 2: CVSS CALCULATION - Quantitative risk scoring
@@ -749,7 +754,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V4"  # SEC-PHASE9-001: Debug risk_adjustment in response
+            "api_version": "SEC-PHASE9-001-V5"  # SEC-PHASE9-001: Alternative implementation - modify action directly
         }
 
     except HTTPException:
