@@ -742,7 +742,8 @@ async def submit_action(
                 "blocked": code_blocked,
                 "block_reason": code_analysis_result.block_reason if code_analysis_result and code_blocked else None
             } if code_analysis_result else None,
-            "message": f"Action processed through complete governance pipeline - Status: {final_status}"
+            "message": f"Action processed through complete governance pipeline - Status: {final_status}",
+            "api_version": "PHASE9-FIX-V2"  # Debug: Remove after verification
         }
 
     except HTTPException:
