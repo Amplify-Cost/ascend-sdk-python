@@ -63,6 +63,13 @@ from services.cvss_auto_mapper import cvss_auto_mapper
 from services.unified_policy_evaluation_service import UnifiedPolicyEvaluationService
 from services.code_analysis_service import CodeAnalysisService
 
+# BEHAV-001: Rate limiting
+from services.agent_rate_limiter import (
+    AgentRateLimiter,
+    RATE_LIMIT_ENABLED
+)
+from models_rate_limits import RateLimitResult
+
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -295,6 +302,38 @@ async def submit_action(
             )
 
         logger.info(f"[{correlation_id}] Processing action submission: {data['action_type']}")
+
+        # ====================================================================
+        # BEHAV-001: RATE LIMITING - Per-agent, per-tenant rate limits
+        # ====================================================================
+        if RATE_LIMIT_ENABLED:
+            try:
+                rate_limiter = AgentRateLimiter(db)
+                rate_result = await rate_limiter.check_and_increment(
+                    org_id=org_id,
+                    agent_id=data["agent_id"],
+                    action_type=data["action_type"],
+                    ip_address=request.client.host if request.client else None,
+                    correlation_id=correlation_id
+                )
+
+                if not rate_result.allowed:
+                    logger.warning(
+                        f"[{correlation_id}] BEHAV-001: Rate limit exceeded - "
+                        f"org={org_id}, agent={data['agent_id']}, reason={rate_result.reason}"
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=rate_result.to_error_response(),
+                        headers=rate_result.to_response_headers()
+                    )
+
+                logger.debug(f"[{correlation_id}] BEHAV-001: Rate limit check passed")
+            except HTTPException:
+                raise  # Re-raise rate limit error
+            except Exception as e:
+                # Log but don't fail on rate limiter errors (Redis unavailable creates RateLimitResult)
+                logger.warning(f"[{correlation_id}] BEHAV-001: Rate limiter error: {e}")
 
         # ====================================================================
         # SEC-106: AGENT THRESHOLD LOOKUP - Get configurable thresholds

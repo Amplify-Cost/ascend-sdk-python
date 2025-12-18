@@ -75,6 +75,10 @@ from .constants import (
     SDK_VERSION,
 )
 
+# DEEP-001/DEEP-002: Governance wrappers (optional import)
+# Import the wrappers module for drop-in replacements
+from . import wrappers
+
 __version__ = SDK_VERSION
 __all__ = [
     # Main classes
@@ -100,4 +104,6 @@ __all__ = [
     "ActionType",
     "DecisionStatus",
     "RiskLevel",
+    # DEEP-001/DEEP-002: Governance wrappers
+    "wrappers",
 ]
