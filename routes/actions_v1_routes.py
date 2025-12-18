@@ -405,11 +405,16 @@ async def submit_action(
                 }
 
                 # Adjust risk score if findings detected
+                logger.info(
+                    f"[{correlation_id}] [PHASE9-DEBUG] Code analysis check: "
+                    f"risk_adjustment={code_analysis_result.risk_adjustment}, "
+                    f"current_risk_score={risk_score}"
+                )
                 if code_analysis_result.risk_adjustment > 0:
                     original_risk = risk_score
                     risk_score = max(risk_score, code_analysis_result.risk_adjustment)
                     logger.info(
-                        f"[{correlation_id}] Code analysis adjusted risk: "
+                        f"[{correlation_id}] [PHASE9-DEBUG] Code analysis APPLIED: "
                         f"{original_risk} -> {risk_score} (max_severity={code_analysis_result.max_severity})"
                     )
 
@@ -440,6 +445,9 @@ async def submit_action(
         if code_analysis_result and code_analysis_result.code_analyzed:
             extra_data["code_analysis"] = code_analysis_result.to_dict()
 
+        logger.info(
+            f"[{correlation_id}] [PHASE9-DEBUG] Creating action with risk_score={risk_score}, risk_level={risk_level}"
+        )
         action = AgentAction(
             agent_id=data["agent_id"],
             action_type=data["action_type"],
@@ -489,7 +497,13 @@ async def submit_action(
             action.cvss_vector = cvss_result["vector_string"]
             # Phase 9: Use max() to preserve code analysis risk adjustment
             cvss_risk = cvss_result["base_score"] * 10  # 0-100 scale
+            original_action_risk = action.risk_score
             action.risk_score = max(action.risk_score, cvss_risk)
+            logger.info(
+                f"[{correlation_id}] [PHASE9-DEBUG] CVSS max(): "
+                f"original={original_action_risk}, cvss_risk={cvss_risk}, "
+                f"result={action.risk_score}"
+            )
 
             db.add(action)
             db.flush()
