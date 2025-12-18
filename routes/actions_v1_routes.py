@@ -1,4 +1,4 @@
-# SEC-PHASE9-001-V8 CACHE BUST: 2025-12-18T18:00:00Z - Full SQLAlchemy pattern
+# SEC-PHASE9-001-V9 CACHE BUST: 2025-12-18T18:15:00Z - Direct SQL UPDATE
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -38,7 +38,7 @@ from typing import Dict, Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, update as sql_update
 
 # Database and dependencies
 from database import get_db
@@ -474,36 +474,41 @@ async def submit_action(
         # SEC-PHASE9-001: Apply code analysis risk adjustment AFTER action creation
         # This ensures we modify the action object directly, not a local variable
         # ====================================================================
+        # SEC-PHASE9-001-V9: Direct SQL UPDATE - bypasses ORM session tracking issues
         if code_analysis_result and code_analysis_result.code_analyzed:
-            logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V6] ENTERED IF BLOCK")
+            logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V9] Checking risk adjustment")
+
+            updates_needed = {}
+
+            # Check if risk_score needs update
             if code_analysis_result.risk_adjustment > 0:
-                logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V6] ENTERED RISK ADJUSTMENT BLOCK")
-                original_risk = action.risk_score
-                action.risk_score = max(action.risk_score, code_analysis_result.risk_adjustment)
-                if action.risk_score != original_risk:
-                    logger.info(
-                        f"[{correlation_id}] [SEC-PHASE9-001] Code analysis risk applied: "
-                        f"{original_risk} -> {action.risk_score}"
-                    )
+                new_risk_score = max(action.risk_score, code_analysis_result.risk_adjustment)
+                if new_risk_score != action.risk_score:
+                    updates_needed['risk_score'] = new_risk_score
+                    logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Will update risk_score: {action.risk_score} -> {new_risk_score}")
 
-            # SEC-PHASE9-001: Update risk_level to match risk_score
+            # Check if risk_level needs update
             if code_analysis_result.max_severity == "critical" and action.risk_level != "critical":
-                action.risk_level = "critical"
-                logger.info(f"[{correlation_id}] [SEC-PHASE9-001] Risk level upgraded to critical")
+                updates_needed['risk_level'] = "critical"
+                logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Will update risk_level to critical")
             elif code_analysis_result.max_severity == "high" and action.risk_level in ("low", "medium"):
-                action.risk_level = "high"
-                logger.info(f"[{correlation_id}] [SEC-PHASE9-001] Risk level upgraded to high")
+                updates_needed['risk_level'] = "high"
+                logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Will update risk_level to high")
 
-            # SEC-PHASE9-001-V8: COMMIT THE CHANGES TO DATABASE
-            # Must use full SQLAlchemy pattern: add -> flush -> commit -> refresh
-            db.add(action)
-            db.flush()
-            db.commit()
-            db.refresh(action)
-            logger.info(
-                f"[{correlation_id}] [SEC-PHASE9-001-V8] Risk adjustment committed: "
-                f"risk_score={action.risk_score}, risk_level={action.risk_level}"
-            )
+            # Execute single UPDATE if any changes needed
+            if updates_needed:
+                db.execute(
+                    sql_update(AgentAction)
+                    .where(AgentAction.id == action.id)
+                    .values(**updates_needed)
+                )
+                db.commit()
+
+                # Update in-memory object to match
+                for key, value in updates_needed.items():
+                    setattr(action, key, value)
+
+                logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Database updated via direct SQL: {updates_needed}")
 
         # ====================================================================
         # STEP 2: CVSS CALCULATION - Quantitative risk scoring
@@ -776,7 +781,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V8"  # SEC-PHASE9-001-V8: Full SQLAlchemy pattern for risk adjustment
+            "api_version": "SEC-PHASE9-001-V9"  # SEC-PHASE9-001-V9: Direct SQL UPDATE bypasses ORM tracking
         }
 
     except HTTPException:
