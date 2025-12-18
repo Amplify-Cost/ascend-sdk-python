@@ -127,12 +127,29 @@ class UnifiedPolicyEvaluationService:
                 # Option 4 Hybrid: 80% CVSS + 20% Policy
                 fused_risk = int((action.cvss_score * 10 * 0.8) + (result.risk_score.total_score * 0.2))
                 action.risk_fusion_formula = f"hybrid_80_20_cvss_{action.cvss_score}_policy_{result.risk_score.total_score}_fused_{fused_risk}"
-                # Update overall risk_score with fused value
-                action.risk_score = float(fused_risk)
+                # SEC-PHASE9-001-V11: Preserve highest risk score (code analysis may have set higher)
+                action.risk_score = max(action.risk_score, float(fused_risk))
             else:
                 # No CVSS score, use 100% policy risk
                 action.risk_fusion_formula = f"policy_only_{result.risk_score.total_score}"
-                action.risk_score = float(result.risk_score.total_score)
+                # SEC-PHASE9-001-V11: Preserve highest risk score
+                action.risk_score = max(action.risk_score, float(result.risk_score.total_score))
+
+            # SEC-PHASE9-001-V11: Sync risk_level to match risk_score
+            if action.risk_score >= 90:
+                action.risk_level = "critical"
+            elif action.risk_score >= 70:
+                action.risk_level = "high"
+            elif action.risk_score >= 40:
+                action.risk_level = "medium"
+            else:
+                action.risk_level = "low"
+
+            logger.info(
+                f"SEC-PHASE9-001-V11: Risk fusion complete - "
+                f"fused_risk={fused_risk if action.cvss_score else result.risk_score.total_score}, "
+                f"final_risk_score={action.risk_score}, risk_level={action.risk_level}"
+            )
 
             # Update approval level based on policy result
             if result.risk_score.requires_approval:

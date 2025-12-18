@@ -1,4 +1,4 @@
-# SEC-PHASE9-001-V10 CACHE BUST: 2025-12-18T18:30:00Z - Query-style UPDATE
+# SEC-PHASE9-001-V11 CACHE BUST: 2025-12-18T18:45:00Z - max() in policy fusion
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -789,7 +789,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V10"  # SEC-PHASE9-001-V10: Query-style UPDATE with verification
+            "api_version": "SEC-PHASE9-001-V11"  # SEC-PHASE9-001-V11: Use max() in policy fusion
         }
 
     except HTTPException:
