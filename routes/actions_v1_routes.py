@@ -1,4 +1,4 @@
-# SEC-PHASE9-001-V11 CACHE BUST: 2025-12-18T18:45:00Z - max() in policy fusion
+# SEC-PHASE9-001: Risk score consistency fix - uses max() to preserve highest risk
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -433,9 +433,6 @@ async def submit_action(
         if code_analysis_result and code_analysis_result.code_analyzed:
             extra_data["code_analysis"] = code_analysis_result.to_dict()
 
-        logger.info(
-            f"[{correlation_id}] [PHASE9-DEBUG] Creating action with risk_score={risk_score}, risk_level={risk_level}"
-        )
         action = AgentAction(
             agent_id=data["agent_id"],
             action_type=data["action_type"],
@@ -462,61 +459,21 @@ async def submit_action(
 
         logger.info(f"[{correlation_id}] Action created: ID={action.id}")
 
-        # SEC-PHASE9-001-V6: UNCONDITIONAL DIAGNOSTIC - Check object state before condition
-        logger.warning(
-            f"[{correlation_id}] [SEC-PHASE9-001-V6-DIAGNOSTIC] "
-            f"code_analysis_result={code_analysis_result is not None}, "
-            f"code_analyzed={getattr(code_analysis_result, 'code_analyzed', 'N/A')}, "
-            f"risk_adjustment={getattr(code_analysis_result, 'risk_adjustment', 'N/A')}"
-        )
-
         # ====================================================================
         # SEC-PHASE9-001: Apply code analysis risk adjustment AFTER action creation
-        # This ensures we modify the action object directly, not a local variable
+        # Uses Query-style UPDATE to ensure database persistence
         # ====================================================================
-        # SEC-PHASE9-001-V10: Query-style UPDATE with verification
         if code_analysis_result and code_analysis_result.code_analyzed:
-            logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V10] Starting risk adjustment check")
-
-            updates_needed = {}
-
-            # Check if risk_score needs update
             if code_analysis_result.risk_adjustment > 0:
                 new_risk_score = max(action.risk_score, code_analysis_result.risk_adjustment)
                 if new_risk_score != action.risk_score:
-                    updates_needed['risk_score'] = float(new_risk_score)  # Ensure float type
-                    logger.warning(
-                        f"[{correlation_id}] [SEC-PHASE9-001-V10] "
-                        f"Will update risk_score: {action.risk_score} -> {new_risk_score}, "
-                        f"action.id={action.id}"
-                    )
-
-            # Execute UPDATE if any changes needed (risk_level synced by DB trigger)
-            if updates_needed:
-                logger.warning(
-                    f"[{correlation_id}] [SEC-PHASE9-001-V10] "
-                    f"Executing UPDATE on action.id={action.id} with: {updates_needed}"
-                )
-
-                # Query-style update
-                rows_updated = db.query(AgentAction).filter(
-                    AgentAction.id == action.id
-                ).update(updates_needed, synchronize_session='fetch')
-
-                logger.warning(
-                    f"[{correlation_id}] [SEC-PHASE9-001-V10] "
-                    f"UPDATE returned rows_updated={rows_updated}"
-                )
-
-                db.commit()
-                logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V10] COMMIT completed")
-
-                # Refresh to get trigger-updated values (risk_level synced by trigger)
-                db.refresh(action)
-                logger.warning(
-                    f"[{correlation_id}] [SEC-PHASE9-001-V10] "
-                    f"After refresh: risk_score={action.risk_score}, risk_level={action.risk_level}"
-                )
+                    # Query-style update (risk_level synced by DB trigger)
+                    db.query(AgentAction).filter(
+                        AgentAction.id == action.id
+                    ).update({'risk_score': float(new_risk_score)}, synchronize_session='fetch')
+                    db.commit()
+                    db.refresh(action)
+                    logger.info(f"[{correlation_id}] Code analysis risk applied: {action.risk_score}")
 
         # ====================================================================
         # STEP 2: CVSS CALCULATION - Quantitative risk scoring
@@ -541,13 +498,8 @@ async def submit_action(
             action.cvss_vector = cvss_result["vector_string"]
             # Phase 9: Use max() to preserve code analysis risk adjustment
             cvss_risk = cvss_result["base_score"] * 10  # 0-100 scale
-            original_action_risk = action.risk_score
+            # Preserve higher risk score (from code analysis if applicable)
             action.risk_score = max(action.risk_score, cvss_risk)
-            logger.info(
-                f"[{correlation_id}] [PHASE9-DEBUG] CVSS max(): "
-                f"original={original_action_risk}, cvss_risk={cvss_risk}, "
-                f"result={action.risk_score}"
-            )
 
             db.add(action)
             db.flush()
@@ -789,7 +741,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V11"  # SEC-PHASE9-001-V11: Use max() in policy fusion
+            "api_version": "SEC-PHASE9-001-V11-CLEAN"  # SEC-PHASE9-001: Resolved - max() in policy fusion
         }
 
     except HTTPException:
