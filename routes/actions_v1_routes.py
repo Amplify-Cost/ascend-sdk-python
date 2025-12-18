@@ -1,4 +1,4 @@
-# SEC-PHASE9-001-V6 CACHE BUST: 2025-12-18T17:30:00Z - Force fresh deployment
+# SEC-PHASE9-001-V7 CACHE BUST: 2025-12-18T17:45:00Z - Add db.commit() after risk adjustment
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -494,6 +494,14 @@ async def submit_action(
                 action.risk_level = "high"
                 logger.info(f"[{correlation_id}] [SEC-PHASE9-001] Risk level upgraded to high")
 
+            # SEC-PHASE9-001-V7: COMMIT THE CHANGES TO DATABASE
+            db.commit()
+            db.refresh(action)
+            logger.info(
+                f"[{correlation_id}] [SEC-PHASE9-001-V7] Risk adjustment committed to database: "
+                f"risk_score={action.risk_score}, risk_level={action.risk_level}"
+            )
+
         # ====================================================================
         # STEP 2: CVSS CALCULATION - Quantitative risk scoring
         # ====================================================================
@@ -765,7 +773,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V6"  # SEC-PHASE9-001-V6: Added diagnostic logging + cache bust
+            "api_version": "SEC-PHASE9-001-V7"  # SEC-PHASE9-001-V7: Add db.commit() after risk adjustment
         }
 
     except HTTPException:
