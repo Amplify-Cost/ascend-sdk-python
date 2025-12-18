@@ -1,4 +1,4 @@
-# SEC-PHASE9-001-V9 CACHE BUST: 2025-12-18T18:15:00Z - Direct SQL UPDATE
+# SEC-PHASE9-001-V10 CACHE BUST: 2025-12-18T18:30:00Z - Query-style UPDATE
 """
 Ascend AI Governance Platform - Actions API v1
 ==============================================
@@ -474,9 +474,9 @@ async def submit_action(
         # SEC-PHASE9-001: Apply code analysis risk adjustment AFTER action creation
         # This ensures we modify the action object directly, not a local variable
         # ====================================================================
-        # SEC-PHASE9-001-V9: Direct SQL UPDATE - bypasses ORM session tracking issues
+        # SEC-PHASE9-001-V10: Query-style UPDATE with verification
         if code_analysis_result and code_analysis_result.code_analyzed:
-            logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V9] Checking risk adjustment")
+            logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V10] Starting risk adjustment check")
 
             updates_needed = {}
 
@@ -484,31 +484,39 @@ async def submit_action(
             if code_analysis_result.risk_adjustment > 0:
                 new_risk_score = max(action.risk_score, code_analysis_result.risk_adjustment)
                 if new_risk_score != action.risk_score:
-                    updates_needed['risk_score'] = new_risk_score
-                    logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Will update risk_score: {action.risk_score} -> {new_risk_score}")
+                    updates_needed['risk_score'] = float(new_risk_score)  # Ensure float type
+                    logger.warning(
+                        f"[{correlation_id}] [SEC-PHASE9-001-V10] "
+                        f"Will update risk_score: {action.risk_score} -> {new_risk_score}, "
+                        f"action.id={action.id}"
+                    )
 
-            # Check if risk_level needs update
-            if code_analysis_result.max_severity == "critical" and action.risk_level != "critical":
-                updates_needed['risk_level'] = "critical"
-                logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Will update risk_level to critical")
-            elif code_analysis_result.max_severity == "high" and action.risk_level in ("low", "medium"):
-                updates_needed['risk_level'] = "high"
-                logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Will update risk_level to high")
-
-            # Execute single UPDATE if any changes needed
+            # Execute UPDATE if any changes needed (risk_level synced by DB trigger)
             if updates_needed:
-                db.execute(
-                    sql_update(AgentAction)
-                    .where(AgentAction.id == action.id)
-                    .values(**updates_needed)
+                logger.warning(
+                    f"[{correlation_id}] [SEC-PHASE9-001-V10] "
+                    f"Executing UPDATE on action.id={action.id} with: {updates_needed}"
                 )
+
+                # Query-style update
+                rows_updated = db.query(AgentAction).filter(
+                    AgentAction.id == action.id
+                ).update(updates_needed, synchronize_session='fetch')
+
+                logger.warning(
+                    f"[{correlation_id}] [SEC-PHASE9-001-V10] "
+                    f"UPDATE returned rows_updated={rows_updated}"
+                )
+
                 db.commit()
+                logger.warning(f"[{correlation_id}] [SEC-PHASE9-001-V10] COMMIT completed")
 
-                # Update in-memory object to match
-                for key, value in updates_needed.items():
-                    setattr(action, key, value)
-
-                logger.info(f"[{correlation_id}] [SEC-PHASE9-001-V9] Database updated via direct SQL: {updates_needed}")
+                # Refresh to get trigger-updated values (risk_level synced by trigger)
+                db.refresh(action)
+                logger.warning(
+                    f"[{correlation_id}] [SEC-PHASE9-001-V10] "
+                    f"After refresh: risk_score={action.risk_score}, risk_level={action.risk_level}"
+                )
 
         # ====================================================================
         # STEP 2: CVSS CALCULATION - Quantitative risk scoring
@@ -781,7 +789,7 @@ async def submit_action(
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
-            "api_version": "SEC-PHASE9-001-V9"  # SEC-PHASE9-001-V9: Direct SQL UPDATE bypasses ORM tracking
+            "api_version": "SEC-PHASE9-001-V10"  # SEC-PHASE9-001-V10: Query-style UPDATE with verification
         }
 
     except HTTPException:
