@@ -788,7 +788,7 @@ async def list_actions(
         # Apply pagination
         actions = query.offset(offset).limit(limit).all()
 
-        # Format response
+        # Format response - Phase 9: Include extra_data for code analysis display
         return [
             {
                 "id": action.id,
@@ -802,7 +802,9 @@ async def list_actions(
                 "cvss_severity": action.cvss_severity,
                 "timestamp": action.timestamp.isoformat() if action.timestamp else None,
                 "tool_name": action.tool_name,
-                "target_system": action.target_system
+                "target_system": action.target_system,
+                # Phase 9: Include extra_data for code analysis findings
+                "extra_data": action.extra_data
             }
             for action in actions
         ]
@@ -854,7 +856,7 @@ async def get_action_details(
             Alert.organization_id == org_id
         ).first()
 
-        # Format response with all details
+        # Format response with all details - Phase 9: Include extra_data for code analysis
         return {
             "id": action.id,
             "agent_id": action.agent_id,
@@ -876,6 +878,8 @@ async def get_action_details(
             "timestamp": action.timestamp.isoformat() if action.timestamp else None,
             "user_id": action.user_id,
             "organization_id": action.organization_id,
+            # Phase 9: Include extra_data for code analysis findings
+            "extra_data": action.extra_data,
             "alert": {
                 "id": alert.id,
                 "severity": alert.severity,
