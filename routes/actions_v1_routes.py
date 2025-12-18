@@ -63,6 +63,9 @@ from services.cvss_auto_mapper import cvss_auto_mapper
 from services.unified_policy_evaluation_service import UnifiedPolicyEvaluationService
 from services.code_analysis_service import CodeAnalysisService
 
+# PROMPT-001: Prompt Security (Phase 10)
+from services.prompt_security_service import PromptSecurityService
+
 # BEHAV-001: Rate limiting
 from services.agent_rate_limiter import (
     AgentRateLimiter,
@@ -465,12 +468,53 @@ async def submit_action(
             logger.info(f"[{correlation_id}] Step 1.5 complete - Code analysis done")
 
         # ====================================================================
+        # STEP 1.6: PROMPT SECURITY - Injection detection (Phase 10)
+        # ====================================================================
+        prompt_analysis_result = None
+        prompt_blocked = False
+
+        try:
+            prompt_service = PromptSecurityService(db, org_id)
+            prompt_analysis_result = prompt_service.analyze_prompt(
+                prompt_text=data.get("description", ""),
+                prompt_type="user_prompt",
+                agent_id=data["agent_id"]
+            )
+        except Exception as prompt_err:
+            prompt_analysis_result = None
+            logger.warning(f"[{correlation_id}] Prompt security failed (non-blocking): {prompt_err}")
+
+        # Process prompt security results OUTSIDE try-except
+        if prompt_analysis_result and prompt_analysis_result.analyzed:
+            # Add prompt security info to enrichment
+            enrichment["prompt_security"] = {
+                "analyzed": True,
+                "findings_count": len(prompt_analysis_result.findings),
+                "max_severity": prompt_analysis_result.max_severity,
+                "patterns_matched": prompt_analysis_result.patterns_matched,
+                "encoding_detected": prompt_analysis_result.encoding_detected,
+                "config_mode": prompt_analysis_result.config_mode,
+            }
+
+            # Check if action should be blocked
+            if prompt_analysis_result.blocked:
+                prompt_blocked = True
+                logger.warning(
+                    f"[{correlation_id}] Prompt security BLOCKED action: "
+                    f"{prompt_analysis_result.block_reason}"
+                )
+
+            logger.info(f"[{correlation_id}] Step 1.6 complete - Prompt security done")
+
+        # ====================================================================
         # CREATE INITIAL AGENT ACTION RECORD
         # ====================================================================
-        # Build extra_data with code analysis findings (preserving any existing data)
+        # Build extra_data with code analysis and prompt security findings
         extra_data = data.get("extra_data", {}) or {}
         if code_analysis_result and code_analysis_result.code_analyzed:
             extra_data["code_analysis"] = code_analysis_result.to_dict()
+        if prompt_analysis_result and prompt_analysis_result.analyzed:
+            extra_data["prompt_security"] = prompt_analysis_result.to_dict()
 
         action = AgentAction(
             agent_id=data["agent_id"],
@@ -513,6 +557,20 @@ async def submit_action(
                     db.commit()
                     db.refresh(action)
                     logger.info(f"[{correlation_id}] Code analysis risk applied: {action.risk_score}")
+
+        # ====================================================================
+        # PHASE 10: Apply prompt security risk adjustment AFTER action creation
+        # ====================================================================
+        if prompt_analysis_result and prompt_analysis_result.analyzed:
+            if prompt_analysis_result.max_risk_score > 0:
+                new_risk_score = max(action.risk_score, prompt_analysis_result.max_risk_score)
+                if new_risk_score != action.risk_score:
+                    db.query(AgentAction).filter(
+                        AgentAction.id == action.id
+                    ).update({'risk_score': float(new_risk_score)}, synchronize_session='fetch')
+                    db.commit()
+                    db.refresh(action)
+                    logger.info(f"[{correlation_id}] Prompt security risk applied: {action.risk_score}")
 
         # ====================================================================
         # STEP 2: CVSS CALCULATION - Quantitative risk scoring
@@ -685,6 +743,18 @@ async def submit_action(
                 f"{code_analysis_result.block_reason}"
             )
 
+        # Phase 10: Override status if prompt security blocked the action
+        if prompt_blocked and prompt_analysis_result:
+            final_status = "denied"
+            policy_decision = "denied"
+            if action.extra_data:
+                action.extra_data["prompt_blocked"] = True
+                action.extra_data["prompt_block_reason"] = prompt_analysis_result.block_reason
+            logger.warning(
+                f"[{correlation_id}] Final status overridden to DENIED by prompt security: "
+                f"{prompt_analysis_result.block_reason}"
+            )
+
         action.status = final_status
         db.add(action)
         db.commit()
@@ -716,6 +786,17 @@ async def submit_action(
                 "max_severity": code_analysis_result.max_severity,
                 "patterns_matched": code_analysis_result.patterns_matched,
                 "blocked": code_analysis_result.blocked
+            }
+
+        # Phase 10: Add prompt security metadata to audit log
+        if prompt_analysis_result and prompt_analysis_result.analyzed:
+            audit_metadata["prompt_security"] = {
+                "analyzed": True,
+                "findings_count": len(prompt_analysis_result.findings),
+                "max_severity": prompt_analysis_result.max_severity,
+                "patterns_matched": prompt_analysis_result.patterns_matched,
+                "encoding_detected": prompt_analysis_result.encoding_detected,
+                "blocked": prompt_analysis_result.blocked
             }
 
         create_audit_log(
@@ -779,6 +860,16 @@ async def submit_action(
                 # SEC-PHASE9-001: Debug - show risk_adjustment to trace issue
                 "risk_adjustment": code_analysis_result.risk_adjustment if code_analysis_result else 0
             } if code_analysis_result else None,
+            # Phase 10: Prompt security results
+            "prompt_security": {
+                "analyzed": prompt_analysis_result.analyzed if prompt_analysis_result else False,
+                "findings_count": len(prompt_analysis_result.findings) if prompt_analysis_result else 0,
+                "max_severity": prompt_analysis_result.max_severity if prompt_analysis_result else None,
+                "patterns_matched": prompt_analysis_result.patterns_matched if prompt_analysis_result else [],
+                "encoding_detected": prompt_analysis_result.encoding_detected if prompt_analysis_result else False,
+                "blocked": prompt_blocked,
+                "block_reason": prompt_analysis_result.block_reason if prompt_analysis_result and prompt_blocked else None,
+            } if prompt_analysis_result else None,
             "message": f"Action processed through complete governance pipeline - Status: {final_status}",
             "api_version": "SEC-PHASE9-001-V11-CLEAN"  # SEC-PHASE9-001: Resolved - max() in policy fusion
         }

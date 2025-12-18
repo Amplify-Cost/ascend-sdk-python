@@ -1535,6 +1535,34 @@ except ImportError as e:
     logger.warning(f"SEC-076: Diagnostics routes not loaded: {e}")
     print(f"⚠️  SEC-076: Diagnostics routes not available: {e}")
 
+# ============================================================================
+# SEC-BYOK: Enterprise BYOK/CMK Encryption Routes
+# ============================================================================
+# Customer-managed encryption keys with envelope encryption
+# Compliance: SOC 2, PCI-DSS, HIPAA, FedRAMP, NIST 800-53
+try:
+    from routes.byok_routes import router as byok_router
+    app.include_router(byok_router, tags=["BYOK Encryption"])
+    logger.info("✅ SEC-BYOK: BYOK routes loaded - /api/v1/byok/*")
+    print("✅ SEC-BYOK: Enterprise BYOK/CMK Encryption System enabled")
+except ImportError as e:
+    logger.warning(f"SEC-BYOK: BYOK routes not loaded: {e}")
+    print(f"⚠️  SEC-BYOK: BYOK routes not available: {e}")
+
+# ============================================================================
+# PHASE 10: PROMPT SECURITY ROUTES
+# ============================================================================
+# Enterprise-grade prompt injection detection and LLM-to-LLM governance
+# Compliance: SOC 2, OWASP LLM Top 10, NIST 800-53 SI-10
+try:
+    from routes.prompt_security_routes import router as prompt_security_router
+    app.include_router(prompt_security_router, tags=["Prompt Security"])
+    logger.info("✅ PHASE-10: Prompt Security routes loaded - /api/v1/admin/prompt-security/*")
+    print("✅ PHASE-10: Enterprise Prompt Security enabled")
+except ImportError as e:
+    logger.warning(f"PHASE-10: Prompt Security routes not loaded: {e}")
+    print(f"⚠️  PHASE-10: Prompt Security routes not available: {e}")
+
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
 
