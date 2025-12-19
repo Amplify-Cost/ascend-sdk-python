@@ -401,6 +401,27 @@ DOCUMENT_CATEGORIES = {
                 "filename": "security/overview.md"
             },
             {
+                "id": "prompt-injection",
+                "title": "Prompt Injection Detection",
+                "description": "Real-time prompt injection detection with 21 patterns",
+                "path": "/api/docs/category/security/prompt-injection",
+                "filename": "security/prompt-injection.md"
+            },
+            {
+                "id": "llm-governance",
+                "title": "LLM-to-LLM Governance",
+                "description": "Govern AI agent-to-agent communication chains",
+                "path": "/api/docs/category/security/llm-governance",
+                "filename": "security/llm-governance.md"
+            },
+            {
+                "id": "code-analysis",
+                "title": "Code Analysis",
+                "description": "Dangerous code pattern detection with 20 patterns",
+                "path": "/api/docs/category/security/code-analysis",
+                "filename": "security/code-analysis.md"
+            },
+            {
                 "id": "data-encryption",
                 "title": "Data Encryption",
                 "description": "Encryption at rest and in transit",
@@ -420,6 +441,41 @@ DOCUMENT_CATEGORIES = {
                 "description": "Security vulnerability reporting",
                 "path": "/api/docs/category/security/responsible-disclosure",
                 "filename": "security/responsible-disclosure.md"
+            }
+        ]
+    },
+    "sdk-wrappers": {
+        "title": "SDK Wrappers",
+        "description": "Governed Python wrappers for dangerous operations",
+        "icon": "code",
+        "documents": [
+            {
+                "id": "subprocess-wrapper",
+                "title": "subprocess Wrapper",
+                "description": "Governed subprocess execution for AI agents",
+                "path": "/api/docs/category/sdk-wrappers/subprocess-wrapper",
+                "filename": "sdk/subprocess-wrapper.md"
+            },
+            {
+                "id": "eval-exec-wrapper",
+                "title": "eval/exec Wrapper",
+                "description": "Governed dynamic code execution with AST analysis",
+                "path": "/api/docs/category/sdk-wrappers/eval-exec-wrapper",
+                "filename": "sdk/eval-exec-wrapper.md"
+            }
+        ]
+    },
+    "admin": {
+        "title": "Administration",
+        "description": "Platform administration and configuration",
+        "icon": "settings",
+        "documents": [
+            {
+                "id": "rate-limiting",
+                "title": "Rate Limiting",
+                "description": "Per-agent and per-tenant rate limiting with Redis",
+                "path": "/api/docs/category/admin/rate-limiting",
+                "filename": "admin/rate-limiting.md"
             }
         ]
     },
