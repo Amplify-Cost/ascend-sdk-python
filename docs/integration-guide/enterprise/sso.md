@@ -1,14 +1,18 @@
 ---
-Document ID: ASCEND-ENT-007
-Version: 1.0.0
-Author: Ascend Engineering Team
-Publisher: OW-kai Technologies Inc.
-Classification: Enterprise Client Documentation
-Last Updated: December 2025
-Compliance: SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4
+title: SSO Configuration
+sidebar_position: 1
 ---
 
 # SSO Configuration
+
+| Field | Value |
+|-------|-------|
+| **Document ID** | ASCEND-ENT-007 |
+| **Version** | 1.0.0 |
+| **Last Updated** | December 19, 2025 |
+| **Author** | Ascend Engineering Team |
+| **Classification** | Enterprise Client Documentation |
+| **Compliance** | SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4 |
 
 Ascend uses AWS Cognito as the identity provider, enabling enterprise-grade Single Sign-On (SSO) with support for SAML 2.0, OIDC, and social identity providers.
 

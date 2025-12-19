@@ -1,14 +1,18 @@
 ---
-Document ID: ASCEND-ENT-001
-Version: 1.0.0
-Author: Ascend Engineering Team
-Publisher: OW-kai Technologies Inc.
-Classification: Enterprise Client Documentation
-Last Updated: December 2025
-Compliance: SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4
+title: Enterprise Overview
+sidebar_position: 1
 ---
 
 # Enterprise Overview
+
+| Field | Value |
+|-------|-------|
+| **Document ID** | ASCEND-ENT-001 |
+| **Version** | 1.0.0 |
+| **Last Updated** | December 19, 2025 |
+| **Author** | Ascend Engineering Team |
+| **Classification** | Enterprise Client Documentation |
+| **Compliance** | SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4 |
 
 OW-kai provides enterprise-grade integrations for authentication, incident management, security monitoring, and compliance reporting. All integrations are built with multi-tenant isolation, full audit trails, and SOC 2 Type II compliant security controls.
 

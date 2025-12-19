@@ -15,13 +15,17 @@ Document Categories:
 - Python SDK (6 docs)
 - Node.js SDK (4 docs)
 - REST API (3 docs)
-- Security & Compliance (4 docs)
+- Security & Compliance (7 docs)
 - Governance (2 docs)
+- SDK Wrappers (2 docs)
+- Administration (1 doc)
+- Gateway (4 docs)
+- Reference (8 docs)
 
-Total: 56 documents
-Version: 3.0.0
+Total: 66 documents
+Version: 4.0.0
 Publisher: OW-kai Technologies Inc.
-Updated: 2025-12-04
+Updated: 2025-12-19
 """
 
 import os
@@ -500,6 +504,41 @@ DOCUMENT_CATEGORIES = {
             }
         ]
     },
+    "gateway": {
+        "title": "Gateway Integration",
+        "description": "API Gateway and service mesh integration guides",
+        "icon": "gateway",
+        "documents": [
+            {
+                "id": "gateway-overview",
+                "title": "Gateway Overview",
+                "description": "API Gateway integration patterns",
+                "path": "/api/docs/category/gateway/overview",
+                "filename": "gateway/README.md"
+            },
+            {
+                "id": "kong-plugin",
+                "title": "Kong Plugin",
+                "description": "Kong API Gateway plugin for Ascend governance",
+                "path": "/api/docs/category/gateway/kong-plugin",
+                "filename": "gateway/kong-plugin/README.md"
+            },
+            {
+                "id": "lambda-authorizer",
+                "title": "AWS Lambda Authorizer",
+                "description": "AWS API Gateway Lambda authorizer for Ascend",
+                "path": "/api/docs/category/gateway/lambda-authorizer",
+                "filename": "gateway/lambda-authorizer/README.md"
+            },
+            {
+                "id": "envoy-istio",
+                "title": "Envoy/Istio Integration",
+                "description": "Service mesh integration with Envoy and Istio",
+                "path": "/api/docs/category/gateway/envoy-istio",
+                "filename": "gateway/envoy-istio/README.md"
+            }
+        ]
+    },
     "reference": {
         "title": "Technical Reference",
         "description": "Detailed technical documentation",
@@ -606,8 +645,8 @@ async def get_integration_docs_index():
         "title": "Ascend Platform Documentation",
         "description": "Enterprise AI Agent Governance Platform - Complete Documentation",
         "publisher": "OW-kai Technologies Inc.",
-        "version": "3.0.0",
-        "updated": "2025-12-04",
+        "version": "4.0.0",
+        "updated": "2025-12-19",
         "total_documents": len(all_docs),
         "categories": DOCUMENT_CATEGORIES,
         "documents": all_docs
@@ -805,7 +844,7 @@ async def get_quick_start():
     """
     return {
         "title": "Ascend Quick Start",
-        "version": "3.0.0",
+        "version": "4.0.0",
         "steps": [
             {
                 "step": 1,

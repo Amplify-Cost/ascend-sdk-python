@@ -1,14 +1,18 @@
 ---
-Document ID: ASCEND-CORE-005
-Version: 1.0.0
-Author: Ascend Engineering Team
-Publisher: OW-kai Technologies Inc.
-Classification: Enterprise Client Documentation
-Last Updated: December 2025
-Compliance: SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4
+title: Risk Scoring
+sidebar_position: 1
 ---
 
 # Risk Scoring
+
+| Field | Value |
+|-------|-------|
+| **Document ID** | ASCEND-CORE-005 |
+| **Version** | 1.0.0 |
+| **Last Updated** | December 19, 2025 |
+| **Author** | Ascend Engineering Team |
+| **Classification** | Enterprise Client Documentation |
+| **Compliance** | SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4 |
 
 Ascend's Enterprise Hybrid Multi-Factor Risk Scoring Engine (v2.0.0) evaluates every agent action and assigns a risk score from 0-100. This score determines how the action is routed through your governance workflows.
 

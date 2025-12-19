@@ -1,14 +1,18 @@
 ---
-Document ID: ASCEND-CORE-003
-Version: 1.0.0
-Author: Ascend Engineering Team
-Publisher: OW-kai Technologies Inc.
-Classification: Enterprise Client Documentation
-Last Updated: December 2025
-Compliance: SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4
+title: Multi-Tenancy
+sidebar_position: 1
 ---
 
 # Multi-Tenancy
+
+| Field | Value |
+|-------|-------|
+| **Document ID** | ASCEND-CORE-003 |
+| **Version** | 1.0.0 |
+| **Last Updated** | December 19, 2025 |
+| **Author** | Ascend Engineering Team |
+| **Classification** | Enterprise Client Documentation |
+| **Compliance** | SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4 |
 
 Ascend's multi-tenant architecture provides complete data isolation between organizations using banking-level security patterns. Every database query is automatically filtered by organization, ensuring zero cross-tenant data leakage.
 

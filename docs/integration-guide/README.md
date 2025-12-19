@@ -1,4 +1,18 @@
+---
+title: Ascend Enterprise Integration Guide
+sidebar_position: 1
+---
+
 # Ascend Enterprise Integration Guide
+
+| Field | Value |
+|-------|-------|
+| **Document ID** | ASCEND-HELP-006 |
+| **Version** | 1.0.0 |
+| **Last Updated** | December 19, 2025 |
+| **Author** | Ascend Engineering Team |
+| **Classification** | Enterprise Client Documentation |
+| **Compliance** | SOC 2 CC6.1/CC6.2, PCI-DSS 7.1/8.3, HIPAA 164.312, NIST 800-53 AC-2/SI-4 |
 
 **Document ID:** ASCEND-INT-001
 **Version:** 2.1.0
