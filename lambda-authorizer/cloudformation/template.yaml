@@ -9,7 +9,6 @@ Metadata:
     Name: ascend-lambda-authorizer
     Description: ASCEND Platform Lambda Authorizer for AI agent governance
     Author: OW-KAI Platform Engineering
-    SpdxLicenseId: Apache-2.0
     LicenseUrl: ../LICENSE
     ReadmeUrl: ../README.md
     Labels: ['ai', 'governance', 'security', 'authorization', 'api-gateway']

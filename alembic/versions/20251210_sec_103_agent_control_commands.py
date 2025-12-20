@@ -35,7 +35,7 @@ from sqlalchemy import inspect
 
 # revision identifiers
 revision = 'sec_103_agent_control'
-down_revision = None
+down_revision = None  # Independent branch - merged in c10d8fe3d900
 branch_labels = None
 depends_on = None
 

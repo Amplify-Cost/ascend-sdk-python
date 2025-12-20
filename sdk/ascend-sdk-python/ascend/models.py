@@ -15,14 +15,41 @@ class AgentAction:
     """
     Represents an agent action requiring authorization.
 
-    This is the primary model for submitting actions to Ascend.
+    This is the primary model for submitting actions to the ASCEND governance platform.
+    All fields marked as required must be provided; the backend will return HTTP 422
+    if any required field is missing.
+
+    Attributes:
+        agent_id (str): Unique identifier for the AI agent (required).
+            Must match a registered agent in your organization.
+        agent_name (str): Human-readable name of the agent (required).
+            Used for display in dashboards and audit logs.
+        action_type (str): Category of action being performed (required).
+            Standard types: data_access, data_modification, transaction,
+            recommendation, communication, system_operation, query,
+            file_access, api_call, database_operation.
+        resource (str): Description of the resource being accessed (required).
+            Maps to 'description' field in backend API.
+        tool_name (str): Name of the tool/service being governed (required).
+            Examples: "sql_client", "trading_api", "crm_api", "s3_client".
+            Backend evidence: actions_v1_routes.py:287
+        resource_id (str, optional): Unique identifier for the target resource.
+        action_details (dict, optional): Additional action parameters.
+        context (dict, optional): Execution context (environment, user info, etc.).
+        risk_indicators (dict, optional): Pre-computed risk signals.
+
+    Note:
+        organization_id is NOT sent in the payload. Multi-tenant isolation
+        is enforced by deriving org_id from the API key on the backend.
+        This is a security requirement for SOC 2, PCI-DSS, HIPAA compliance.
 
     Example:
         action = AgentAction(
             agent_id="financial-bot-001",
             agent_name="Financial Advisor",
             action_type="transaction",
-            resource="customer_account",
+            resource="Process wire transfer for customer",
+            tool_name="trading_api",
             resource_id="ACC-12345",
             action_details={"amount": 50000, "currency": "USD"},
             risk_indicators={"amount_threshold": "exceeded"}
@@ -33,6 +60,7 @@ class AgentAction:
     agent_name: str
     action_type: str
     resource: str
+    tool_name: str  # Required by backend (actions_v1_routes.py:287)
     resource_id: Optional[str] = None
     action_details: Optional[Dict[str, Any]] = None
     context: Optional[Dict[str, Any]] = None
@@ -49,6 +77,7 @@ class AgentAction:
             "agent_name": self.agent_name,
             "action_type": self.action_type,
             "description": self.resource,  # Map resource to description for API compatibility
+            "tool_name": self.tool_name,  # Required by backend (actions_v1_routes.py:287)
         }
 
         if self.resource_id:

@@ -1,11 +1,32 @@
 # Changelog
 
-All notable changes to the Ascend AI SDK for Python will be documented in this file.
+All notable changes to the ASCEND AI SDK for Python will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-12-04
+## [1.0.0] - 2025-12-12
+
+### Added
+- `tool_name` field to `AgentAction` model (required)
+  - Backend evidence: `actions_v1_routes.py:287`
+  - Identifies the tool/service being governed
+  - Examples: `"sql_client"`, `"trading_api"`, `"crm_api"`, `"s3_client"`
+- Comprehensive docstrings with enterprise compliance notes
+- 21 new unit tests for model validation and schema alignment
+- `test_models.py` with backend schema alignment tests
+
+### Fixed
+- Schema alignment with backend API requirements
+- All required fields now match backend validation
+
+### Security
+- Multi-tenancy: `organization_id` NOT sent in payload (derived from API key)
+- Compliant with SOC 2, PCI-DSS, HIPAA requirements
+
+---
+
+## [1.0.0-alpha] - 2025-12-04
 
 ### Added
 - Initial release of Ascend AI SDK for Python

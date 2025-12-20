@@ -848,6 +848,357 @@ You'll be prompted to change your password on first login.
 OW-AI Enterprise | support@owkai.com
 """
 
+    # ========================================
+    # BYOK-014: BYOK Notification Methods
+    # ========================================
+
+    async def send_byok_key_registered_email(
+        self,
+        db: Session,
+        to_email: str,
+        organization_name: str,
+        cmk_arn_masked: str
+    ) -> Dict:
+        """
+        Send notification when BYOK encryption key is registered.
+
+        Args:
+            db: Database session for audit logging
+            to_email: Admin email address
+            organization_name: Organization name
+            cmk_arn_masked: Masked CMK ARN (for security)
+
+        Returns:
+            Result dict with success status
+        """
+        subject = f"[ASCEND] BYOK Encryption Enabled - {organization_name}"
+
+        html_body = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: 'Segoe UI', sans-serif; background-color: #f5f5f5; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #fff; margin: 0;">BYOK Encryption Enabled</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="color: #333; font-size: 16px;">
+                Your Customer Managed Key (CMK) has been successfully registered with ASCEND.
+            </p>
+            <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #065f46;"><strong>Organization:</strong> {organization_name}</p>
+                <p style="margin: 10px 0 0 0; color: #065f46;"><strong>CMK ARN:</strong> {cmk_arn_masked}</p>
+                <p style="margin: 10px 0 0 0; color: #065f46;"><strong>Status:</strong> Active</p>
+            </div>
+            <p style="color: #666; font-size: 14px;">
+                Your sensitive data will now be encrypted using your own encryption key.
+                You maintain full control over key access and can revoke at any time.
+            </p>
+            <p style="color: #dc2626; font-size: 14px; margin-top: 20px;">
+                <strong>Important:</strong> If you delete your CMK or revoke access, your data will become permanently inaccessible.
+            </p>
+        </div>
+        <div style="background: #f8f9fa; padding: 15px; text-align: center;">
+            <p style="margin: 0; color: #666; font-size: 12px;">ASCEND AI Governance Platform | support@owkai.app</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_body = f"""
+BYOK Encryption Enabled
+=======================
+
+Your Customer Managed Key (CMK) has been successfully registered with ASCEND.
+
+Organization: {organization_name}
+CMK ARN: {cmk_arn_masked}
+Status: Active
+
+Your sensitive data will now be encrypted using your own encryption key.
+
+IMPORTANT: If you delete your CMK or revoke access, your data will become permanently inaccessible.
+
+---
+ASCEND AI Governance Platform | support@owkai.app
+"""
+
+        return await self._send_email(
+            db=db,
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            email_type="byok_key_registered",
+            organization_slug=organization_name.lower().replace(" ", "-"),
+            sent_by="system"
+        )
+
+    async def send_byok_validation_failed_email(
+        self,
+        db: Session,
+        to_email: str,
+        organization_name: str,
+        error_message: str
+    ) -> Dict:
+        """
+        Send URGENT notification when BYOK key validation fails.
+
+        Args:
+            db: Database session for audit logging
+            to_email: Admin email address
+            organization_name: Organization name
+            error_message: Error details
+
+        Returns:
+            Result dict with success status
+        """
+        subject = f"[URGENT] ASCEND BYOK Key Access Issue - {organization_name}"
+
+        html_body = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: 'Segoe UI', sans-serif; background-color: #f5f5f5; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #fff; margin: 0;">URGENT: Encryption Key Issue</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="color: #333; font-size: 16px;">
+                <strong>ASCEND cannot access your Customer Managed Key (CMK).</strong>
+            </p>
+            <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #991b1b;"><strong>Organization:</strong> {organization_name}</p>
+                <p style="margin: 10px 0 0 0; color: #991b1b;"><strong>Error:</strong> {error_message}</p>
+                <p style="margin: 10px 0 0 0; color: #991b1b;"><strong>Impact:</strong> Data access is BLOCKED</p>
+            </div>
+            <p style="color: #333; font-size: 14px;">
+                <strong>Immediate Action Required:</strong>
+            </p>
+            <ol style="color: #666; font-size: 14px;">
+                <li>Check your AWS KMS key status</li>
+                <li>Verify the key policy grants ASCEND access</li>
+                <li>Ensure the key is not disabled or scheduled for deletion</li>
+                <li>Review AWS CloudTrail for KMS access denials</li>
+            </ol>
+            <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                Until this is resolved, all encrypted data access is blocked (FAIL SECURE).
+            </p>
+        </div>
+        <div style="background: #f8f9fa; padding: 15px; text-align: center;">
+            <p style="margin: 0; color: #666; font-size: 12px;">ASCEND AI Governance Platform | support@owkai.app</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_body = f"""
+URGENT: Encryption Key Access Issue
+===================================
+
+ASCEND cannot access your Customer Managed Key (CMK).
+
+Organization: {organization_name}
+Error: {error_message}
+Impact: Data access is BLOCKED
+
+IMMEDIATE ACTION REQUIRED:
+1. Check your AWS KMS key status
+2. Verify the key policy grants ASCEND access
+3. Ensure the key is not disabled or scheduled for deletion
+4. Review AWS CloudTrail for KMS access denials
+
+Until this is resolved, all encrypted data access is blocked (FAIL SECURE).
+
+---
+ASCEND AI Governance Platform | support@owkai.app
+"""
+
+        return await self._send_email(
+            db=db,
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            email_type="byok_validation_failed",
+            organization_slug=organization_name.lower().replace(" ", "-"),
+            sent_by="system"
+        )
+
+    async def send_byok_key_rotated_email(
+        self,
+        db: Session,
+        to_email: str,
+        organization_name: str,
+        new_dek_version: int
+    ) -> Dict:
+        """
+        Send notification when BYOK key is rotated.
+
+        Args:
+            db: Database session for audit logging
+            to_email: Admin email address
+            organization_name: Organization name
+            new_dek_version: New DEK version number
+
+        Returns:
+            Result dict with success status
+        """
+        subject = f"[ASCEND] Encryption Key Rotated - {organization_name}"
+
+        html_body = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: 'Segoe UI', sans-serif; background-color: #f5f5f5; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #fff; margin: 0;">Encryption Key Rotated</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="color: #333; font-size: 16px;">
+                Your Data Encryption Key (DEK) has been successfully rotated.
+            </p>
+            <div style="background: #eff6ff; border-left: 4px solid #2563eb; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #1e40af;"><strong>Organization:</strong> {organization_name}</p>
+                <p style="margin: 10px 0 0 0; color: #1e40af;"><strong>New DEK Version:</strong> {new_dek_version}</p>
+                <p style="margin: 10px 0 0 0; color: #1e40af;"><strong>Status:</strong> Rotation Complete</p>
+            </div>
+            <p style="color: #666; font-size: 14px;">
+                This rotation was either triggered manually or detected automatically after your CMK rotation in AWS KMS.
+                All existing data remains accessible. New data will be encrypted with the new DEK.
+            </p>
+        </div>
+        <div style="background: #f8f9fa; padding: 15px; text-align: center;">
+            <p style="margin: 0; color: #666; font-size: 12px;">ASCEND AI Governance Platform | support@owkai.app</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_body = f"""
+Encryption Key Rotated
+======================
+
+Your Data Encryption Key (DEK) has been successfully rotated.
+
+Organization: {organization_name}
+New DEK Version: {new_dek_version}
+Status: Rotation Complete
+
+This rotation was either triggered manually or detected automatically.
+All existing data remains accessible.
+
+---
+ASCEND AI Governance Platform | support@owkai.app
+"""
+
+        return await self._send_email(
+            db=db,
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            email_type="byok_key_rotated",
+            organization_slug=organization_name.lower().replace(" ", "-"),
+            sent_by="system"
+        )
+
+    async def send_byok_key_revoked_email(
+        self,
+        db: Session,
+        to_email: str,
+        organization_name: str
+    ) -> Dict:
+        """
+        Send CRITICAL notification when BYOK key is revoked.
+
+        Args:
+            db: Database session for audit logging
+            to_email: Admin email address
+            organization_name: Organization name
+
+        Returns:
+            Result dict with success status
+        """
+        subject = f"[CRITICAL] ASCEND BYOK Key Revoked - {organization_name}"
+
+        html_body = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="font-family: 'Segoe UI', sans-serif; background-color: #f5f5f5; padding: 20px;">
+    <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%); padding: 30px; text-align: center;">
+            <h1 style="color: #fff; margin: 0;">CRITICAL: Encryption Key Revoked</h1>
+        </div>
+        <div style="padding: 30px;">
+            <p style="color: #333; font-size: 16px;">
+                <strong>Your BYOK encryption key has been revoked from ASCEND.</strong>
+            </p>
+            <div style="background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0;">
+                <p style="margin: 0; color: #991b1b;"><strong>Organization:</strong> {organization_name}</p>
+                <p style="margin: 10px 0 0 0; color: #991b1b;"><strong>Status:</strong> REVOKED</p>
+                <p style="margin: 10px 0 0 0; color: #991b1b;"><strong>Impact:</strong> All encrypted data is now INACCESSIBLE</p>
+            </div>
+            <p style="color: #333; font-size: 14px;">
+                <strong>This action has the following effects:</strong>
+            </p>
+            <ul style="color: #666; font-size: 14px;">
+                <li>All encrypted data is blocked from access</li>
+                <li>New data will use platform default encryption</li>
+                <li>Previously encrypted data remains encrypted</li>
+            </ul>
+            <p style="color: #dc2626; font-size: 14px; margin-top: 20px;">
+                <strong>If this was unintentional:</strong> Register a new CMK to restore BYOK encryption.
+                Previously encrypted data will need the original CMK to decrypt.
+            </p>
+        </div>
+        <div style="background: #f8f9fa; padding: 15px; text-align: center;">
+            <p style="margin: 0; color: #666; font-size: 12px;">ASCEND AI Governance Platform | support@owkai.app</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+        text_body = f"""
+CRITICAL: Encryption Key Revoked
+================================
+
+Your BYOK encryption key has been revoked from ASCEND.
+
+Organization: {organization_name}
+Status: REVOKED
+Impact: All encrypted data is now INACCESSIBLE
+
+This action has the following effects:
+- All encrypted data is blocked from access
+- New data will use platform default encryption
+- Previously encrypted data remains encrypted
+
+If this was unintentional: Register a new CMK to restore BYOK encryption.
+
+---
+ASCEND AI Governance Platform | support@owkai.app
+"""
+
+        return await self._send_email(
+            db=db,
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+            email_type="byok_key_revoked",
+            organization_slug=organization_name.lower().replace(" ", "-"),
+            sent_by="system"
+        )
+
 
 # Singleton instance
 email_service = EnterpriseEmailService()

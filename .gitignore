@@ -7,9 +7,14 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg-info/
+dist/
+build/
+*.egg
 
 # Virtual environment
 venv/
+venv311/
 env/
 .venv/
 
@@ -23,6 +28,31 @@ env/
 # Cache
 .pytest_cache/
 .mypy_cache/
+
+# Coverage
+.coverage
+coverage.xml
+coverage*.json
+htmlcov/
+
+# Node.js
+node_modules/
+*.tgz
+
+# Build artifacts
+*.rock
+.aws-sam/
+
+# Test results
+e2e_results_*.json
+latency_benchmark*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
 # Backup files from security remediation
 *.backup-*
 *.bak

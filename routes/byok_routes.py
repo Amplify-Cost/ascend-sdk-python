@@ -104,6 +104,48 @@ class BYOKAuditResponse(BaseModel):
     total_count: int
 
 
+class LegalAcknowledgmentRequest(BaseModel):
+    """Request model for legal acknowledgment."""
+
+    acknowledge_data_loss_risk: bool
+    acknowledge_key_management_responsibility: bool
+    acknowledge_no_liability: bool
+
+
+class LegalAcknowledgmentResponse(BaseModel):
+    """Response model for legal acknowledgment."""
+
+    acknowledged: bool
+    acknowledged_at: datetime
+    acknowledged_by_user_id: int
+    message: str
+
+
+# === BYOK-015: Legal Waiver Content ===
+
+BYOK_LEGAL_WAIVER_TEXT = """
+## BYOK Data Sovereignty Acknowledgment
+
+By enabling Bring Your Own Key (BYOK) encryption, you acknowledge:
+
+1. **Key Control**: You have sole control over your AWS KMS Customer Managed Key (CMK).
+
+2. **Permanent Data Loss Risk**: If you delete your CMK or revoke ASCEND's access
+   without first disabling BYOK and exporting your data, YOUR DATA WILL BE
+   PERMANENTLY UNRECOVERABLE. OW-KAI Technologies cannot recover your data.
+
+3. **Key Rotation Responsibility**: You are responsible for managing key rotation
+   according to your compliance requirements.
+
+4. **Access Grant Maintenance**: You must maintain the KMS key grant that allows
+   ASCEND to use your CMK. Revoking this grant will immediately block access to
+   your encrypted data.
+
+5. **No Liability**: OW-KAI Technologies is not liable for data loss resulting
+   from CMK deletion, access revocation, or key mismanagement.
+"""
+
+
 # === API Endpoints ===
 
 @router.post("/keys", response_model=KeyStatusResponse, status_code=status.HTTP_201_CREATED)
@@ -529,3 +571,164 @@ async def get_byok_audit_log(
         entries=[BYOKAuditEntry(**dict(e)) for e in entries],
         total_count=count_result["count"],
     )
+
+
+# === BYOK-015: Legal Waiver Endpoints ===
+
+@router.get("/legal-waiver")
+async def get_legal_waiver(
+    current_user=Depends(get_current_user),
+):
+    """
+    Get the BYOK legal waiver text that must be acknowledged.
+
+    Returns the waiver text and current acknowledgment status.
+    """
+    return {
+        "waiver_text": BYOK_LEGAL_WAIVER_TEXT,
+        "required_acknowledgments": [
+            {
+                "field": "acknowledge_data_loss_risk",
+                "description": "I acknowledge the permanent data loss risk",
+            },
+            {
+                "field": "acknowledge_key_management_responsibility",
+                "description": "I accept responsibility for CMK management",
+            },
+            {
+                "field": "acknowledge_no_liability",
+                "description": "I understand OW-KAI is not liable for key mismanagement",
+            },
+        ],
+    }
+
+
+@router.post("/legal-waiver", response_model=LegalAcknowledgmentResponse)
+async def acknowledge_legal_waiver(
+    request: LegalAcknowledgmentRequest,
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Acknowledge the BYOK legal waiver.
+
+    BYOK-015: Customer must acknowledge risks before BYOK activation.
+
+    All three acknowledgments must be True:
+    - acknowledge_data_loss_risk
+    - acknowledge_key_management_responsibility
+    - acknowledge_no_liability
+
+    Returns:
+        LegalAcknowledgmentResponse confirming acknowledgment
+
+    Raises:
+        400: Not all acknowledgments were accepted
+        404: No BYOK key registered for organization
+    """
+    org_id = current_user.organization_id
+    user_id = current_user.id
+
+    # Validate all acknowledgments are True
+    if not all([
+        request.acknowledge_data_loss_risk,
+        request.acknowledge_key_management_responsibility,
+        request.acknowledge_no_liability,
+    ]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="All acknowledgments must be accepted (set to true) to proceed with BYOK.",
+        )
+
+    # Check if BYOK key exists
+    existing = await db.fetch_one(
+        "SELECT id, legal_acknowledgment_at FROM tenant_encryption_keys WHERE organization_id = $1",
+        org_id,
+    )
+
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No BYOK key registered. Register a key first, then acknowledge the waiver.",
+        )
+
+    # Check if already acknowledged
+    if existing.get("legal_acknowledgment_at"):
+        return LegalAcknowledgmentResponse(
+            acknowledged=True,
+            acknowledged_at=existing["legal_acknowledgment_at"],
+            acknowledged_by_user_id=user_id,
+            message="Legal waiver was previously acknowledged.",
+        )
+
+    # Record acknowledgment
+    now = datetime.now(timezone.utc)
+
+    await db.execute(
+        """
+        UPDATE tenant_encryption_keys
+        SET legal_acknowledgment_at = $1, acknowledged_by_user_id = $2
+        WHERE organization_id = $3
+        """,
+        now,
+        user_id,
+        org_id,
+    )
+
+    # Audit log
+    await db.execute(
+        """
+        INSERT INTO byok_audit_log (organization_id, operation, success, metadata, created_at)
+        VALUES ($1, 'legal_waiver_acknowledged', true, $2, $3)
+        """,
+        org_id,
+        '{"acknowledged_by": ' + str(user_id) + '}',
+        now,
+    )
+
+    logger.info(f"BYOK-015: Legal waiver acknowledged by user {user_id} for org {org_id}")
+
+    return LegalAcknowledgmentResponse(
+        acknowledged=True,
+        acknowledged_at=now,
+        acknowledged_by_user_id=user_id,
+        message="Legal waiver acknowledged. BYOK encryption is now fully enabled.",
+    )
+
+
+@router.get("/legal-waiver/status")
+async def get_legal_waiver_status(
+    current_user=Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Check if legal waiver has been acknowledged for this organization.
+
+    Returns:
+        Status of legal waiver acknowledgment
+    """
+    org_id = current_user.organization_id
+
+    result = await db.fetch_one(
+        """
+        SELECT legal_acknowledgment_at, acknowledged_by_user_id
+        FROM tenant_encryption_keys
+        WHERE organization_id = $1
+        """,
+        org_id,
+    )
+
+    if not result:
+        return {
+            "byok_configured": False,
+            "waiver_acknowledged": False,
+            "acknowledged_at": None,
+            "acknowledged_by_user_id": None,
+        }
+
+    return {
+        "byok_configured": True,
+        "waiver_acknowledged": result["legal_acknowledgment_at"] is not None,
+        "acknowledged_at": result["legal_acknowledgment_at"],
+        "acknowledged_by_user_id": result["acknowledged_by_user_id"],
+    }
