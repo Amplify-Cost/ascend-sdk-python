@@ -77,6 +77,36 @@ class ConfigUpdateRequest(BaseModel):
     notify_on_critical: Optional[bool] = None
     notification_emails: Optional[List[str]] = None
 
+    # ========================================================================
+    # VAL-FIX-001: Multi-Signal Configuration Fields
+    # ========================================================================
+    # These fields reduce false positives on business terminology while
+    # maintaining security for actual injection attempts.
+    # ========================================================================
+
+    multi_signal_required: Optional[bool] = Field(
+        None,
+        description="VAL-FIX-001: Require 2+ pattern matches for HIGH risk (>=80). "
+                    "When True, single pattern matches are capped at single_pattern_max_risk."
+    )
+    single_pattern_max_risk: Optional[int] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="VAL-FIX-001: Maximum risk score when only 1 pattern matches. "
+                    "Default 70 places single matches in MEDIUM tier, not HIGH."
+    )
+    business_context_filter: Optional[bool] = Field(
+        None,
+        description="VAL-FIX-001: Enable pre-filter for common business terminology. "
+                    "Reduces false positives on reports, analytics, calculations."
+    )
+    critical_patterns_always_block: Optional[bool] = Field(
+        None,
+        description="VAL-FIX-001: Critical patterns (PROMPT-001, 004, etc.) always use full risk. "
+                    "WARNING: Setting to False significantly reduces security."
+    )
+
 
 class PatternOverrideRequest(BaseModel):
     """Request body for creating/updating pattern override."""

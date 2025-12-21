@@ -54,6 +54,35 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# VAL-FIX-001: CRITICAL PATTERN IDS
+# ============================================================================
+# These patterns ALWAYS trigger full risk score regardless of multi-signal settings.
+# They represent direct prompt injection attempts that must never be downgraded.
+# Rationale: Patterns like "ignore previous instructions" are unambiguous attacks.
+# Compliance: OWASP LLM01 (Prompt Injection), CWE-77 (Command Injection)
+# ============================================================================
+
+CRITICAL_PATTERN_IDS = frozenset([
+    "PROMPT-001",  # Direct instruction override ("ignore previous instructions")
+    "PROMPT-002",  # New instruction injection ("from now on")
+    "PROMPT-004",  # Known jailbreak modes (DAN, STAN, etc.)
+    "PROMPT-008",  # Evil AI roleplay ("you are now an evil AI")
+    "PROMPT-016",  # Fake system/admin tags ([SYSTEM], [OVERRIDE])
+    "PROMPT-018",  # System prompt extraction ("reveal your instructions")
+    "PROMPT-020",  # LLM chain injection ("pass to next agent")
+])
+
+# Default multi-signal configuration for orgs without custom config
+# Banks and regulated industries can tighten these via org_prompt_security_config
+DEFAULT_MULTI_SIGNAL_CONFIG = {
+    "multi_signal_required": True,           # Require 2+ patterns for HIGH risk
+    "single_pattern_max_risk": 70,           # Cap single-pattern matches at MEDIUM
+    "business_context_filter": True,         # Pre-filter business terminology
+    "critical_patterns_always_block": True,  # Critical patterns bypass multi-signal
+}
+
+
+# ============================================================================
 # DATA CLASSES
 # ============================================================================
 
@@ -361,7 +390,7 @@ class PromptSecurityService:
         )
         result.findings = findings
 
-        # Step 4: Calculate metrics
+        # Step 4: Calculate metrics with VAL-FIX-001 multi-signal scoring
         if findings:
             result.patterns_matched = list(set(f.pattern_id for f in findings))
 
@@ -378,6 +407,56 @@ class PromptSecurityService:
 
                 if f.risk_score:
                     max_risk = max(max_risk, f.risk_score)
+
+            # ================================================================
+            # VAL-FIX-001: Multi-Signal Scoring Logic
+            # ================================================================
+            # Purpose: Reduce false positives on business terminology while
+            #          maintaining security for actual injection attempts.
+            #
+            # Logic:
+            # 1. Critical patterns (PROMPT-001, etc.) → always use full risk
+            # 2. Multiple patterns matched → use max risk (confirmed threat)
+            # 3. Single non-critical pattern → cap at single_pattern_max_risk
+            # ================================================================
+
+            # Get multi-signal config (from org config or defaults)
+            multi_signal_config = getattr(config, 'multi_signal_config', None) or DEFAULT_MULTI_SIGNAL_CONFIG
+            multi_signal_required = multi_signal_config.get('multi_signal_required', True)
+            single_pattern_max_risk = multi_signal_config.get('single_pattern_max_risk', 70)
+            critical_always_block = multi_signal_config.get('critical_patterns_always_block', True)
+
+            # Check if any critical pattern matched
+            critical_patterns_matched = [
+                f.pattern_id for f in findings
+                if f.pattern_id in CRITICAL_PATTERN_IDS
+            ]
+            has_critical_match = len(critical_patterns_matched) > 0
+
+            # Apply multi-signal logic
+            original_max_risk = max_risk
+
+            if has_critical_match and critical_always_block:
+                # Critical pattern matched - use full risk score, no reduction
+                logger.info(
+                    f"VAL-FIX-001: Critical pattern detected ({critical_patterns_matched}), "
+                    f"using full risk score {max_risk}"
+                )
+            elif multi_signal_required and len(findings) == 1:
+                # Single non-critical pattern - cap at single_pattern_max_risk
+                if max_risk > single_pattern_max_risk:
+                    max_risk = single_pattern_max_risk
+                    logger.info(
+                        f"VAL-FIX-001: Single pattern match ({findings[0].pattern_id}), "
+                        f"risk capped from {original_max_risk} to {max_risk} "
+                        f"(multi_signal_required=True, single_pattern_max_risk={single_pattern_max_risk})"
+                    )
+            elif len(findings) >= 2:
+                # Multiple patterns matched - confirmed threat, use max risk
+                logger.info(
+                    f"VAL-FIX-001: Multi-signal confirmed ({len(findings)} patterns), "
+                    f"using max risk {max_risk}"
+                )
 
             result.max_risk_score = max_risk
 
@@ -516,6 +595,15 @@ class PromptSecurityService:
         findings: List[PromptFinding] = []
         seen_patterns = set()  # Avoid duplicate findings for same pattern
 
+        # VAL-FIX-001: Diagnostic logging to identify false positive root cause
+        prompt_hash = hashlib.sha256(original_text.encode()).hexdigest()[:16]
+        logger.debug(
+            f"PROMPT_SECURITY_DIAGNOSTIC: Starting analysis - "
+            f"prompt_hash={prompt_hash}, prompt_type={prompt_type}, "
+            f"org_id={self.org_id}, patterns_count={len(patterns)}, "
+            f"prompt_preview={original_text[:80]}..."
+        )
+
         # Analyze both original and decoded text
         texts_to_analyze = [original_text]
         if decoded_text != original_text:
@@ -550,6 +638,14 @@ class PromptSecurityService:
                         # Use org-configured severity scores
                         risk_score = config.get_severity_score(pattern.severity)
 
+                    # VAL-FIX-001: Log each pattern match for debugging
+                    logger.info(
+                        f"PROMPT_SECURITY_MATCH: pattern_id={pattern.pattern_id}, "
+                        f"category={pattern.category}, severity={pattern.severity}, "
+                        f"risk_score={risk_score}, matched_text={matched_text[:50]!r}, "
+                        f"prompt_hash={prompt_hash}, org_id={self.org_id}"
+                    )
+
                     finding = PromptFinding(
                         pattern_id=pattern.pattern_id,
                         category=pattern.category,
@@ -563,6 +659,20 @@ class PromptSecurityService:
                         owasp_llm_top10=pattern.owasp_llm_top10.copy(),
                     )
                     findings.append(finding)
+
+        # VAL-FIX-001: Log summary of findings
+        if findings:
+            logger.info(
+                f"PROMPT_SECURITY_SUMMARY: prompt_hash={prompt_hash}, "
+                f"total_findings={len(findings)}, "
+                f"patterns_matched={[f.pattern_id for f in findings]}, "
+                f"max_risk={max(f.risk_score for f in findings)}"
+            )
+        else:
+            logger.debug(
+                f"PROMPT_SECURITY_SUMMARY: prompt_hash={prompt_hash}, "
+                f"total_findings=0, no patterns matched"
+            )
 
         # Sort by risk score (highest first)
         findings.sort(key=lambda f: f.risk_score or 0, reverse=True)

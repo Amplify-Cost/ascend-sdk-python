@@ -202,6 +202,49 @@ class OrgPromptSecurityConfig(Base):
     notify_on_critical = Column(Boolean, default=True)
     notification_emails = Column(ARRAY(String(255)), default=[])
 
+    # ========================================================================
+    # VAL-FIX-001: Multi-Signal Configuration
+    # ========================================================================
+    # These settings reduce false positives on business terminology while
+    # maintaining security for actual injection attempts.
+    # ========================================================================
+
+    # Require 2+ pattern matches for HIGH risk (>=80)
+    # When True, single pattern matches are capped at single_pattern_max_risk
+    multi_signal_required = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment='VAL-FIX-001: Require 2+ pattern matches for HIGH risk classification'
+    )
+
+    # Maximum risk score when only 1 pattern matches (if multi_signal_required=True)
+    # Default 70 places single matches in MEDIUM tier, not HIGH
+    single_pattern_max_risk = Column(
+        Integer,
+        default=70,
+        nullable=False,
+        comment='VAL-FIX-001: Max risk when only 1 pattern matches (default 70 = MEDIUM tier)'
+    )
+
+    # Enable pre-filter for common business terminology
+    # Reduces false positives on reports, analytics, calculations, etc.
+    business_context_filter = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment='VAL-FIX-001: Enable business terminology pre-filter to reduce false positives'
+    )
+
+    # Critical patterns (PROMPT-001, 004, 008, 016, 018, 020) always use full risk
+    # WARNING: Setting to False significantly reduces security
+    critical_patterns_always_block = Column(
+        Boolean,
+        default=True,
+        nullable=False,
+        comment='VAL-FIX-001: Critical injection patterns bypass multi-signal (SECURITY CRITICAL)'
+    )
+
     # Audit
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -235,6 +278,20 @@ class OrgPromptSecurityConfig(Base):
         }
         return scan_map.get(prompt_type, True)
 
+    @property
+    def multi_signal_config(self) -> dict:
+        """
+        VAL-FIX-001: Get multi-signal configuration as dictionary.
+
+        Used by PromptSecurityService.analyze_prompt() for multi-signal scoring.
+        """
+        return {
+            "multi_signal_required": self.multi_signal_required,
+            "single_pattern_max_risk": self.single_pattern_max_risk,
+            "business_context_filter": self.business_context_filter,
+            "critical_patterns_always_block": self.critical_patterns_always_block,
+        }
+
     def to_dict(self):
         """Convert to dictionary for API responses."""
         return {
@@ -260,6 +317,11 @@ class OrgPromptSecurityConfig(Base):
             "disabled_pattern_ids": self.disabled_pattern_ids or [],
             "notify_on_block": self.notify_on_block,
             "notify_on_critical": self.notify_on_critical,
+            # VAL-FIX-001: Multi-signal configuration
+            "multi_signal_required": self.multi_signal_required,
+            "single_pattern_max_risk": self.single_pattern_max_risk,
+            "business_context_filter": self.business_context_filter,
+            "critical_patterns_always_block": self.critical_patterns_always_block,
         }
 
 
