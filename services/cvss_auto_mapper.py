@@ -87,6 +87,51 @@ class CVSSAutoMapper:
             "availability_impact": "NONE"
         },
 
+        # ===== LLM OPERATIONS (LOW RISK) =====
+        # CVSS-FIX-001: LLM prompts should be LOW risk when no security findings
+        # Clean prompts (summarize, draft, calculate) get base CVSS ~3.5
+        # Prompt security layer handles actual threats separately
+        "llm_prompt": {
+            "attack_vector": "NETWORK",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",
+            "user_interaction": "NONE",
+            "scope": "UNCHANGED",
+            "confidentiality_impact": "LOW",
+            "integrity_impact": "NONE",
+            "availability_impact": "NONE"
+        },
+        "assistant": {
+            "attack_vector": "NETWORK",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",
+            "user_interaction": "NONE",
+            "scope": "UNCHANGED",
+            "confidentiality_impact": "LOW",
+            "integrity_impact": "NONE",
+            "availability_impact": "NONE"
+        },
+        "chat": {
+            "attack_vector": "NETWORK",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",
+            "user_interaction": "NONE",
+            "scope": "UNCHANGED",
+            "confidentiality_impact": "LOW",
+            "integrity_impact": "NONE",
+            "availability_impact": "NONE"
+        },
+        "completion": {
+            "attack_vector": "NETWORK",
+            "attack_complexity": "LOW",
+            "privileges_required": "LOW",
+            "user_interaction": "NONE",
+            "scope": "UNCHANGED",
+            "confidentiality_impact": "LOW",
+            "integrity_impact": "NONE",
+            "availability_impact": "NONE"
+        },
+
         # ===== WRITE OPERATIONS (MEDIUM RISK) =====
         "database_write": {
             "attack_vector": "NETWORK",
