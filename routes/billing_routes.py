@@ -131,11 +131,7 @@ class SubscriptionResponse(BaseModel):
     included_api_calls: int
     included_users: int
     included_mcp_servers: int
-
-    # Overage rates
-    overage_rate_api_call: float
-    overage_rate_user: float
-    overage_rate_mcp_server: float
+    included_agents: int = 0
 
 
 class PortalResponse(BaseModel):
@@ -380,9 +376,7 @@ async def get_subscription(
         included_api_calls=org.included_api_calls,
         included_users=org.included_users,
         included_mcp_servers=org.included_mcp_servers,
-        overage_rate_api_call=org.overage_rate_per_call,
-        overage_rate_user=org.overage_rate_per_user,
-        overage_rate_mcp_server=org.overage_rate_per_server
+        included_agents=getattr(org, 'included_agents', 0) or 0
     )
 
 
@@ -457,16 +451,19 @@ async def get_subscription_tiers(
             "display_name": tier.display_name,
             "description": tier.description,
             "monthly_price": tier.monthly_base_price,
+            "yearly_price": tier.price_yearly_cents / 100.0 if tier.price_yearly_cents else 0,
             "included": {
                 "api_calls": tier.included_api_calls,
                 "users": tier.included_users,
-                "mcp_servers": tier.included_mcp_servers
+                "mcp_servers": tier.included_mcp_servers,
+                "agents": tier.included_agents
             },
-            "overage_rates": {
-                "api_call": tier.overage_rate_api_call,
-                "user": tier.overage_rate_user,
-                "mcp_server": tier.overage_rate_mcp_server
+            "stripe": {
+                "product_id": tier.stripe_product_id,
+                "price_id_monthly": tier.stripe_price_id_monthly,
+                "price_id_yearly": tier.stripe_price_id_yearly
             },
+            "trial_days": tier.trial_days,
             "features": tier.features
         }
         for tier in tiers
