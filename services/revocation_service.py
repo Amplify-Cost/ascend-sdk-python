@@ -302,10 +302,14 @@ class RedisRevocationBackend:
             return self._redis.exists(key) > 0
 
         except redis.RedisError as e:
-            logger.error(f"SEC-081: Redis check failed: {e}")
-            # Fail open (allow) on Redis errors to prevent lockout
-            # Log as security event for monitoring
-            return False
+            # SEC-081 FAIL SECURE: Redis unavailable = DENY access
+            # This is a CRITICAL security requirement - when we cannot verify
+            # if a token is revoked, we MUST deny access to prevent bypassing
+            # session revocation during infrastructure failures.
+            logger.error(
+                f"SEC-081: Redis unavailable - DENYING ACCESS (fail secure): {e}"
+            )
+            return True  # Token considered revoked = deny access
 
     def revoke_session(self, session_id: str) -> int:
         """

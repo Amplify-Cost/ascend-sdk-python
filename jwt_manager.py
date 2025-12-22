@@ -250,11 +250,41 @@ class EnterpriseJWTManager:
             raise jwt.InvalidTokenError("Session has been revoked")
     
     def _is_session_revoked(self, session_id: str) -> bool:
-        """Check if session is revoked (implement with Redis/database)"""
-        # TODO: Implement session revocation check
-        # This would check a Redis cache or database table
-        # For now, always return False (no revocations)
-        return False
+        """
+        Check if session/token is revoked using RevocationService.
+
+        SEC-081 FAIL SECURE: If RevocationService or Redis is unavailable,
+        this method returns True (session considered revoked = deny access).
+        This prevents session revocation bypass during infrastructure failures.
+
+        Args:
+            session_id: The JTI (JWT ID) to check for revocation
+
+        Returns:
+            True if session is revoked OR if check fails (FAIL SECURE)
+            False only if session is confirmed NOT revoked
+        """
+        try:
+            from services.revocation_service import get_revocation_service
+            revocation_service = get_revocation_service()
+            is_revoked = revocation_service.is_revoked(session_id)
+
+            if is_revoked:
+                import logging
+                logging.getLogger(__name__).info(
+                    f"SEC-081: Session revoked - access denied | jti={session_id[:8]}..."
+                )
+
+            return is_revoked
+
+        except Exception as e:
+            # SEC-081 FAIL SECURE: Any error during revocation check = deny access
+            # This ensures infrastructure failures don't bypass security controls
+            import logging
+            logging.getLogger(__name__).error(
+                f"SEC-081: Session revocation check failed - DENYING ACCESS (fail secure): {e}"
+            )
+            return True  # Session considered revoked = deny access
     
     def create_refresh_token(self, user_id: str, session_id: str) -> str:
         """Create refresh token (longer lived for token renewal)"""
