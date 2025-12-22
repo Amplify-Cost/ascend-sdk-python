@@ -572,22 +572,34 @@ class SubscriptionTier(Base):
     display_name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
 
+    # Pricing (in cents for precision)
+    price_monthly_cents = Column(Integer, nullable=False, default=0)
+    price_yearly_cents = Column(Integer, nullable=False, default=0)
+
     # Stripe product/price
     stripe_product_id = Column(String(255), nullable=True)
     stripe_price_id = Column(String(255), nullable=True)
-    monthly_base_price = Column(Float, nullable=False)
+    stripe_price_id_monthly = Column(String(255), nullable=True)
+    stripe_price_id_yearly = Column(String(255), nullable=True)
 
     # Included quantities
     included_api_calls = Column(Integer, nullable=False, default=0)
     included_users = Column(Integer, nullable=False, default=0)
     included_mcp_servers = Column(Integer, nullable=False, default=0)
-    included_storage_gb = Column(Integer, nullable=False, default=0)
+    included_agents = Column(Integer, nullable=False, default=0)
 
-    # Overage rates (per unit above included)
-    overage_rate_api_call = Column(Float, nullable=False, default=0.0)
-    overage_rate_user = Column(Float, nullable=False, default=0.0)
-    overage_rate_mcp_server = Column(Float, nullable=False, default=0.0)
-    overage_rate_storage_gb = Column(Float, nullable=False, default=0.0)
+    # Trial
+    trial_days = Column(Integer, nullable=False, default=0)
+    trial_features = Column(JSONB, nullable=True)
+
+    # Visibility
+    is_public = Column(Boolean, nullable=False, default=True)
+
+    # Property for backward compatibility
+    @property
+    def monthly_base_price(self) -> float:
+        """Return monthly price in dollars for backward compatibility"""
+        return self.price_monthly_cents / 100.0 if self.price_monthly_cents else 0.0
 
     # Features
     features = Column(JSONB, nullable=True)
@@ -610,7 +622,7 @@ class SubscriptionTier(Base):
     )
 
     def __repr__(self):
-        return f"<SubscriptionTier(name={self.name}, price=${self.monthly_base_price})>"
+        return f"<SubscriptionTier(name={self.name}, price=${self.price_monthly_cents/100:.2f})>"
 
 
 # =============================================================================
