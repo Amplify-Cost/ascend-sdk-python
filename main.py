@@ -1587,9 +1587,11 @@ except ImportError as e:
     print(f"⚠️  PHASE-10C: Spend control routes not available: {e}")
 
 try:
-    from routes.stripe_webhook_routes import router as stripe_webhook_router
+    from routes.stripe_webhook_routes import router as stripe_webhook_router, stripe_v1_router
     app.include_router(stripe_webhook_router, tags=["Webhooks - Stripe"])
+    app.include_router(stripe_v1_router, tags=["Webhooks - Stripe (v1 Alias)"])
     logger.info("✅ PHASE-10E: Stripe webhook routes loaded - /api/webhooks/stripe")
+    logger.info("✅ PHASE-10E: Stripe webhook v1 alias loaded - /api/v1/stripe/webhook")
     print("✅ PHASE-10E: Stripe Webhook Handler enabled")
 except ImportError as e:
     logger.warning(f"PHASE-10E: Stripe webhook routes not loaded: {e}")

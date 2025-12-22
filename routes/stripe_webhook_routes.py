@@ -41,6 +41,14 @@ router = APIRouter(
     tags=["Webhooks - Stripe"]
 )
 
+# Alias router for Stripe Dashboard compatibility
+# Stripe Dashboard configured: /api/v1/stripe/webhook
+# This provides backward-compatible alias while preserving original route
+stripe_v1_router = APIRouter(
+    prefix="/api/v1/stripe",
+    tags=["Webhooks - Stripe (v1 Alias)"]
+)
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -529,3 +537,34 @@ async def stripe_webhook_health():
         "stripe_key_configured": bool(STRIPE_SECRET_KEY),
         "handled_events": HANDLED_EVENTS
     }
+
+
+# =============================================================================
+# V1 ALIAS ENDPOINTS (Stripe Dashboard Compatibility)
+# =============================================================================
+# Stripe Dashboard is configured with /api/v1/stripe/webhook
+# These aliases forward to the same handlers as /api/webhooks/stripe
+
+@stripe_v1_router.post("/webhook")
+async def stripe_webhook_v1_alias(
+    request: Request,
+    background_tasks: BackgroundTasks
+):
+    """
+    Alias endpoint for Stripe Dashboard compatibility.
+
+    Stripe Dashboard configured URL: /api/v1/stripe/webhook
+    Forwards to same handler as /api/webhooks/stripe
+
+    This ensures:
+    - Zero breaking changes for existing integrations
+    - Stripe Dashboard webhook delivery works
+    - Same security (HMAC-SHA256) on both paths
+    """
+    return await stripe_webhook(request, background_tasks)
+
+
+@stripe_v1_router.get("/webhook/health")
+async def stripe_webhook_v1_health():
+    """Health check for v1 alias endpoint"""
+    return await stripe_webhook_health()
