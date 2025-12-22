@@ -32,6 +32,8 @@ import logging
 import httpx
 import os
 
+import stripe
+
 from database import get_db
 from models_signup import (
     SignupRequest, SignupAttempt, DisposableEmailDomain,
@@ -39,6 +41,11 @@ from models_signup import (
 )
 from models import Organization, User
 from services.cognito_pool_provisioner import CognitoPoolProvisioner
+
+# =============================================================================
+# STRIPE CONFIGURATION (Phase 10F)
+# =============================================================================
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 
 logger = logging.getLogger(__name__)
 
@@ -416,6 +423,63 @@ def calculate_fraud_score(
         flags.append("email_domain_fraud_history")
 
     return min(score, 100), flags
+
+
+async def create_stripe_customer(
+    organization_id: int,
+    organization_name: str,
+    admin_email: str,
+    subscription_tier: str
+) -> Optional[str]:
+    """
+    Phase 10F: Create Stripe customer for new organization.
+
+    Creates customer in Stripe with metadata for:
+    - Organization ID linkage
+    - Subscription tier tracking
+    - Billing coordination
+
+    Returns:
+        Stripe customer ID if successful, None otherwise
+
+    Compliance: PCI-DSS 3.5 - No card data handled by backend
+    """
+    if not STRIPE_SECRET_KEY:
+        logger.warning("Phase 10F: STRIPE_SECRET_KEY not configured, skipping customer creation")
+        return None
+
+    try:
+        stripe.api_key = STRIPE_SECRET_KEY
+
+        # Get tier-specific Stripe product ID
+        tier_products = {
+            "pilot": os.getenv("STRIPE_PRODUCT_ID_PILOT"),
+            "growth": os.getenv("STRIPE_PRODUCT_ID_GROWTH"),
+            "enterprise": os.getenv("STRIPE_PRODUCT_ID_ENTERPRISE"),
+            "mega": os.getenv("STRIPE_PRODUCT_ID_MEGA")
+        }
+
+        customer = stripe.Customer.create(
+            email=admin_email,
+            name=organization_name,
+            metadata={
+                "organization_id": str(organization_id),
+                "subscription_tier": subscription_tier,
+                "source": "self_service_signup",
+                "created_via": "owkai_platform"
+            },
+            description=f"OW-KAI Organization: {organization_name}"
+        )
+
+        logger.info(f"Phase 10F: Created Stripe customer {customer.id} for org {organization_id}")
+        return customer.id
+
+    except stripe.error.StripeError as e:
+        logger.error(f"Phase 10F: Failed to create Stripe customer for org {organization_id}: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Phase 10F: Unexpected error creating Stripe customer: {e}")
+        return None
 
 
 def check_rate_limit(ip_address: str, db: Session) -> bool:
@@ -1114,6 +1178,22 @@ async def create_organization_from_signup(signup_id: int, db: Session):
             db.add(organization)
             db.flush()
             logger.info(f"SEC-021: Created new organization {organization.id} ({organization.slug})")
+
+            # =================================================================
+            # Phase 10F: Create Stripe customer for billing
+            # =================================================================
+            stripe_customer_id = await create_stripe_customer(
+                organization_id=organization.id,
+                organization_name=organization.name,
+                admin_email=signup_request.email,
+                subscription_tier=signup_request.requested_tier
+            )
+
+            if stripe_customer_id:
+                organization.stripe_customer_id = stripe_customer_id
+                logger.info(f"Phase 10F: Org {organization.id} linked to Stripe customer {stripe_customer_id}")
+            else:
+                logger.warning(f"Phase 10F: Stripe customer creation skipped for org {organization.id}")
 
         logger.info(f"SEC-021: Organization {organization.id} created, provisioning Cognito pool")
 

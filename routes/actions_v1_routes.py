@@ -73,6 +73,12 @@ from services.agent_rate_limiter import (
 )
 from models_rate_limits import RateLimitResult
 
+# Phase 10B: Usage metering (fire-and-forget, <1ms latency)
+from services.metering_service import get_metering_service
+
+# Phase 10C: Spend control (Redis-cached, <0.5ms latency)
+from services.spend_control_service import get_spend_control_service
+
 # Configure logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -337,6 +343,42 @@ async def submit_action(
             except Exception as e:
                 # Log but don't fail on rate limiter errors (Redis unavailable creates RateLimitResult)
                 logger.warning(f"[{correlation_id}] BEHAV-001: Rate limiter error: {e}")
+
+        # ====================================================================
+        # PHASE 10C: SPEND CONTROL CHECK - Kill-switch / spend limit
+        # ====================================================================
+        # Redis-cached check - MUST complete in <0.5ms to maintain <6ms overall
+        try:
+            spend_service = get_spend_control_service()
+            spend_result = await spend_service.check_spend_limit(org_id)
+
+            if spend_result.blocked:
+                logger.warning(
+                    f"[{correlation_id}] PHASE-10C: Action blocked by spend control - "
+                    f"org={org_id}, status={spend_result.status}, "
+                    f"utilization={spend_result.utilization_percent:.1f}%"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "error": "Spend limit exceeded or kill-switch active",
+                        "status": spend_result.status,
+                        "message": spend_result.message,
+                        "correlation_id": correlation_id
+                    }
+                )
+
+            if spend_result.warning_triggered:
+                logger.info(
+                    f"[{correlation_id}] PHASE-10C: Spend warning threshold reached - "
+                    f"org={org_id}, utilization={spend_result.utilization_percent:.1f}%"
+                )
+
+        except HTTPException:
+            raise  # Re-raise spend limit error
+        except Exception as e:
+            # Log but don't block on spend control errors (fail-open for availability)
+            logger.warning(f"[{correlation_id}] PHASE-10C: Spend control check error: {e}")
 
         # ====================================================================
         # SEC-106: AGENT THRESHOLD LOOKUP - Get configurable thresholds
@@ -813,6 +855,28 @@ async def submit_action(
             f"[{correlation_id}] Step 7 complete - Audit logged "
             f"(processing: {processing_time_ms}ms)"
         )
+
+        # ====================================================================
+        # PHASE 10B: USAGE METERING - Fire-and-forget (<1ms latency)
+        # ====================================================================
+        # Record usage for billing - non-blocking, failures are logged not raised
+        try:
+            metering = get_metering_service()
+            await metering.record_usage(
+                organization_id=org_id,
+                event_type="action_evaluation",
+                quantity=1,
+                metadata={
+                    "action_id": action.id,
+                    "action_type": data["action_type"],
+                    "status": final_status,
+                    "risk_level": action.risk_level
+                }
+            )
+            logger.debug(f"[{correlation_id}] PHASE-10B: Usage metered for org {org_id}")
+        except Exception as e:
+            # Fire-and-forget - never block action on metering failure
+            logger.warning(f"[{correlation_id}] PHASE-10B: Metering error (non-blocking): {e}")
 
         # ====================================================================
         # RETURN COMPREHENSIVE RESPONSE

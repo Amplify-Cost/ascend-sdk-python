@@ -1563,6 +1563,38 @@ except ImportError as e:
     logger.warning(f"PHASE-10: Prompt Security routes not loaded: {e}")
     print(f"⚠️  PHASE-10: Prompt Security routes not available: {e}")
 
+# ============================================================================
+# PHASE 10B-F: STRIPE BILLING & METERING ROUTES
+# ============================================================================
+# Usage-based billing, spend control, and Stripe webhooks
+# Compliance: SOC 2 CC6.1, PCI-DSS 3.5
+try:
+    from routes.billing_routes import router as billing_router
+    app.include_router(billing_router, tags=["Billing - Dashboard"])
+    logger.info("✅ PHASE-10D: Billing dashboard routes loaded - /api/billing/*")
+    print("✅ PHASE-10D: Customer Billing Dashboard enabled")
+except ImportError as e:
+    logger.warning(f"PHASE-10D: Billing routes not loaded: {e}")
+    print(f"⚠️  PHASE-10D: Billing routes not available: {e}")
+
+try:
+    from routes.spend_control_routes import router as spend_control_router
+    app.include_router(spend_control_router, tags=["Billing - Spend Control"])
+    logger.info("✅ PHASE-10C: Spend control routes loaded - /api/billing/spend-limits/*")
+    print("✅ PHASE-10C: Financial Kill-Switch & Spend Control enabled")
+except ImportError as e:
+    logger.warning(f"PHASE-10C: Spend control routes not loaded: {e}")
+    print(f"⚠️  PHASE-10C: Spend control routes not available: {e}")
+
+try:
+    from routes.stripe_webhook_routes import router as stripe_webhook_router
+    app.include_router(stripe_webhook_router, tags=["Webhooks - Stripe"])
+    logger.info("✅ PHASE-10E: Stripe webhook routes loaded - /api/webhooks/stripe")
+    print("✅ PHASE-10E: Stripe Webhook Handler enabled")
+except ImportError as e:
+    logger.warning(f"PHASE-10E: Stripe webhook routes not loaded: {e}")
+    print(f"⚠️  PHASE-10E: Stripe webhook routes not available: {e}")
+
 # ================== YOUR ANALYTICS ROUTES (PRESERVED) ==================
 
 
