@@ -718,7 +718,11 @@ class AscendClient:
         resource_id: Optional[str] = None,
         risk_indicators: Optional[Dict[str, Any]] = None,
         wait_for_decision: bool = True,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        # SDK 2.3.0 / FEAT-007: Orchestration linkage (optional).
+        orchestration_session_id: Optional[str] = None,
+        parent_action_id: Optional[int] = None,
+        orchestration_depth: Optional[int] = None,
     ) -> AuthorizationDecision:
         """
         Evaluate an action against ASCEND policies.
@@ -732,6 +736,14 @@ class AscendClient:
             risk_indicators: Risk assessment hints
             wait_for_decision: Whether to wait for approval if pending
             timeout: Timeout for waiting (seconds)
+            orchestration_session_id: SDK 2.3.0 — link this action to a
+                multi-agent orchestration session. Backend groups all actions
+                sharing this id for audit + risk propagation (FEAT-007).
+            parent_action_id: SDK 2.3.0 — AgentAction.id returned from an
+                earlier evaluate_action call that initiated this delegation.
+                Server validates same-tenant + session-match (fail-secure 403).
+            orchestration_depth: SDK 2.3.0 — delegation depth (0-5). Server
+                rejects values outside this range with HTTP 422.
 
         Returns:
             AuthorizationDecision with decision, risk_score, reason
@@ -758,6 +770,14 @@ class AscendClient:
                 field_errors={"resource": "Required field is missing or empty"}
             )
 
+        # SDK 2.3.0: Client-side guardrail on depth. Server also enforces
+        # this cap, but refusing locally saves a round-trip.
+        if orchestration_depth is not None and not (0 <= int(orchestration_depth) <= 5):
+            raise ValidationError(
+                "orchestration_depth must be between 0 and 5",
+                field_errors={"orchestration_depth": "Out of range (0..5)"}
+            )
+
         action = AgentAction(
             agent_id=self.agent_id or "unknown",
             agent_name=self.agent_name or "Unknown Agent",
@@ -766,7 +786,10 @@ class AscendClient:
             resource_id=resource_id,
             action_details=parameters,
             context=context,
-            risk_indicators=risk_indicators
+            risk_indicators=risk_indicators,
+            orchestration_session_id=orchestration_session_id,
+            parent_action_id=parent_action_id,
+            orchestration_depth=orchestration_depth,
         )
 
         try:
@@ -911,6 +934,228 @@ class AscendClient:
             )
         except (TimeoutError, ConnectionError, CircuitBreakerOpen) as e:
             return self._handle_fail_mode(e, resolved_action_type)
+
+    # =========================================================================
+    # SDK 2.3.0: FEAT-001B — Link a model to an agent (agent registry update)
+    # =========================================================================
+    def link_model_to_agent(
+        self,
+        agent_id: str,
+        model_id: int,
+    ) -> Dict[str, Any]:
+        """
+        Link a registered AI/ML model to an agent.
+
+        Thin wrapper over PUT /api/registry/agents/{agent_id} that sets the
+        agent's model_id. The server enforces:
+          - the model exists and belongs to the caller's organization
+          - the model's compliance_status is 'approved' or 'partially_approved'
+          - an immutable audit event is recorded (AGENT_MODEL_LINKED)
+
+        Auth: works with API key (admin role) or JWT (admin role).
+
+        Args:
+            agent_id: Agent's string identifier (e.g., "agent-001").
+            model_id: DeployedModel.id (int) from the ASCEND model registry.
+
+        Returns:
+            Raw response dict: {"success": bool, "agent": {...}, "message": str}
+
+        Raises:
+            ValidationError: If agent_id or model_id is missing/invalid.
+            AuthorizationError: 403 on wrong tenant / unapproved model.
+        """
+        if not agent_id or not isinstance(agent_id, str) or not agent_id.strip():
+            raise ValidationError(
+                "agent_id is required and must be a non-empty string",
+                field_errors={"agent_id": "Required field is missing or empty"},
+            )
+        if not isinstance(model_id, int) or model_id < 1:
+            raise ValidationError(
+                "model_id must be a positive integer",
+                field_errors={"model_id": "Must be a positive integer"},
+            )
+
+        endpoint = API_ENDPOINTS["agent_update"].format(agent_id=agent_id)
+        return self._request("PUT", endpoint, data={"model_id": model_id})
+
+    # =========================================================================
+    # SDK 2.3.0: FEAT-005 — Register a supply-chain component
+    # =========================================================================
+    def register_supply_chain_component(
+        self,
+        component_id: str,
+        component_name: str,
+        component_type: str,
+        provider: Optional[str] = None,
+        version: Optional[str] = None,
+        latest_version: Optional[str] = None,
+        license_type: Optional[str] = None,
+        source_url: Optional[str] = None,
+        provenance_verified: bool = False,
+        risk_level: str = "medium",
+        compliance_notes: Optional[str] = None,
+        package_name: Optional[str] = None,
+        package_ecosystem: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Register a new AI supply-chain component with the organization.
+
+        Posts to POST /api/v1/supply-chain/components (FEAT-005). Auth is
+        now dual (API key admin OR JWT admin) as of backend SDK 2.3.0
+        companion fix.
+
+        Args:
+            component_id: Org-unique identifier (<=255 chars).
+            component_name: Human-readable name (<=500 chars).
+            component_type: Must match one of the backend ComponentType enum
+                values (e.g., "model", "library", "dataset", "framework",
+                "tool", "service"). Server rejects unknown types.
+            provider: Vendor / provider name.
+            version: Installed version.
+            latest_version: Latest-known upstream version (for drift tracking).
+            license_type: SPDX identifier or license name.
+            source_url: Upstream source URL.
+            provenance_verified: True if supply-chain provenance is verified.
+            risk_level: "low" | "medium" | "high" | "critical" (default "medium").
+            compliance_notes: Free-form notes for auditors.
+            package_name: Package ecosystem package name.
+            package_ecosystem: e.g., "pypi", "npm", "maven", "huggingface".
+
+        Returns:
+            Raw response dict from the server including the created component.
+
+        Raises:
+            ValidationError: Local checks fail.
+            AuthorizationError: Caller lacks admin role.
+        """
+        if not component_id or not isinstance(component_id, str) or not component_id.strip():
+            raise ValidationError(
+                "component_id is required and must be a non-empty string",
+                field_errors={"component_id": "Required field"},
+            )
+        if not component_name or not isinstance(component_name, str) or not component_name.strip():
+            raise ValidationError(
+                "component_name is required and must be a non-empty string",
+                field_errors={"component_name": "Required field"},
+            )
+        if not component_type or not isinstance(component_type, str) or not component_type.strip():
+            raise ValidationError(
+                "component_type is required and must be a non-empty string",
+                field_errors={"component_type": "Required field"},
+            )
+
+        payload: Dict[str, Any] = {
+            "component_id": component_id,
+            "component_name": component_name,
+            "component_type": component_type,
+            "provenance_verified": provenance_verified,
+            "risk_level": risk_level,
+        }
+        # Only include optional fields when set, so we don't clobber server defaults.
+        for key, value in (
+            ("provider", provider),
+            ("version", version),
+            ("latest_version", latest_version),
+            ("license_type", license_type),
+            ("source_url", source_url),
+            ("compliance_notes", compliance_notes),
+            ("package_name", package_name),
+            ("package_ecosystem", package_ecosystem),
+        ):
+            if value is not None:
+                payload[key] = value
+
+        return self._request(
+            "POST",
+            API_ENDPOINTS["supply_chain_components"],
+            data=payload,
+        )
+
+    # =========================================================================
+    # SDK 2.3.0: SEC-103 — Kill-switch HTTP fallback polling
+    # =========================================================================
+    def get_pending_commands(
+        self,
+        agent_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch pending control commands for an agent over HTTP.
+
+        Thin wrapper over GET /api/registry/agents/{agent_id}/commands. Used
+        as an HTTP fallback when the SDK cannot (or does not want to) poll
+        the per-org SQS queue directly. Returns only commands belonging to
+        the caller's organization.
+
+        Args:
+            agent_id: Agent identifier. If omitted, uses the client's bound
+                agent_id. Broadcast commands (cmd.agent_id=None on the row)
+                are included when listing for a specific agent.
+
+        Returns:
+            List of command dicts. Each has: command_id, command_type,
+            target_type, reason, parameters, status, issued_by, issued_via,
+            created_at, expires_at, is_broadcast.
+
+        Raises:
+            ValidationError: If no agent_id is available.
+            AuthenticationError: API key invalid.
+            AuthorizationError: Caller lacks admin role / off-tenant.
+        """
+        resolved = agent_id or self.agent_id
+        if not resolved or not isinstance(resolved, str) or not resolved.strip():
+            raise ValidationError(
+                "agent_id is required (pass one or set on the client)",
+                field_errors={"agent_id": "Required field"},
+            )
+        endpoint = API_ENDPOINTS["agent_commands"].format(agent_id=resolved)
+        response = self._request("GET", endpoint)
+        commands = response.get("commands", []) if isinstance(response, dict) else []
+        return list(commands)
+
+    def ack_command(
+        self,
+        command_id: str,
+        agent_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Acknowledge a control command (receipt-only).
+
+        POSTs to /api/registry/agents/{agent_id}/commands/{command_id}/ack
+        with no body. The server records acknowledgement + writes an
+        immutable audit event. Off-tenant / mismatched-agent acks are
+        rejected with HTTP 403 (fail-secure — no cross-tenant enumeration).
+
+        Args:
+            command_id: The command UUID returned by get_pending_commands
+                or received via the SQS message body (command_id field).
+            agent_id: Acknowledging agent identifier. Defaults to the
+                client's bound agent_id.
+
+        Returns:
+            True on success. Raises on 4xx/5xx — caller should catch
+            AuthorizationError for 403 fail-secure rejections.
+
+        Raises:
+            ValidationError: missing inputs.
+            AuthorizationError: off-tenant / wrong agent / unknown command.
+        """
+        if not command_id or not isinstance(command_id, str) or not command_id.strip():
+            raise ValidationError(
+                "command_id is required and must be a non-empty string",
+                field_errors={"command_id": "Required field"},
+            )
+        resolved = agent_id or self.agent_id
+        if not resolved or not isinstance(resolved, str) or not resolved.strip():
+            raise ValidationError(
+                "agent_id is required (pass one or set on the client)",
+                field_errors={"agent_id": "Required field"},
+            )
+        endpoint = API_ENDPOINTS["agent_command_ack"].format(
+            agent_id=resolved, command_id=command_id,
+        )
+        response = self._request("POST", endpoint, data={})
+        return bool(response.get("success", False)) if isinstance(response, dict) else False
 
     def get_action_status(self, action_id: str) -> AuthorizationDecision:
         """

@@ -103,6 +103,13 @@ class AgentAction:
     Represents an agent action requiring authorization.
 
     This is the primary model for submitting actions to ASCEND.
+
+    SDK 2.3.0 / FEAT-007: Multi-agent orchestration fields.
+        orchestration_session_id - groups related agent actions into a session
+        parent_action_id - AgentAction.id on the ASCEND backend for the parent
+                           step. Backend enforces cross-tenant scoping and
+                           session-graft protection on submit.
+        orchestration_depth - delegation depth (0-5). Server caps at 5.
     """
     agent_id: str
     agent_name: str
@@ -112,6 +119,10 @@ class AgentAction:
     action_details: Optional[Dict[str, Any]] = None
     context: Optional[ActionContext] = None
     risk_indicators: Optional[RiskIndicators] = None
+    # SDK 2.3.0 orchestration linkage (optional; backend validates).
+    orchestration_session_id: Optional[str] = None
+    parent_action_id: Optional[int] = None
+    orchestration_depth: Optional[int] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -143,6 +154,14 @@ class AgentAction:
                 if isinstance(self.risk_indicators, RiskIndicators)
                 else self.risk_indicators
             )
+
+        # SDK 2.3.0: Orchestration pass-through fields (only when set).
+        if self.orchestration_session_id is not None:
+            data["orchestration_session_id"] = self.orchestration_session_id
+        if self.parent_action_id is not None:
+            data["parent_action_id"] = self.parent_action_id
+        if self.orchestration_depth is not None:
+            data["orchestration_depth"] = self.orchestration_depth
 
         # PY-SEC-005: Strip risk scoring fields from outbound payload
         data.pop("risk_score", None)

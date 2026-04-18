@@ -6,7 +6,7 @@ Centralized constants for API endpoints, defaults, and configuration.
 """
 
 # SDK version
-SDK_VERSION = "2.1.1"
+SDK_VERSION = "2.3.0"
 USER_AGENT = f"ascend-sdk/{SDK_VERSION} Python"
 
 # Default configuration
@@ -64,4 +64,14 @@ API_ENDPOINTS = {
     "webhooks_update": "/api/webhooks/{webhook_id}",
     "webhooks_delete": "/api/webhooks/{webhook_id}",
     "webhooks_test": "/api/webhooks/{webhook_id}/test",
+
+    # SDK 2.3.0: Supply chain component registration (FEAT-005)
+    "supply_chain_components": "/api/v1/supply-chain/components",
+
+    # SDK 2.3.0: FEAT-001B agent-to-model wiring (via agent update)
+    "agent_update": "/api/registry/agents/{agent_id}",
+
+    # SDK 2.3.0: SEC-103 kill-switch HTTP fallback endpoints
+    "agent_commands": "/api/registry/agents/{agent_id}/commands",
+    "agent_command_ack": "/api/registry/agents/{agent_id}/commands/{command_id}/ack",
 }
