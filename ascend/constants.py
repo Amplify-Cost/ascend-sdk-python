@@ -16,6 +16,9 @@ DEFAULT_MAX_RETRIES = 3
 DEFAULT_POLL_INTERVAL = 2.0
 DEFAULT_DECISION_TIMEOUT = 60
 DEFAULT_KILL_SWITCH_INTERVAL = 5
+# SDK 2.4.0 — BUG-16 cohort (J3 / J5): heartbeat scheduler interval.
+# Heartbeats run on a daemon thread when start_heartbeat() is invoked.
+DEFAULT_HEARTBEAT_INTERVAL = 60
 
 # Bulk evaluation limits
 MAX_BULK_ACTIONS = 50

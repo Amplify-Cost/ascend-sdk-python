@@ -68,6 +68,7 @@ from .constants import (
     DEFAULT_TIMEOUT,
     DEFAULT_MAX_RETRIES,
     DEFAULT_KILL_SWITCH_INTERVAL,
+    DEFAULT_HEARTBEAT_INTERVAL,
     MAX_BULK_ACTIONS,
     DEFAULT_BULK_CONCURRENCY,
     API_ENDPOINTS,
@@ -430,6 +431,10 @@ class AscendClient:
         self._is_blocked = False
         self._kill_switch_reason: Optional[str] = None
         self._kill_switch_timer: Optional[threading.Timer] = None
+
+        # SDK 2.4.0 — BUG-16 cohort (J3): background heartbeat state
+        self._heartbeat_timer: Optional[threading.Timer] = None
+        self._heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL
 
         logger.info(
             "ASCEND Client initialized",
@@ -1505,6 +1510,83 @@ class AscendClient:
             self._kill_switch_timer.cancel()
             self._kill_switch_timer = None
 
+    # =========================================================================
+    # SDK 2.4.0 — BUG-16 cohort (J3): background heartbeat scheduler
+    #
+    # Spawns a daemon thread that calls `heartbeat()` on a configurable
+    # interval. Heartbeat failures are swallowed by the canonical method
+    # (fire-and-forget semantics are preserved), so the scheduler never
+    # crashes the host agent. FailMode.CLOSED is preserved: the scheduler
+    # introduces no new network I/O outside `heartbeat()`, which already
+    # honors the fail-secure contract.
+    # =========================================================================
+
+    def start_heartbeat(
+        self,
+        interval_seconds: Optional[int] = None,
+    ) -> None:
+        """
+        Start background heartbeat sender on a daemon thread.
+
+        The first heartbeat fires immediately; subsequent heartbeats fire
+        every ``interval_seconds``. Daemon-thread guarantees the scheduler
+        does not keep the process alive after the main thread exits.
+        Calling ``start_heartbeat()`` more than once restarts the scheduler
+        with the new interval (prior timer cancelled first).
+
+        Args:
+            interval_seconds: Polling interval. Defaults to
+                ``DEFAULT_HEARTBEAT_INTERVAL`` (60s) or the instance's
+                previously configured interval.
+
+        Fail-secure: heartbeat failures never raise — the scheduler keeps
+        running, and the next call will retry.
+        """
+        if interval_seconds is not None:
+            if interval_seconds <= 0:
+                raise ValueError(
+                    "interval_seconds must be positive; "
+                    f"got {interval_seconds}"
+                )
+            self._heartbeat_interval = interval_seconds
+
+        # Cancel prior scheduler if already running (idempotent restart).
+        self.stop_heartbeat()
+        self._tick_heartbeat()
+
+    def stop_heartbeat(self) -> None:
+        """Stop background heartbeat sender; no-op if not running."""
+        if self._heartbeat_timer:
+            self._heartbeat_timer.cancel()
+            self._heartbeat_timer = None
+
+    def _tick_heartbeat(self) -> None:
+        """Internal: send a heartbeat and schedule the next tick.
+
+        Exception contract: heartbeat() itself never raises (fire-and-forget).
+        The Timer scheduling below is also wrapped defensively — any failure
+        to schedule the next tick must not propagate to the caller.
+        """
+        try:
+            self.heartbeat()
+        except Exception:
+            # Defense-in-depth: heartbeat() is already fire-and-forget,
+            # but we belt-and-suspenders here in case future refactors
+            # change that contract. The scheduler must never crash.
+            pass
+
+        try:
+            self._heartbeat_timer = threading.Timer(
+                self._heartbeat_interval,
+                self._tick_heartbeat,
+            )
+            self._heartbeat_timer.daemon = True
+            self._heartbeat_timer.start()
+        except Exception:
+            # If thread scheduling itself fails (e.g., process shutdown
+            # in progress), stop cleanly — fail-safe, not fail-loud.
+            self._heartbeat_timer = None
+
     def is_blocked(self) -> bool:
         """Check if the kill switch is currently active."""
         return self._is_blocked
@@ -1839,6 +1921,7 @@ class AscendClient:
     def close(self) -> None:
         """Close client session and stop background tasks."""
         self.stop_kill_switch_polling()
+        self.stop_heartbeat()
         self._session.close()
         logger.debug("Client session closed")
 
