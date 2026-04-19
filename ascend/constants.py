@@ -6,7 +6,7 @@ Centralized constants for API endpoints, defaults, and configuration.
 """
 
 # SDK version
-SDK_VERSION = "2.3.0"
+SDK_VERSION = "2.4.0"
 USER_AGENT = f"ascend-sdk/{SDK_VERSION} Python"
 
 # Default configuration

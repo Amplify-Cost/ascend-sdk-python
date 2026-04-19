@@ -5,6 +5,110 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-04-19
+
+BUG-16 cohort remediation. First SDK release validated end-to-end by
+the SEC-REL-001 doc/SDK contract gate. Before-state: 54 violations on
+live-fire; after-state: 0 violations. No breaking changes: every
+renamed symbol is preserved as a deprecated shim emitting
+`DeprecationWarning` exactly once per process per name. Shims are
+removed in 3.0.0.
+
+### Added
+
+- **`ascend.wrappers` subpackage** — governed alternatives for
+  dangerous Python operations. Ships three modules:
+  - `ascend.wrappers.subprocess` — drop-in replacement for stdlib
+    `subprocess` with command-risk classification, shell-injection
+    protection (`shell=True` blocked by default), and fail-closed
+    governance. Compliance: CWE-78, CWE-77, MITRE T1059.004, NIST SI-10.
+  - `ascend.wrappers.dynamic_code` — `safe_eval`, `safe_exec`, and
+    `SafeEvaluator` with four-layer defense (AST analysis →
+    governance check → restricted builtins → timeout). Fail-closed.
+  - `ascend.wrappers.ast_analyzer` — standalone AST-based code
+    safety analysis (`ASTAnalyzer`, `analyze_code`, `is_code_safe`).
+- **`AscendClient.start_heartbeat(interval_seconds=60)`** and
+  **`stop_heartbeat()`** — background daemon-thread heartbeat sender.
+  Fail-secure: heartbeat failures never raise; scheduler keeps
+  running. Integrated into `close()` for clean lifecycle.
+- First-class exception types previously referenced in docs but
+  absent from the SDK surface — `ServerError` (5xx), `NotFoundError`
+  (404), `ConflictError` (409). All subclass `OWKAIError`.
+
+### Deprecated (compat shims emit `DeprecationWarning` once per process)
+
+- **Methods on `AscendClient`** (removal 3.0.0):
+  - `submit_action(...)` → `evaluate_action(...)` *(BUG-16)*
+  - `send_heartbeat(...)` → `heartbeat(...)` *(DOC-DRIFT-HEARTBEAT)*
+  - `register_agent(...)` → `register(...)` *(DOC-DRIFT-REGISTER;
+    fail-secure: refuses cross-identity registration)*
+  - `wait_for_approval(...)` → `wait_for_decision(...)`
+    *(DOC-DRIFT-APPROVAL)*
+  - `get_agent(...)` → `get_agent_status()` *(DOC-DRIFT-AGENT;
+    fail-secure: refuses cross-identity query)*
+- **Exception aliases** (forward via `ascend` and
+  `ascend.exceptions` module `__getattr__`):
+  - `NetworkError` → `ConnectionError`
+  - `AscendConnectionError` → `ConnectionError`
+  - `AscendError` → `OWKAIError`
+  - `AuthorizationDeniedError` → `AuthorizationError`
+  - `AscendAuthenticationError` → `AuthenticationError`
+  - `AscendRateLimitError` → `RateLimitError`
+- **`ascend.constants.ActionType`** — canonical import path is
+  `from ascend import ActionType` (`ascend.models` is the home).
+  The `constants` re-export is preserved through 3.0.0.
+- **`MCPGovernanceMiddleware.wrap(action_type, resource, func, ...)`**
+  → use `.govern(action_type, resource, ...)` as a decorator. The
+  `wrap` shim also accepts an inline `func` and returns the governed
+  callable directly.
+
+### Docs
+
+- Rewrote `governance/audit-logging.md`, `governance/analytics.md`,
+  `governance/compliance.md` to use existing SDK methods + REST
+  `curl` examples. The higher-level `client.audit.*` /
+  `client.analytics.*` / `client.compliance.*` namespace accessors
+  are tracked as **SDK-NAMESPACE-FEATURE** for v2.5.
+- Removed SDK code example for `create_smart_rule(...)` in
+  `api/governance.md` (the method was never shipped); replaced with
+  a concrete `POST /api/smart-rules` curl example.
+- All 54 violations referenced in SEC-REL-001's live-fire report
+  are now either (a) working against a deprecated shim, (b) using
+  canonical names directly, or (c) shown as REST API examples.
+
+### Fixed
+
+- `ascend.wrappers.subprocess.classify_command_risk` — two latent
+  classification-pattern false positives found during the port and
+  fixed in canonical (and back-ported to the source location):
+  - `chmod\s+777\s+/` now requires literal root at end-of-string;
+    `chmod 777 /var/www` correctly classifies as `high` not `critical`.
+  - `at\s+` prefixed with word-boundary so `cat`, `chat`,
+    `dispatch`, etc. stop false-positiving into the `at`
+    scheduled-task classifier.
+
+### Security & Compliance
+
+- All new code preserves the SDK's `FailMode.CLOSED` contract: no
+  new network paths introduced by Class A shims (all delegate to
+  canonical methods that already honor fail-secure); Class B
+  wrappers default to `fail_mode="closed"`; the heartbeat scheduler
+  is fire-and-forget and never propagates transport failures.
+- Evidence: `tests/test_bug16_classB_failmode_closed.py` (11 Python
+  tests) and `ow-ai-backend/sdk/nodejs/tests/heartbeat-failmode.test.ts`
+  (5 Node tests).
+
+### Contract gate (SEC-REL-001)
+
+- **First release validated end-to-end by SEC-REL-001.**
+- Live-fire before: 54 contract violations across 480/534 blocks.
+- Live-fire after:  0 contract violations across 528/528 blocks.
+  Audit ledger trigger: `sdk-2.4.0-validation-v1`, sdk_sha
+  `ceb4ac72a0446856`, docs_sha `23bcfa7cffe7f4e6`.
+- `surface_node.py` regex widened to accept TypeScript generic
+  method signatures (`method<T extends ...>(...)`); the old
+  narrower pattern falsely flagged generic methods as missing.
+
 ## [2.3.0] - 2026-04-17
 
 ### Added
