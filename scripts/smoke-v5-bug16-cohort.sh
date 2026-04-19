@@ -26,9 +26,12 @@ say "timestamp: $(date -u +%FT%TZ)"
 
 say "Environment fingerprint"
 uname -a
-which python python3 pip
-python --version
-pip --version
+# Don't fail if `python` (no suffix) is absent — Codespaces provides python3.
+command -v python  || true
+command -v python3 || true
+command -v pip     || true
+python3 --version
+python3 -m pip --version
 printf 'HOSTNAME=%s\n' "${HOSTNAME:-unknown}"
 printf 'CODESPACES=%s\n' "${CODESPACES:-not-set}"
 printf 'PWD=%s\n' "$PWD"
@@ -36,20 +39,20 @@ printf 'HOME=%s\n' "$HOME"
 printf 'WHEEL=%s\n' "$WHEEL"
 
 say "Fresh venv"
-python -m venv /tmp/v5-venv
+python3 -m venv /tmp/v5-venv
 # shellcheck source=/dev/null
 source /tmp/v5-venv/bin/activate
 python -m pip install --upgrade pip
 
 say "Pre-install pip list (baseline)"
-pip list
+python -m pip list
 
 say "Install wheel (exact command logged below)"
-echo "+ pip install $WHEEL"
-pip install "$WHEEL"
+echo "+ python -m pip install $WHEEL"
+python -m pip install "$WHEEL"
 
 say "Post-install pip list"
-pip list
+python -m pip list
 
 say "Installed ascend version (must be 2.4.0)"
 python -c 'import ascend, sys; print("ascend", ascend.__version__); sys.exit(0 if ascend.__version__ == "2.4.0" else 1)'
