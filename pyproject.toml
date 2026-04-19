@@ -50,7 +50,19 @@ Changelog = "https://github.com/Amplify-Cost/ascend-sdk-python/blob/main/CHANGEL
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ascend*"]
+# BUG-16-port-packaging: match ONLY the ascend package and its dotted
+# subpackages (ascend.wrappers, ascend.wrappers.*). The previous glob
+# "ascend*" also matched sibling directories at the repo root
+# (ascend-internal-docs/, ascend-mcp-filesystem/, ascend_wrapper_test/,
+# including a checked-in venv) and swept them into the wheel. Tighten
+# the glob to the canonical package namespace only.
+include = ["ascend", "ascend.*"]
+exclude = [
+    "ascend_wrapper_test*",
+    "ascend-internal-docs*",
+    "ascend-mcp-filesystem*",
+    "tests*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
