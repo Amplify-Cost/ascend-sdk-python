@@ -1,0 +1,12 @@
+# SEC-REL-001 — hash-pinned runner dependencies.
+# Runner uses only Python stdlib. pytest is required only for self-tests.
+#
+# Regenerate via:
+#   pip-compile --generate-hashes --output-file=requirements.lock requirements.in
+#
+# This lockfile is intentionally minimal: the runner MUST NOT pull supply-
+# chain risk into the release-eng pipeline. Every addition requires a
+# ticket under SEC-REL-OPS.
+
+# Test-only. Production runner has zero third-party deps.
+pytest==8.4.0
