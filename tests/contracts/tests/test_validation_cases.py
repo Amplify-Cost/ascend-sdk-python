@@ -35,12 +35,21 @@ def _run(paths, tmp_path, trigger="self-test"):
 
 
 def test_RED_bug16_reproduction_flags_submit_action(tmp_path):
+    """RED self-test: gate flags a missing AscendClient method.
+
+    Originally asserted against ``submit_action`` (the BUG-16 symbol);
+    after SDK 2.4.0 added the deprecated shim, the fixture was updated
+    to use ``nonexistent_fictitious_method``, which is guaranteed to
+    remain absent so this self-test keeps exercising the gate.
+    """
     exit_code, report, md = _run([FIXTURES / "red_bug16_repro.md"], tmp_path)
     fails = [r for r in report if r["status"] == "fail"]
     assert exit_code == config.EXIT_CONTRACT_VIOLATION
-    assert any("submit_action" in r.get("missing_symbol", "") for r in fails), report
+    assert any(
+        "nonexistent_fictitious_method" in r.get("missing_symbol", "")
+        for r in fails
+    ), report
     assert any(r.get("file", "").endswith("red_bug16_repro.md") for r in fails)
-    assert "evaluate_action" in md  # suggestion surfaced in human report
 
 
 def test_GREEN_correct_usage_passes_silently(tmp_path):

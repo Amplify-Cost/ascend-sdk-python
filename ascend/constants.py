@@ -75,3 +75,35 @@ API_ENDPOINTS = {
     "agent_commands": "/api/registry/agents/{agent_id}/commands",
     "agent_command_ack": "/api/registry/agents/{agent_id}/commands/{command_id}/ack",
 }
+
+
+# ============================================================================
+# SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-CONSTANTS
+#
+# ActionType is defined in ascend.models (it's an enum, not a constant),
+# but public docs imported it from ascend.constants. Preserved here as a
+# lazy re-export with a once-per-process DeprecationWarning. Removed in
+# ascend-ai-sdk 3.0.0.
+# ============================================================================
+_warned_constants_aliases: set = set()
+
+
+def __getattr__(name: str):
+    """Lazy deprecated-alias resolver (PEP 562) for ascend.constants."""
+    if name == "ActionType":
+        if name not in _warned_constants_aliases:
+            import warnings
+            warnings.warn(
+                "Importing ActionType from ascend.constants is deprecated; "
+                "use `from ascend import ActionType` "
+                "(or `from ascend.models import ActionType`). "
+                "This compat re-export will be removed in ascend-ai-sdk 3.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _warned_constants_aliases.add(name)
+        from .models import ActionType
+        return ActionType
+    raise AttributeError(
+        f"module {__name__!r} has no attribute {name!r}"
+    )

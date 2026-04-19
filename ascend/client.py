@@ -1848,6 +1848,192 @@ class AscendClient:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
+    # =========================================================================
+    # SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-* deprecated method aliases
+    #
+    # The shims below forward to the canonical method and emit
+    # DeprecationWarning ONCE per process per method (gated by the
+    # class-level `_deprecation_warned_methods` set). They preserve
+    # FailMode.CLOSED by delegating to methods that already honor it.
+    # Removed in ascend-ai-sdk 3.0.0.
+    # =========================================================================
+
+    def submit_action(
+        self,
+        action_type_or_action: Any = None,
+        resource: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> AuthorizationDecision:
+        """DEPRECATED (BUG-16): use :meth:`evaluate_action` instead.
+
+        Accepts either the legacy single-arg form ``submit_action(action)``
+        where ``action`` is an :class:`~ascend.models.AgentAction` or dict,
+        or the modern keyword form matching :meth:`evaluate_action`. The
+        shim normalizes both forms and forwards to ``evaluate_action``.
+        """
+        _emit_method_deprecation(
+            "submit_action", "evaluate_action", "BUG-16"
+        )
+
+        # Legacy single-arg form: submit_action(action)
+        if resource is None and isinstance(action_type_or_action, AgentAction):
+            action = action_type_or_action
+            return self.evaluate_action(
+                action_type=action.action_type,
+                resource=getattr(action, "resource", "") or kwargs.get("resource", ""),
+                parameters=getattr(action, "parameters", None),
+                context=getattr(action, "context", None),
+                **{k: v for k, v in kwargs.items() if k != "resource"},
+            )
+        if resource is None and isinstance(action_type_or_action, dict):
+            action = action_type_or_action
+            return self.evaluate_action(
+                action_type=action.get("action_type", ""),
+                resource=action.get("resource", ""),
+                parameters=action.get("parameters"),
+                context=action.get("context"),
+            )
+
+        # Modern kwargs form
+        return self.evaluate_action(
+            action_type=action_type_or_action,
+            resource=resource or "",
+            parameters=parameters,
+            context=context,
+            **kwargs,
+        )
+
+    def send_heartbeat(
+        self,
+        metrics: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """DEPRECATED (DOC-DRIFT-HEARTBEAT): use :meth:`heartbeat` instead.
+
+        Accepts a legacy ``metrics={"response_time_ms": ..., "error_rate": ...}``
+        dict OR direct kwargs; forwards to :meth:`heartbeat`. Heartbeat
+        semantics are preserved — this shim never raises, matching the
+        canonical method's fail-safe contract.
+        """
+        _emit_method_deprecation(
+            "send_heartbeat", "heartbeat", "DOC-DRIFT-HEARTBEAT"
+        )
+        merged: Dict[str, Any] = {}
+        if metrics:
+            merged.update(metrics)
+        merged.update(kwargs)
+        return self.heartbeat(
+            response_time_ms=merged.get("response_time_ms"),
+            error_rate=merged.get("error_rate"),
+            requests_count=merged.get("requests_count"),
+        )
+
+    def wait_for_approval(
+        self,
+        action_id: str,
+        timeout: Optional[int] = None,
+        timeout_seconds: Optional[int] = None,
+        poll_interval: Optional[float] = None,
+    ) -> AuthorizationDecision:
+        """DEPRECATED (DOC-DRIFT-APPROVAL): use :meth:`wait_for_decision`.
+
+        Accepts legacy ``timeout=`` kwarg (seconds) as well as the canonical
+        ``timeout_seconds=``. Forwards to :meth:`wait_for_decision` with
+        kwarg normalization.
+        """
+        _emit_method_deprecation(
+            "wait_for_approval", "wait_for_decision", "DOC-DRIFT-APPROVAL"
+        )
+        resolved_timeout = timeout_seconds if timeout_seconds is not None else timeout
+        kwargs: Dict[str, Any] = {}
+        if resolved_timeout is not None:
+            kwargs["timeout_seconds"] = resolved_timeout
+        if poll_interval is not None:
+            kwargs["poll_interval"] = poll_interval
+        return self.wait_for_decision(action_id, **kwargs)
+
+    def get_agent(self, agent_id: Optional[str] = None) -> AgentHealthStatus:
+        """DEPRECATED (DOC-DRIFT-AGENT): use :meth:`get_agent_status`.
+
+        Fail-secure: if ``agent_id`` is provided and does not match the
+        client's configured agent identity, raises ValueError to prevent
+        cross-agent information disclosure.
+        """
+        _emit_method_deprecation(
+            "get_agent", "get_agent_status", "DOC-DRIFT-AGENT"
+        )
+        if agent_id is not None and agent_id != self.agent_id:
+            raise ValueError(
+                f"get_agent(agent_id={agent_id!r}) does not match "
+                f"AscendClient.agent_id={self.agent_id!r}. Construct a "
+                "separate AscendClient with the desired agent identity."
+            )
+        return self.get_agent_status()
+
+    def register_agent(
+        self,
+        agent_id: Optional[str] = None,
+        agent_type: str = "supervised",
+        capabilities: Optional[List[str]] = None,
+        allowed_resources: Optional[List[str]] = None,
+        metadata: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
+        """DEPRECATED (DOC-DRIFT-REGISTER): use :meth:`register` instead.
+
+        The legacy call signature accepted ``agent_id`` as a positional
+        argument; in the canonical SDK ``agent_id`` is supplied to the
+        :class:`AscendClient` constructor. This shim validates that any
+        explicit ``agent_id`` matches the client's configured agent_id
+        (fail-secure: raises ValueError on mismatch to prevent a caller
+        from accidentally registering the wrong identity).
+        """
+        _emit_method_deprecation(
+            "register_agent", "register", "DOC-DRIFT-REGISTER"
+        )
+        if agent_id is not None and agent_id != self.agent_id:
+            # Fail-secure: refuse to register an agent under a different
+            # identity than the client was constructed with.
+            raise ValueError(
+                f"register_agent(agent_id={agent_id!r}) does not match "
+                f"AscendClient.agent_id={self.agent_id!r}. Configure "
+                "agent_id at client construction and call client.register() "
+                "with no agent_id argument."
+            )
+        return self.register(
+            agent_type=agent_type,
+            capabilities=capabilities,
+            allowed_resources=allowed_resources,
+            metadata=metadata,
+        )
+
 
 # Backwards compatibility alias (internal only, not exported)
 OWKAIClient = AscendClient
+
+
+# ============================================================================
+# SDK 2.4.0 — BUG-16 cohort: shared deprecation-warning helper
+#
+# Gates DeprecationWarning to once-per-process per (class, method) pair
+# so noisy logs don't mask other warnings in production. `stacklevel=3`
+# points the warning at the customer's call site (caller → shim → this).
+# ============================================================================
+_deprecation_warned_methods: set = set()
+
+
+def _emit_method_deprecation(old_name: str, new_name: str, tag: str) -> None:
+    """Emit DeprecationWarning once per process for a renamed method."""
+    key = ("AscendClient", old_name)
+    if key in _deprecation_warned_methods:
+        return
+    _deprecation_warned_methods.add(key)
+    import warnings
+    warnings.warn(
+        f"AscendClient.{old_name}() is deprecated [{tag}]; "
+        f"use AscendClient.{new_name}() instead. "
+        f"This compat shim will be removed in ascend-ai-sdk 3.0.0.",
+        DeprecationWarning,
+        stacklevel=3,
+    )

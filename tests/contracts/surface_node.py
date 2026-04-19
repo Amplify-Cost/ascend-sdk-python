@@ -18,7 +18,15 @@ from typing import Any, Dict, List
 
 _CLASS_DECL = re.compile(r"^(?:export\s+)?declare\s+class\s+([A-Z][A-Za-z0-9_]*)")
 _CLASS_DECL_EXPORT = re.compile(r"^export\s+(?:declare\s+)?class\s+([A-Z][A-Za-z0-9_]*)")
-_METHOD_DECL = re.compile(r"^\s{4}([a-zA-Z_][A-Za-z0-9_]*)\s*\(")
+# SEC-REL-001 v1.1 (BUG-16 cohort): accept `async` modifier, getter/setter
+# keywords, and generic parameters `<...>` between the method name and `(`.
+# We intentionally accept name-followed-by-`<`-or-`(` so methods whose
+# generic body contains `>` (e.g. `wrap<T extends (...args: any[]) => any>(...)`)
+# still match. Without this, generic methods on MCPGovernanceMiddleware
+# were falsely reported missing even though they shipped in dist/.
+_METHOD_DECL = re.compile(
+    r"^\s{4}(?:(?:async|get|set)\s+)?([a-zA-Z_][A-Za-z0-9_]*)\s*(?:<|\()"
+)
 
 
 def build_surface(sdk_root: pathlib.Path) -> Dict[str, Any]:

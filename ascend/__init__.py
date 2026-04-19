@@ -87,6 +87,10 @@ from .exceptions import (
     CircuitBreakerOpen,
     ConfigurationError,
     KillSwitchError,
+    # SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-EXCEPTIONS
+    ServerError,
+    NotFoundError,
+    ConflictError,
 )
 
 # MCP Governance
@@ -141,6 +145,9 @@ __all__ = [
     "CircuitBreakerOpen",
     "ConfigurationError",
     "KillSwitchError",
+    "ServerError",
+    "NotFoundError",
+    "ConflictError",
 
     # MCP Governance
     "mcp_governance",
@@ -150,3 +157,44 @@ __all__ = [
     "MCPGovernanceMiddleware",
     "MCPKillSwitchConsumer",
 ]
+
+
+# ============================================================================
+# SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-EXCEPTIONS
+#
+# Deprecated aliases surfaced at the package root for docs that used
+# `from ascend import AuthorizationDeniedError` etc. Canonical names live
+# in ascend.exceptions; aliases forward there with a once-per-process
+# DeprecationWarning. Removed in 3.0.0.
+# ============================================================================
+_DEPRECATED_ROOT_ALIASES = {
+    "AuthorizationDeniedError": "AuthorizationError",
+    "NetworkError": "ConnectionError",
+    "AscendError": "OWKAIError",
+    "AscendConnectionError": "ConnectionError",
+    "AscendAuthenticationError": "AuthenticationError",
+    "AscendRateLimitError": "RateLimitError",
+}
+_warned_root_aliases: set = set()
+
+
+def __getattr__(name: str):
+    """Lazy resolver for deprecated aliases at the `ascend` package root."""
+    if name in _DEPRECATED_ROOT_ALIASES:
+        canonical = _DEPRECATED_ROOT_ALIASES[name]
+        if name not in _warned_root_aliases:
+            import warnings
+            warnings.warn(
+                f"Importing {name} from `ascend` is deprecated; "
+                f"use `from ascend import {canonical}` "
+                f"(or `from ascend.exceptions import {canonical}`). "
+                f"This compat shim will be removed in ascend-ai-sdk 3.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _warned_root_aliases.add(name)
+        from . import exceptions
+        return getattr(exceptions, canonical)
+    raise AttributeError(
+        f"module {__name__!r} has no attribute {name!r}"
+    )

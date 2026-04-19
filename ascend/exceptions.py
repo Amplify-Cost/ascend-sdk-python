@@ -222,3 +222,127 @@ class KillSwitchError(OWKAIError):
 
         super().__init__(message, error_code, details)
         self.reason = reason
+
+
+# ============================================================================
+# SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-EXCEPTIONS
+#
+# The classes below fill gaps referenced by public docs that the SDK did
+# not previously expose. They are first-class exception types (not shims)
+# with stable semantics — safe to catch, log, and isinstance-check.
+#
+# Fail-secure contract: these exceptions are raised from the SDK's own
+# request path only. They never originate from customer code, and never
+# bypass FailMode.CLOSED handling in AscendClient._handle_fail_mode().
+# ============================================================================
+
+
+class ServerError(OWKAIError):
+    """
+    Raised when the API returns a 5xx server error after retries are
+    exhausted.
+
+    The SDK retries transient 5xx automatically per DEFAULT_MAX_RETRIES;
+    ServerError is only raised when retries have been exhausted or when
+    a 5xx is classified as non-retriable.
+    """
+
+    def __init__(
+        self,
+        message: str = "Server error",
+        error_code: str = "SERVER_ERROR",
+        status_code: Optional[int] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if status_code is not None:
+            details["status_code"] = status_code
+        super().__init__(message, error_code, details)
+        self.status_code = status_code
+
+
+class NotFoundError(OWKAIError):
+    """
+    Raised when the API returns 404 for a resource lookup
+    (e.g., action_id, webhook_id, agent_id not found).
+    """
+
+    def __init__(
+        self,
+        message: str = "Resource not found",
+        error_code: str = "NOT_FOUND",
+        resource: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if resource:
+            details["resource"] = resource
+        super().__init__(message, error_code, details)
+        self.resource = resource
+
+
+class ConflictError(OWKAIError):
+    """
+    Raised when the API returns 409 Conflict (e.g., duplicate agent_id
+    on register, concurrent modification on webhook update).
+    """
+
+    def __init__(
+        self,
+        message: str = "Resource conflict",
+        error_code: str = "CONFLICT",
+        resource: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        details = details or {}
+        if resource:
+            details["resource"] = resource
+        super().__init__(message, error_code, details)
+        self.resource = resource
+
+
+# ----------------------------------------------------------------------------
+# Deprecated aliases (BUG-16 / DOC-DRIFT-EXCEPTIONS)
+#
+# Public docs used alternative names for canonical exceptions during the
+# v1→v2 brand rename. Aliases forward to canonical classes so isinstance
+# and except clauses continue to work; each alias emits DeprecationWarning
+# ONCE per process (first-access) via module-level __getattr__.
+#
+# Removal target: ascend-ai-sdk 3.0.0.
+# ----------------------------------------------------------------------------
+_DEPRECATED_EXCEPTION_ALIASES: Dict[str, str] = {
+    "NetworkError": "ConnectionError",
+    "AscendConnectionError": "ConnectionError",
+    "AscendError": "OWKAIError",
+    "AuthorizationDeniedError": "AuthorizationError",
+    "AscendAuthenticationError": "AuthenticationError",
+    "AscendRateLimitError": "RateLimitError",
+}
+_warned_exception_aliases: set = set()
+
+
+def __getattr__(name: str):
+    """Lazy resolver for deprecated exception aliases (PEP 562).
+
+    Emits DeprecationWarning once per process per alias (module-level
+    `_warned_exception_aliases` set gates the warning), then returns the
+    canonical class. Missing names raise AttributeError per PEP 562
+    contract so the import system signals `cannot import name` correctly.
+    """
+    if name in _DEPRECATED_EXCEPTION_ALIASES:
+        canonical = _DEPRECATED_EXCEPTION_ALIASES[name]
+        if name not in _warned_exception_aliases:
+            import warnings
+            warnings.warn(
+                f"{name} is a deprecated alias for {canonical}; "
+                f"import {canonical} from ascend.exceptions instead. "
+                f"This compat shim will be removed in ascend-ai-sdk 3.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _warned_exception_aliases.add(name)
+        return globals()[canonical]
+    raise AttributeError(
+        f"module {__name__!r} has no attribute {name!r}"
+    )

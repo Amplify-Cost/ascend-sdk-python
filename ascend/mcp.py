@@ -673,6 +673,48 @@ class MCPGovernanceMiddleware:
         """List of tools with governance applied."""
         return self._governed_tools.copy()
 
+    # =========================================================================
+    # SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-MCP
+    #
+    # The Node SDK docs and some Python docs used `middleware.wrap(...)`
+    # as an inline-callable form (not a decorator). This shim provides
+    # the same semantics on the Python surface by applying `.govern(...)`
+    # and immediately invoking the returned decorator on the supplied
+    # callable. Emits DeprecationWarning once per process. Removed in 3.0.0.
+    # =========================================================================
+    _wrap_warned: bool = False
+
+    def wrap(
+        self,
+        action_type: str,
+        resource: str,
+        func: Optional[Callable] = None,
+        config: Optional[MCPGovernanceConfig] = None,
+        **kwargs: Any,
+    ) -> Callable:
+        """DEPRECATED (DOC-DRIFT-MCP): use :meth:`govern` instead.
+
+        Inline-callable variant of :meth:`govern`. If ``func`` is supplied,
+        returns the governed callable directly; if omitted, returns the
+        decorator (matching :meth:`govern` exactly).
+        """
+        if not MCPGovernanceMiddleware._wrap_warned:
+            MCPGovernanceMiddleware._wrap_warned = True
+            import warnings
+            warnings.warn(
+                "MCPGovernanceMiddleware.wrap() is deprecated [DOC-DRIFT-MCP]; "
+                "use MCPGovernanceMiddleware.govern() as a decorator instead. "
+                "This compat shim will be removed in ascend-ai-sdk 3.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        decorator = self.govern(
+            action_type, resource, config=config, **kwargs
+        )
+        if func is None:
+            return decorator
+        return decorator(func)
+
 
 # =============================================================================
 # FEAT-008 / SDK 2.2.0: MCP Kill-Switch Consumer
