@@ -5,6 +5,28 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-04-20
+
+Patch release. Single-bug hotfix on top of 2.4.0. No API changes, no
+deprecations, no behavior changes beyond the broken call path.
+
+### Fixed
+
+- **BUG-44** — `AscendClient.get_action_status()` hit a legacy endpoint
+  (`/api/agent-action/status/{action_id}`) that does not accept
+  `X-API-Key` authentication, causing every
+  `evaluate_action(wait_for_decision=True)` call in 2.4.0 to raise
+  `AuthenticationError` despite valid credentials. Status lookups now
+  use `API_ENDPOINTS["action_status"]` → `/api/v1/actions/{action_id}/status`,
+  matching the submit path and the authenticated `X-API-Key` surface.
+  `wait_for_decision()` inherits the fix transparently (no signature
+  change).
+
+### Added
+
+- Regression test `tests/test_client_endpoints.py` locking in the v1
+  endpoint contract so the legacy path cannot be reintroduced.
+
 ## [2.4.0] - 2026-04-19
 
 BUG-16 cohort remediation. First SDK release validated end-to-end by

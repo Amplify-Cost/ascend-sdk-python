@@ -1174,7 +1174,7 @@ class AscendClient:
         """
         response = self._request(
             "GET",
-            f"/api/agent-action/status/{action_id}"
+            API_ENDPOINTS["action_status"].format(action_id=action_id)
         )
         return AuthorizationDecision.from_dict(response)
 

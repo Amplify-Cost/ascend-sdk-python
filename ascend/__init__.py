@@ -40,10 +40,10 @@ Security Standards:
     - NIST AI RMF (Govern, Map, Measure, Manage)
     - NIST 800-63B (Authentication)
 
-Version: 2.4.0
+Version: 2.4.1
 """
 
-__version__ = "2.4.0"
+__version__ = "2.4.1"
 __author__ = "ASCEND by OW-AI"
 
 # Core client (v2.1)
