@@ -1979,10 +1979,40 @@ class AscendClient:
                 context=action.get("context"),
             )
 
-        # Modern kwargs form
+        # Modern kwargs form — BUG-16-SHIM-KWARG.
+        # Callers may pass action_type/resource as keyword arguments
+        # rather than through the legacy positional slot
+        # `action_type_or_action`. Pop those names out of **kwargs
+        # before forwarding so evaluate_action does not receive them
+        # twice. If the caller supplies the same argument both
+        # positionally and as a kwarg, raise a TypeError attributed
+        # to submit_action() — clearer than the generic collision
+        # Python would otherwise surface from evaluate_action().
+        kwarg_action_type = kwargs.pop("action_type", None)
+        kwarg_resource = kwargs.pop("resource", None)
+        if action_type_or_action is not None and kwarg_action_type is not None:
+            raise TypeError(
+                "submit_action() got multiple values for argument "
+                "'action_type' (supplied both positionally and as a "
+                "keyword argument)"
+            )
+        if resource is not None and kwarg_resource is not None:
+            raise TypeError(
+                "submit_action() got multiple values for argument "
+                "'resource' (supplied both positionally and as a "
+                "keyword argument)"
+            )
+        resolved_action_type = (
+            action_type_or_action
+            if action_type_or_action is not None
+            else kwarg_action_type
+        )
+        resolved_resource = (
+            resource if resource is not None else kwarg_resource
+        )
         return self.evaluate_action(
-            action_type=action_type_or_action,
-            resource=resource or "",
+            action_type=resolved_action_type,
+            resource=resolved_resource or "",
             parameters=parameters,
             context=context,
             **kwargs,

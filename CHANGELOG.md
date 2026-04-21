@@ -5,6 +5,22 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-04-21
+
+### Fixed
+- **BUG-16-SHIM-KWARG**: submit_action shim now accepts kwarg-style
+  calls. Previously raised TypeError "got multiple values for
+  keyword argument 'action_type'". Positional calls continue to work
+  with DeprecationWarning unchanged. Alan's Section 6.2 test path
+  (kwarg syntax) is now unblocked.
+
+### Changed
+- README.md rewritten for accuracy against the verified 2.4.1 API
+  surface. Removed unearned compliance claims and deprecated-API
+  examples. Added Layer 13 MCP Governance, kill-switch integration,
+  and platform capability sections (Agentless Discovery, Security
+  Graph, Regulatory Evidence Package, BYOK).
+
 ## [2.4.1] - 2026-04-20
 
 Patch release. Single-bug hotfix on top of 2.4.0. No API changes, no

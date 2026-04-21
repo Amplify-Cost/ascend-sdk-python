@@ -1,20 +1,38 @@
 # Ascend AI SDK for Python
 
-Official Python SDK for [Ascend AI Governance Platform](https://ascendai.app) - Enterprise-grade authorization and governance for AI agents.
+**The AI Agent and MCP Control Plane for regulated industries.** Every agent action and MCP tool invocation is risk-scored against CVSS v3.1, NIST 800-30, and MITRE ATT&CK — then policy-enforced, human-reviewed when needed, and logged to an immutable audit trail. Sub-second kill-switch, fail-closed enforcement, 33-pattern threat detection, agentless discovery, and 28 regulator-ready compliance reports. Built for financial services, healthcare, and government.
 
-[![Python Version](https://img.shields.io/pypi/pyversions/ascend-ai-sdk)](https://pypi.org/project/ascend-ai-sdk/)
-[![License](https://img.shields.io/pypi/l/ascend-ai-sdk)](https://github.com/ascend-ai/ascend-sdk-python/blob/main/LICENSE)
-[![Documentation](https://img.shields.io/badge/docs-ascendai.app-blue)](https://docs.ascendai.app/sdk/python)
+[![PyPI Version](https://img.shields.io/pypi/v/ascend-ai-sdk)](https://pypi.org/project/ascend-ai-sdk/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/ascend-ai-sdk)](https://pypi.org/project/ascend-ai-sdk/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Documentation](https://img.shields.io/badge/docs-ascendowkai.com-blue)](https://docs.ascendowkai.com)
 
-## Features
+```bash
+pip install ascend-ai-sdk
+```
 
-- **Banking-Level Security**: SOC 2, HIPAA, PCI-DSS compliant authorization
-- **Automatic Retry**: Exponential backoff for transient failures
-- **Dual Authentication**: Support for both `Authorization: Bearer` and `X-API-Key` headers
-- **Type Safety**: Full type hints for Python 3.8+
-- **Comprehensive Error Handling**: Specific exceptions for every failure mode
-- **Request Tracing**: Correlation IDs for debugging
-- **Production Ready**: Used by Fortune 500 companies
+---
+
+## What you get
+
+- **Real-time authorization** for every agent action and MCP tool invocation
+- **Industry-standard risk scoring** — CVSS v3.1 + NIST 800-30 + MITRE ATT&CK (0–100 composite score)
+- **Fail-closed enforcement** — if ASCEND is unreachable, actions are blocked by default
+- **Sub-second kill-switch** — halt any agent globally via SNS/SQS in under 1 second
+- **Immutable audit trail** — hash-chained logs ready for regulators and forensics
+- **Layer 13 MCP Governance** — native risk scoring and enforcement on Model Context Protocol tool calls
+- **Multi-stage approval workflows** — configurable thresholds, SLA tracking, human-in-the-loop
+- **Circuit breaker and retries** — production-ready resilience built into the SDK
+
+---
+
+## Requirements
+
+- Python 3.8 or higher
+- `requests` (installed automatically)
+- `python-dotenv` (installed automatically)
+
+---
 
 ## Installation
 
@@ -22,486 +40,365 @@ Official Python SDK for [Ascend AI Governance Platform](https://ascendai.app) - 
 pip install ascend-ai-sdk
 ```
 
-**Requirements:**
-- Python 3.8 or higher
-- `requests` (automatically installed)
-- `python-dotenv` (automatically installed)
+Upgrade an existing installation:
+
+```bash
+pip install --upgrade ascend-ai-sdk
+```
+
+---
 
 ## Quick Start
 
-### 1. Get Your API Key
+### 1. Get an API key
+
+Sign up for the free 14-day sandbox at **[ascendowkai.com](https://ascendowkai.com)** — 3 agents, 10,000 governed actions, 2 MCP servers, no credit card required. After signup, your API key is available at **Settings → API Keys** inside the pilot app.
+
+### 2. Configure your environment
 
 ```bash
-# Set your API key as environment variable
-export ASCEND_API_KEY="ascend_prod_your_key_here"
+export ASCEND_API_KEY='ask_sbx_your_key_here'
+export ASCEND_API_URL='https://pilot.owkai.app'
 ```
 
-Or create a `.env` file:
-```env
-ASCEND_API_KEY=ascend_prod_your_key_here
-ASCEND_API_URL=https://pilot.owkai.app  # Optional, defaults to production
+Or use a `.env` file:
+
+```
+ASCEND_API_KEY=ask_sbx_your_key_here
+ASCEND_API_URL=https://pilot.owkai.app
 ```
 
-### 2. Submit an Action for Authorization
-
-```python
-from ascend import AscendClient, AgentAction
-
-# Initialize client
-client = AscendClient()
-
-# Create action
-action = AgentAction(
-    agent_id="customer-bot-001",
-    agent_name="Customer Service Bot",
-    action_type="data_access",
-    resource="customer_profile",
-    resource_id="CUST-12345"
-)
-
-# Submit for authorization
-result = client.submit_action(action)
-
-if result.is_approved():
-    print("✅ Action approved!")
-    # Execute your action here
-elif result.is_denied():
-    print(f"❌ Action denied: {result.reason}")
-else:
-    print("⏳ Action pending manual review")
-```
-
-### 3. Execute Only If Authorized (Recommended)
-
-```python
-from ascend import AuthorizedAgent
-
-# Create authorized agent
-agent = AuthorizedAgent(
-    agent_id="financial-bot-001",
-    agent_name="Financial Advisor AI"
-)
-
-# Execute function only if authorized
-try:
-    portfolio = agent.execute_if_authorized(
-        action_type="data_access",
-        resource="customer_portfolio",
-        resource_id="ACC-12345",
-        execute_fn=lambda: fetch_portfolio("ACC-12345"),
-        risk_indicators={"pii_involved": True}
-    )
-    print(f"Portfolio data: {portfolio}")
-
-except AuthorizationDeniedError as e:
-    print(f"Access denied: {e.message}")
-```
-
-## Usage Examples
-
-### Financial Transaction with Risk Indicators
-
-```python
-from ascend import AuthorizedAgent
-
-agent = AuthorizedAgent(
-    agent_id="payment-bot-001",
-    agent_name="Payment Processing Bot"
-)
-
-def process_large_payment(amount, recipient):
-    # Your payment processing logic
-    return {"status": "success", "transaction_id": "TXN-123"}
-
-try:
-    result = agent.execute_if_authorized(
-        action_type="transaction",
-        resource="payment_gateway",
-        resource_id=recipient,
-        execute_fn=lambda: process_large_payment(50000, recipient),
-        details={
-            "amount": 50000,
-            "currency": "USD",
-            "destination": "external_account"
-        },
-        risk_indicators={
-            "amount_threshold": "exceeded",
-            "external_transfer": True,
-            "data_sensitivity": "critical"
-        }
-    )
-    print(f"Payment processed: {result}")
-
-except AuthorizationDeniedError as e:
-    print(f"Transaction blocked by policy: {e.message}")
-```
-
-### Customer Data Access with Context
-
-```python
-from ascend import AscendClient, AgentAction
-
-client = AscendClient()
-
-action = AgentAction(
-    agent_id="support-bot-001",
-    agent_name="Customer Support AI",
-    action_type="data_access",
-    resource="customer_pii",
-    resource_id="CUST-98765",
-    action_details={
-        "fields_requested": ["name", "email", "phone", "ssn"],
-        "reason": "Customer identity verification"
-    },
-    context={
-        "session_id": "sess_abc123",
-        "ip_address": "192.168.1.100",
-        "user_agent": "Mozilla/5.0..."
-    },
-    risk_indicators={
-        "pii_involved": True,
-        "sensitive_fields": ["ssn"],
-        "data_classification": "restricted"
-    }
-)
-
-result = client.submit_action(action)
-
-if result.is_pending():
-    # Wait up to 60 seconds for manual approval
-    result = client.wait_for_decision(result.action_id, timeout_ms=60000)
-
-if result.is_approved():
-    # Fetch customer data
-    customer_data = fetch_customer_pii("CUST-98765")
-else:
-    print(f"Access denied by {result.policy_matched}: {result.reason}")
-```
-
-### Listing Recent Actions
-
-```python
-from ascend import AscendClient
-
-client = AscendClient()
-
-# Get all pending actions
-pending = client.list_actions(limit=10, status="pending")
-print(f"Found {pending.total} pending actions")
-
-for action in pending.actions:
-    print(f"  - {action.action_id}: {action.metadata.get('action_type')} (Risk: {action.risk_level})")
-
-# Pagination
-if pending.has_more:
-    next_page = client.list_actions(limit=10, offset=10, status="pending")
-```
-
-### Testing Connection
-
-```python
-from ascend import AscendClient
-
-client = AscendClient()
-
-status = client.test_connection()
-
-if status.is_connected():
-    print(f"✅ Connected to Ascend API v{status.api_version}")
-    print(f"   Latency: {status.latency_ms:.0f}ms")
-else:
-    print(f"❌ Connection failed: {status.error}")
-```
-
-### Context Manager (Automatic Cleanup)
-
-```python
-from ascend import AscendClient, AgentAction
-
-with AscendClient() as client:
-    action = AgentAction(
-        agent_id="bot-001",
-        agent_name="My Bot",
-        action_type="query",
-        resource="database"
-    )
-    result = client.submit_action(action)
-    print(f"Status: {result.status}")
-# Connection automatically closed
-```
-
-## Error Handling
-
-The SDK provides specific exceptions for different failure modes:
-
-```python
-from ascend import (
-    AscendClient,
-    AuthenticationError,
-    AuthorizationDeniedError,
-    RateLimitError,
-    TimeoutError,
-    ValidationError,
-    NetworkError,
-    ServerError,
-    NotFoundError
-)
-
-client = AscendClient()
-
-try:
-    result = client.submit_action(action)
-
-except AuthenticationError as e:
-    # Invalid API key
-    print(f"Authentication failed: {e.message}")
-    print("Check your ASCEND_API_KEY environment variable")
-
-except ValidationError as e:
-    # Invalid input data
-    print(f"Validation error: {e.message}")
-    print("Check your action fields")
-
-except RateLimitError as e:
-    # Rate limit exceeded
-    print(f"Rate limit hit: {e.message}")
-    print("Wait before retrying")
-
-except TimeoutError as e:
-    # Request or decision timeout
-    print(f"Timeout: {e.message}")
-
-except NetworkError as e:
-    # Connection failed
-    print(f"Network error: {e.message}")
-    print("Check your internet connection")
-
-except ServerError as e:
-    # Ascend API error (automatically retried)
-    print(f"Server error: {e.message}")
-    print("Contact Ascend support if persistent")
-
-except NotFoundError as e:
-    # Resource not found
-    print(f"Not found: {e.message}")
-```
-
-## Action Types
-
-Standard action types supported by Ascend:
-
-```python
-from ascend.constants import ActionType
-
-# Data operations
-ActionType.DATA_ACCESS          # Reading data
-ActionType.DATA_MODIFICATION    # Updating/deleting data
-ActionType.QUERY                # Database queries
-
-# Business operations
-ActionType.TRANSACTION          # Financial transactions
-ActionType.RECOMMENDATION       # AI recommendations
-ActionType.COMMUNICATION        # External communications
-
-# System operations
-ActionType.SYSTEM_OPERATION     # System changes
-ActionType.FILE_ACCESS          # File operations
-ActionType.API_CALL             # External API calls
-ActionType.DATABASE_OPERATION   # Database changes
-```
-
-## Configuration
-
-### Environment Variables
-
-```bash
-# Required
-ASCEND_API_KEY=ascend_prod_your_key_here
-
-# Optional
-ASCEND_API_URL=https://pilot.owkai.app  # Default: production API
-ASCEND_DEBUG=true                        # Enable debug logging
-```
-
-### Programmatic Configuration
+### 3. Govern your first action
 
 ```python
 from ascend import AscendClient
 
 client = AscendClient(
-    api_key="ascend_prod_...",      # API key (or use env var)
-    base_url="https://pilot.owkai.app",  # API URL (or use env var)
-    timeout=30,                      # Request timeout in seconds
-    debug=True                       # Enable debug logging
-)
-```
-
-## Advanced Features
-
-### Automatic Retry with Exponential Backoff
-
-The SDK automatically retries failed requests with exponential backoff:
-
-- **Retryable errors**: Network errors, 429 (rate limit), 500/502/503/504 (server errors)
-- **Non-retryable errors**: 401/403 (auth), 400/422 (validation), 404 (not found)
-- **Backoff schedule**: 1s, 2s, 4s (configurable)
-
-```python
-# Retries are automatic - no configuration needed
-result = client.submit_action(action)
-```
-
-### Correlation IDs for Request Tracing
-
-Every request includes a correlation ID for debugging:
-
-```python
-# Correlation IDs are automatically generated
-# Check logs for: [ascend-abc123def456] format
-result = client.submit_action(action)
-```
-
-### API Key Security
-
-API keys are never logged in plaintext:
-
-```python
-client = AscendClient(api_key="ascend_prod_abc123xyz789")
-# Logs show: "API Key: asce...x789" (masked)
-```
-
-## Best Practices
-
-### 1. Use AuthorizedAgent for Simplicity
-
-```python
-# ✅ Recommended
-agent = AuthorizedAgent(agent_id="bot-001", agent_name="My Bot")
-result = agent.execute_if_authorized(
-    action_type="data_access",
-    resource="database",
-    execute_fn=lambda: fetch_data()
+    agent_id="customer-lookup-bot",
+    agent_name="Customer Lookup Bot",
+    fail_mode="closed",  # Block the action if ASCEND is unreachable
 )
 
-# ⚠️ More verbose
-client = AscendClient()
-action = AgentAction(agent_id="bot-001", ...)
-result = client.submit_action(action)
-if result.is_approved():
-    data = fetch_data()
-```
-
-### 2. Provide Rich Context
-
-```python
-# ✅ Good - includes context and risk indicators
-action = AgentAction(
-    agent_id="bot-001",
-    agent_name="My Bot",
-    action_type="transaction",
-    resource="payment_gateway",
-    action_details={"amount": 1000, "currency": "USD"},
-    context={"session_id": "sess_123", "ip": "1.2.3.4"},
-    risk_indicators={"high_value": False, "external": True}
+decision = client.evaluate_action(
+    action_type="database.read",
+    resource="customer_profiles",
+    resource_id="CUST-12345",
+    risk_indicators={"pii_involved": True},
 )
 
-# ⚠️ Minimal - harder to audit
-action = AgentAction(
-    agent_id="bot-001",
-    agent_name="My Bot",
-    action_type="transaction",
-    resource="payment"
-)
+if decision.execution_allowed:
+    print(f"Approved — risk score {decision.risk_score} ({decision.risk_level})")
+    # Run your action here
+else:
+    print(f"Blocked — {decision.reason}")
 ```
 
-### 3. Handle Denials Gracefully
-
-```python
-# ✅ Good - graceful degradation
-try:
-    data = agent.execute_if_authorized(
-        action_type="data_access",
-        resource="sensitive_data",
-        execute_fn=lambda: fetch_sensitive_data()
-    )
-except AuthorizationDeniedError:
-    # Fall back to public data
-    data = fetch_public_data()
-
-# ❌ Bad - crashes on denial
-data = agent.execute_if_authorized(...)  # No error handling
-```
-
-### 4. Use Context Managers
-
-```python
-# ✅ Good - automatic cleanup
-with AscendClient() as client:
-    result = client.submit_action(action)
-
-# ⚠️ Manual cleanup required
-client = AscendClient()
-try:
-    result = client.submit_action(action)
-finally:
-    client.close()
-```
-
-## Development
-
-### Installing from Source
-
-```bash
-git clone https://github.com/ascend-ai/ascend-sdk-python.git
-cd ascend-sdk-python
-pip install -e ".[dev]"
-```
-
-### Running Tests
-
-```bash
-pytest
-pytest --cov=ascend  # With coverage
-```
-
-### Type Checking
-
-```bash
-mypy ascend
-```
-
-### Code Formatting
-
-```bash
-black ascend tests
-```
-
-## Support
-
-- **Documentation**: https://docs.ascendai.app/sdk/python
-- **API Reference**: https://docs.ascendai.app/api
-- **Support Portal**: https://ascendai.app/support
-- **GitHub Issues**: https://github.com/ascend-ai/ascend-sdk-python/issues
-- **Email**: sdk@ascendai.app
-
-## Compliance
-
-The Ascend SDK is designed for enterprise security and compliance:
-
-- **SOC 2 Type II**: Multi-tenant isolation, audit trails
-- **HIPAA**: Data encryption, access controls
-- **PCI-DSS**: Secure API endpoints, token management
-- **GDPR**: Data isolation, right to deletion
-- **SOX**: Immutable audit logs, segregation of duties
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+`evaluate_action` returns an `AuthorizationDecision` with `execution_allowed`, `risk_score`, `risk_level`, `reason`, `approved_by`, `approved_at`, and `expires_at`. Default behavior waits for a decision (up to 60 seconds) and raises `TimeoutError` if no human approver responds in time — which, in `fail_mode="closed"`, means the action is blocked.
 
 ---
 
-**Built with ❤️ by the Ascend AI team**
+## Recommended pattern: `AuthorizedAgent`
+
+For most applications, `AuthorizedAgent` is the cleaner integration. It wraps authorization and execution in a single call — the function only runs if ASCEND approves.
+
+```python
+from ascend import AuthorizedAgent
+
+agent = AuthorizedAgent(
+    agent_id="payment-processor",
+    agent_name="Payment Processing Agent",
+)
+
+def process_payment():
+    # Your actual business logic
+    return {"status": "completed", "transaction_id": "TXN-98765"}
+
+# Action runs only if authorized
+result = agent.execute_if_authorized(
+    action_type="transaction",
+    resource="payment_gateway",
+    resource_id="TXN-98765",
+    execute_fn=process_payment,
+    risk_indicators={
+        "amount_threshold": "exceeded",
+        "external_transfer": True,
+    },
+    # Optional: graceful fallback when ASCEND denies the action
+    on_denied=lambda decision: {
+        "status": "blocked",
+        "reason": decision.reason,
+    },
+)
+```
+
+You can also check authorization without executing anything:
+
+```python
+if agent.check_permission("database.write", "customer_profiles"):
+    # Permission confirmed — proceed
+    pass
+```
+
+---
+
+## Fail-mode configuration
+
+Fail-mode controls what happens when ASCEND itself is unreachable — network outage, API timeout, circuit breaker open. The default is `closed` (fail-secure).
+
+| Mode | Behavior on ASCEND unreachable | Use case |
+|---|---|---|
+| `closed` | Action is blocked. `ConnectionError` raised. | **Default.** Production workloads, regulated environments, any action you would not run without governance. |
+| `open` | Action proceeds without governance. Logged on next successful call. | Non-critical workloads where availability outweighs control. Use deliberately. |
+
+```python
+from ascend import AscendClient
+
+# Fail-closed (recommended)
+client = AscendClient(agent_id="...", agent_name="...", fail_mode="closed")
+
+# Fail-open (use deliberately)
+client = AscendClient(agent_id="...", agent_name="...", fail_mode="open")
+```
+
+The SDK also includes a circuit breaker that opens after 5 consecutive failures (configurable via `circuit_breaker_threshold`) and auto-resets after 30 seconds.
+
+---
+
+## MCP Governance (Layer 13)
+
+ASCEND is the first platform to provide native governance for Model Context Protocol tool calls at the action layer. The MCP governance middleware intercepts every tool invocation, risk-scores it, and enforces the organization's policy before the tool executes.
+
+```python
+from ascend import AscendClient, MCPGovernanceConfig, MCPGovernanceMiddleware
+
+client = AscendClient(
+    agent_id="claude-desktop",
+    agent_name="Claude with Filesystem MCP",
+    fail_mode="closed",
+)
+
+config = MCPGovernanceConfig(
+    wait_for_approval=True,
+    approval_timeout_seconds=300,
+    raise_on_denial=True,
+    on_denied=lambda decision: print(f"MCP call blocked: {decision.reason}"),
+)
+
+middleware = MCPGovernanceMiddleware(client=client, config=config)
+
+# Wrap any MCP tool function — governance runs before the tool executes
+@middleware.wrap(tool_name="write_file")
+def write_file(path: str, content: str):
+    with open(path, "w") as f:
+        f.write(content)
+    return {"status": "written", "path": path}
+
+# This call is risk-scored and enforced by ASCEND before the file is touched.
+# If denied, ASCEND raises AuthorizationError (per raise_on_denial=True above).
+write_file(path="/etc/config.yaml", content="...")
+```
+
+Tool calls map to action types with baseline risk (e.g. `list_directory` = 15, `write_file` = 50, `delete_file` = 75). Contextual risk adjustments fire for sensitive paths (`/etc`, `.env`, `.ssh`), recursive operations, and bulk mutations.
+
+---
+
+## Kill-switch integration
+
+The kill-switch infrastructure lets operators halt any agent globally in under one second. The SDK polls an SQS queue for control commands and terminates gracefully when a halt is issued.
+
+```python
+from ascend import AscendClient
+
+client = AscendClient(
+    agent_id="autonomous-trader",
+    agent_name="Autonomous Trading Agent",
+    fail_mode="closed",
+)
+
+# Start polling for kill-switch commands in a background thread
+client.start_kill_switch_polling(interval_seconds=5)
+
+try:
+    while True:
+        if client.is_blocked():
+            # Operator has halted this agent — exit gracefully
+            break
+
+        decision = client.evaluate_action(
+            action_type="transaction",
+            resource="trading_api",
+        )
+        if decision.execution_allowed:
+            # Execute trade
+            pass
+finally:
+    client.stop_kill_switch_polling()
+```
+
+Kill-switch events are published via AWS SNS, delivered per-tenant via SQS, and acknowledged back to the audit trail — every halt is logged with trigger identity, timestamp, and affected agent scope.
+
+---
+
+## Exception handling
+
+The SDK uses specific exception types for each failure mode. All inherit from `OWKAIError`.
+
+```python
+from ascend import (
+    AscendClient,
+    AuthenticationError,
+    AuthorizationError,
+    ConfigurationError,
+    ConnectionError,
+    RateLimitError,
+    ServerError,
+    TimeoutError,
+    ValidationError,
+)
+
+client = AscendClient(agent_id="...", agent_name="...")
+
+try:
+    decision = client.evaluate_action(
+        action_type="database.read",
+        resource="customer_profiles",
+    )
+except AuthenticationError as e:
+    # 401 — API key invalid, expired, or revoked
+    print(f"Check ASCEND_API_KEY: {e}")
+except ValidationError as e:
+    # 422 — request schema invalid
+    print(f"Request invalid: {e}")
+except RateLimitError as e:
+    # 429 — tenant quota exceeded; retry later
+    print(f"Rate limited: {e}")
+except TimeoutError as e:
+    # No decision received within timeout (default 60s)
+    # In fail_mode="closed", the action is blocked.
+    print(f"Decision timeout: {e}")
+except ConnectionError as e:
+    # Network unreachable; fail_mode determines behavior
+    print(f"Network error: {e}")
+except ServerError as e:
+    # 5xx from ASCEND; automatically retried with exponential backoff
+    print(f"Server error: {e}")
+```
+
+Full exception hierarchy: `AuthenticationError`, `AuthorizationError`, `ConfigurationError`, `ConflictError`, `ConnectionError`, `KillSwitchError`, `NotFoundError`, `RateLimitError`, `ServerError`, `TimeoutError`, `ValidationError`.
+
+---
+
+## Action types
+
+Standard action types ship with the SDK. You can also pass arbitrary strings.
+
+```python
+from ascend import ActionType
+
+ActionType.DATA_ACCESS          # Reading data
+ActionType.DATA_MODIFICATION    # Writing or deleting data
+ActionType.QUERY                # Database queries
+ActionType.TRANSACTION          # Financial transactions
+ActionType.RECOMMENDATION       # AI-generated recommendations
+ActionType.COMMUNICATION        # External communications (email, SMS, chat)
+ActionType.SYSTEM_OPERATION     # System-level changes
+ActionType.API_CALL             # External API invocations
+ActionType.ANALYSIS             # Data analysis
+ActionType.REPORT_GENERATION    # Compliance or business reports
+```
+
+---
+
+## Configuration reference
+
+### Environment variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `ASCEND_API_KEY` | Yes | — | Your ASCEND API key |
+| `ASCEND_API_URL` | No | `https://pilot.owkai.app` | API endpoint |
+| `ASCEND_DEBUG` | No | `false` | Enable debug logging |
+
+### Programmatic configuration
+
+```python
+from ascend import AscendClient
+
+client = AscendClient(
+    api_key="ask_...",              # Or set ASCEND_API_KEY env var
+    agent_id="my-agent",
+    agent_name="My Production Agent",
+    api_url="https://pilot.owkai.app",
+    environment="production",
+    fail_mode="closed",              # "closed" (recommended) or "open"
+    timeout=5,                       # Per-request timeout in seconds
+    max_retries=3,                   # Retry attempts on transient failure
+    enable_circuit_breaker=True,
+    circuit_breaker_threshold=5,     # Failures before breaker opens
+    circuit_breaker_timeout=30,      # Seconds before breaker half-opens
+    debug=False,
+)
+```
+
+---
+
+## Platform capabilities beyond the SDK
+
+This SDK is one of several integration paths into the ASCEND platform. Additional enterprise capabilities — administered through the ASCEND console and REST API:
+
+- **13-layer security architecture** — defense-in-depth from input validation to MCP governance; every layer defaults to deny on error
+- **Agentless Discovery** — connect a read-only AWS IAM role, scan CloudWatch, Lambda, ECS, and API Gateway, surface every AI agent in your environment within 15 minutes — no SDK deployment required
+- **Security Graph (F2)** — D3 force-directed visualization of your AI estate with 33 MITRE ATT&CK patterns running concurrently across all 14 tactics, real-time WebSocket updates, and detection of data aggregation, exfiltration, lateral movement, privilege escalation, policy drift, and approval bypass attempts
+- **Regulatory Evidence Package (F3)** — 28 pre-built compliance report types including SEC AI Disclosure, SR 11-7 Model Risk, NYDFS Part 500, FINRA Rule 3110/4370, SOC 2, HIPAA, PCI-DSS, PDF with watermarks, classification markings, and cryptographic attestation
+- **BYOK/CMK encryption** — customer-managed AWS KMS keys with AES-256 envelope encryption and 15-minute key health monitoring
+- **Multi-tenant RLS isolation** — PostgreSQL row-level security with per-tenant Cognito user pools
+- **Agent Registry** — supervised and autonomous agent modes with per-agent risk thresholds
+- **Smart Rules Engine** — self-learning rules that auto-allow or auto-block based on action patterns
+- **Multi-agent orchestration governance** — topology visualization, cascade kill-switch with dry-run preview, parent-child delegation tracking
+
+Full platform documentation: **[docs.ascendowkai.com](https://docs.ascendowkai.com)**
+
+---
+
+## Compliance posture
+
+ASCEND is designed and built to align with the control requirements of:
+
+- SOC 2 Type II
+- PCI-DSS
+- HIPAA
+- SOX
+- GDPR
+- NIST 800-53
+- NIST AI RMF
+- NYDFS 500 (including 2023 AI amendments)
+- FINRA Rule 3110 and 4370
+- Federal Reserve SR 11-7
+- SEC 2026 AI examination priorities
+- FFIEC CAT
+
+External audits are in progress.
+
+---
+
+## Support
+
+- **Documentation** — [docs.ascendowkai.com](https://docs.ascendowkai.com)
+- **Product (pilot)** — [pilot.owkai.app](https://pilot.owkai.app/login)
+- **Marketing and sandbox signup** — [ascendowkai.com](https://ascendowkai.com)
+- **Security and SDK contact** — [security@ow-kai.com](mailto:security@ow-kai.com)
+- **GitHub Issues** — [github.com/Amplify-Cost/ascend-sdk-python/issues](https://github.com/Amplify-Cost/ascend-sdk-python/issues)
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](https://github.com/Amplify-Cost/ascend-sdk-python/blob/main/CHANGELOG.md) on GitHub.
+
+---
+
+## License
+
+MIT — see [LICENSE](https://github.com/Amplify-Cost/ascend-sdk-python/blob/main/LICENSE).
+
+© OW-KAI Technologies, Inc.
