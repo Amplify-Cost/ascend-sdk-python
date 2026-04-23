@@ -1966,17 +1966,30 @@ class AscendClient:
             return self.evaluate_action(
                 action_type=action.action_type,
                 resource=getattr(action, "resource", "") or kwargs.get("resource", ""),
-                parameters=getattr(action, "parameters", None),
+                parameters=getattr(action, "action_details", None),
                 context=getattr(action, "context", None),
-                **{k: v for k, v in kwargs.items() if k != "resource"},
+                resource_id=getattr(action, "resource_id", None),
+                risk_indicators=getattr(action, "risk_indicators", None),
+                orchestration_session_id=getattr(action, "orchestration_session_id", None),
+                parent_action_id=getattr(action, "parent_action_id", None),
+                orchestration_depth=getattr(action, "orchestration_depth", None),
+                **{k: v for k, v in kwargs.items() if k not in (
+                    "resource", "resource_id", "risk_indicators",
+                    "orchestration_session_id", "parent_action_id", "orchestration_depth",
+                )},
             )
         if resource is None and isinstance(action_type_or_action, dict):
             action = action_type_or_action
             return self.evaluate_action(
                 action_type=action.get("action_type", ""),
                 resource=action.get("resource", ""),
-                parameters=action.get("parameters"),
+                parameters=action.get("action_details") or action.get("parameters"),
                 context=action.get("context"),
+                resource_id=action.get("resource_id"),
+                risk_indicators=action.get("risk_indicators"),
+                orchestration_session_id=action.get("orchestration_session_id"),
+                parent_action_id=action.get("parent_action_id"),
+                orchestration_depth=action.get("orchestration_depth"),
             )
 
         # Modern kwargs form — BUG-16-SHIM-KWARG.
