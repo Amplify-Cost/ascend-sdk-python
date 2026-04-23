@@ -1,6 +1,6 @@
 # Ascend AI SDK for Python
 
-Official Python SDK for [Ascend AI Governance Platform](https://ascendai.app) - Enterprise-grade authorization and governance for AI agents.
+Official Python SDK for [Ascend AI Governance Platform](https://ascendowkai.com/) - Enterprise-grade authorization and governance for AI agents.
 
 [![Python Version](https://img.shields.io/pypi/pyversions/ascend-ai-sdk)](https://pypi.org/project/ascend-ai-sdk/)
 [![License](https://img.shields.io/pypi/l/ascend-ai-sdk)](https://github.com/ascend-ai/ascend-sdk-python/blob/main/LICENSE)
