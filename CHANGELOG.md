@@ -5,6 +5,50 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2026-04-23
+
+### Security Fix
+- **CRITICAL**: `submit_action` deprecation shim (Forms A and B) was silently
+  dropping security-critical fields before forwarding to `evaluate_action`.
+  Affected fields: `action_details` (read as wrong key `parameters`),
+  `resource_id`, `risk_indicators`, `orchestration_session_id`,
+  `parent_action_id`, `orchestration_depth`.
+
+  **Impact**: `risk_indicators` not reaching the risk engine caused
+  under-scoring of high-risk actions. `resource_id` absent from audit logs
+  created SOC 2 / PCI-DSS compliance gaps.
+
+  **Who is affected**: Any caller using `submit_action(action)` with an
+  `AgentAction` instance (Form A) or dict (Form B) where any of the above
+  fields were populated. Form C (kwargs) was not affected.
+
+  **Action required**: Upgrade to 2.4.3. Long-term: migrate from deprecated
+  `submit_action` to canonical `evaluate_action`.
+
+### Migration Guide
+The canonical method is `evaluate_action`. Replace:
+```python
+# Deprecated (submit_action — shim, scheduled for removal in 3.0.0)
+result = client.submit_action(AgentAction(
+    agent_id="bot-001",
+    agent_name="My Bot",
+    action_type="data_access",
+    resource="customer_db",
+    resource_id="CUST-123",
+    action_details={"fields": ["name", "email"]},
+    risk_indicators={"pii_involved": True}
+))
+
+# Canonical (evaluate_action)
+result = client.evaluate_action(
+    action_type="data_access",
+    resource="customer_db",
+    resource_id="CUST-123",
+    parameters={"fields": ["name", "email"]},
+    risk_indicators={"pii_involved": True}
+)
+```
+
 ## [2.4.2] - 2026-04-21
 
 ### Fixed
