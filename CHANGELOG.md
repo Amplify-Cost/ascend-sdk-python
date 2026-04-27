@@ -5,6 +5,94 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-04-27
+
+### Added — Enterprise Management Surface (G-P1-01..05, G-P2-01)
+
+Pairs with backend ticket BACKEND-AUTH-001 (dual-auth retrofits) so that
+all new methods below are reachable with the standard SDK API key.
+
+**MCP server lifecycle (G-P1-01)** — wraps `/api/registry/mcp-servers/*`:
+- `register_mcp_server(server_name, ...)` — POST register, returns 201
+- `list_mcp_servers()` — GET list for org
+- `get_mcp_server(server_name)` — GET full detail (tools, overrides, audit)
+- `activate_mcp_server(server_name)` — POST, admin role required
+- `deactivate_mcp_server(server_name, reason=None)` — POST, admin required;
+  fail-secure: subsequent submits naming this server are denied via G-P0-01
+- `delete_mcp_server(server_name)` — DELETE, admin role required
+- `scan_mcp_network()` — parameter-free network discovery
+- `get_mcp_health()` — health-monitor report across all org MCP servers
+
+**Kill-switch trigger / release (G-P1-02)** — wraps
+`/api/billing/kill-switch/{organization_id}/(trigger|release)`:
+- `trigger_kill_switch(organization_id, reason)` — reason ≥10 chars enforced
+  client-side (matches backend `KillSwitchRequest.min_length=10`)
+- `release_kill_switch(organization_id, reason)` — same reason guard
+
+**Orchestration management (G-P1-03)** — wraps `/api/v1/orchestration/*`:
+- `register_topology(orchestrator_agent_id, worker_agent_ids)` —
+  client-side validation: 1..20 workers, no duplicates
+- `register_mcp_topology(orchestrator_agent_id, mcp_server_ids)` —
+  same length/dedupe rules, integers only
+- `cascade_kill(orchestrator_id, reason, dry_run=True)` — **SAFETY:**
+  defaults to dry_run=True; caller must explicitly pass `dry_run=False`
+  to execute. Backend retains JWT-admin-only auth on this endpoint.
+- `get_orchestration_session(session_id)` — full audit trail
+- `get_orchestration_session_risk(session_id)` — cumulative risk score
+- `get_orchestration_stats()` — org-level summary stats
+
+**Output filter (G-P1-04)** — wraps `/api/v1/output-filter/*`:
+- `get_output_filter_config()` — read-only config
+- `get_output_findings(limit, offset, category, severity)` — paginated;
+  client-side cap mirrors backend `1..100`
+- `get_output_findings_for_action(action_id)` — per-action findings
+- `scan_output(content, agent_id, action_id=None)` — rate-limited 60/min
+  server-side; fail-secure (BLOCKED on server exception)
+
+**Supply chain visibility (G-P1-05)** — wraps `/api/v1/supply-chain/*`:
+- `list_supply_chain_components(component_type, risk_level, ...)` —
+  paginated component inventory
+- `get_supply_chain_stats()` — CVE counts + risk distribution
+- `get_supply_chain_impact(component_id)` — blast-radius lookup
+- `get_cve_sync_status()` — NVD/OSV sync state
+- `get_supply_chain_alerts(limit, acknowledged)` — polls `/api/alerts`
+  with `type=supply_chain_cve`. Note: backend has no SSE/webhook for
+  supply-chain alerts yet — polling is the only option.
+
+**AuthorizationDecision typed-field promotion (G-P2-01)**
+
+22 fields the platform has been returning all along (CVSS, MITRE, NIST,
+code/prompt/MCP/model governance, processing time, alerts, workflow,
+output scan, thresholds) are now first-class attributes:
+- `correlation_id`, `cvss_score`, `cvss_severity`, `cvss_vector`
+- `mitre_tactic`, `mitre_technique`, `nist_control`, `nist_description`
+- `code_analysis`, `prompt_security`
+- `mcp_governance`, `model_governance` (shipped 2026-04-26 with G-P0-01/02)
+- `processing_time_ms`, `alert_triggered`, `alert_id`, `workflow_id`
+- `policy_decision`, `matched_policies`, `matched_smart_rules`
+- `output_scan_result`, `output_findings_count`, `thresholds`
+
+### Zero Breaking Changes
+
+`AuthorizationDecision.metadata` is unchanged: pre-2.5.0 callers reading
+`decision.metadata["cvss_score"]` continue to work. The new typed fields
+are populated *in addition to*, not instead of, the metadata entries.
+If a caller-supplied metadata key conflicts with a top-level promoted
+key, the caller's value is preserved unchanged (the typed field reflects
+the top-level payload value).
+
+### Notes
+
+- All new methods raise `ValidationError` on bad input *before* any
+  network call, so misuse fails fast.
+- `cascade_kill` deliberately keeps a JWT-admin-only backend gate;
+  the SDK wrapper surfaces 401/403 cleanly with the standard auth
+  exception. Use `trigger_kill_switch()` for single-org isolated kills
+  via the SDK API key.
+- Supply-chain alert subscribe (webhook/SSE) is tracked separately as a
+  backend follow-up — `get_supply_chain_alerts()` is a polling shim until
+  that lands.
+
 ## [2.4.3] - 2026-04-23
 
 ### Security Fix

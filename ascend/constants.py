@@ -6,7 +6,7 @@ Centralized constants for API endpoints, defaults, and configuration.
 """
 
 # SDK version
-SDK_VERSION = "2.4.2"
+SDK_VERSION = "2.5.0"
 USER_AGENT = f"ascend-sdk/{SDK_VERSION} Python"
 
 # Default configuration
@@ -77,6 +77,61 @@ API_ENDPOINTS = {
     # SDK 2.3.0: SEC-103 kill-switch HTTP fallback endpoints
     "agent_commands": "/api/registry/agents/{agent_id}/commands",
     "agent_command_ack": "/api/registry/agents/{agent_id}/commands/{command_id}/ack",
+
+    # ========================================================================
+    # SDK 2.5.0 — paired with BACKEND-AUTH-001 dual-auth retrofits
+    # ========================================================================
+
+    # MCP server CRUD + lifecycle (G-P1-01) — agent_registry_routes.py
+    # Prefix: /api/registry (router at agent_registry_routes.py:73)
+    "mcp_servers": "/api/registry/mcp-servers",
+    "mcp_server_detail": "/api/registry/mcp-servers/{server_name}",
+    "mcp_server_activate": "/api/registry/mcp-servers/{server_name}/activate",
+    "mcp_server_deactivate": "/api/registry/mcp-servers/{server_name}/deactivate",
+
+    # MCP discovery + health (authorization_routes.py + discovery_routes.py)
+    # `mcp_scan` requires a MCPScanRequest body with source_id; not exposed
+    # by SDK 2.5.0 (no clean param-less wrapper). `mcp_scan_network` is the
+    # parameter-free network scan that matches the SDK's signature intent.
+    "mcp_scan": "/api/discovery/mcp/scan",
+    "mcp_scan_results": "/api/discovery/mcp/results",
+    "mcp_scan_network": "/api/authorization/mcp-discovery/scan-network",
+    "mcp_health_monitor": "/api/authorization/mcp-discovery/health-monitor",
+    "mcp_server_status": "/api/authorization/mcp-discovery/server-status",
+
+    # Kill-switch trigger / release (G-P1-02) — spend_control_routes.py
+    # Prefix: /api/billing
+    "kill_switch_trigger": "/api/billing/kill-switch/{organization_id}/trigger",
+    "kill_switch_release": "/api/billing/kill-switch/{organization_id}/release",
+
+    # Orchestration management (G-P1-03) — orchestration_topology_routes.py
+    # Prefix: /api/v1/orchestration
+    "topology_register": "/api/v1/orchestration/topology",
+    "topology_mcp_register": "/api/v1/orchestration/topology/mcp",
+    "cascade_kill": "/api/v1/orchestration/cascade-kill/{orchestrator_id}",
+    "orchestration_session": "/api/v1/orchestration/sessions/{session_id}",
+    "orchestration_session_risk": "/api/v1/orchestration/sessions/{session_id}/risk",
+    "orchestration_stats": "/api/v1/orchestration/stats",
+
+    # Output filter (G-P1-04) — output_filter_routes.py
+    # Prefix: /api/v1/output-filter (declared in router itself)
+    "output_filter_config": "/api/v1/output-filter/config",
+    "output_filter_findings": "/api/v1/output-filter/findings",
+    "output_filter_findings_for_action": "/api/v1/output-filter/findings/{action_id}",
+    "output_filter_scan": "/api/v1/output-filter/scan",
+
+    # Supply chain (G-P1-05) — supply_chain_routes.py
+    # Prefix: /api/v1/supply-chain
+    "supply_chain_components_list": "/api/v1/supply-chain/components",
+    "supply_chain_component": "/api/v1/supply-chain/components/{component_pk}",
+    "supply_chain_agent_dependencies": "/api/v1/supply-chain/agents/{agent_pk}/dependencies",
+    "supply_chain_impact": "/api/v1/supply-chain/impact/{component_pk}",
+    "supply_chain_stats": "/api/v1/supply-chain/stats",
+    "supply_chain_cve_sync_status": "/api/v1/supply-chain/sync/status",
+
+    # Alerts polling (no SSE/webhook today — see G-P1-05 note)
+    # Prefix: /api/alerts
+    "alerts_list": "/api/alerts",
 }
 
 

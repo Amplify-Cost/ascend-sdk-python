@@ -1918,6 +1918,493 @@ class AscendClient:
             params=params
         )
 
+    # =========================================================================
+    # SDK 2.5.0 — Enterprise Management Surface (G-P1-01 .. G-P1-05, G-P2-01)
+    #
+    # New methods that wrap dual-auth backend endpoints (BACKEND-AUTH-001).
+    # All call _request, which already honors FailMode.CLOSED, the circuit
+    # breaker, and the X-API-Key header. Errors raise the SDK's typed
+    # exceptions; payload validation happens client-side BEFORE the network
+    # call so misuse fails fast and never reaches the server.
+    # =========================================================================
+
+    # ---- G-P1-01 : MCP server lifecycle ------------------------------------
+
+    def register_mcp_server(
+        self,
+        server_name: str,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        server_url: Optional[str] = None,
+        transport_type: str = "stdio",
+        connection_config: Optional[Dict[str, Any]] = None,
+        governance_enabled: bool = True,
+        auto_approve_tools: Optional[List[str]] = None,
+        blocked_tools: Optional[List[str]] = None,
+        tool_risk_overrides: Optional[Dict[str, int]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Register an MCP server for governance.
+
+        SEC-MCP-LAYER13: All MCP servers must be registered before
+        submitting governed actions that name them. Pairs with G-P0-01
+        submit-time enforcement: an unregistered server name on submit
+        results in HTTP 403 MCP_SERVER_UNREGISTERED_DENY.
+
+        Returns the platform's 201 response: {success, message, server{...}}.
+        """
+        if not server_name or not isinstance(server_name, str) or not server_name.strip():
+            raise ValidationError(
+                "server_name must be a non-empty string",
+                field_errors={"server_name": "Required field is missing or empty"},
+            )
+        body: Dict[str, Any] = {
+            "server_name": server_name,
+            "transport_type": transport_type,
+            "governance_enabled": governance_enabled,
+        }
+        if display_name is not None:
+            body["display_name"] = display_name
+        if description is not None:
+            body["description"] = description
+        if server_url is not None:
+            body["server_url"] = server_url
+        if connection_config is not None:
+            body["connection_config"] = connection_config
+        if auto_approve_tools is not None:
+            body["auto_approve_tools"] = auto_approve_tools
+        if blocked_tools is not None:
+            body["blocked_tools"] = blocked_tools
+        if tool_risk_overrides is not None:
+            body["tool_risk_overrides"] = tool_risk_overrides
+        return self._request("POST", API_ENDPOINTS["mcp_servers"], data=body)
+
+    def list_mcp_servers(self) -> Dict[str, Any]:
+        """List all registered MCP servers for the caller's organization."""
+        return self._request("GET", API_ENDPOINTS["mcp_servers"])
+
+    def get_mcp_server(self, server_name: str) -> Dict[str, Any]:
+        """Get details of a registered MCP server."""
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        return self._request(
+            "GET",
+            API_ENDPOINTS["mcp_server_detail"].format(server_name=server_name),
+        )
+
+    def activate_mcp_server(self, server_name: str) -> Dict[str, Any]:
+        """
+        Activate a registered MCP server. Subsequent submitted actions
+        naming this server will pass the activation check.
+        Requires admin role (JWT admin OR admin-scoped API key).
+        """
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        return self._request(
+            "POST",
+            API_ENDPOINTS["mcp_server_activate"].format(server_name=server_name),
+        )
+
+    def deactivate_mcp_server(
+        self,
+        server_name: str,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Deactivate an MCP server (incident response, maintenance).
+        Fail-secure: subsequent actions naming this server are denied
+        at submit time with HTTP 403 MCP_SERVER_DEACTIVATED_DENY.
+        Requires admin role.
+        """
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        body: Dict[str, Any] = {}
+        if reason is not None:
+            body["reason"] = reason
+        return self._request(
+            "POST",
+            API_ENDPOINTS["mcp_server_deactivate"].format(server_name=server_name),
+            data=body if body else None,
+        )
+
+    def delete_mcp_server(self, server_name: str) -> Dict[str, Any]:
+        """Delete an MCP server registration. Requires admin role."""
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        return self._request(
+            "DELETE",
+            API_ENDPOINTS["mcp_server_detail"].format(server_name=server_name),
+        )
+
+    def scan_mcp_network(self) -> Dict[str, Any]:
+        """
+        Scan the network for MCP servers (parameter-free discovery).
+        Backend route: POST /api/authorization/mcp-discovery/scan-network.
+
+        Returns: {success, discovered_count, servers, scan_timestamp}.
+        Note: a deeper, source-scoped scan is available on the backend at
+        POST /api/discovery/mcp/scan (requires MCPScanRequest with
+        source_id) but is not wrapped by SDK 2.5.0.
+        """
+        return self._request("POST", API_ENDPOINTS["mcp_scan_network"])
+
+    def get_mcp_health(self) -> Dict[str, Any]:
+        """Get health-monitor report across all MCP servers in the org."""
+        return self._request("GET", API_ENDPOINTS["mcp_health_monitor"])
+
+    # ---- G-P1-02 : Kill-switch trigger / release ---------------------------
+
+    def trigger_kill_switch(
+        self,
+        organization_id: int,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """
+        Trigger kill-switch for an organization. Immediately blocks all
+        agent actions for that org. Requires admin role on the target org
+        or super_admin.
+
+        Backend (`KillSwitchRequest`) enforces reason ≥10 chars; we mirror
+        the check client-side so misuse fails fast without a network call.
+        """
+        if not isinstance(reason, str) or len(reason) < 10:
+            raise ValidationError(
+                "Kill-switch reason must be at least 10 characters for audit trail compliance.",
+                field_errors={"reason": "min_length=10"},
+            )
+        if not isinstance(organization_id, int) or organization_id < 1:
+            raise ValidationError(
+                "organization_id must be a positive integer",
+                field_errors={"organization_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["kill_switch_trigger"].format(organization_id=organization_id),
+            data={"reason": reason},
+        )
+
+    def release_kill_switch(
+        self,
+        organization_id: int,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """
+        Release kill-switch for an organization, restoring action processing.
+        Requires admin role on the target org or super_admin.
+        Reason must be ≥10 chars (audit trail).
+        """
+        if not isinstance(reason, str) or len(reason) < 10:
+            raise ValidationError(
+                "Kill-switch reason must be at least 10 characters for audit trail compliance.",
+                field_errors={"reason": "min_length=10"},
+            )
+        if not isinstance(organization_id, int) or organization_id < 1:
+            raise ValidationError(
+                "organization_id must be a positive integer",
+                field_errors={"organization_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["kill_switch_release"].format(organization_id=organization_id),
+            data={"reason": reason},
+        )
+
+    # ---- G-P1-03 : Orchestration management --------------------------------
+
+    def register_topology(
+        self,
+        orchestrator_agent_id: str,
+        worker_agent_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        Register parent-child orchestration topology.
+        Backend constraints (TopologyRegisterRequest): worker_agent_ids
+        length 1..20, no duplicates. We mirror both client-side.
+
+        Compliance: NIST AI RMF GOVERN-1.7, EU AI Act Art. 28, SOC 2 CC6.8
+        """
+        if not orchestrator_agent_id or not isinstance(orchestrator_agent_id, str):
+            raise ValidationError("orchestrator_agent_id must be a non-empty string")
+        if not isinstance(worker_agent_ids, list) or not 1 <= len(worker_agent_ids) <= 20:
+            raise ValidationError(
+                "worker_agent_ids must be a list of 1..20 agent ids",
+                field_errors={"worker_agent_ids": "length 1..20 required"},
+            )
+        if len(worker_agent_ids) != len(set(worker_agent_ids)):
+            raise ValidationError(
+                "Duplicate worker agent IDs are not allowed",
+                field_errors={"worker_agent_ids": "no duplicates"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["topology_register"],
+            data={
+                "orchestrator_agent_id": orchestrator_agent_id,
+                "worker_agent_ids": list(worker_agent_ids),
+            },
+        )
+
+    def register_mcp_topology(
+        self,
+        orchestrator_agent_id: str,
+        mcp_server_ids: List[int],
+    ) -> Dict[str, Any]:
+        """
+        Register MCP servers as topology worker nodes.
+        mcp_server_ids: MCPServerConfig.id values (integers); 1..20, no duplicates.
+        """
+        if not orchestrator_agent_id or not isinstance(orchestrator_agent_id, str):
+            raise ValidationError("orchestrator_agent_id must be a non-empty string")
+        if not isinstance(mcp_server_ids, list) or not 1 <= len(mcp_server_ids) <= 20:
+            raise ValidationError(
+                "mcp_server_ids must be a list of 1..20 integers",
+                field_errors={"mcp_server_ids": "length 1..20 required"},
+            )
+        if any(not isinstance(x, int) for x in mcp_server_ids):
+            raise ValidationError(
+                "mcp_server_ids must contain only integers (MCPServerConfig.id values)",
+                field_errors={"mcp_server_ids": "integer ids only"},
+            )
+        if len(mcp_server_ids) != len(set(mcp_server_ids)):
+            raise ValidationError(
+                "Duplicate MCP server IDs are not allowed",
+                field_errors={"mcp_server_ids": "no duplicates"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["topology_mcp_register"],
+            data={
+                "orchestrator_agent_id": orchestrator_agent_id,
+                "mcp_server_ids": list(mcp_server_ids),
+            },
+        )
+
+    def cascade_kill(
+        self,
+        orchestrator_id: str,
+        reason: str,
+        dry_run: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Cascade kill-switch across an orchestration topology.
+
+        SAFETY: dry_run=True by default. Caller must explicitly pass
+        dry_run=False to execute. This prevents accidental mass-blocking
+        of multiple agents in a single call.
+
+        Backend retains JWT-admin-only auth on this endpoint. Calls made
+        with an API key will receive HTTP 401/403; that is by design —
+        cascading mass-block requires a human admin, not a service
+        credential. Use trigger_kill_switch() for single-org isolated kills.
+
+        Compliance: SOC 2 CC6.2, NIST IR-4
+        """
+        if not orchestrator_id or not isinstance(orchestrator_id, str):
+            raise ValidationError("orchestrator_id must be a non-empty string")
+        if not isinstance(reason, str) or len(reason.strip()) < 1:
+            raise ValidationError(
+                "reason is required for cascade kill (audit trail)",
+                field_errors={"reason": "non-empty string required"},
+            )
+        if len(reason) > 1000:
+            raise ValidationError(
+                "reason must be ≤1000 characters",
+                field_errors={"reason": "max_length=1000"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["cascade_kill"].format(orchestrator_id=orchestrator_id),
+            data={"reason": reason, "confirm": bool(not dry_run)},
+        )
+
+    def get_orchestration_session(self, session_id: str) -> Dict[str, Any]:
+        """Get full audit trail for an orchestration session."""
+        if not session_id or not isinstance(session_id, str):
+            raise ValidationError("session_id must be a non-empty string")
+        return self._request(
+            "GET",
+            API_ENDPOINTS["orchestration_session"].format(session_id=session_id),
+        )
+
+    def get_orchestration_session_risk(self, session_id: str) -> Dict[str, Any]:
+        """Get cumulative risk score for an orchestration session."""
+        if not session_id or not isinstance(session_id, str):
+            raise ValidationError("session_id must be a non-empty string")
+        return self._request(
+            "GET",
+            API_ENDPOINTS["orchestration_session_risk"].format(session_id=session_id),
+        )
+
+    def get_orchestration_stats(self) -> Dict[str, Any]:
+        """Org-level orchestration summary statistics."""
+        return self._request("GET", API_ENDPOINTS["orchestration_stats"])
+
+    # ---- G-P1-04 : Output filter -------------------------------------------
+
+    def get_output_filter_config(self) -> Dict[str, Any]:
+        """Get the org's output filter configuration."""
+        return self._request("GET", API_ENDPOINTS["output_filter_config"])
+
+    def get_output_findings(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        category: Optional[str] = None,
+        severity: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        List output filter findings (PII / PCI / sensitive content detections).
+        Paginated, filterable by category and severity. Backend caps limit at 100.
+        """
+        if not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValidationError(
+                "limit must be between 1 and 100 (server-side cap)",
+                field_errors={"limit": "1..100"},
+            )
+        if not isinstance(offset, int) or offset < 0:
+            raise ValidationError(
+                "offset must be non-negative",
+                field_errors={"offset": ">=0"},
+            )
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        if category is not None:
+            params["category"] = category
+        if severity is not None:
+            params["severity"] = severity
+        return self._request(
+            "GET",
+            API_ENDPOINTS["output_filter_findings"],
+            params=params,
+        )
+
+    def get_output_findings_for_action(self, action_id: int) -> Dict[str, Any]:
+        """Get output filter findings for a specific action."""
+        if not isinstance(action_id, int) or action_id < 1:
+            raise ValidationError(
+                "action_id must be a positive integer",
+                field_errors={"action_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "GET",
+            API_ENDPOINTS["output_filter_findings_for_action"].format(action_id=action_id),
+        )
+
+    def scan_output(
+        self,
+        content: str,
+        agent_id: str,
+        action_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Scan content for sensitive/dangerous patterns.
+
+        Rate-limited server-side: 60 requests/minute per IP.
+        Fail-secure: server returns BLOCKED on any internal exception.
+
+        Compliance: PCI-DSS, HIPAA, GDPR, SOC 2 CC6.7, NIST SI-10, OWASP LLM02
+        """
+        if not isinstance(content, str):
+            raise ValidationError("content must be a string", field_errors={"content": "string required"})
+        if not agent_id or not isinstance(agent_id, str):
+            raise ValidationError("agent_id must be a non-empty string")
+        if action_id is not None and (not isinstance(action_id, int) or action_id < 1):
+            raise ValidationError(
+                "action_id must be a positive integer or None",
+                field_errors={"action_id": "positive int or None"},
+            )
+        body: Dict[str, Any] = {"content": content, "agent_id": agent_id}
+        if action_id is not None:
+            body["action_id"] = action_id
+        return self._request("POST", API_ENDPOINTS["output_filter_scan"], data=body)
+
+    # ---- G-P1-05 : Supply chain visibility ---------------------------------
+
+    def list_supply_chain_components(
+        self,
+        component_type: Optional[str] = None,
+        risk_level: Optional[str] = None,
+        has_vulnerabilities: Optional[bool] = None,
+        active_only: bool = True,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """List all registered supply chain components for the org."""
+        if not isinstance(limit, int) or limit < 1:
+            raise ValidationError("limit must be a positive integer")
+        if not isinstance(offset, int) or offset < 0:
+            raise ValidationError("offset must be non-negative")
+        params: Dict[str, Any] = {
+            "active_only": active_only,
+            "limit": limit,
+            "offset": offset,
+        }
+        if component_type is not None:
+            params["component_type"] = component_type
+        if risk_level is not None:
+            params["risk_level"] = risk_level
+        if has_vulnerabilities is not None:
+            params["has_vulnerabilities"] = has_vulnerabilities
+        return self._request(
+            "GET",
+            API_ENDPOINTS["supply_chain_components_list"],
+            params=params,
+        )
+
+    def get_supply_chain_stats(self) -> Dict[str, Any]:
+        """
+        Get supply chain statistics including CVE counts and risk
+        distribution across components.
+        """
+        return self._request("GET", API_ENDPOINTS["supply_chain_stats"])
+
+    def get_supply_chain_impact(self, component_id: int) -> Dict[str, Any]:
+        """
+        Blast-radius analysis: which agents are affected by a vulnerability
+        in this component.
+        """
+        if not isinstance(component_id, int) or component_id < 1:
+            raise ValidationError(
+                "component_id must be a positive integer",
+                field_errors={"component_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "GET",
+            API_ENDPOINTS["supply_chain_impact"].format(component_pk=component_id),
+        )
+
+    def get_cve_sync_status(self) -> Dict[str, Any]:
+        """Get the status of CVE sync (NVD + OSV ingestion + scheduler state)."""
+        return self._request("GET", API_ENDPOINTS["supply_chain_cve_sync_status"])
+
+    def get_supply_chain_alerts(
+        self,
+        limit: int = 50,
+        acknowledged: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Poll for supply-chain CVE alerts (alert_type='supply_chain_cve').
+
+        NOTE: Backend does not yet expose a webhook/SSE subscription for
+        supply-chain alerts. This method polls /api/alerts and the caller
+        is responsible for pacing. A subscribe surface is tracked separately
+        as a backend follow-up.
+        """
+        if not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise ValidationError(
+                "limit must be between 1 and 500",
+                field_errors={"limit": "1..500"},
+            )
+        params: Dict[str, Any] = {
+            "type": "supply_chain_cve",
+            "limit": limit,
+            "acknowledged": acknowledged,
+        }
+        return self._request("GET", API_ENDPOINTS["alerts_list"], params=params)
+
+    # =========================================================================
+    # End SDK 2.5.0 enterprise management surface
+    # =========================================================================
+
     def close(self) -> None:
         """Close client session and stop background tasks."""
         self.stop_kill_switch_polling()

@@ -178,6 +178,16 @@ class AuthorizationDecision:
 
     Supports both v1.0 (legacy) and v2.0 response formats.
     v2.0 uses Decision enum (ALLOWED/DENIED/PENDING).
+
+    SDK 2.5.0 (G-P2-01) — promotes 22 fields the platform has been
+    returning all along (CVSS, MITRE, NIST, code/prompt/MCP/model
+    governance, processing time, alerts, workflow, output scan,
+    thresholds) from the catch-all `metadata` dict to first-class
+    typed attributes. ZERO BREAKING CHANGE: `metadata` continues to
+    carry every key returned by the platform (the new typed fields
+    are populated *in addition to*, not instead of, the metadata
+    entries — existing callers reading `decision.metadata["cvss_score"]`
+    keep working unchanged).
     """
     action_id: str
     decision: Decision  # v2.0: Decision enum
@@ -195,9 +205,51 @@ class AuthorizationDecision:
     execution_allowed: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    # ----- SDK 2.5.0 / G-P2-01 — promoted typed fields ---------------------
+
+    # Compliance-framework attributes
+    correlation_id: Optional[str] = None
+    cvss_score: Optional[float] = None
+    cvss_severity: Optional[str] = None
+    cvss_vector: Optional[str] = None
+    mitre_tactic: Optional[str] = None
+    mitre_technique: Optional[str] = None
+    nist_control: Optional[str] = None
+    nist_description: Optional[str] = None
+
+    # Analysis-result blocks (kept as nested dicts — schemas are stable
+    # but rich; callers iterate keys rather than read scalar fields)
+    code_analysis: Optional[Dict[str, Any]] = None
+    prompt_security: Optional[Dict[str, Any]] = None
+    # Shipped 2026-04-26 with G-P0-01 / G-P0-02
+    mcp_governance: Optional[Dict[str, Any]] = None
+    model_governance: Optional[Dict[str, Any]] = None
+
+    # Action-level metadata
+    processing_time_ms: Optional[int] = None
+    alert_triggered: Optional[bool] = None
+    alert_id: Optional[int] = None
+    workflow_id: Optional[int] = None
+    policy_decision: Optional[str] = None
+    matched_policies: Optional[int] = None
+    matched_smart_rules: Optional[int] = None
+    output_scan_result: Optional[str] = None
+    output_findings_count: Optional[int] = None
+    thresholds: Optional[Dict[str, Any]] = None
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AuthorizationDecision":
-        """Create from API response dictionary (v2.0 format)."""
+        """Create from API response dictionary (v2.0 format).
+
+        ZERO BREAKING CHANGE rule:
+        - `metadata` still ends up populated with the platform's metadata
+          dict (or {} if absent), exactly as in pre-2.5.0 SDKs.
+        - Callers that read `decision.metadata["cvss_score"]` continue to
+          work IFF the platform put cvss_score in metadata. To preserve
+          that, we ALSO mirror the new top-level fields into metadata
+          so that both `decision.cvss_score` and
+          `decision.metadata["cvss_score"]` resolve to the same value.
+        """
         # Map v1.0 status to v2.0 decision
         raw_decision = data.get("decision", data.get("status", "pending"))
         if raw_decision == "approved":
@@ -209,8 +261,41 @@ class AuthorizationDecision:
         else:
             decision = Decision.PENDING
 
+        # Preserve original metadata dict + mirror new typed fields into
+        # it so the two access patterns stay consistent.
+        metadata = dict(data.get("metadata", {}) or {})
+
+        # Action_id may be returned as int by some endpoints (e.g. submit
+        # returns numeric `id` + `action_id` aliases). Coerce to str so
+        # the dataclass type stays str across all return paths.
+        raw_action_id = data.get("action_id", data.get("id", ""))
+        action_id_str = "" if raw_action_id is None else str(raw_action_id)
+
+        # Promote the 22 new fields when present in the top-level payload.
+        # Each new attribute is also written into metadata for back-compat.
+        promoted_keys = (
+            "correlation_id",
+            "cvss_score", "cvss_severity", "cvss_vector",
+            "mitre_tactic", "mitre_technique",
+            "nist_control", "nist_description",
+            "code_analysis", "prompt_security",
+            "mcp_governance", "model_governance",
+            "processing_time_ms", "alert_triggered", "alert_id",
+            "workflow_id", "policy_decision",
+            "matched_policies", "matched_smart_rules",
+            "output_scan_result", "output_findings_count",
+            "thresholds",
+        )
+        promoted: Dict[str, Any] = {}
+        for k in promoted_keys:
+            if k in data:
+                promoted[k] = data[k]
+                # Mirror into metadata only if not already present, so we
+                # don't clobber a different value the caller put there.
+                metadata.setdefault(k, data[k])
+
         return cls(
-            action_id=data.get("action_id", ""),
+            action_id=action_id_str,
             decision=decision,
             risk_score=data.get("risk_score"),
             risk_level=RiskLevel(data["risk_level"]) if data.get("risk_level") else None,
@@ -224,7 +309,8 @@ class AuthorizationDecision:
             approved_at=data.get("approved_at", data.get("reviewed_at")),
             comments=data.get("comments"),
             execution_allowed=data.get("execution_allowed", decision == Decision.ALLOWED),
-            metadata=data.get("metadata", {})
+            metadata=metadata,
+            **promoted,
         )
 
 
