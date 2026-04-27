@@ -10,6 +10,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any, List
 
+# SDK 2.5.1 / SDK-251: needed for to_dict()'s top-level governance-field
+# validation (mcp_server_name / model_id must be non-empty strings).
+from .exceptions import ValidationError
+
 
 class ActionType(str, Enum):
     """Supported action types for agent authorization."""
@@ -123,6 +127,17 @@ class AgentAction:
     orchestration_session_id: Optional[str] = None
     parent_action_id: Optional[int] = None
     orchestration_depth: Optional[int] = None
+    # SDK 2.5.1 / G-P0-01: MCP server governance.
+    # Pass the registered MCP server name to trigger
+    # Layer 13 enforcement at submit time.
+    # Unregistered or deactivated servers → HTTP 403.
+    mcp_server_name: Optional[str] = None
+    # SDK 2.5.1 / G-P0-02: Model registry governance.
+    # Pass the registered model_id to trigger
+    # DeployedModel compliance check at submit time.
+    # Non-compliant or unregistered models → HTTP 403.
+    # SR-11-7 / EU-AI-ACT-ART9 enforcement.
+    model_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -162,6 +177,26 @@ class AgentAction:
             data["parent_action_id"] = self.parent_action_id
         if self.orchestration_depth is not None:
             data["orchestration_depth"] = self.orchestration_depth
+
+        # SDK 2.5.1: Governance routing fields.
+        # Must be top-level — backend reads these
+        # at data["mcp_server_name"] and data["model_id"]
+        # directly, never nested.
+        if self.mcp_server_name:
+            if not isinstance(self.mcp_server_name, str) \
+                    or not self.mcp_server_name.strip():
+                raise ValidationError(
+                    "mcp_server_name must be a non-empty string."
+                )
+            data["mcp_server_name"] = self.mcp_server_name.strip()
+
+        if self.model_id:
+            if not isinstance(self.model_id, str) \
+                    or not self.model_id.strip():
+                raise ValidationError(
+                    "model_id must be a non-empty string."
+                )
+            data["model_id"] = self.model_id.strip()
 
         # PY-SEC-005: Strip risk scoring fields from outbound payload
         data.pop("risk_score", None)

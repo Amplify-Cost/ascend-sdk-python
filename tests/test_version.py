@@ -8,7 +8,7 @@ import ascend
 
 
 def test_version_matches_release():
-    assert ascend.__version__ == "2.5.0"
+    assert ascend.__version__ == "2.5.1"
 
 
 def test_author_set():

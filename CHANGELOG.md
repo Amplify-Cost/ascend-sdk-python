@@ -5,6 +5,49 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-04-27
+
+### Added — Governance routing fields on `evaluate_action` (SDK-251)
+
+Two new optional kwargs and matching `AgentAction` fields surface the
+backend governance enforcement that has been live since the G-P0-01 /
+G-P0-02 work — the SDK now exposes them at the public API:
+
+- **`mcp_server_name: Optional[str]`** — when set, the backend looks up
+  `MCPServerConfig` by name at submit time and runs Layer 13 enforcement
+  (G-P0-01). Unregistered, deactivated, or blocked-tool servers respond
+  HTTP 403 and the response surfaces an `mcp_governance` block with the
+  enforcement detail. Compliance: SOC 2 CC7.2, NIST AC-3.
+
+- **`model_id: Optional[str]`** — when set, the backend looks up
+  `DeployedModel` by registered identifier and gates the action on
+  `compliance_status ∈ {approved, partially_approved}` (G-P0-02).
+  Non-compliant or unregistered models respond HTTP 403 and the response
+  surfaces a `model_governance` block with `registry_checked: True` and
+  the compliance state. Compliance: SR-11-7, EU AI Act Art. 9.
+
+Both fields are emitted at the **top level** of the submit body —
+`data["mcp_server_name"]` and `data["model_id"]` — never nested inside
+`action_details` or `context`. The backend reads only the top level.
+
+### Validation
+
+- `evaluate_action(...)` raises `ValidationError` immediately if either
+  field is provided as a non-string or empty/whitespace string. Same
+  check is mirrored inside `AgentAction.to_dict()` so the constraint
+  cannot be bypassed by constructing the dataclass directly.
+- Server-side validation continues to enforce the same constraints —
+  the client check just saves a round-trip and yields a clearer error
+  type than the backend's HTTP 422.
+
+### Zero breaking changes
+
+- Both kwargs default to `None`. Existing callers that don't pass them
+  see identical behaviour: the backend follows its existing
+  agent-link fallback paths (`registered_agent.model_id`, no MCP gating).
+- Wire payload for callers that don't pass either field is byte-for-byte
+  unchanged from 2.5.0.
+
 ## [2.5.0] - 2026-04-27
 
 ### Added — Enterprise Management Surface (G-P1-01..05, G-P2-01)

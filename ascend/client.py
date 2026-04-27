@@ -728,6 +728,10 @@ class AscendClient:
         orchestration_session_id: Optional[str] = None,
         parent_action_id: Optional[int] = None,
         orchestration_depth: Optional[int] = None,
+        # SDK 2.5.1 / G-P0-01
+        mcp_server_name: Optional[str] = None,
+        # SDK 2.5.1 / G-P0-02
+        model_id: Optional[str] = None,
     ) -> AuthorizationDecision:
         """
         Evaluate an action against ASCEND policies.
@@ -749,12 +753,26 @@ class AscendClient:
                 Server validates same-tenant + session-match (fail-secure 403).
             orchestration_depth: SDK 2.3.0 — delegation depth (0-5). Server
                 rejects values outside this range with HTTP 422.
+            mcp_server_name: SDK 2.5.1 / G-P0-01 — registered MCP server name
+                whose governance policy should gate this action. Backend looks
+                up MCPServerConfig at submit time; unregistered, deactivated,
+                or blocked-tool servers respond HTTP 403. The response
+                surfaces an `mcp_governance` block with the enforcement detail.
+            model_id: SDK 2.5.1 / G-P0-02 — registered DeployedModel
+                identifier to gate this action against the model registry.
+                Backend enforces compliance_status ∈ {approved,
+                partially_approved}; non-compliant or unregistered models
+                respond HTTP 403. The response surfaces a `model_governance`
+                block with `registry_checked: True` and the compliance state.
+                SR-11-7 / EU-AI-ACT Art.9 enforcement.
 
         Returns:
             AuthorizationDecision with decision, risk_score, reason
 
         Raises:
-            ValidationError: If action_type or resource is empty
+            ValidationError: If action_type or resource is empty, or if
+                mcp_server_name / model_id is provided but not a non-empty
+                string.
             KillSwitchError: If kill switch is active
         """
         # Kill switch check
@@ -783,6 +801,23 @@ class AscendClient:
                 field_errors={"orchestration_depth": "Out of range (0..5)"}
             )
 
+        # SDK 2.5.1 / SDK-251: governance routing inputs are optional, but
+        # when present must be non-empty strings. Server enforces the same
+        # constraints (HTTP 422 / 403) — the client check just saves a
+        # round-trip and yields a clearer error type.
+        if mcp_server_name is not None:
+            if not isinstance(mcp_server_name, str) or not mcp_server_name.strip():
+                raise ValidationError(
+                    "mcp_server_name must be a non-empty string when provided.",
+                    field_errors={"mcp_server_name": "Must be a non-empty string"}
+                )
+        if model_id is not None:
+            if not isinstance(model_id, str) or not model_id.strip():
+                raise ValidationError(
+                    "model_id must be a non-empty string when provided.",
+                    field_errors={"model_id": "Must be a non-empty string"}
+                )
+
         action = AgentAction(
             agent_id=self.agent_id or "unknown",
             agent_name=self.agent_name or "Unknown Agent",
@@ -795,6 +830,8 @@ class AscendClient:
             orchestration_session_id=orchestration_session_id,
             parent_action_id=parent_action_id,
             orchestration_depth=orchestration_depth,
+            mcp_server_name=mcp_server_name,
+            model_id=model_id,
         )
 
         try:

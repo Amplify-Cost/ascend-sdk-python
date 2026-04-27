@@ -36,7 +36,10 @@ from ascend.models import AuthorizationDecision, Decision
 
 class TestVersionAndEndpoints:
     def test_sdk_version_bumped(self):
-        assert SDK_VERSION == "2.5.0"
+        # SDK-251 bumped 2.5.0 → 2.5.1 (additive: model_id +
+        # mcp_server_name kwargs on evaluate_action). The 2.5.0
+        # enterprise-method surface this file covers is unchanged.
+        assert SDK_VERSION == "2.5.1"
 
     @pytest.mark.parametrize("key,expected", [
         ("mcp_servers", "/api/registry/mcp-servers"),
