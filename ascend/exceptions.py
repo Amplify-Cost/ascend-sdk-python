@@ -69,7 +69,7 @@ class AuthorizationError(OWKAIError):
         message: str = "Action not authorized",
         error_code: str = "AUTHZ_DENIED",
         policy_violations: Optional[list] = None,
-        risk_score: Optional[int] = None,
+        risk_score: Optional[float] = None,
         details: Optional[Dict[str, Any]] = None
     ):
         details = details or {}

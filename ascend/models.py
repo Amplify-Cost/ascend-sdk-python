@@ -226,7 +226,7 @@ class AuthorizationDecision:
     """
     action_id: str
     decision: Decision  # v2.0: Decision enum
-    risk_score: Optional[int] = None
+    risk_score: Optional[float] = None
     risk_level: Optional[RiskLevel] = None
     reason: Optional[str] = None
     policy_violations: List[str] = field(default_factory=list)
@@ -359,7 +359,7 @@ class ActionDetails:
     resource: str
     resource_id: Optional[str]
     status: DecisionStatus
-    risk_score: Optional[int]
+    risk_score: Optional[float]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     audit_trail: List[Dict[str, Any]] = field(default_factory=list)
@@ -411,7 +411,7 @@ class PolicyEvaluationResult:
     decision: str
     matched_policies: List[Dict[str, Any]] = field(default_factory=list)
     violations: List[str] = field(default_factory=list)
-    risk_score: Optional[int] = None
+    risk_score: Optional[float] = None
     evaluation_time_ms: Optional[int] = None
 
     @classmethod

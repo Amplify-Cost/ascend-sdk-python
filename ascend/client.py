@@ -1655,7 +1655,7 @@ class AscendClient:
         self,
         action_type: str,
         resource: str,
-        risk_score: Optional[int] = None,
+        risk_score: Optional[float] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> PolicyEvaluationResult:
         """

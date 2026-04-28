@@ -5,6 +5,18 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.2] - 2026-04-28
+
+### Fixed — `risk_score` typed as `Optional[float]` (SDK-252)
+
+`AuthorizationDecision.risk_score`, `ActionDetails.risk_score`,
+`PolicyEvaluationResult.risk_score`, `AuthorizationError.risk_score`, and
+`AscendClient.evaluate_policy(risk_score=...)` are now typed as
+`Optional[float]` to match the backend, which has always returned float
+values (e.g. `51.0`, `91.0`). The previous `Optional[int]` annotation
+caused contract-test noise on every governed action and forced callers
+to coerce. No behavioral change — values flow through unchanged.
+
 ## [2.5.1] - 2026-04-27
 
 ### Added — Governance routing fields on `evaluate_action` (SDK-251)
