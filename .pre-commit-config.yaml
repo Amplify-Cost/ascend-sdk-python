@@ -1,0 +1,20 @@
+# SEC-REL-001 — L1 pre-commit hook for Doc/SDK Contract Test
+#
+# Runs a fast subset of the gate on staged .md/.mdx files and any staged
+# changes under ascend/**. Developer convenience; CI is the enforcement
+# layer. `--no-verify` bypasses locally but does not bypass CI.
+#
+# Install: `pip install pre-commit && pre-commit install`
+
+repos:
+  - repo: local
+    hooks:
+      - id: sec-rel-001-contract-gate
+        name: SEC-REL-001 contract gate (fast path)
+        entry: python3 -m tests.contracts.runner --isolated --no-audit --trigger pre-commit
+        language: system
+        types_or: [markdown, mdx]
+        files: '^(owkai-pilot-frontend/ascend-docs/docs/|README\.md|CHANGELOG\.md|ascend/|tests/contracts/)'
+        pass_filenames: true
+        args: ["--path"]
+        stages: [commit]

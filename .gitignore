@@ -79,3 +79,6 @@ dmypy.json
 
 # Pyre
 .pyre/
+
+# SEC-REL-001: audit ledger lives in its own repo
+ascend-audit/
