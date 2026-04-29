@@ -1,0 +1,7 @@
+# SEC-REL-001 — runner dependency input.
+# pip-compile --generate-hashes generates the hash-pinned requirements.lock
+# from this file. Keep this file minimal — every addition requires a
+# ticket under SEC-REL-OPS.
+#
+# Test-only. The production runner uses Python stdlib only.
+pytest==8.4.0
