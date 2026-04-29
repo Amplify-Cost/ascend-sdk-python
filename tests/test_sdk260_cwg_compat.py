@@ -317,13 +317,15 @@ class TestKwargRouting:
 
 class TestStatusProperty:
     def test_status_pending(self):
+        # SDK-261 vocabulary update — was "pending" in 2.6.0.
         ad = AuthorizationDecision(action_id="x", decision=Decision.PENDING)
-        assert ad.status == "pending"
+        assert ad.status == "pending_approval"
         assert isinstance(ad.status, str)
 
     def test_status_allowed(self):
+        # SDK-261 vocabulary update — was "allowed" in 2.6.0.
         ad = AuthorizationDecision(action_id="x", decision=Decision.ALLOWED)
-        assert ad.status == "allowed"
+        assert ad.status == "approved"
 
     def test_status_denied(self):
         ad = AuthorizationDecision(action_id="x", decision=Decision.DENIED)
@@ -348,10 +350,11 @@ class TestStatusProperty:
     def test_status_tracks_decision_changes(self):
         """If a caller mutates decision (legitimate or not), status
         must reflect the change since it's a property."""
+        # SDK-261 vocabulary update.
         ad = AuthorizationDecision(action_id="x", decision=Decision.PENDING)
-        assert ad.status == "pending"
+        assert ad.status == "pending_approval"
         ad.decision = Decision.ALLOWED
-        assert ad.status == "allowed"
+        assert ad.status == "approved"
 
     def test_action_id_remains_field_not_property(self):
         """action_id is already a top-level dataclass field (line 227)
@@ -373,8 +376,11 @@ class TestStatusProperty:
             decision=Decision.ALLOWED,
             metadata={"status": "denied"},  # deliberately wrong
         )
-        assert ad.status == "allowed", (
-            f"Expected status='allowed' from decision; got {ad.status!r} "
+        # SDK-261 vocabulary update — ALLOWED → 'approved'. The point of
+        # this F5 regression is that .status is derived from .decision,
+        # so metadata['status'] = 'denied' must NOT win.
+        assert ad.status == "approved", (
+            f"Expected status='approved' from decision; got {ad.status!r} "
             f"(property must ignore metadata['status'])"
         )
         # And metadata access still returns the dict's value — both
@@ -458,14 +464,14 @@ class TestTestConnectionLatency:
 
 
 # ---------------------------------------------------------------------------
-# CONTRACT 5 — Version is 2.6.0
+# CONTRACT 5 — Version is 2.6.1 (bumped by SDK-261)
 # ---------------------------------------------------------------------------
 
 
 class TestVersion:
     def test_module_version(self):
-        assert ascend.__version__ == "2.6.0"
+        assert ascend.__version__ == "2.6.1"
 
     def test_constants_version(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.6.0"
+        assert SDK_VERSION == "2.6.1"

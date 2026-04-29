@@ -44,9 +44,13 @@ class TestVersionAndEndpoints:
         # (additive: tool_name/description/business_justification
         # kwargs on evaluate_action; .status property on
         # AuthorizationDecision; latency on test_connection result).
+        # SDK-261 bumped 2.6.0 → 2.6.1 (governance violations return
+        # AuthorizationDecision(DENIED) instead of raising;
+        # .status uses backend vocabulary 'pending_approval' /
+        # 'approved' / 'denied'; new .raw_status property).
         # The 2.5.0 enterprise-method surface this file covers is
         # unchanged.
-        assert SDK_VERSION == "2.6.0"
+        assert SDK_VERSION == "2.6.1"
 
     @pytest.mark.parametrize("key,expected", [
         ("mcp_servers", "/api/registry/mcp-servers"),

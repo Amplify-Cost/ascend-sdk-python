@@ -272,16 +272,48 @@ class AuthorizationDecision:
     output_findings_count: Optional[int] = None
     thresholds: Optional[Dict[str, Any]] = None
 
-    # SDK 2.6.0 / SDK-260: CWG-compatibility convenience accessor.
-    # `result.status` returns the raw string form of the decision so legacy
-    # callers and string-comparison code work unchanged. Use `result.decision`
-    # for the typed `Decision` enum. Note: `action_id` is already a typed
-    # top-level field on this dataclass (line 227), so no property needed.
+    # SDK 2.6.1 / SDK-261: `result.status` returns the backend-vocabulary
+    # string the CWG test plan checks against. PENDING normalises to
+    # 'pending_approval', ALLOWED to 'approved', DENIED to 'denied'.
+    # Use `result.decision` for the typed enum. Use `result.raw_status`
+    # for the exact string the platform sent (which may include values
+    # outside the v2.0 enum, such as 'auto_approved' or 'executed').
+    # Note: `action_id` is already a top-level dataclass field (line 227).
+    _STATUS_ALIASES = {
+        Decision.PENDING: "pending_approval",
+        Decision.ALLOWED: "approved",
+        Decision.DENIED: "denied",
+    }
+
     @property
     def status(self) -> str:
-        """SDK-260: string alias for `self.decision.value`. Returns
-        'allowed', 'denied', or 'pending'."""
-        return self.decision.value
+        """SDK-261: backend-compatible status string.
+
+        Mapping:
+          - PENDING → 'pending_approval'
+          - ALLOWED → 'approved'
+          - DENIED  → 'denied'
+
+        Always derived from `self.decision`; never read from
+        `metadata["status"]` (so the two access patterns can't drift —
+        SDK-260 F5 regression contract).
+        """
+        return AuthorizationDecision._STATUS_ALIASES.get(
+            self.decision,
+            self.decision.value,
+        )
+
+    @property
+    def raw_status(self) -> str:
+        """SDK-261: raw backend status string before normalisation.
+
+        Exposes wire values the v2.0 Decision enum collapses, e.g.
+        'auto_approved', 'executed', 'escalated', 'timeout',
+        'requires_modification'. Falls back to `self.status` (the
+        normalised value) when the platform did not send a `status`
+        field — so callers always get a string.
+        """
+        return self.metadata.get("raw_status", self.status)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AuthorizationDecision":
@@ -304,12 +336,34 @@ class AuthorizationDecision:
             decision = Decision.DENIED
         elif raw_decision in ("allowed", "denied", "pending"):
             decision = Decision(raw_decision)
+        elif raw_decision == "pending_approval":
+            # SDK-261 RT-4: explicit mapping. Backend uses
+            # 'pending_approval'; SDK v2.0 enum uses 'pending'.
+            # Made explicit here rather than relying on the else
+            # fallback so future maintainers see the canonical
+            # backend value handled by name.
+            decision = Decision.PENDING
         else:
             decision = Decision.PENDING
+
+        # SDK-261: preserve the platform's wire status string so
+        # `.raw_status` can surface values the v2.0 enum collapses
+        # (e.g. 'auto_approved', 'executed', 'pending_approval',
+        # 'escalated'). Read `status` first since it carries the
+        # richer vocabulary; fall back to `decision` only when the
+        # platform omitted `status`.
+        raw_status_str = data.get("status") or data.get("decision") or ""
 
         # Preserve original metadata dict + mirror new typed fields into
         # it so the two access patterns stay consistent.
         metadata = dict(data.get("metadata", {}) or {})
+
+        # SDK-261: stash the wire status under metadata so the
+        # `.raw_status` property can find it. setdefault — if the
+        # caller already put a `raw_status` key in their metadata
+        # we don't clobber it.
+        if raw_status_str:
+            metadata.setdefault("raw_status", raw_status_str)
 
         # Action_id may be returned as int by some endpoints (e.g. submit
         # returns numeric `id` + `action_id` aliases). Coerce to str so

@@ -5,6 +5,60 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2026-04-29
+
+### Fixed (SDK-261)
+
+- **Governance violations now return a decision, not an exception.**
+  Unregistered MCP server, unregistered model, and other governance
+  violations the platform surfaces as HTTP 403 are now returned as
+  `AuthorizationDecision(decision=DENIED)`. Callers branch on
+  `result.decision` rather than wrapping every call in `try/except`
+  for an *expected* denial outcome. Real auth failures (bad API key,
+  off-tenant) continue to raise `AuthorizationError`.
+- **`AuthorizationError` message is now a readable sentence**, not a
+  Python `dict` repr — when the platform returns a nested `detail`
+  object, the SDK extracts the human-readable string before
+  constructing the exception message.
+- **`result.status` returns backend-vocabulary strings** matching
+  the CWG test plan: `PENDING → 'pending_approval'`,
+  `ALLOWED → 'approved'`, `DENIED → 'denied'`. The 2.6.0 vocabulary
+  (`'pending'` / `'allowed'` / `'denied'`) is still available as
+  `result.decision.value` for callers that want the typed enum value.
+
+### Added
+
+- **`result.raw_status`** — exposes the wire status string the
+  platform actually sent, before SDK normalisation. Surfaces values
+  the v2.0 `Decision` enum collapses, e.g. `'auto_approved'`,
+  `'executed'`, `'escalated'`, `'timeout'`,
+  `'requires_modification'`. Falls back to `result.status` when the
+  platform omitted the `status` field.
+- Governance-violation responses now populate
+  `metadata["governance_violation"] = True`,
+  `metadata["correlation_id"]`, plus the SDK-251 routing fields
+  (`mcp_server_name`, `model_id`) when present, so callers can
+  inspect rich denial context without parsing the original error.
+
+### Zero breaking changes (callers)
+
+- Code using `try/except AuthorizationError` for governance
+  violations continues to compile and run — governance violations
+  no longer raise, so the existing `except` block becomes inert
+  rather than broken.
+- `result.decision` is unchanged; `result.status == 'denied'` still
+  works for denied outcomes.
+- The `metadata` dict still carries every key the platform returns,
+  matching the SDK-250 ZERO BREAKING CHANGE contract.
+
+### Internal contract update (no PyPI 2.6.0 release was published)
+
+- Six 2.6.0 contract assertions in `tests/test_sdk260_cwg_compat.py`
+  (locked vocabulary `'pending'` / `'allowed'`) have been updated to
+  the 2.6.1 vocabulary (`'pending_approval'` / `'approved'`). 2.6.0
+  was tag-pushed but never published to PyPI, so no installed
+  release ever exposed the 2.6.0 `.status` value vocabulary.
+
 ## [2.6.0] - 2026-04-28
 
 ### Added — CWG compatibility (SDK-260)

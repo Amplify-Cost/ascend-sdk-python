@@ -581,10 +581,76 @@ class AscendClient:
 
             if response.status_code == 403:
                 error_data = self._safe_json(response)
+                detail = error_data.get("detail", {})
+
+                # SDK-261: Governance violations (unregistered MCP server,
+                # unregistered model, etc.) are *expected* denial outcomes
+                # the platform surfaces with HTTP 403. Return them as
+                # AuthorizationDecision(DENIED) so callers branch on
+                # result.decision rather than wrapping every call in
+                # try/except. Real auth failures (bad API key, off-tenant)
+                # remain exceptions. Detection: detail is a dict whose
+                # `error` field carries the words "governance" or
+                # "violation" — matching the platform's MCP/model
+                # governance handlers (see ow-ai-backend mcp_action_routes).
+                _is_governance = (
+                    isinstance(detail, dict)
+                    and any(
+                        kw in str(detail.get("error", "")).lower()
+                        for kw in ("governance", "violation")
+                    )
+                )
+
+                if _is_governance:
+                    _reason = (
+                        detail.get("detail")
+                        or detail.get("error")
+                        or "Governance violation"
+                    )
+                    _meta: Dict[str, Any] = {
+                        "governance_violation": True,
+                        "error": detail.get("error"),
+                        "correlation_id": detail.get("correlation_id"),
+                        # SDK-261: preserve the wire status so .raw_status
+                        # surfaces 'denied' (HTTP 403 governance reject)
+                        # rather than collapsing to the v2.0 normalised
+                        # value via the property fallback.
+                        "raw_status": "denied",
+                    }
+                    # SDK-251 governance routing fields — preserve them
+                    # at the metadata level so SDK-251 callers can keep
+                    # reading decision.metadata["mcp_server_name"] and
+                    # decision.metadata["model_id"] unchanged.
+                    if detail.get("mcp_server_name"):
+                        _meta["mcp_server_name"] = detail["mcp_server_name"]
+                    if detail.get("model_id"):
+                        _meta["model_id"] = detail["model_id"]
+
+                    return AuthorizationDecision(
+                        action_id="",
+                        decision=Decision.DENIED,
+                        reason=_reason,
+                        correlation_id=detail.get("correlation_id"),
+                        metadata=_meta,
+                    )
+
+                # SDK-261: Non-governance 403 = real auth failure. Keep
+                # it as AuthorizationError, but extract a readable string
+                # from the (possibly nested) detail object so str(exc)
+                # reads like a sentence, not a Python dict repr.
+                if isinstance(detail, dict):
+                    _msg = (
+                        detail.get("detail")
+                        or detail.get("error")
+                        or "Access denied"
+                    )
+                else:
+                    _msg = str(detail) if detail else "Access denied"
+
                 raise AuthorizationError(
-                    error_data.get("detail", "Access denied"),
+                    _msg,
                     policy_violations=error_data.get("policy_violations", []),
-                    details=error_data
+                    details=error_data,
                 )
 
             if response.status_code == 429:
