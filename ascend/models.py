@@ -10,6 +10,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional, Dict, Any, List
 
+# SDK 2.5.1 / SDK-251: needed for to_dict()'s top-level governance-field
+# validation (mcp_server_name / model_id must be non-empty strings).
+from .exceptions import ValidationError
+
 
 class ActionType(str, Enum):
     """Supported action types for agent authorization."""
@@ -41,10 +45,19 @@ class Decision(str, Enum):
     Authorization decision values (v2.0).
 
     Used by AscendClient.evaluate_action() response.
+
+    SDK-262: AUTO_APPROVED and EXECUTED are ALLOWED-class values that
+    the platform sometimes emits on the `status` field. They mean
+    "the action was approved and (in EXECUTED's case) carried out".
+    Prior to SDK-262 these silently collapsed to PENDING via the
+    from_dict fallback, which was a correctness bug for callers doing
+    `if result.decision == Decision.ALLOWED: proceed()`.
     """
     ALLOWED = "allowed"
     DENIED = "denied"
     PENDING = "pending"
+    AUTO_APPROVED = "auto_approved"
+    EXECUTED = "executed"
 
 
 class RiskLevel(str, Enum):
@@ -123,6 +136,17 @@ class AgentAction:
     orchestration_session_id: Optional[str] = None
     parent_action_id: Optional[int] = None
     orchestration_depth: Optional[int] = None
+    # SDK 2.5.1 / G-P0-01: MCP server governance.
+    # Pass the registered MCP server name to trigger
+    # Layer 13 enforcement at submit time.
+    # Unregistered or deactivated servers → HTTP 403.
+    mcp_server_name: Optional[str] = None
+    # SDK 2.5.1 / G-P0-02: Model registry governance.
+    # Pass the registered model_id to trigger
+    # DeployedModel compliance check at submit time.
+    # Non-compliant or unregistered models → HTTP 403.
+    # SR-11-7 / EU-AI-ACT-ART9 enforcement.
+    model_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -163,6 +187,26 @@ class AgentAction:
         if self.orchestration_depth is not None:
             data["orchestration_depth"] = self.orchestration_depth
 
+        # SDK 2.5.1: Governance routing fields.
+        # Must be top-level — backend reads these
+        # at data["mcp_server_name"] and data["model_id"]
+        # directly, never nested.
+        if self.mcp_server_name:
+            if not isinstance(self.mcp_server_name, str) \
+                    or not self.mcp_server_name.strip():
+                raise ValidationError(
+                    "mcp_server_name must be a non-empty string."
+                )
+            data["mcp_server_name"] = self.mcp_server_name.strip()
+
+        if self.model_id:
+            if not isinstance(self.model_id, str) \
+                    or not self.model_id.strip():
+                raise ValidationError(
+                    "model_id must be a non-empty string."
+                )
+            data["model_id"] = self.model_id.strip()
+
         # PY-SEC-005: Strip risk scoring fields from outbound payload
         data.pop("risk_score", None)
         data.pop("riskScore", None)
@@ -178,10 +222,20 @@ class AuthorizationDecision:
 
     Supports both v1.0 (legacy) and v2.0 response formats.
     v2.0 uses Decision enum (ALLOWED/DENIED/PENDING).
+
+    SDK 2.5.0 (G-P2-01) — promotes 22 fields the platform has been
+    returning all along (CVSS, MITRE, NIST, code/prompt/MCP/model
+    governance, processing time, alerts, workflow, output scan,
+    thresholds) from the catch-all `metadata` dict to first-class
+    typed attributes. ZERO BREAKING CHANGE: `metadata` continues to
+    carry every key returned by the platform (the new typed fields
+    are populated *in addition to*, not instead of, the metadata
+    entries — existing callers reading `decision.metadata["cvss_score"]`
+    keep working unchanged).
     """
     action_id: str
     decision: Decision  # v2.0: Decision enum
-    risk_score: Optional[int] = None
+    risk_score: Optional[float] = None
     risk_level: Optional[RiskLevel] = None
     reason: Optional[str] = None
     policy_violations: List[str] = field(default_factory=list)
@@ -195,9 +249,101 @@ class AuthorizationDecision:
     execution_allowed: bool = False
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    # ----- SDK 2.5.0 / G-P2-01 — promoted typed fields ---------------------
+
+    # Compliance-framework attributes
+    correlation_id: Optional[str] = None
+    cvss_score: Optional[float] = None
+    cvss_severity: Optional[str] = None
+    cvss_vector: Optional[str] = None
+    mitre_tactic: Optional[str] = None
+    mitre_technique: Optional[str] = None
+    nist_control: Optional[str] = None
+    nist_description: Optional[str] = None
+
+    # Analysis-result blocks (kept as nested dicts — schemas are stable
+    # but rich; callers iterate keys rather than read scalar fields)
+    code_analysis: Optional[Dict[str, Any]] = None
+    prompt_security: Optional[Dict[str, Any]] = None
+    # Shipped 2026-04-26 with G-P0-01 / G-P0-02
+    mcp_governance: Optional[Dict[str, Any]] = None
+    model_governance: Optional[Dict[str, Any]] = None
+
+    # Action-level metadata
+    processing_time_ms: Optional[int] = None
+    alert_triggered: Optional[bool] = None
+    alert_id: Optional[int] = None
+    workflow_id: Optional[int] = None
+    policy_decision: Optional[str] = None
+    matched_policies: Optional[int] = None
+    matched_smart_rules: Optional[int] = None
+    output_scan_result: Optional[str] = None
+    output_findings_count: Optional[int] = None
+    thresholds: Optional[Dict[str, Any]] = None
+
+    # SDK 2.6.1 / SDK-261: `result.status` returns the backend-vocabulary
+    # string the CWG test plan checks against. PENDING normalises to
+    # 'pending_approval', ALLOWED to 'approved', DENIED to 'denied'.
+    # Use `result.decision` for the typed enum. Use `result.raw_status`
+    # for the exact string the platform sent (which may include values
+    # outside the v2.0 enum, such as 'auto_approved' or 'executed').
+    # Note: `action_id` is already a top-level dataclass field (line 227).
+    _STATUS_ALIASES = {
+        Decision.PENDING: "pending_approval",
+        Decision.ALLOWED: "approved",
+        Decision.DENIED: "denied",
+        # SDK-262: AUTO_APPROVED and EXECUTED are ALLOWED-class. Map
+        # `.status` to the canonical CWG string 'approved' so callers
+        # comparing on .status get a stable answer; the wire-level
+        # detail ('auto_approved' / 'executed') stays available via
+        # `.raw_status`.
+        Decision.AUTO_APPROVED: "approved",
+        Decision.EXECUTED: "approved",
+    }
+
+    @property
+    def status(self) -> str:
+        """SDK-261: backend-compatible status string.
+
+        Mapping:
+          - PENDING → 'pending_approval'
+          - ALLOWED → 'approved'
+          - DENIED  → 'denied'
+
+        Always derived from `self.decision`; never read from
+        `metadata["status"]` (so the two access patterns can't drift —
+        SDK-260 F5 regression contract).
+        """
+        return AuthorizationDecision._STATUS_ALIASES.get(
+            self.decision,
+            self.decision.value,
+        )
+
+    @property
+    def raw_status(self) -> str:
+        """SDK-261: raw backend status string before normalisation.
+
+        Exposes wire values the v2.0 Decision enum collapses, e.g.
+        'auto_approved', 'executed', 'escalated', 'timeout',
+        'requires_modification'. Falls back to `self.status` (the
+        normalised value) when the platform did not send a `status`
+        field — so callers always get a string.
+        """
+        return self.metadata.get("raw_status", self.status)
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AuthorizationDecision":
-        """Create from API response dictionary (v2.0 format)."""
+        """Create from API response dictionary (v2.0 format).
+
+        ZERO BREAKING CHANGE rule:
+        - `metadata` still ends up populated with the platform's metadata
+          dict (or {} if absent), exactly as in pre-2.5.0 SDKs.
+        - Callers that read `decision.metadata["cvss_score"]` continue to
+          work IFF the platform put cvss_score in metadata. To preserve
+          that, we ALSO mirror the new top-level fields into metadata
+          so that both `decision.cvss_score` and
+          `decision.metadata["cvss_score"]` resolve to the same value.
+        """
         # Map v1.0 status to v2.0 decision
         raw_decision = data.get("decision", data.get("status", "pending"))
         if raw_decision == "approved":
@@ -206,11 +352,82 @@ class AuthorizationDecision:
             decision = Decision.DENIED
         elif raw_decision in ("allowed", "denied", "pending"):
             decision = Decision(raw_decision)
+        elif raw_decision == "pending_approval":
+            # SDK-261 RT-4: explicit mapping. Backend uses
+            # 'pending_approval'; SDK v2.0 enum uses 'pending'.
+            # Made explicit here rather than relying on the else
+            # fallback so future maintainers see the canonical
+            # backend value handled by name.
+            decision = Decision.PENDING
+        elif raw_decision in ("auto_approved", "executed"):
+            # SDK-262: auto_approved means the action was approved by
+            # policy without human review; executed means it was
+            # approved and carried out. Both are ALLOWED-class.
+            # Previously collapsed silently to PENDING via the else
+            # fallback — a correctness bug for callers branching on
+            # `result.decision == Decision.ALLOWED`.
+            decision = Decision.ALLOWED
+        elif raw_decision in (
+            "escalated", "timeout", "requires_modification"
+        ):
+            # SDK-262: explicit elifs for observability — these
+            # collapse to PENDING (a human still needs to act), but
+            # naming them avoids the silent else fallback that masks
+            # unknown wire values.
+            decision = Decision.PENDING
         else:
             decision = Decision.PENDING
 
+        # SDK-261: preserve the platform's wire status string so
+        # `.raw_status` can surface values the v2.0 enum collapses
+        # (e.g. 'auto_approved', 'executed', 'pending_approval',
+        # 'escalated'). Read `status` first since it carries the
+        # richer vocabulary; fall back to `decision` only when the
+        # platform omitted `status`.
+        raw_status_str = data.get("status") or data.get("decision") or ""
+
+        # Preserve original metadata dict + mirror new typed fields into
+        # it so the two access patterns stay consistent.
+        metadata = dict(data.get("metadata", {}) or {})
+
+        # SDK-261: stash the wire status under metadata so the
+        # `.raw_status` property can find it. setdefault — if the
+        # caller already put a `raw_status` key in their metadata
+        # we don't clobber it.
+        if raw_status_str:
+            metadata.setdefault("raw_status", raw_status_str)
+
+        # Action_id may be returned as int by some endpoints (e.g. submit
+        # returns numeric `id` + `action_id` aliases). Coerce to str so
+        # the dataclass type stays str across all return paths.
+        raw_action_id = data.get("action_id", data.get("id", ""))
+        action_id_str = "" if raw_action_id is None else str(raw_action_id)
+
+        # Promote the 22 new fields when present in the top-level payload.
+        # Each new attribute is also written into metadata for back-compat.
+        promoted_keys = (
+            "correlation_id",
+            "cvss_score", "cvss_severity", "cvss_vector",
+            "mitre_tactic", "mitre_technique",
+            "nist_control", "nist_description",
+            "code_analysis", "prompt_security",
+            "mcp_governance", "model_governance",
+            "processing_time_ms", "alert_triggered", "alert_id",
+            "workflow_id", "policy_decision",
+            "matched_policies", "matched_smart_rules",
+            "output_scan_result", "output_findings_count",
+            "thresholds",
+        )
+        promoted: Dict[str, Any] = {}
+        for k in promoted_keys:
+            if k in data:
+                promoted[k] = data[k]
+                # Mirror into metadata only if not already present, so we
+                # don't clobber a different value the caller put there.
+                metadata.setdefault(k, data[k])
+
         return cls(
-            action_id=data.get("action_id", ""),
+            action_id=action_id_str,
             decision=decision,
             risk_score=data.get("risk_score"),
             risk_level=RiskLevel(data["risk_level"]) if data.get("risk_level") else None,
@@ -224,7 +441,8 @@ class AuthorizationDecision:
             approved_at=data.get("approved_at", data.get("reviewed_at")),
             comments=data.get("comments"),
             execution_allowed=data.get("execution_allowed", decision == Decision.ALLOWED),
-            metadata=data.get("metadata", {})
+            metadata=metadata,
+            **promoted,
         )
 
 
@@ -238,7 +456,7 @@ class ActionDetails:
     resource: str
     resource_id: Optional[str]
     status: DecisionStatus
-    risk_score: Optional[int]
+    risk_score: Optional[float]
     created_at: Optional[datetime]
     updated_at: Optional[datetime]
     audit_trail: List[Dict[str, Any]] = field(default_factory=list)
@@ -290,7 +508,7 @@ class PolicyEvaluationResult:
     decision: str
     matched_policies: List[Dict[str, Any]] = field(default_factory=list)
     violations: List[str] = field(default_factory=list)
-    risk_score: Optional[int] = None
+    risk_score: Optional[float] = None
     evaluation_time_ms: Optional[int] = None
 
     @classmethod

@@ -13,7 +13,15 @@ version = "1.0.0"
 setup(
     name="ascend-ai-sdk",
     version=version,
-    packages=find_packages(),
+    packages=find_packages(
+        include=["ascend", "ascend.*"],
+        exclude=[
+            "ascend_wrapper_test*",
+            "ascend-internal-docs*",
+            "ascend-mcp-filesystem*",
+            "tests*",
+        ],
+    ),
     python_requires=">=3.8",
     install_requires=[
         "requests>=2.28.0",

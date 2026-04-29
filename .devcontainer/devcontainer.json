@@ -1,0 +1,30 @@
+{
+  "//": [
+    "SDK 2.4.0 — BUG-16 cohort · V5 clean-stranger smoke-test environment.",
+    "Per Donald's Day 3 Q3 directive: Codespace (not Docker-on-Mac) so we",
+    "get no shared DNS/cert/$HOME/pip-cache/env-var state with the author's",
+    "primary machine. Launch from GitHub Codespaces; the smoke test lives",
+    "at scripts/smoke-v5-bug16-cohort.sh."
+  ],
+  "name": "ascend-sdk-2.4.0-smoke",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "postCreateCommand": "python -m pip install --upgrade pip build twine",
+  "remoteEnv": {
+    "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+    "PYTHONDONTWRITEBYTECODE": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python"
+      ]
+    }
+  },
+  "hostRequirements": {
+    "memory": "4gb",
+    "cpus": 2
+  }
+}

@@ -68,6 +68,7 @@ from .constants import (
     DEFAULT_TIMEOUT,
     DEFAULT_MAX_RETRIES,
     DEFAULT_KILL_SWITCH_INTERVAL,
+    DEFAULT_HEARTBEAT_INTERVAL,
     MAX_BULK_ACTIONS,
     DEFAULT_BULK_CONCURRENCY,
     API_ENDPOINTS,
@@ -430,6 +431,14 @@ class AscendClient:
         self._is_blocked = False
         self._kill_switch_reason: Optional[str] = None
         self._kill_switch_timer: Optional[threading.Timer] = None
+        # SDK-262 FAIL-SECURE: track polling health so a degraded safety
+        # net surfaces to operators instead of silently failing-OPEN.
+        self._kill_switch_failure_count: int = 0
+        self._kill_switch_polling_started: bool = False
+
+        # SDK 2.4.0 — BUG-16 cohort (J3): background heartbeat state
+        self._heartbeat_timer: Optional[threading.Timer] = None
+        self._heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL
 
         logger.info(
             "ASCEND Client initialized",
@@ -576,10 +585,86 @@ class AscendClient:
 
             if response.status_code == 403:
                 error_data = self._safe_json(response)
+                detail = error_data.get("detail", {})
+
+                # SDK-261: Governance violations (unregistered MCP server,
+                # unregistered model, etc.) are *expected* denial outcomes
+                # the platform surfaces with HTTP 403. Return them as
+                # AuthorizationDecision(DENIED) so callers branch on
+                # result.decision rather than wrapping every call in
+                # try/except. Real auth failures (bad API key, off-tenant)
+                # remain exceptions. Detection: detail is a dict whose
+                # `error` field carries the words "governance" or
+                # "violation" — matching the platform's MCP/model
+                # governance handlers (see ow-ai-backend mcp_action_routes).
+                _is_governance = (
+                    isinstance(detail, dict)
+                    and any(
+                        kw in str(detail.get("error", "")).lower()
+                        for kw in ("governance", "violation")
+                    )
+                )
+
+                if _is_governance:
+                    _reason = (
+                        detail.get("detail")
+                        or detail.get("error")
+                        or "Governance violation"
+                    )
+                    _meta: Dict[str, Any] = {
+                        "governance_violation": True,
+                        "error": detail.get("error"),
+                        "correlation_id": detail.get("correlation_id"),
+                        # SDK-261: preserve the wire status so .raw_status
+                        # surfaces 'denied' (HTTP 403 governance reject)
+                        # rather than collapsing to the v2.0 normalised
+                        # value via the property fallback.
+                        "raw_status": "denied",
+                    }
+                    # SDK-251 governance routing fields — preserve them
+                    # at the metadata level so SDK-251 callers can keep
+                    # reading decision.metadata["mcp_server_name"] and
+                    # decision.metadata["model_id"] unchanged.
+                    if detail.get("mcp_server_name"):
+                        _meta["mcp_server_name"] = detail["mcp_server_name"]
+                    if detail.get("model_id"):
+                        _meta["model_id"] = detail["model_id"]
+
+                    # SDK-262-FIX-BUG02: _request() contract is "always
+                    # return a dict on non-exception paths". The prior
+                    # SDK-261 code returned an AuthorizationDecision
+                    # instance here, which broke every downstream
+                    # from_dict() call (AttributeError: 'AuthorizationDecision'
+                    # has no attribute 'get'). Return a dict shape that
+                    # AuthorizationDecision.from_dict already knows how
+                    # to parse — same wire-equivalent payload, restored
+                    # contract.
+                    return {
+                        "decision": "denied",
+                        "status": "denied",
+                        "reason": _reason,
+                        "action_id": "",
+                        "correlation_id": detail.get("correlation_id"),
+                        "metadata": _meta,
+                    }
+
+                # SDK-261: Non-governance 403 = real auth failure. Keep
+                # it as AuthorizationError, but extract a readable string
+                # from the (possibly nested) detail object so str(exc)
+                # reads like a sentence, not a Python dict repr.
+                if isinstance(detail, dict):
+                    _msg = (
+                        detail.get("detail")
+                        or detail.get("error")
+                        or "Access denied"
+                    )
+                else:
+                    _msg = str(detail) if detail else "Access denied"
+
                 raise AuthorizationError(
-                    error_data.get("detail", "Access denied"),
+                    _msg,
                     policy_violations=error_data.get("policy_violations", []),
-                    details=error_data
+                    details=error_data,
                 )
 
             if response.status_code == 429:
@@ -723,6 +808,19 @@ class AscendClient:
         orchestration_session_id: Optional[str] = None,
         parent_action_id: Optional[int] = None,
         orchestration_depth: Optional[int] = None,
+        # SDK 2.5.1 / G-P0-01
+        mcp_server_name: Optional[str] = None,
+        # SDK 2.5.1 / G-P0-02
+        model_id: Optional[str] = None,
+        # SDK 2.6.0 / SDK-260: CWG compatibility convenience kwargs.
+        # tool_name + description route into action_details so callers
+        # don't have to assemble the parameters dict manually.
+        # business_justification routes into ActionContext for audit.
+        # All three are optional with None defaults — pre-2.6.0 callers
+        # that pass neither are completely unaffected.
+        tool_name: Optional[str] = None,
+        description: Optional[str] = None,
+        business_justification: Optional[str] = None,
     ) -> AuthorizationDecision:
         """
         Evaluate an action against ASCEND policies.
@@ -744,14 +842,40 @@ class AscendClient:
                 Server validates same-tenant + session-match (fail-secure 403).
             orchestration_depth: SDK 2.3.0 — delegation depth (0-5). Server
                 rejects values outside this range with HTTP 422.
+            mcp_server_name: SDK 2.5.1 / G-P0-01 — registered MCP server name
+                whose governance policy should gate this action. Backend looks
+                up MCPServerConfig at submit time; unregistered, deactivated,
+                or blocked-tool servers respond HTTP 403. The response
+                surfaces an `mcp_governance` block with the enforcement detail.
+            model_id: SDK 2.5.1 / G-P0-02 — registered DeployedModel
+                identifier to gate this action against the model registry.
+                Backend enforces compliance_status ∈ {approved,
+                partially_approved}; non-compliant or unregistered models
+                respond HTTP 403. The response surfaces a `model_governance`
+                block with `registry_checked: True` and the compliance state.
+                SR-11-7 / EU-AI-ACT Art.9 enforcement.
 
         Returns:
             AuthorizationDecision with decision, risk_score, reason
 
         Raises:
-            ValidationError: If action_type or resource is empty
+            ValidationError: If action_type or resource is empty, or if
+                mcp_server_name / model_id is provided but not a non-empty
+                string.
             KillSwitchError: If kill switch is active
         """
+        # SDK-262: warn if kill-switch polling was never started — the
+        # safety net is inactive and operators must know. `getattr`
+        # default is True so subclasses that bypass __init__ (e.g.,
+        # test stubs) don't trip the warning unexpectedly.
+        if not getattr(self, "_kill_switch_polling_started", True):
+            logger.warning(
+                "[KILL-SWITCH] evaluate_action called but kill-switch "
+                "polling was never started. Call "
+                "start_kill_switch_polling() to enable real-time agent "
+                "blocking."
+            )
+
         # Kill switch check
         if self._is_blocked:
             raise KillSwitchError(
@@ -778,18 +902,102 @@ class AscendClient:
                 field_errors={"orchestration_depth": "Out of range (0..5)"}
             )
 
+        # SDK 2.5.1 / SDK-251: governance routing inputs are optional, but
+        # when present must be non-empty strings. Server enforces the same
+        # constraints (HTTP 422 / 403) — the client check just saves a
+        # round-trip and yields a clearer error type.
+        if mcp_server_name is not None:
+            if not isinstance(mcp_server_name, str) or not mcp_server_name.strip():
+                raise ValidationError(
+                    "mcp_server_name must be a non-empty string when provided.",
+                    field_errors={"mcp_server_name": "Must be a non-empty string"}
+                )
+        if model_id is not None:
+            if not isinstance(model_id, str) or not model_id.strip():
+                raise ValidationError(
+                    "model_id must be a non-empty string when provided.",
+                    field_errors={"model_id": "Must be a non-empty string"}
+                )
+
+        # SDK 2.6.0 / SDK-260: merge convenience kwargs into action_details
+        # and context. tool_name and description go into action_details
+        # (the structured payload the backend pipeline reads); the merge
+        # starts from the caller's `parameters` dict and then OVERWRITES
+        # with the explicit kwargs.
+        #
+        # Collision direction (F1 — red team correction):
+        #   - Named kwargs WIN over `parameters[...]` keys. The developer
+        #     wrote `tool_name="X"` as deliberate intent; the generic
+        #     `parameters` dict is the fallback.
+        #   - For business_justification (below), context-dict keys win
+        #     over the kwarg — context is a first-class parameter, not a
+        #     catch-all.
+        #
+        # Empty-string semantics (F6 — red team documentation):
+        #   - tool_name: empty/whitespace REJECTED. It's a routing
+        #     identifier; the backend's BUG-29 path uses it for dispatch.
+        #   - description: empty string ACCEPTED. It's informational
+        #     text only — the prompt-security scanner reads it but won't
+        #     match patterns against an empty payload anyway.
+        _action_details: Dict[str, Any] = dict(parameters or {})
+        if tool_name is not None:
+            if not isinstance(tool_name, str) or not tool_name.strip():
+                raise ValidationError(
+                    "tool_name must be a non-empty string when provided.",
+                    field_errors={"tool_name": "Must be a non-empty string"}
+                )
+            _action_details["tool_name"] = tool_name  # kwarg wins
+        if description is not None:
+            if not isinstance(description, str):
+                raise ValidationError(
+                    "description must be a string when provided.",
+                    field_errors={"description": "Must be a string"}
+                )
+            _action_details["description"] = description  # kwarg wins
+
+        # business_justification routes into the context dict so it lands
+        # in ActionContext.custom_fields on the wire payload (and shows up
+        # in the audit trail). Handles both raw-dict and ActionContext
+        # callers without mutating the caller's object.
+        _context: Any = context
+        if business_justification is not None:
+            if not isinstance(business_justification, str):
+                raise ValidationError(
+                    "business_justification must be a string when provided.",
+                    field_errors={
+                        "business_justification": "Must be a string"
+                    }
+                )
+            if _context is None:
+                _context = {"business_justification": business_justification}
+            elif isinstance(_context, dict):
+                _context = dict(_context)
+                _context.setdefault("business_justification", business_justification)
+            else:
+                # ActionContext or compatible object — write to a copy if
+                # the caller passed an instance, else add an attribute.
+                try:
+                    if not getattr(_context, "business_justification", None):
+                        setattr(_context, "business_justification", business_justification)
+                except (TypeError, AttributeError):
+                    # Fall through silently — never break the action
+                    # submission for a convenience field.
+                    pass
+
         action = AgentAction(
             agent_id=self.agent_id or "unknown",
             agent_name=self.agent_name or "Unknown Agent",
             action_type=action_type,
             resource=resource,
             resource_id=resource_id,
-            action_details=parameters,
-            context=context,
+            action_details=_action_details if _action_details else None,
+            context=_context,
             risk_indicators=risk_indicators,
             orchestration_session_id=orchestration_session_id,
             parent_action_id=parent_action_id,
             orchestration_depth=orchestration_depth,
+            mcp_server_name=mcp_server_name,
+            model_id=model_id,
         )
 
         try:
@@ -1169,7 +1377,7 @@ class AscendClient:
         """
         response = self._request(
             "GET",
-            f"/api/agent-action/status/{action_id}"
+            API_ENDPOINTS["action_status"].format(action_id=action_id)
         )
         return AuthorizationDecision.from_dict(response)
 
@@ -1497,6 +1705,9 @@ class AscendClient:
             interval_seconds: Polling interval in seconds (default: 5)
         """
         self._kill_switch_interval = interval_seconds
+        # SDK-262: flip the flag so evaluate_action() stops warning
+        # about the safety net being inactive.
+        self._kill_switch_polling_started = True
         self._poll_kill_switch()
 
     def stop_kill_switch_polling(self) -> None:
@@ -1505,20 +1716,130 @@ class AscendClient:
             self._kill_switch_timer.cancel()
             self._kill_switch_timer = None
 
+    # =========================================================================
+    # SDK 2.4.0 — BUG-16 cohort (J3): background heartbeat scheduler
+    #
+    # Spawns a daemon thread that calls `heartbeat()` on a configurable
+    # interval. Heartbeat failures are swallowed by the canonical method
+    # (fire-and-forget semantics are preserved), so the scheduler never
+    # crashes the host agent. FailMode.CLOSED is preserved: the scheduler
+    # introduces no new network I/O outside `heartbeat()`, which already
+    # honors the fail-secure contract.
+    # =========================================================================
+
+    def start_heartbeat(
+        self,
+        interval_seconds: Optional[int] = None,
+    ) -> None:
+        """
+        Start background heartbeat sender on a daemon thread.
+
+        The first heartbeat fires immediately; subsequent heartbeats fire
+        every ``interval_seconds``. Daemon-thread guarantees the scheduler
+        does not keep the process alive after the main thread exits.
+        Calling ``start_heartbeat()`` more than once restarts the scheduler
+        with the new interval (prior timer cancelled first).
+
+        Args:
+            interval_seconds: Polling interval. Defaults to
+                ``DEFAULT_HEARTBEAT_INTERVAL`` (60s) or the instance's
+                previously configured interval.
+
+        Fail-secure: heartbeat failures never raise — the scheduler keeps
+        running, and the next call will retry.
+        """
+        if interval_seconds is not None:
+            if interval_seconds <= 0:
+                raise ValueError(
+                    "interval_seconds must be positive; "
+                    f"got {interval_seconds}"
+                )
+            self._heartbeat_interval = interval_seconds
+
+        # Cancel prior scheduler if already running (idempotent restart).
+        self.stop_heartbeat()
+        self._tick_heartbeat()
+
+    def stop_heartbeat(self) -> None:
+        """Stop background heartbeat sender; no-op if not running."""
+        if self._heartbeat_timer:
+            self._heartbeat_timer.cancel()
+            self._heartbeat_timer = None
+
+    def _tick_heartbeat(self) -> None:
+        """Internal: send a heartbeat and schedule the next tick.
+
+        Exception contract: heartbeat() itself never raises (fire-and-forget).
+        The Timer scheduling below is also wrapped defensively — any failure
+        to schedule the next tick must not propagate to the caller.
+        """
+        try:
+            self.heartbeat()
+        except Exception:
+            # Defense-in-depth: heartbeat() is already fire-and-forget,
+            # but we belt-and-suspenders here in case future refactors
+            # change that contract. The scheduler must never crash.
+            pass
+
+        try:
+            self._heartbeat_timer = threading.Timer(
+                self._heartbeat_interval,
+                self._tick_heartbeat,
+            )
+            self._heartbeat_timer.daemon = True
+            self._heartbeat_timer.start()
+        except Exception:
+            # If thread scheduling itself fails (e.g., process shutdown
+            # in progress), stop cleanly — fail-safe, not fail-loud.
+            self._heartbeat_timer = None
+
     def is_blocked(self) -> bool:
         """Check if the kill switch is currently active."""
         return self._is_blocked
 
     def _poll_kill_switch(self) -> None:
-        """Internal: poll kill switch endpoint and schedule next poll."""
+        """Internal: poll kill switch endpoint and schedule next poll.
+
+        SDK-262 FAIL-SECURE contract:
+          * Successful poll → reset failure counter and update state.
+          * Failure → log a WARNING (not silent), increment counter.
+          * 3 consecutive failures → fail-secure: set _is_blocked=True
+            with a clear reason, and continue polling so we recover
+            automatically when the endpoint becomes healthy again.
+
+        A broken safety net is more dangerous than a false block.
+        """
         try:
             response = self._request("GET", API_ENDPOINTS["kill_switch_status"])
             status = KillSwitchStatus.from_dict(response)
             self._is_blocked = status.active
             self._kill_switch_reason = status.reason
-        except Exception:
-            # Polling failure should not crash the agent
-            pass
+            # SDK-262: successful poll — reset the consecutive-failure
+            # counter so a transient blip doesn't accumulate forever.
+            self._kill_switch_failure_count = 0
+        except Exception as _ks_err:
+            # SDK-262 FAIL-SECURE: do not silently swallow. The prior
+            # `except Exception: pass` left _is_blocked permanently
+            # False on any auth or network failure.
+            self._kill_switch_failure_count += 1
+            logger.warning(
+                f"[KILL-SWITCH] Polling failed (attempt "
+                f"{self._kill_switch_failure_count}): "
+                f"{type(_ks_err).__name__}: {_ks_err}"
+            )
+            if self._kill_switch_failure_count >= 3:
+                # SDK-262 FAIL-SECURE: 3 consecutive polling failures —
+                # treat the agent as BLOCKED until polling recovers.
+                logger.error(
+                    "[KILL-SWITCH] 3 consecutive polling failures — "
+                    "fail-secure: treating agent as BLOCKED until "
+                    "polling recovers"
+                )
+                self._is_blocked = True
+                self._kill_switch_reason = (
+                    "Kill-switch polling unavailable — agent blocked "
+                    "by fail-secure policy"
+                )
 
         # Schedule next poll
         self._kill_switch_timer = threading.Timer(
@@ -1536,7 +1857,7 @@ class AscendClient:
         self,
         action_type: str,
         resource: str,
-        risk_score: Optional[int] = None,
+        risk_score: Optional[float] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> PolicyEvaluationResult:
         """
@@ -1781,15 +2102,27 @@ class AscendClient:
 
         Returns:
             SimpleNamespace with connection status and API version.
-            Supports attribute access: result.connected, result.organization
+            Supports attribute access: result.connected, result.organization,
+            result.latency, result.latency_ms.
+
+        SDK 2.6.0 / SDK-260: now reports round-trip latency to the health
+        endpoint as `latency` and `latency_ms` (float, milliseconds, two
+        decimal places). On failure both are None.
         """
         try:
+            # SDK-260: time only the health probe. deployment_info is
+            # informational and not part of the health-check round-trip.
+            _start = time.monotonic()
             health = self._request("GET", API_ENDPOINTS["health"])
+            _latency_ms = round((time.monotonic() - _start) * 1000, 2)
+
             deployment = self._request("GET", API_ENDPOINTS["deployment_info"])
 
             return SimpleNamespace(
                 connected=True,
                 status="connected",
+                latency=_latency_ms,
+                latency_ms=_latency_ms,
                 api_version=deployment.get("version", "unknown"),
                 environment=deployment.get("environment", "unknown"),
                 organization=getattr(self, "organization_id", None),
@@ -1800,6 +2133,8 @@ class AscendClient:
             return SimpleNamespace(
                 connected=False,
                 status="error",
+                latency=None,
+                latency_ms=None,
                 error=str(e),
                 organization=None,
                 fail_mode=self.fail_mode.value,
@@ -1836,9 +2171,497 @@ class AscendClient:
             params=params
         )
 
+    # =========================================================================
+    # SDK 2.5.0 — Enterprise Management Surface (G-P1-01 .. G-P1-05, G-P2-01)
+    #
+    # New methods that wrap dual-auth backend endpoints (BACKEND-AUTH-001).
+    # All call _request, which already honors FailMode.CLOSED, the circuit
+    # breaker, and the X-API-Key header. Errors raise the SDK's typed
+    # exceptions; payload validation happens client-side BEFORE the network
+    # call so misuse fails fast and never reaches the server.
+    # =========================================================================
+
+    # ---- G-P1-01 : MCP server lifecycle ------------------------------------
+
+    def register_mcp_server(
+        self,
+        server_name: str,
+        display_name: Optional[str] = None,
+        description: Optional[str] = None,
+        server_url: Optional[str] = None,
+        transport_type: str = "stdio",
+        connection_config: Optional[Dict[str, Any]] = None,
+        governance_enabled: bool = True,
+        auto_approve_tools: Optional[List[str]] = None,
+        blocked_tools: Optional[List[str]] = None,
+        tool_risk_overrides: Optional[Dict[str, int]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Register an MCP server for governance.
+
+        SEC-MCP-LAYER13: All MCP servers must be registered before
+        submitting governed actions that name them. Pairs with G-P0-01
+        submit-time enforcement: an unregistered server name on submit
+        results in HTTP 403 MCP_SERVER_UNREGISTERED_DENY.
+
+        Returns the platform's 201 response: {success, message, server{...}}.
+        """
+        if not server_name or not isinstance(server_name, str) or not server_name.strip():
+            raise ValidationError(
+                "server_name must be a non-empty string",
+                field_errors={"server_name": "Required field is missing or empty"},
+            )
+        body: Dict[str, Any] = {
+            "server_name": server_name,
+            "transport_type": transport_type,
+            "governance_enabled": governance_enabled,
+        }
+        if display_name is not None:
+            body["display_name"] = display_name
+        if description is not None:
+            body["description"] = description
+        if server_url is not None:
+            body["server_url"] = server_url
+        if connection_config is not None:
+            body["connection_config"] = connection_config
+        if auto_approve_tools is not None:
+            body["auto_approve_tools"] = auto_approve_tools
+        if blocked_tools is not None:
+            body["blocked_tools"] = blocked_tools
+        if tool_risk_overrides is not None:
+            body["tool_risk_overrides"] = tool_risk_overrides
+        return self._request("POST", API_ENDPOINTS["mcp_servers"], data=body)
+
+    def list_mcp_servers(self) -> Dict[str, Any]:
+        """List all registered MCP servers for the caller's organization."""
+        return self._request("GET", API_ENDPOINTS["mcp_servers"])
+
+    def get_mcp_server(self, server_name: str) -> Dict[str, Any]:
+        """Get details of a registered MCP server."""
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        return self._request(
+            "GET",
+            API_ENDPOINTS["mcp_server_detail"].format(server_name=server_name),
+        )
+
+    def activate_mcp_server(self, server_name: str) -> Dict[str, Any]:
+        """
+        Activate a registered MCP server. Subsequent submitted actions
+        naming this server will pass the activation check.
+        Requires admin role (JWT admin OR admin-scoped API key).
+        """
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        return self._request(
+            "POST",
+            API_ENDPOINTS["mcp_server_activate"].format(server_name=server_name),
+        )
+
+    def deactivate_mcp_server(
+        self,
+        server_name: str,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Deactivate an MCP server (incident response, maintenance).
+        Fail-secure: subsequent actions naming this server are denied
+        at submit time with HTTP 403 MCP_SERVER_DEACTIVATED_DENY.
+        Requires admin role.
+        """
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        body: Dict[str, Any] = {}
+        if reason is not None:
+            body["reason"] = reason
+        return self._request(
+            "POST",
+            API_ENDPOINTS["mcp_server_deactivate"].format(server_name=server_name),
+            data=body if body else None,
+        )
+
+    def delete_mcp_server(self, server_name: str) -> Dict[str, Any]:
+        """Delete an MCP server registration. Requires admin role."""
+        if not server_name or not isinstance(server_name, str):
+            raise ValidationError("server_name must be a non-empty string")
+        return self._request(
+            "DELETE",
+            API_ENDPOINTS["mcp_server_detail"].format(server_name=server_name),
+        )
+
+    def scan_mcp_network(self) -> Dict[str, Any]:
+        """
+        Scan the network for MCP servers (parameter-free discovery).
+        Backend route: POST /api/authorization/mcp-discovery/scan-network.
+
+        Returns: {success, discovered_count, servers, scan_timestamp}.
+        Note: a deeper, source-scoped scan is available on the backend at
+        POST /api/discovery/mcp/scan (requires MCPScanRequest with
+        source_id) but is not wrapped by SDK 2.5.0.
+        """
+        return self._request("POST", API_ENDPOINTS["mcp_scan_network"])
+
+    def get_mcp_health(self) -> Dict[str, Any]:
+        """Get health-monitor report across all MCP servers in the org."""
+        return self._request("GET", API_ENDPOINTS["mcp_health_monitor"])
+
+    # ---- G-P1-02 : Kill-switch trigger / release ---------------------------
+
+    def trigger_kill_switch(
+        self,
+        organization_id: int,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """
+        Trigger kill-switch for an organization. Immediately blocks all
+        agent actions for that org. Requires admin role on the target org
+        or super_admin.
+
+        Backend (`KillSwitchRequest`) enforces reason ≥10 chars; we mirror
+        the check client-side so misuse fails fast without a network call.
+        """
+        if not isinstance(reason, str) or len(reason) < 10:
+            raise ValidationError(
+                "Kill-switch reason must be at least 10 characters for audit trail compliance.",
+                field_errors={"reason": "min_length=10"},
+            )
+        if not isinstance(organization_id, int) or organization_id < 1:
+            raise ValidationError(
+                "organization_id must be a positive integer",
+                field_errors={"organization_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["kill_switch_trigger"].format(organization_id=organization_id),
+            data={"reason": reason},
+        )
+
+    def release_kill_switch(
+        self,
+        organization_id: int,
+        reason: str,
+    ) -> Dict[str, Any]:
+        """
+        Release kill-switch for an organization, restoring action processing.
+        Requires admin role on the target org or super_admin.
+        Reason must be ≥10 chars (audit trail).
+        """
+        if not isinstance(reason, str) or len(reason) < 10:
+            raise ValidationError(
+                "Kill-switch reason must be at least 10 characters for audit trail compliance.",
+                field_errors={"reason": "min_length=10"},
+            )
+        if not isinstance(organization_id, int) or organization_id < 1:
+            raise ValidationError(
+                "organization_id must be a positive integer",
+                field_errors={"organization_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["kill_switch_release"].format(organization_id=organization_id),
+            data={"reason": reason},
+        )
+
+    # ---- G-P1-03 : Orchestration management --------------------------------
+
+    def register_topology(
+        self,
+        orchestrator_agent_id: str,
+        worker_agent_ids: List[str],
+    ) -> Dict[str, Any]:
+        """
+        Register parent-child orchestration topology.
+        Backend constraints (TopologyRegisterRequest): worker_agent_ids
+        length 1..20, no duplicates. We mirror both client-side.
+
+        Compliance: NIST AI RMF GOVERN-1.7, EU AI Act Art. 28, SOC 2 CC6.8
+        """
+        if not orchestrator_agent_id or not isinstance(orchestrator_agent_id, str):
+            raise ValidationError("orchestrator_agent_id must be a non-empty string")
+        if not isinstance(worker_agent_ids, list) or not 1 <= len(worker_agent_ids) <= 20:
+            raise ValidationError(
+                "worker_agent_ids must be a list of 1..20 agent ids",
+                field_errors={"worker_agent_ids": "length 1..20 required"},
+            )
+        if len(worker_agent_ids) != len(set(worker_agent_ids)):
+            raise ValidationError(
+                "Duplicate worker agent IDs are not allowed",
+                field_errors={"worker_agent_ids": "no duplicates"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["topology_register"],
+            data={
+                "orchestrator_agent_id": orchestrator_agent_id,
+                "worker_agent_ids": list(worker_agent_ids),
+            },
+        )
+
+    def register_mcp_topology(
+        self,
+        orchestrator_agent_id: str,
+        mcp_server_ids: List[int],
+    ) -> Dict[str, Any]:
+        """
+        Register MCP servers as topology worker nodes.
+        mcp_server_ids: MCPServerConfig.id values (integers); 1..20, no duplicates.
+        """
+        if not orchestrator_agent_id or not isinstance(orchestrator_agent_id, str):
+            raise ValidationError("orchestrator_agent_id must be a non-empty string")
+        if not isinstance(mcp_server_ids, list) or not 1 <= len(mcp_server_ids) <= 20:
+            raise ValidationError(
+                "mcp_server_ids must be a list of 1..20 integers",
+                field_errors={"mcp_server_ids": "length 1..20 required"},
+            )
+        if any(not isinstance(x, int) for x in mcp_server_ids):
+            raise ValidationError(
+                "mcp_server_ids must contain only integers (MCPServerConfig.id values)",
+                field_errors={"mcp_server_ids": "integer ids only"},
+            )
+        if len(mcp_server_ids) != len(set(mcp_server_ids)):
+            raise ValidationError(
+                "Duplicate MCP server IDs are not allowed",
+                field_errors={"mcp_server_ids": "no duplicates"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["topology_mcp_register"],
+            data={
+                "orchestrator_agent_id": orchestrator_agent_id,
+                "mcp_server_ids": list(mcp_server_ids),
+            },
+        )
+
+    def cascade_kill(
+        self,
+        orchestrator_id: str,
+        reason: str,
+        dry_run: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Cascade kill-switch across an orchestration topology.
+
+        SAFETY: dry_run=True by default. Caller must explicitly pass
+        dry_run=False to execute. This prevents accidental mass-blocking
+        of multiple agents in a single call.
+
+        Backend retains JWT-admin-only auth on this endpoint. Calls made
+        with an API key will receive HTTP 401/403; that is by design —
+        cascading mass-block requires a human admin, not a service
+        credential. Use trigger_kill_switch() for single-org isolated kills.
+
+        Compliance: SOC 2 CC6.2, NIST IR-4
+        """
+        if not orchestrator_id or not isinstance(orchestrator_id, str):
+            raise ValidationError("orchestrator_id must be a non-empty string")
+        if not isinstance(reason, str) or len(reason.strip()) < 1:
+            raise ValidationError(
+                "reason is required for cascade kill (audit trail)",
+                field_errors={"reason": "non-empty string required"},
+            )
+        if len(reason) > 1000:
+            raise ValidationError(
+                "reason must be ≤1000 characters",
+                field_errors={"reason": "max_length=1000"},
+            )
+        return self._request(
+            "POST",
+            API_ENDPOINTS["cascade_kill"].format(orchestrator_id=orchestrator_id),
+            data={"reason": reason, "confirm": bool(not dry_run)},
+        )
+
+    def get_orchestration_session(self, session_id: str) -> Dict[str, Any]:
+        """Get full audit trail for an orchestration session."""
+        if not session_id or not isinstance(session_id, str):
+            raise ValidationError("session_id must be a non-empty string")
+        return self._request(
+            "GET",
+            API_ENDPOINTS["orchestration_session"].format(session_id=session_id),
+        )
+
+    def get_orchestration_session_risk(self, session_id: str) -> Dict[str, Any]:
+        """Get cumulative risk score for an orchestration session."""
+        if not session_id or not isinstance(session_id, str):
+            raise ValidationError("session_id must be a non-empty string")
+        return self._request(
+            "GET",
+            API_ENDPOINTS["orchestration_session_risk"].format(session_id=session_id),
+        )
+
+    def get_orchestration_stats(self) -> Dict[str, Any]:
+        """Org-level orchestration summary statistics."""
+        return self._request("GET", API_ENDPOINTS["orchestration_stats"])
+
+    # ---- G-P1-04 : Output filter -------------------------------------------
+
+    def get_output_filter_config(self) -> Dict[str, Any]:
+        """Get the org's output filter configuration."""
+        return self._request("GET", API_ENDPOINTS["output_filter_config"])
+
+    def get_output_findings(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        category: Optional[str] = None,
+        severity: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        List output filter findings (PII / PCI / sensitive content detections).
+        Paginated, filterable by category and severity. Backend caps limit at 100.
+        """
+        if not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValidationError(
+                "limit must be between 1 and 100 (server-side cap)",
+                field_errors={"limit": "1..100"},
+            )
+        if not isinstance(offset, int) or offset < 0:
+            raise ValidationError(
+                "offset must be non-negative",
+                field_errors={"offset": ">=0"},
+            )
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        if category is not None:
+            params["category"] = category
+        if severity is not None:
+            params["severity"] = severity
+        return self._request(
+            "GET",
+            API_ENDPOINTS["output_filter_findings"],
+            params=params,
+        )
+
+    def get_output_findings_for_action(self, action_id: int) -> Dict[str, Any]:
+        """Get output filter findings for a specific action."""
+        if not isinstance(action_id, int) or action_id < 1:
+            raise ValidationError(
+                "action_id must be a positive integer",
+                field_errors={"action_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "GET",
+            API_ENDPOINTS["output_filter_findings_for_action"].format(action_id=action_id),
+        )
+
+    def scan_output(
+        self,
+        content: str,
+        agent_id: str,
+        action_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Scan content for sensitive/dangerous patterns.
+
+        Rate-limited server-side: 60 requests/minute per IP.
+        Fail-secure: server returns BLOCKED on any internal exception.
+
+        Compliance: PCI-DSS, HIPAA, GDPR, SOC 2 CC6.7, NIST SI-10, OWASP LLM02
+        """
+        if not isinstance(content, str):
+            raise ValidationError("content must be a string", field_errors={"content": "string required"})
+        if not agent_id or not isinstance(agent_id, str):
+            raise ValidationError("agent_id must be a non-empty string")
+        if action_id is not None and (not isinstance(action_id, int) or action_id < 1):
+            raise ValidationError(
+                "action_id must be a positive integer or None",
+                field_errors={"action_id": "positive int or None"},
+            )
+        body: Dict[str, Any] = {"content": content, "agent_id": agent_id}
+        if action_id is not None:
+            body["action_id"] = action_id
+        return self._request("POST", API_ENDPOINTS["output_filter_scan"], data=body)
+
+    # ---- G-P1-05 : Supply chain visibility ---------------------------------
+
+    def list_supply_chain_components(
+        self,
+        component_type: Optional[str] = None,
+        risk_level: Optional[str] = None,
+        has_vulnerabilities: Optional[bool] = None,
+        active_only: bool = True,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """List all registered supply chain components for the org."""
+        if not isinstance(limit, int) or limit < 1:
+            raise ValidationError("limit must be a positive integer")
+        if not isinstance(offset, int) or offset < 0:
+            raise ValidationError("offset must be non-negative")
+        params: Dict[str, Any] = {
+            "active_only": active_only,
+            "limit": limit,
+            "offset": offset,
+        }
+        if component_type is not None:
+            params["component_type"] = component_type
+        if risk_level is not None:
+            params["risk_level"] = risk_level
+        if has_vulnerabilities is not None:
+            params["has_vulnerabilities"] = has_vulnerabilities
+        return self._request(
+            "GET",
+            API_ENDPOINTS["supply_chain_components_list"],
+            params=params,
+        )
+
+    def get_supply_chain_stats(self) -> Dict[str, Any]:
+        """
+        Get supply chain statistics including CVE counts and risk
+        distribution across components.
+        """
+        return self._request("GET", API_ENDPOINTS["supply_chain_stats"])
+
+    def get_supply_chain_impact(self, component_id: int) -> Dict[str, Any]:
+        """
+        Blast-radius analysis: which agents are affected by a vulnerability
+        in this component.
+        """
+        if not isinstance(component_id, int) or component_id < 1:
+            raise ValidationError(
+                "component_id must be a positive integer",
+                field_errors={"component_id": "Must be a positive integer"},
+            )
+        return self._request(
+            "GET",
+            API_ENDPOINTS["supply_chain_impact"].format(component_pk=component_id),
+        )
+
+    def get_cve_sync_status(self) -> Dict[str, Any]:
+        """Get the status of CVE sync (NVD + OSV ingestion + scheduler state)."""
+        return self._request("GET", API_ENDPOINTS["supply_chain_cve_sync_status"])
+
+    def get_supply_chain_alerts(
+        self,
+        limit: int = 50,
+        acknowledged: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Poll for supply-chain CVE alerts (alert_type='supply_chain_cve').
+
+        NOTE: Backend does not yet expose a webhook/SSE subscription for
+        supply-chain alerts. This method polls /api/alerts and the caller
+        is responsible for pacing. A subscribe surface is tracked separately
+        as a backend follow-up.
+        """
+        if not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise ValidationError(
+                "limit must be between 1 and 500",
+                field_errors={"limit": "1..500"},
+            )
+        params: Dict[str, Any] = {
+            "type": "supply_chain_cve",
+            "limit": limit,
+            "acknowledged": acknowledged,
+        }
+        return self._request("GET", API_ENDPOINTS["alerts_list"], params=params)
+
+    # =========================================================================
+    # End SDK 2.5.0 enterprise management surface
+    # =========================================================================
+
     def close(self) -> None:
         """Close client session and stop background tasks."""
         self.stop_kill_switch_polling()
+        self.stop_heartbeat()
         self._session.close()
         logger.debug("Client session closed")
 
@@ -1848,6 +2671,235 @@ class AscendClient:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
+    # =========================================================================
+    # SDK 2.4.0 — BUG-16 cohort / DOC-DRIFT-* deprecated method aliases
+    #
+    # The shims below forward to the canonical method and emit
+    # DeprecationWarning ONCE per process per method (gated by the
+    # class-level `_deprecation_warned_methods` set). They preserve
+    # FailMode.CLOSED by delegating to methods that already honor it.
+    # Removed in ascend-ai-sdk 3.0.0.
+    # =========================================================================
+
+    def submit_action(
+        self,
+        action_type_or_action: Any = None,
+        resource: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> AuthorizationDecision:
+        """DEPRECATED (BUG-16): use :meth:`evaluate_action` instead.
+
+        Accepts either the legacy single-arg form ``submit_action(action)``
+        where ``action`` is an :class:`~ascend.models.AgentAction` or dict,
+        or the modern keyword form matching :meth:`evaluate_action`. The
+        shim normalizes both forms and forwards to ``evaluate_action``.
+        """
+        _emit_method_deprecation(
+            "submit_action", "evaluate_action", "BUG-16"
+        )
+
+        # Legacy single-arg form: submit_action(action)
+        if resource is None and isinstance(action_type_or_action, AgentAction):
+            action = action_type_or_action
+            return self.evaluate_action(
+                action_type=action.action_type,
+                resource=getattr(action, "resource", "") or kwargs.get("resource", ""),
+                parameters=getattr(action, "action_details", None),
+                context=getattr(action, "context", None),
+                resource_id=getattr(action, "resource_id", None),
+                risk_indicators=getattr(action, "risk_indicators", None),
+                orchestration_session_id=getattr(action, "orchestration_session_id", None),
+                parent_action_id=getattr(action, "parent_action_id", None),
+                orchestration_depth=getattr(action, "orchestration_depth", None),
+                **{k: v for k, v in kwargs.items() if k not in (
+                    "resource", "resource_id", "risk_indicators",
+                    "orchestration_session_id", "parent_action_id", "orchestration_depth",
+                )},
+            )
+        if resource is None and isinstance(action_type_or_action, dict):
+            action = action_type_or_action
+            return self.evaluate_action(
+                action_type=action.get("action_type", ""),
+                resource=action.get("resource", ""),
+                parameters=action.get("action_details") or action.get("parameters"),
+                context=action.get("context"),
+                resource_id=action.get("resource_id"),
+                risk_indicators=action.get("risk_indicators"),
+                orchestration_session_id=action.get("orchestration_session_id"),
+                parent_action_id=action.get("parent_action_id"),
+                orchestration_depth=action.get("orchestration_depth"),
+            )
+
+        # Modern kwargs form — BUG-16-SHIM-KWARG.
+        # Callers may pass action_type/resource as keyword arguments
+        # rather than through the legacy positional slot
+        # `action_type_or_action`. Pop those names out of **kwargs
+        # before forwarding so evaluate_action does not receive them
+        # twice. If the caller supplies the same argument both
+        # positionally and as a kwarg, raise a TypeError attributed
+        # to submit_action() — clearer than the generic collision
+        # Python would otherwise surface from evaluate_action().
+        kwarg_action_type = kwargs.pop("action_type", None)
+        kwarg_resource = kwargs.pop("resource", None)
+        if action_type_or_action is not None and kwarg_action_type is not None:
+            raise TypeError(
+                "submit_action() got multiple values for argument "
+                "'action_type' (supplied both positionally and as a "
+                "keyword argument)"
+            )
+        if resource is not None and kwarg_resource is not None:
+            raise TypeError(
+                "submit_action() got multiple values for argument "
+                "'resource' (supplied both positionally and as a "
+                "keyword argument)"
+            )
+        resolved_action_type = (
+            action_type_or_action
+            if action_type_or_action is not None
+            else kwarg_action_type
+        )
+        resolved_resource = (
+            resource if resource is not None else kwarg_resource
+        )
+        return self.evaluate_action(
+            action_type=resolved_action_type,
+            resource=resolved_resource or "",
+            parameters=parameters,
+            context=context,
+            **kwargs,
+        )
+
+    def send_heartbeat(
+        self,
+        metrics: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """DEPRECATED (DOC-DRIFT-HEARTBEAT): use :meth:`heartbeat` instead.
+
+        Accepts a legacy ``metrics={"response_time_ms": ..., "error_rate": ...}``
+        dict OR direct kwargs; forwards to :meth:`heartbeat`. Heartbeat
+        semantics are preserved — this shim never raises, matching the
+        canonical method's fail-safe contract.
+        """
+        _emit_method_deprecation(
+            "send_heartbeat", "heartbeat", "DOC-DRIFT-HEARTBEAT"
+        )
+        merged: Dict[str, Any] = {}
+        if metrics:
+            merged.update(metrics)
+        merged.update(kwargs)
+        return self.heartbeat(
+            response_time_ms=merged.get("response_time_ms"),
+            error_rate=merged.get("error_rate"),
+            requests_count=merged.get("requests_count"),
+        )
+
+    def wait_for_approval(
+        self,
+        action_id: str,
+        timeout: Optional[int] = None,
+        timeout_seconds: Optional[int] = None,
+        poll_interval: Optional[float] = None,
+    ) -> AuthorizationDecision:
+        """DEPRECATED (DOC-DRIFT-APPROVAL): use :meth:`wait_for_decision`.
+
+        Accepts legacy ``timeout=`` kwarg (seconds) as well as the canonical
+        ``timeout_seconds=``. Forwards to :meth:`wait_for_decision` with
+        kwarg normalization.
+        """
+        _emit_method_deprecation(
+            "wait_for_approval", "wait_for_decision", "DOC-DRIFT-APPROVAL"
+        )
+        resolved_timeout = timeout_seconds if timeout_seconds is not None else timeout
+        kwargs: Dict[str, Any] = {}
+        if resolved_timeout is not None:
+            kwargs["timeout_seconds"] = resolved_timeout
+        if poll_interval is not None:
+            kwargs["poll_interval"] = poll_interval
+        return self.wait_for_decision(action_id, **kwargs)
+
+    def get_agent(self, agent_id: Optional[str] = None) -> AgentHealthStatus:
+        """DEPRECATED (DOC-DRIFT-AGENT): use :meth:`get_agent_status`.
+
+        Fail-secure: if ``agent_id`` is provided and does not match the
+        client's configured agent identity, raises ValueError to prevent
+        cross-agent information disclosure.
+        """
+        _emit_method_deprecation(
+            "get_agent", "get_agent_status", "DOC-DRIFT-AGENT"
+        )
+        if agent_id is not None and agent_id != self.agent_id:
+            raise ValueError(
+                f"get_agent(agent_id={agent_id!r}) does not match "
+                f"AscendClient.agent_id={self.agent_id!r}. Construct a "
+                "separate AscendClient with the desired agent identity."
+            )
+        return self.get_agent_status()
+
+    def register_agent(
+        self,
+        agent_id: Optional[str] = None,
+        agent_type: str = "supervised",
+        capabilities: Optional[List[str]] = None,
+        allowed_resources: Optional[List[str]] = None,
+        metadata: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
+        """DEPRECATED (DOC-DRIFT-REGISTER): use :meth:`register` instead.
+
+        The legacy call signature accepted ``agent_id`` as a positional
+        argument; in the canonical SDK ``agent_id`` is supplied to the
+        :class:`AscendClient` constructor. This shim validates that any
+        explicit ``agent_id`` matches the client's configured agent_id
+        (fail-secure: raises ValueError on mismatch to prevent a caller
+        from accidentally registering the wrong identity).
+        """
+        _emit_method_deprecation(
+            "register_agent", "register", "DOC-DRIFT-REGISTER"
+        )
+        if agent_id is not None and agent_id != self.agent_id:
+            # Fail-secure: refuse to register an agent under a different
+            # identity than the client was constructed with.
+            raise ValueError(
+                f"register_agent(agent_id={agent_id!r}) does not match "
+                f"AscendClient.agent_id={self.agent_id!r}. Configure "
+                "agent_id at client construction and call client.register() "
+                "with no agent_id argument."
+            )
+        return self.register(
+            agent_type=agent_type,
+            capabilities=capabilities,
+            allowed_resources=allowed_resources,
+            metadata=metadata,
+        )
+
 
 # Backwards compatibility alias (internal only, not exported)
 OWKAIClient = AscendClient
+
+
+# ============================================================================
+# SDK 2.4.0 — BUG-16 cohort: shared deprecation-warning helper
+#
+# Gates DeprecationWarning to once-per-process per (class, method) pair
+# so noisy logs don't mask other warnings in production. `stacklevel=3`
+# points the warning at the customer's call site (caller → shim → this).
+# ============================================================================
+_deprecation_warned_methods: set = set()
+
+
+def _emit_method_deprecation(old_name: str, new_name: str, tag: str) -> None:
+    """Emit DeprecationWarning once per process for a renamed method."""
+    key = ("AscendClient", old_name)
+    if key in _deprecation_warned_methods:
+        return
+    _deprecation_warned_methods.add(key)
+    import warnings
+    warnings.warn(
+        f"AscendClient.{old_name}() is deprecated [{tag}]; "
+        f"use AscendClient.{new_name}() instead. "
+        f"This compat shim will be removed in ascend-ai-sdk 3.0.0.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
