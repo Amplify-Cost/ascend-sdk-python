@@ -93,13 +93,19 @@ def _client():
 
 def _drive_403(client, body):
     """Patch the underlying `requests.Session` so the next `_request`
-    call sees our fake 403 response, then invoke `_request` so the
-    production 403 handler runs end-to-end. We patch at the session
-    level (the only network seam in `_request`) — anything above it,
-    including the 403 governance branch under test, runs unmodified."""
+    call sees our fake 403 response, then invoke `_request`. The 403
+    handler runs end-to-end. SDK-262 changed `_request`'s contract to
+    always return a dict on non-exception paths, so this helper wraps
+    the dict in `from_dict()` to mirror what every production caller
+    (`evaluate_action`, `get_action_status`, etc.) does immediately
+    after `_request`. Net result: the test still observes the final
+    caller-facing `AuthorizationDecision`."""
     client._session = MagicMock()
     client._session.request.return_value = _fake_response(403, body)
-    return client._request("POST", "/test", data={})
+    out = client._request("POST", "/test", data={})
+    if isinstance(out, dict):
+        return AuthorizationDecision.from_dict(out)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -342,9 +348,11 @@ class TestContract6RawStatus:
 
 
 class TestContract7Version:
-    def test_version_is_2_6_1(self):
-        assert ascend.__version__ == "2.6.1"
+    def test_version_is_2_6_2(self):
+        # SDK-262 bumped 2.6.1 → 2.6.2 (BUG-02-04/05 + kill-switch
+        # fail-secure + Decision enum expansion).
+        assert ascend.__version__ == "2.6.2"
 
     def test_constants_version_matches(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.6.1"
+        assert SDK_VERSION == "2.6.2"

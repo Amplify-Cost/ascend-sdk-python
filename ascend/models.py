@@ -45,10 +45,19 @@ class Decision(str, Enum):
     Authorization decision values (v2.0).
 
     Used by AscendClient.evaluate_action() response.
+
+    SDK-262: AUTO_APPROVED and EXECUTED are ALLOWED-class values that
+    the platform sometimes emits on the `status` field. They mean
+    "the action was approved and (in EXECUTED's case) carried out".
+    Prior to SDK-262 these silently collapsed to PENDING via the
+    from_dict fallback, which was a correctness bug for callers doing
+    `if result.decision == Decision.ALLOWED: proceed()`.
     """
     ALLOWED = "allowed"
     DENIED = "denied"
     PENDING = "pending"
+    AUTO_APPROVED = "auto_approved"
+    EXECUTED = "executed"
 
 
 class RiskLevel(str, Enum):
@@ -283,6 +292,13 @@ class AuthorizationDecision:
         Decision.PENDING: "pending_approval",
         Decision.ALLOWED: "approved",
         Decision.DENIED: "denied",
+        # SDK-262: AUTO_APPROVED and EXECUTED are ALLOWED-class. Map
+        # `.status` to the canonical CWG string 'approved' so callers
+        # comparing on .status get a stable answer; the wire-level
+        # detail ('auto_approved' / 'executed') stays available via
+        # `.raw_status`.
+        Decision.AUTO_APPROVED: "approved",
+        Decision.EXECUTED: "approved",
     }
 
     @property
@@ -342,6 +358,22 @@ class AuthorizationDecision:
             # Made explicit here rather than relying on the else
             # fallback so future maintainers see the canonical
             # backend value handled by name.
+            decision = Decision.PENDING
+        elif raw_decision in ("auto_approved", "executed"):
+            # SDK-262: auto_approved means the action was approved by
+            # policy without human review; executed means it was
+            # approved and carried out. Both are ALLOWED-class.
+            # Previously collapsed silently to PENDING via the else
+            # fallback — a correctness bug for callers branching on
+            # `result.decision == Decision.ALLOWED`.
+            decision = Decision.ALLOWED
+        elif raw_decision in (
+            "escalated", "timeout", "requires_modification"
+        ):
+            # SDK-262: explicit elifs for observability — these
+            # collapse to PENDING (a human still needs to act), but
+            # naming them avoids the silent else fallback that masks
+            # unknown wire values.
             decision = Decision.PENDING
         else:
             decision = Decision.PENDING

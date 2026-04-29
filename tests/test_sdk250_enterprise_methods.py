@@ -48,9 +48,13 @@ class TestVersionAndEndpoints:
         # AuthorizationDecision(DENIED) instead of raising;
         # .status uses backend vocabulary 'pending_approval' /
         # 'approved' / 'denied'; new .raw_status property).
+        # SDK-262 bumped 2.6.1 → 2.6.2 (BUG-02-04/05 fix:
+        # _request() governance branch returns dict; kill-switch
+        # fail-secure on 3 consecutive polling failures;
+        # Decision.AUTO_APPROVED + Decision.EXECUTED added).
         # The 2.5.0 enterprise-method surface this file covers is
         # unchanged.
-        assert SDK_VERSION == "2.6.1"
+        assert SDK_VERSION == "2.6.2"
 
     @pytest.mark.parametrize("key,expected", [
         ("mcp_servers", "/api/registry/mcp-servers"),

@@ -464,14 +464,14 @@ class TestTestConnectionLatency:
 
 
 # ---------------------------------------------------------------------------
-# CONTRACT 5 — Version is 2.6.1 (bumped by SDK-261)
+# CONTRACT 5 — Version is 2.6.2 (bumped by SDK-262)
 # ---------------------------------------------------------------------------
 
 
 class TestVersion:
     def test_module_version(self):
-        assert ascend.__version__ == "2.6.1"
+        assert ascend.__version__ == "2.6.2"
 
     def test_constants_version(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.6.1"
+        assert SDK_VERSION == "2.6.2"

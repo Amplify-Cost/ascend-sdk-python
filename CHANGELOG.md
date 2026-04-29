@@ -5,6 +5,66 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-04-29
+
+### Fixed (P0)
+
+- **BUG-02-04/05** — `_request()` governance-violation path returned an
+  `AuthorizationDecision` instance instead of a dict, causing
+  `AttributeError: 'AuthorizationDecision' object has no attribute 'get'`
+  in steps 2.8 and 2.9 of CWG test scenarios. Fixed by returning a dict
+  shape from the 403 governance branch. The `_request()` contract is
+  restored: **always returns a dict on non-exception paths.** Downstream
+  `from_dict()` calls in `evaluate_action`, `get_action_status`, etc.
+  resume working unchanged.
+
+### Fixed (P0 — Security / Fail-Secure)
+
+- **Kill-switch fail-OPEN closed.** `_poll_kill_switch()` previously
+  swallowed every exception with `except Exception: pass`, leaving
+  `_is_blocked=False` permanently on any auth or network failure. The
+  safety net was silently inert for any caller hitting 401 / 403 / 5xx
+  on `/api/sdk/kill-switch/status`. Now:
+  - Each polling failure logs a `WARNING` with the exception type and
+    message, plus a running consecutive-failure count.
+  - After **3 consecutive failures**, the SDK fails-secure: sets
+    `_is_blocked=True` with a clear reason ("Kill-switch polling
+    unavailable — agent blocked by fail-secure policy") and continues
+    polling so it auto-recovers when the endpoint becomes healthy.
+  - On a successful poll, the failure counter resets to zero so a
+    transient blip doesn't accumulate forever.
+- **Kill-switch polling-not-started warning.** `evaluate_action()` now
+  emits a `WARNING` if `start_kill_switch_polling()` was never called.
+  Operators must know when the safety net is inactive instead of
+  silently relying on the default `_is_blocked=False`.
+
+### Added (P2 — Decision vocabulary)
+
+- `Decision.AUTO_APPROVED` and `Decision.EXECUTED` enum values. Both
+  are ALLOWED-class. Wire values `auto_approved` and `executed` now
+  map to `Decision.ALLOWED` in `from_dict()` instead of silently
+  collapsing to `Decision.PENDING` via the else fallback.
+- Explicit `from_dict` elifs for `escalated`, `timeout`, and
+  `requires_modification`. They still map to `Decision.PENDING` (a
+  human must act) but naming them removes the silent else fallback
+  that masked unknown wire values.
+- `_STATUS_ALIASES` extended so `.status` returns `'approved'` for
+  `Decision.AUTO_APPROVED` and `Decision.EXECUTED`. The wire-level
+  detail (`'auto_approved'` / `'executed'`) remains available via
+  `.raw_status`.
+
+### Zero breaking changes (callers)
+
+- All callers using `Decision.ALLOWED`, `Decision.DENIED`,
+  `Decision.PENDING` are unaffected.
+- Behavior change for one corner case: actions that previously came
+  back as `Decision.PENDING` because the wire payload said
+  `auto_approved` or `executed` now correctly come back as
+  `Decision.ALLOWED`. Any caller checking
+  `result.decision == Decision.PENDING` for those wire values should
+  switch to `Decision.ALLOWED`. This was a longstanding correctness
+  bug; the new mapping is the right answer.
+
 ## [2.6.1] - 2026-04-29
 
 ### Fixed (SDK-261)

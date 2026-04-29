@@ -431,6 +431,10 @@ class AscendClient:
         self._is_blocked = False
         self._kill_switch_reason: Optional[str] = None
         self._kill_switch_timer: Optional[threading.Timer] = None
+        # SDK-262 FAIL-SECURE: track polling health so a degraded safety
+        # net surfaces to operators instead of silently failing-OPEN.
+        self._kill_switch_failure_count: int = 0
+        self._kill_switch_polling_started: bool = False
 
         # SDK 2.4.0 — BUG-16 cohort (J3): background heartbeat state
         self._heartbeat_timer: Optional[threading.Timer] = None
@@ -626,13 +630,23 @@ class AscendClient:
                     if detail.get("model_id"):
                         _meta["model_id"] = detail["model_id"]
 
-                    return AuthorizationDecision(
-                        action_id="",
-                        decision=Decision.DENIED,
-                        reason=_reason,
-                        correlation_id=detail.get("correlation_id"),
-                        metadata=_meta,
-                    )
+                    # SDK-262-FIX-BUG02: _request() contract is "always
+                    # return a dict on non-exception paths". The prior
+                    # SDK-261 code returned an AuthorizationDecision
+                    # instance here, which broke every downstream
+                    # from_dict() call (AttributeError: 'AuthorizationDecision'
+                    # has no attribute 'get'). Return a dict shape that
+                    # AuthorizationDecision.from_dict already knows how
+                    # to parse — same wire-equivalent payload, restored
+                    # contract.
+                    return {
+                        "decision": "denied",
+                        "status": "denied",
+                        "reason": _reason,
+                        "action_id": "",
+                        "correlation_id": detail.get("correlation_id"),
+                        "metadata": _meta,
+                    }
 
                 # SDK-261: Non-governance 403 = real auth failure. Keep
                 # it as AuthorizationError, but extract a readable string
@@ -850,6 +864,18 @@ class AscendClient:
                 string.
             KillSwitchError: If kill switch is active
         """
+        # SDK-262: warn if kill-switch polling was never started — the
+        # safety net is inactive and operators must know. `getattr`
+        # default is True so subclasses that bypass __init__ (e.g.,
+        # test stubs) don't trip the warning unexpectedly.
+        if not getattr(self, "_kill_switch_polling_started", True):
+            logger.warning(
+                "[KILL-SWITCH] evaluate_action called but kill-switch "
+                "polling was never started. Call "
+                "start_kill_switch_polling() to enable real-time agent "
+                "blocking."
+            )
+
         # Kill switch check
         if self._is_blocked:
             raise KillSwitchError(
@@ -1679,6 +1705,9 @@ class AscendClient:
             interval_seconds: Polling interval in seconds (default: 5)
         """
         self._kill_switch_interval = interval_seconds
+        # SDK-262: flip the flag so evaluate_action() stops warning
+        # about the safety net being inactive.
+        self._kill_switch_polling_started = True
         self._poll_kill_switch()
 
     def stop_kill_switch_polling(self) -> None:
@@ -1769,15 +1798,48 @@ class AscendClient:
         return self._is_blocked
 
     def _poll_kill_switch(self) -> None:
-        """Internal: poll kill switch endpoint and schedule next poll."""
+        """Internal: poll kill switch endpoint and schedule next poll.
+
+        SDK-262 FAIL-SECURE contract:
+          * Successful poll → reset failure counter and update state.
+          * Failure → log a WARNING (not silent), increment counter.
+          * 3 consecutive failures → fail-secure: set _is_blocked=True
+            with a clear reason, and continue polling so we recover
+            automatically when the endpoint becomes healthy again.
+
+        A broken safety net is more dangerous than a false block.
+        """
         try:
             response = self._request("GET", API_ENDPOINTS["kill_switch_status"])
             status = KillSwitchStatus.from_dict(response)
             self._is_blocked = status.active
             self._kill_switch_reason = status.reason
-        except Exception:
-            # Polling failure should not crash the agent
-            pass
+            # SDK-262: successful poll — reset the consecutive-failure
+            # counter so a transient blip doesn't accumulate forever.
+            self._kill_switch_failure_count = 0
+        except Exception as _ks_err:
+            # SDK-262 FAIL-SECURE: do not silently swallow. The prior
+            # `except Exception: pass` left _is_blocked permanently
+            # False on any auth or network failure.
+            self._kill_switch_failure_count += 1
+            logger.warning(
+                f"[KILL-SWITCH] Polling failed (attempt "
+                f"{self._kill_switch_failure_count}): "
+                f"{type(_ks_err).__name__}: {_ks_err}"
+            )
+            if self._kill_switch_failure_count >= 3:
+                # SDK-262 FAIL-SECURE: 3 consecutive polling failures —
+                # treat the agent as BLOCKED until polling recovers.
+                logger.error(
+                    "[KILL-SWITCH] 3 consecutive polling failures — "
+                    "fail-secure: treating agent as BLOCKED until "
+                    "polling recovers"
+                )
+                self._is_blocked = True
+                self._kill_switch_reason = (
+                    "Kill-switch polling unavailable — agent blocked "
+                    "by fail-secure policy"
+                )
 
         # Schedule next poll
         self._kill_switch_timer = threading.Timer(
