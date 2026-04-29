@@ -272,6 +272,17 @@ class AuthorizationDecision:
     output_findings_count: Optional[int] = None
     thresholds: Optional[Dict[str, Any]] = None
 
+    # SDK 2.6.0 / SDK-260: CWG-compatibility convenience accessor.
+    # `result.status` returns the raw string form of the decision so legacy
+    # callers and string-comparison code work unchanged. Use `result.decision`
+    # for the typed `Decision` enum. Note: `action_id` is already a typed
+    # top-level field on this dataclass (line 227), so no property needed.
+    @property
+    def status(self) -> str:
+        """SDK-260: string alias for `self.decision.value`. Returns
+        'allowed', 'denied', or 'pending'."""
+        return self.decision.value
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "AuthorizationDecision":
         """Create from API response dictionary (v2.0 format).

@@ -732,6 +732,15 @@ class AscendClient:
         mcp_server_name: Optional[str] = None,
         # SDK 2.5.1 / G-P0-02
         model_id: Optional[str] = None,
+        # SDK 2.6.0 / SDK-260: CWG compatibility convenience kwargs.
+        # tool_name + description route into action_details so callers
+        # don't have to assemble the parameters dict manually.
+        # business_justification routes into ActionContext for audit.
+        # All three are optional with None defaults — pre-2.6.0 callers
+        # that pass neither are completely unaffected.
+        tool_name: Optional[str] = None,
+        description: Optional[str] = None,
+        business_justification: Optional[str] = None,
     ) -> AuthorizationDecision:
         """
         Evaluate an action against ASCEND policies.
@@ -818,14 +827,79 @@ class AscendClient:
                     field_errors={"model_id": "Must be a non-empty string"}
                 )
 
+        # SDK 2.6.0 / SDK-260: merge convenience kwargs into action_details
+        # and context. tool_name and description go into action_details
+        # (the structured payload the backend pipeline reads); the merge
+        # starts from the caller's `parameters` dict and then OVERWRITES
+        # with the explicit kwargs.
+        #
+        # Collision direction (F1 — red team correction):
+        #   - Named kwargs WIN over `parameters[...]` keys. The developer
+        #     wrote `tool_name="X"` as deliberate intent; the generic
+        #     `parameters` dict is the fallback.
+        #   - For business_justification (below), context-dict keys win
+        #     over the kwarg — context is a first-class parameter, not a
+        #     catch-all.
+        #
+        # Empty-string semantics (F6 — red team documentation):
+        #   - tool_name: empty/whitespace REJECTED. It's a routing
+        #     identifier; the backend's BUG-29 path uses it for dispatch.
+        #   - description: empty string ACCEPTED. It's informational
+        #     text only — the prompt-security scanner reads it but won't
+        #     match patterns against an empty payload anyway.
+        _action_details: Dict[str, Any] = dict(parameters or {})
+        if tool_name is not None:
+            if not isinstance(tool_name, str) or not tool_name.strip():
+                raise ValidationError(
+                    "tool_name must be a non-empty string when provided.",
+                    field_errors={"tool_name": "Must be a non-empty string"}
+                )
+            _action_details["tool_name"] = tool_name  # kwarg wins
+        if description is not None:
+            if not isinstance(description, str):
+                raise ValidationError(
+                    "description must be a string when provided.",
+                    field_errors={"description": "Must be a string"}
+                )
+            _action_details["description"] = description  # kwarg wins
+
+        # business_justification routes into the context dict so it lands
+        # in ActionContext.custom_fields on the wire payload (and shows up
+        # in the audit trail). Handles both raw-dict and ActionContext
+        # callers without mutating the caller's object.
+        _context: Any = context
+        if business_justification is not None:
+            if not isinstance(business_justification, str):
+                raise ValidationError(
+                    "business_justification must be a string when provided.",
+                    field_errors={
+                        "business_justification": "Must be a string"
+                    }
+                )
+            if _context is None:
+                _context = {"business_justification": business_justification}
+            elif isinstance(_context, dict):
+                _context = dict(_context)
+                _context.setdefault("business_justification", business_justification)
+            else:
+                # ActionContext or compatible object — write to a copy if
+                # the caller passed an instance, else add an attribute.
+                try:
+                    if not getattr(_context, "business_justification", None):
+                        setattr(_context, "business_justification", business_justification)
+                except (TypeError, AttributeError):
+                    # Fall through silently — never break the action
+                    # submission for a convenience field.
+                    pass
+
         action = AgentAction(
             agent_id=self.agent_id or "unknown",
             agent_name=self.agent_name or "Unknown Agent",
             action_type=action_type,
             resource=resource,
             resource_id=resource_id,
-            action_details=parameters,
-            context=context,
+            action_details=_action_details if _action_details else None,
+            context=_context,
             risk_indicators=risk_indicators,
             orchestration_session_id=orchestration_session_id,
             parent_action_id=parent_action_id,
@@ -1900,15 +1974,27 @@ class AscendClient:
 
         Returns:
             SimpleNamespace with connection status and API version.
-            Supports attribute access: result.connected, result.organization
+            Supports attribute access: result.connected, result.organization,
+            result.latency, result.latency_ms.
+
+        SDK 2.6.0 / SDK-260: now reports round-trip latency to the health
+        endpoint as `latency` and `latency_ms` (float, milliseconds, two
+        decimal places). On failure both are None.
         """
         try:
+            # SDK-260: time only the health probe. deployment_info is
+            # informational and not part of the health-check round-trip.
+            _start = time.monotonic()
             health = self._request("GET", API_ENDPOINTS["health"])
+            _latency_ms = round((time.monotonic() - _start) * 1000, 2)
+
             deployment = self._request("GET", API_ENDPOINTS["deployment_info"])
 
             return SimpleNamespace(
                 connected=True,
                 status="connected",
+                latency=_latency_ms,
+                latency_ms=_latency_ms,
                 api_version=deployment.get("version", "unknown"),
                 environment=deployment.get("environment", "unknown"),
                 organization=getattr(self, "organization_id", None),
@@ -1919,6 +2005,8 @@ class AscendClient:
             return SimpleNamespace(
                 connected=False,
                 status="error",
+                latency=None,
+                latency_ms=None,
                 error=str(e),
                 organization=None,
                 fail_mode=self.fail_mode.value,

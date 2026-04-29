@@ -36,12 +36,17 @@ from ascend.models import AuthorizationDecision, Decision
 
 class TestVersionAndEndpoints:
     def test_sdk_version_bumped(self):
+        # Version-pin trail:
         # SDK-251 bumped 2.5.0 → 2.5.1 (additive: model_id +
         # mcp_server_name kwargs on evaluate_action). SDK-252 bumped
         # 2.5.1 → 2.5.2 (risk_score type corrected to Optional[float]
-        # to match backend payload). The 2.5.0 enterprise-method
-        # surface this file covers is unchanged.
-        assert SDK_VERSION == "2.5.2"
+        # to match backend payload). SDK-260 bumped 2.5.2 → 2.6.0
+        # (additive: tool_name/description/business_justification
+        # kwargs on evaluate_action; .status property on
+        # AuthorizationDecision; latency on test_connection result).
+        # The 2.5.0 enterprise-method surface this file covers is
+        # unchanged.
+        assert SDK_VERSION == "2.6.0"
 
     @pytest.mark.parametrize("key,expected", [
         ("mcp_servers", "/api/registry/mcp-servers"),

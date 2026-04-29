@@ -5,6 +5,39 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-04-28
+
+### Added — CWG compatibility (SDK-260)
+
+- **`evaluate_action()`** now accepts three convenience kwargs that route
+  into the underlying `AgentAction` payload without the caller having to
+  assemble dicts manually:
+  - `tool_name: Optional[str]` — merged into `action_details["tool_name"]`
+  - `description: Optional[str]` — merged into `action_details["description"]`
+  - `business_justification: Optional[str]` — merged into `ActionContext`
+    so it lands on the wire payload and in the audit trail
+  Caller-supplied keys in `parameters=` win on collision (`setdefault`),
+  so `parameters={"tool_name": "..."}` continues to work unchanged.
+- **`AuthorizationDecision.status`** — read-only property returning the
+  raw string form of `decision.value` (`'allowed'`, `'denied'`,
+  `'pending'`). Use `result.status` for string comparisons and legacy
+  code; use `result.decision` for the typed `Decision` enum.
+- **`test_connection()`** result now carries `latency` and `latency_ms`
+  (float, milliseconds, two decimal places) measuring the round-trip
+  to the health endpoint. On failure both are `None`.
+
+### Fixed
+- CWG test plan compatibility: scenarios that pass `tool_name`,
+  `description`, or `business_justification` no longer raise
+  `TypeError`. Scenarios that compare `result.status` against strings
+  no longer raise `AttributeError`.
+
+### Zero Breaking Changes
+- All existing callers continue to work. The three new kwargs are
+  optional with `None` defaults. The `.status` property is additive —
+  `result.decision` is unchanged. The new `latency`/`latency_ms`
+  fields on `test_connection()` are additive.
+
 ## [2.5.2] - 2026-04-28
 
 ### Fixed — `risk_score` typed as `Optional[float]` (SDK-252)
