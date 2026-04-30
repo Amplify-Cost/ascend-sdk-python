@@ -60,6 +60,7 @@ jobs:
 
       - name: Run smoke test in clean Docker environment
         id: smoke
+        continue-on-error: true
         run: |
           cat > /tmp/smoke_test.py << 'PYEOF'
           import sys
@@ -149,6 +150,7 @@ jobs:
                       AuthorizationDecision, Decision
                   )
                   ad = AuthorizationDecision(
+                      action_id="smoke-test",
                       decision=Decision.PENDING
                   )
                   assert ad.status == "pending_approval", \
@@ -234,9 +236,17 @@ jobs:
                 2>/dev/null || \
               pip install --quiet ascend-ai-sdk &&
               python /smoke_test.py
-            " | tee /tmp/smoke-result.json
+            " > /tmp/smoke-result.json
+          # SDK-262-FAILSECURE: capture exit
+          # code BEFORE tee masks it.
+          # A failed smoke test must fail
+          # the CI step — not just the ledger.
+          SMOKE_EXIT=$?
+          cat /tmp/smoke-result.json
+          exit $SMOKE_EXIT
 
       - name: Checkout ascend-audit
+        if: always()
         uses: actions/checkout@v4
         with:
           repository: Amplify-Cost/ascend-audit
@@ -244,11 +254,13 @@ jobs:
           path: ascend-audit
 
       - name: Append to customer-zero.jsonl
+        if: always()
         run: |
           cat /tmp/smoke-result.json >> \
             ascend-audit/customer-zero.jsonl
 
       - name: Commit and push audit entry
+        if: always()
         run: |
           cd ascend-audit
           git config user.name \
@@ -267,3 +279,9 @@ jobs:
           git commit -m \
             "ci(SEC-REL-002): smoke test ${{ steps.version.outputs.version }} $(date -u +%Y-%m-%dT%H:%M:%SZ) — ${RESULT} tests passed"
           git push
+
+      - name: Fail job on smoke failure
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "Smoke test failed — see Run smoke test step output and customer-zero.jsonl entry."
+          exit 1
