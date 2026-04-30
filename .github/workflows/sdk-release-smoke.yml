@@ -1,0 +1,269 @@
+name: SEC-REL-002 SDK Release Smoke Test
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      sdk_version:
+        description: 'SDK version to test (default: latest)'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # ⚠ SMOKE_API_KEY ROTATION REQUIRED
+  # The SMOKE_API_KEY secret uses a
+  # sandbox API key (ask_sbx_ prefix)
+  # that expires after 14 days.
+  # When expired, all smoke runs fail
+  # with 401. To refresh:
+  # 1. POST https://pilot.owkai.app/
+  #    api/v1/sandbox/provision
+  #    with email=smoke-test@owkai.com
+  # 2. Store new key:
+  #    aws secretsmanager put-secret-value
+  #    --secret-id /owkai/release-eng/
+  #    customer-zero/SMOKE_API_KEY
+  #    --secret-string <new_key>
+  #    --region us-east-2
+  # 3. Update SMOKE_API_KEY GitHub secret
+  #    on Amplify-Cost/ascend-sdk-python
+  # Next expiry: 2026-05-14
+  smoke-test:
+    name: Customer-Zero smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Generate bot token
+        id: bot-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY_PEM }}
+          owner: Amplify-Cost
+
+      - name: Determine SDK version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          elif [ "${{ inputs.sdk_version }}" != "latest" ]; then
+            echo "version=${{ inputs.sdk_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(pip index versions ascend-ai-sdk 2>/dev/null | grep -oP '(?<=\()[\d.]+(?=\))' | head -1 || echo 'latest')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run smoke test in clean Docker environment
+        id: smoke
+        run: |
+          cat > /tmp/smoke_test.py << 'PYEOF'
+          import sys
+          import json
+          import time
+          from datetime import datetime, timezone
+
+          result = {
+              "timestamp": datetime.now(timezone.utc).isoformat(),
+              "trigger": "sdk-release-smoke",
+              "runner_version": "1.0.0",
+              "sdk_version": "unknown",
+              "platform_url": "https://pilot.owkai.app",
+              "tests_total": 5,
+              "tests_passed": 0,
+              "tests_failed": 0,
+              "fail_open_events": 0,
+              "contract_violations": 0,
+              "kill_switch_latency_p95_ms": None,
+              "decision_counts": {},
+              "startup_error": None
+          }
+
+          try:
+              import ascend
+              result["sdk_version"] = ascend.__version__
+
+              from ascend import AscendClient, FailMode
+              import os
+
+              api_key = os.environ["SMOKE_API_KEY"]
+              api_url = os.environ.get(
+                  "PLATFORM_URL",
+                  "https://pilot.owkai.app"
+              )
+
+              client = AscendClient(
+                  api_key=api_key,
+                  api_url=api_url,
+                  agent_id="smoke-test-agent",
+                  agent_name="SEC-REL-002 Smoke Test Agent",
+                  fail_mode=FailMode.CLOSED
+              )
+
+              tests = []
+
+              # Test 1: test_connection
+              try:
+                  conn = client.test_connection()
+                  assert conn.connected, \
+                      f"Not connected: {conn.status}"
+                  assert conn.latency is not None, \
+                      "latency missing"
+                  tests.append(("test_connection", True, None))
+              except Exception as e:
+                  tests.append(("test_connection", False, str(e)))
+
+              # Test 2: evaluate_action returns decision
+              try:
+                  r = client.evaluate_action(
+                      action_type="database_read",
+                      resource="smoke_test_resource",
+                      tool_name="smoke_tool",
+                      description="SEC-REL-002 smoke test read",
+                      wait_for_decision=False
+                  )
+                  assert r.status in (
+                      "approved","pending_approval","denied"
+                  ), f"Unexpected status: {r.status}"
+                  assert r.risk_score is not None, \
+                      "risk_score missing"
+                  result["decision_counts"][r.status] = \
+                      result["decision_counts"].get(
+                          r.status, 0
+                      ) + 1
+                  tests.append(
+                      ("evaluate_action", True, None)
+                  )
+              except Exception as e:
+                  tests.append(
+                      ("evaluate_action", False, str(e))
+                  )
+
+              # Test 3: result.status vocabulary
+              try:
+                  from ascend.models import (
+                      AuthorizationDecision, Decision
+                  )
+                  ad = AuthorizationDecision(
+                      decision=Decision.PENDING
+                  )
+                  assert ad.status == "pending_approval", \
+                      f"Got {ad.status}"
+                  tests.append(
+                      ("status_vocabulary", True, None)
+                  )
+              except Exception as e:
+                  tests.append(
+                      ("status_vocabulary", False, str(e))
+                  )
+
+              # Test 4: governance violation returns
+              # AuthorizationDecision not exception
+              try:
+                  r2 = client.evaluate_action(
+                      action_type="tool_call",
+                      resource="smoke_resource",
+                      tool_name="smoke_tool",
+                      mcp_server_name="unregistered-smoke-server",
+                      wait_for_decision=False
+                  )
+                  assert r2.status == "denied", \
+                      f"Expected denied got {r2.status}"
+                  assert r2.reason is not None, \
+                      "reason missing on governance denial"
+                  tests.append(
+                      ("governance_denial", True, None)
+                  )
+              except Exception as e:
+                  tests.append(
+                      ("governance_denial", False, str(e))
+                  )
+
+              # Test 5: kill-switch poll starts
+              try:
+                  client.start_kill_switch_polling(
+                      interval_seconds=5
+                  )
+                  time.sleep(2)
+                  blocked = client.is_blocked()
+                  assert isinstance(blocked, bool), \
+                      "is_blocked not bool"
+                  tests.append(
+                      ("kill_switch_poll", True, None)
+                  )
+              except Exception as e:
+                  tests.append(
+                      ("kill_switch_poll", False, str(e))
+                  )
+
+              result["tests_passed"] = sum(
+                  1 for _, ok, _ in tests if ok
+              )
+              result["tests_failed"] = sum(
+                  1 for _, ok, _ in tests if not ok
+              )
+
+              failures = [
+                  {"test": n, "error": e}
+                  for n, ok, e in tests if not ok
+              ]
+              if failures:
+                  result["failures"] = failures
+
+          except Exception as startup_err:
+              result["startup_error"] = str(startup_err)
+              result["tests_failed"] = result["tests_total"]
+
+          print(json.dumps(result))
+          sys.exit(
+              0 if result["tests_failed"] == 0 else 1
+          )
+          PYEOF
+
+          docker run --rm \
+            -e SMOKE_API_KEY="${{ secrets.SMOKE_API_KEY }}" \
+            -e PLATFORM_URL="https://pilot.owkai.app" \
+            -v /tmp/smoke_test.py:/smoke_test.py \
+            python:3.12-slim bash -c "
+              pip install --quiet \
+                ascend-ai-sdk==${{ steps.version.outputs.version }} \
+                2>/dev/null || \
+              pip install --quiet ascend-ai-sdk &&
+              python /smoke_test.py
+            " | tee /tmp/smoke-result.json
+
+      - name: Checkout ascend-audit
+        uses: actions/checkout@v4
+        with:
+          repository: Amplify-Cost/ascend-audit
+          token: ${{ steps.bot-token.outputs.token }}
+          path: ascend-audit
+
+      - name: Append to customer-zero.jsonl
+        run: |
+          cat /tmp/smoke-result.json >> \
+            ascend-audit/customer-zero.jsonl
+
+      - name: Commit and push audit entry
+        run: |
+          cd ascend-audit
+          git config user.name \
+            "ascend-release-bot[bot]"
+          git config user.email \
+            "ascend-release-bot[bot]@users.noreply.github.com"
+          RESULT=$(cat /tmp/smoke-result.json | \
+            python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          p=d.get('tests_passed',0)
+          t=d.get('tests_total',0)
+          print(f'{p}/{t}')
+          ")
+          git add customer-zero.jsonl
+          git commit -m \
+            "ci(SEC-REL-002): smoke test ${{ steps.version.outputs.version }} $(date -u +%Y-%m-%dT%H:%M:%SZ) — ${RESULT} tests passed"
+          git push
