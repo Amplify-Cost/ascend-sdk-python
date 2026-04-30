@@ -4,11 +4,11 @@
 # or the READMEs/CHANGELOGs that ship code examples. Fetches the docs
 # source from the sibling frontend repo at a pinned SHA.
 #
-# Rollout phase: ADVISORY (silent-run). `continue-on-error: true` on the
-# required-check step so the gate reports its findings on PRs without
-# blocking merges. Flip to blocking by setting CONTRACT_GATE_BLOCKING=true
-# or removing continue-on-error once BUG-16 references are cleared by
-# the SDK 2.3.1 release.
+# Rollout phase: ENFORCING. The gate fails the PR if any contract test
+# fails. Previously soft-fail via three stacked layers (workflow-level
+# error swallow, shell-level set+e, and CONTRACT_GATE_PHASE=advisory)
+# during the 2026-04-19 → 2026-04-30 silent-run window; hardened
+# 2026-04-30 after Wave 2 close.
 
 name: contract/docs-sdk
 on:
@@ -32,7 +32,7 @@ permissions:
 
 jobs:
   contract-test:
-    name: Doc/SDK Contract (advisory)
+    name: Doc/SDK Contract (enforcing)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout SDK canonical
@@ -80,20 +80,27 @@ jobs:
         working-directory: monorepo
         run: pip install -e .
 
-      - name: Run contract gate (advisory phase)
+      # SEC-REL-001-ENFORCE: gate is now enforcing — PRs with broken
+      # SDK examples will be blocked from merge. Previously advisory
+      # via three stacked soft-fail layers (workflow-level error
+      # swallow, shell-level `set +e` with no exit-code propagation,
+      # and CONTRACT_GATE_PHASE=advisory) since 2026-04-19. Hardened
+      # 2026-04-30 after Wave 2 close.
+      - name: Run contract gate (enforcing)
         id: gate
-        continue-on-error: true
         working-directory: monorepo
         env:
-          CONTRACT_GATE_PHASE: advisory
+          CONTRACT_GATE_PHASE: enforcing
         run: |
-          set +e
+          set -e
           python -m tests.contracts.runner \
             --json-out /tmp/contract-report.json \
             --md-out /tmp/contract-report.md \
             --trigger "gha-pr-${GITHUB_PR_NUMBER:-unknown}" \
             --no-audit
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          EXIT=$?
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          exit $EXIT
 
       - name: Publish report to PR
         if: github.event_name == 'pull_request'
@@ -112,7 +119,7 @@ jobs:
           set -euo pipefail
           if [ -f /tmp/contract-report.md ]; then
             {
-              echo "### SEC-REL-001 Contract Test (advisory)"
+              echo "### SEC-REL-001 Contract Test"
               echo ""
               echo "Exit code: ${{ steps.gate.outputs.exit_code }}"
               echo ""
@@ -128,12 +135,8 @@ jobs:
         run: |
           # Audit ledger push delegated to ascend-audit-bot GitHub App.
           # See ascend-audit/BOT_IDENTITY.md for the spec.
-          # In advisory phase, log locally only. Blocking phase will
-          # require the bot's installation token to push to the audit repo.
-          echo "SEC-REL-001: audit ledger append deferred to ascend-audit-bot (phase: advisory)"
-
-      # When advisory → blocking, remove continue-on-error above and
-      # uncomment the following step:
-      # - name: Fail PR on contract violation (blocking phase)
-      #   if: steps.gate.outputs.exit_code != '0'
-      #   run: exit "${{ steps.gate.outputs.exit_code }}"
+          # SEC-REL-001-ENFORCE: gate now exits non-zero on failure (the
+          # main step's `exit $EXIT`), so a stand-alone "fail PR on
+          # violation" step is no longer needed. Audit-bot push remains
+          # a separate concern handled by the bot's webhook flow.
+          echo "SEC-REL-001: audit ledger append deferred to ascend-audit-bot"
