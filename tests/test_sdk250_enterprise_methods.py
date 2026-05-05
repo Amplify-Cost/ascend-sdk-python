@@ -54,7 +54,7 @@ class TestVersionAndEndpoints:
         # Decision.AUTO_APPROVED + Decision.EXECUTED added).
         # The 2.5.0 enterprise-method surface this file covers is
         # unchanged.
-        assert SDK_VERSION == "2.6.2"
+        assert SDK_VERSION == "2.6.3"
 
     @pytest.mark.parametrize("key,expected", [
         ("mcp_servers", "/api/registry/mcp-servers"),

@@ -189,7 +189,7 @@ class TestContract2KillSwitchFailSecure:
     def test_successful_poll_resets_counter(self):
         client = _client()
         # Two failures, then one success.
-        ok_response = {"active": False, "reason": None}
+        ok_response = {"blocked": False, "reason": None}
 
         def request_side_effects():
             yield from [
@@ -227,9 +227,9 @@ class TestContract2KillSwitchFailSecure:
                     client._kill_switch_timer.cancel()
         assert client._is_blocked is True
 
-        # Endpoint comes back healthy with active=False.
+        # Endpoint comes back healthy with blocked=False.
         with patch.object(
-            client, "_request", return_value={"active": False, "reason": None}
+            client, "_request", return_value={"blocked": False, "reason": None}
         ):
             client._poll_kill_switch()
             if client._kill_switch_timer:
@@ -264,7 +264,7 @@ class TestContract2KillSwitchFailSecure:
         client = _client()
         client._session = MagicMock()
         client._session.request.return_value = _fake_response(
-            200, {"active": False, "reason": None}
+            200, {"blocked": False, "reason": None}
         )
 
         # Start polling and immediately cancel the timer so the
@@ -381,8 +381,8 @@ class TestContract3DecisionEnumExpansion:
 
 class TestContract4Version:
     def test_version_is_2_6_2(self):
-        assert ascend.__version__ == "2.6.2"
+        assert ascend.__version__ == "2.6.3"
 
     def test_constants_version_matches(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.6.2"
+        assert SDK_VERSION == "2.6.3"

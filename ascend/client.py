@@ -1812,7 +1812,7 @@ class AscendClient:
         try:
             response = self._request("GET", API_ENDPOINTS["kill_switch_status"])
             status = KillSwitchStatus.from_dict(response)
-            self._is_blocked = status.active
+            self._is_blocked = status.blocked
             self._kill_switch_reason = status.reason
             # SDK-262: successful poll — reset the consecutive-failure
             # counter so a transient blip doesn't accumulate forever.

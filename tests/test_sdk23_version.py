@@ -14,7 +14,7 @@ import ascend
 from ascend.constants import SDK_VERSION
 
 
-EXPECTED = "2.6.2"
+EXPECTED = "2.6.3"
 
 
 def test_init_version():

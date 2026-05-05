@@ -487,7 +487,7 @@ class ActionDetails:
 @dataclass
 class KillSwitchStatus:
     """Kill switch status from the ASCEND API."""
-    active: bool
+    blocked: bool
     reason: Optional[str] = None
     activated_at: Optional[str] = None
     activated_by: Optional[str] = None
@@ -495,7 +495,7 @@ class KillSwitchStatus:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "KillSwitchStatus":
         return cls(
-            active=data.get("active", data.get("is_active", False)),
+            blocked=data.get("blocked", False),
             reason=data.get("reason"),
             activated_at=data.get("activated_at"),
             activated_by=data.get("activated_by"),
