@@ -42,6 +42,33 @@ print(result.cvss_score)    # CVSS v3.1 base score
 print(result.mitre_tactic)  # MITRE ATT&CK tactic
 ```
 
+### Enforcement Decision Attribution
+
+Inspect *why* the platform reached its verdict. These fields ship in
+`AuthorizationDecision` as of SDK 2.7.0:
+
+```python
+# Authoritative governance verdict
+print(result.enforcement_decision)
+# 'auto_approved' | 'pending_approval' | 'denied' | 'escalated'
+
+# Which signal drove the verdict
+print(result.enforcement_decision_source)
+# 'threshold' | 'policy' | 'smart_rule' |
+# 'code_analysis' | 'prompt_security'
+
+# Which signal contributed the highest risk score
+print(result.risk_score_source)
+# 'cvss' | 'policy' | 'code_analysis' |
+# 'prompt_security' | 'pipeline'
+
+# Shadow scoring — what the system WOULD have decided under
+# the org's shadow threshold config. None when no shadow
+# config exists (opt-in feature, observational only).
+print(result.shadow_enforcement_decision)
+print(result.shadow_enforcement_decision_source)
+```
+
 ---
 
 ## Model Governance (SR-11-7 / EU AI Act Art. 9)
@@ -88,6 +115,16 @@ Block all agent actions in under 500ms.
 client.start_kill_switch_polling(
     interval_seconds=5
 )
+
+# Fail-secure (since 2.6.2): the SDK blocks all actions
+# automatically after 3 consecutive polling failures and
+# emits a WARNING on each failure with the exception type
+# and a running consecutive-failure count. Recovers when
+# the kill-switch endpoint becomes healthy again.
+if client.is_blocked():
+    # Kill-switch active OR polling has failed 3+ times —
+    # do not proceed with the agent action.
+    pass
 ```
 
 ---
@@ -120,7 +157,7 @@ NIST AI RMF · SR 11-7 · EU AI Act Art. 9/28
 - Platform: https://pilot.owkai.app
 - Documentation: https://docs.ascendowkai.com
 - Status: https://ascend-status.instatus.com
-- Support: Donald.king@ow-kai.com
+- Support: info@ow-kai.com
 
 ---
 

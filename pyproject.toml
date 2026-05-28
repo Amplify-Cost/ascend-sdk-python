@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
 authors = [
-    {name = "Ascend AI", email = "sdk@ascendai.app"}
+    {name = "Ascend AI", email = "info@ow-kai.com"}
 ]
 keywords = ["ai", "governance", "authorization", "security", "compliance", "agent"]
 classifiers = [
@@ -43,8 +43,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://ascendai.app"
-Documentation = "https://docs.ascendai.app/sdk/python"
+Homepage = "https://ascendowkai.com"
+Documentation = "https://docs.ascendowkai.com/sdk/python"
 Repository = "https://github.com/Amplify-Cost/ascend-sdk-python"
 Changelog = "https://github.com/Amplify-Cost/ascend-sdk-python/blob/main/CHANGELOG.md"
 

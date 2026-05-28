@@ -5,6 +5,59 @@ All notable changes to the Ascend AI SDK for Python will be documented in this f
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-05-28
+
+### Added — SDK-ALIGN-001 Phase 2
+
+Five typed fields on `AuthorizationDecision` (and on the
+`promoted_keys` tuple in `from_dict`), surfacing governance verdict
+attribution that the backend has been writing to the
+`agent_actions` row since DISPATCH-RISK-SCORE-004/005 but had not
+been serializing into the HTTP response body until TD 1113
+(backend commit `51318bfc`, 2026-05-28):
+
+- `enforcement_decision` — authoritative governance verdict
+  (`auto_approved` | `pending_approval` | `escalated` | `denied`)
+- `enforcement_decision_source` — signal that produced the verdict
+  (`threshold` | `policy` | `smart_rule` | `code_analysis`
+  | `prompt_security`)
+- `risk_score_source` — risk-score signal attribution
+  (`code_analysis` | `prompt_security` | `cvss` | `policy`
+  | `pipeline`)
+- `shadow_enforcement_decision` — observational shadow-scoring
+  verdict; `None` when the org has no active shadow threshold
+  config (opt-in feature, observational only, never overrides
+  `action.status` or the live `enforcement_decision`)
+- `shadow_enforcement_decision_source`
+
+All `Optional[str]` with `None` default. Promoted via the existing
+G-P2-01 pattern: each new attribute is also mirrored into
+`metadata` so callers reading `decision.metadata["enforcement_decision"]`
+continue to work unchanged.
+
+### Zero breaking changes
+
+- All five fields default to `None`. Callers that don't read them see
+  identical behavior. `metadata` dict still carries every field.
+
+## [2.6.3] - 2026-04-29
+
+### Fixed (P0 — Fail-Secure)
+
+- **Kill-switch fail-OPEN closed** at the wire level. The
+  `KillSwitchStatus` response model was reading the wrong field name
+  (`active` instead of `blocked`). The backend has been returning
+  `{blocked, reason}` since `kill_switch_status` shipped; the SDK has
+  silently failed to block agents since 2.0.0 (2025-12-03). Every
+  poll resolved `status.active` to `None` / falsy, leaving the
+  SDK-262 fail-secure machinery operating against a permanently
+  false signal. Fixed by mapping `KillSwitchStatus.blocked` to the
+  wire `blocked` field.
+- `evaluate_action()` now emits a `WARNING` if
+  `start_kill_switch_polling()` was never called, so operators know
+  when the safety net is inactive instead of silently relying on the
+  default `_is_blocked=False`.
+
 ## [2.6.2] - 2026-04-29
 
 ### Fixed (P0)
