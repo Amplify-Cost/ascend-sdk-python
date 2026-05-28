@@ -356,3 +356,58 @@ class TestContract7Version:
     def test_constants_version_matches(self):
         from ascend.constants import SDK_VERSION
         assert SDK_VERSION == "2.7.0"
+
+
+# ---------------------------------------------------------------------------
+# SDK-ALIGN-001 Phase 2 — Enforcement decision typed fields (SDK 2.7.0)
+# ---------------------------------------------------------------------------
+#
+# Locks in the contract for the 5 governance verdict attribution fields
+# promoted from the metadata dict in 2.7.0. Backend surfaces these in the
+# /api/v1/actions/submit response body as of TD 1113
+# (commit 51318bfc, 2026-05-28).
+
+
+class TestEnforcementDecisionFields:
+    def test_authorization_decision_enforcement_fields(self):
+        """Direct construction: the 5 typed fields exist on the dataclass
+        and round-trip the values they were given."""
+        d = AuthorizationDecision(
+            action_id="x",
+            decision=Decision.ALLOWED,
+            enforcement_decision="auto_approved",
+            enforcement_decision_source="threshold",
+            risk_score_source="cvss",
+            shadow_enforcement_decision=None,
+            shadow_enforcement_decision_source=None,
+        )
+        assert d.enforcement_decision == "auto_approved"
+        assert d.enforcement_decision_source == "threshold"
+        assert d.risk_score_source == "cvss"
+        assert d.shadow_enforcement_decision is None
+        assert d.shadow_enforcement_decision_source is None
+
+    def test_enforcement_fields_metadata_mirror(self):
+        """from_dict promotion + metadata mirror — backward compat
+        preserved. Callers reading decision.metadata["enforcement_decision"]
+        continue to work in addition to the typed accessors. G-P2-01
+        pattern."""
+        response = {
+            "action_id": "1",
+            "decision": "auto_approved",
+            "risk_score": 30,
+            "enforcement_decision": "auto_approved",
+            "enforcement_decision_source": "threshold",
+            "risk_score_source": "cvss",
+            "shadow_enforcement_decision": None,
+            "shadow_enforcement_decision_source": None,
+        }
+        d = AuthorizationDecision.from_dict(response)
+        # Typed accessors
+        assert d.enforcement_decision == "auto_approved"
+        assert d.enforcement_decision_source == "threshold"
+        assert d.risk_score_source == "cvss"
+        # Metadata mirror (back-compat)
+        assert d.metadata.get("enforcement_decision") == "auto_approved"
+        assert d.metadata.get("enforcement_decision_source") == "threshold"
+        assert d.metadata.get("risk_score_source") == "cvss"
