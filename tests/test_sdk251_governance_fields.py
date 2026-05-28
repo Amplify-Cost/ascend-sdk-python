@@ -255,4 +255,4 @@ class TestContract4And5ClientPassthrough:
 class TestVersion:
     def test_version_is_2_6_1(self):
         import ascend
-        assert ascend.__version__ == "2.6.3"
+        assert ascend.__version__ == "2.7.0"

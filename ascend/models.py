@@ -281,6 +281,19 @@ class AuthorizationDecision:
     output_findings_count: Optional[int] = None
     thresholds: Optional[Dict[str, Any]] = None
 
+    # SDK-ALIGN-001 Phase 2 / SDK 2.7.0 — Governance verdict attribution
+    # fields. Surfaced in the backend response as of TD 1113
+    # (commit 51318bfc, 2026-05-28). Follow the G-P2-01 promotion
+    # pattern: Optional with None default; metadata dict continues to
+    # carry the same keys for back-compat.
+    enforcement_decision: Optional[str] = None
+    enforcement_decision_source: Optional[str] = None
+    risk_score_source: Optional[str] = None
+    # Shadow scoring — observational only. None when org has no
+    # active shadow threshold config (opt-in feature).
+    shadow_enforcement_decision: Optional[str] = None
+    shadow_enforcement_decision_source: Optional[str] = None
+
     # SDK 2.6.1 / SDK-261: `result.status` returns the backend-vocabulary
     # string the CWG test plan checks against. PENDING normalises to
     # 'pending_approval', ALLOWED to 'approved', DENIED to 'denied'.
@@ -417,6 +430,12 @@ class AuthorizationDecision:
             "matched_policies", "matched_smart_rules",
             "output_scan_result", "output_findings_count",
             "thresholds",
+            # SDK-ALIGN-001 Phase 2 / SDK 2.7.0
+            "enforcement_decision",
+            "enforcement_decision_source",
+            "risk_score_source",
+            "shadow_enforcement_decision",
+            "shadow_enforcement_decision_source",
         )
         promoted: Dict[str, Any] = {}
         for k in promoted_keys:

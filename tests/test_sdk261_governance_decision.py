@@ -351,8 +351,8 @@ class TestContract7Version:
     def test_version_is_2_6_2(self):
         # SDK-262 bumped 2.6.1 → 2.6.2 (BUG-02-04/05 + kill-switch
         # fail-secure + Decision enum expansion).
-        assert ascend.__version__ == "2.6.3"
+        assert ascend.__version__ == "2.7.0"
 
     def test_constants_version_matches(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.6.3"
+        assert SDK_VERSION == "2.7.0"
