@@ -108,7 +108,7 @@ print(result.mcp_governance["server_registered"])
 
 ## Kill-Switch
 
-Block all agent actions in under 500ms.
+Block all agent actions within one poll cycle (default 5 seconds). Kill-switch server handler p99=17.03ms (measured June 2, 2026).
 
 ```python
 # Agent side — poll for kill-switch signals
@@ -116,11 +116,9 @@ client.start_kill_switch_polling(
     interval_seconds=5
 )
 
-# Fail-secure (since 2.6.2): the SDK blocks all actions
-# automatically after 3 consecutive polling failures and
-# emits a WARNING on each failure with the exception type
-# and a running consecutive-failure count. Recovers when
-# the kill-switch endpoint becomes healthy again.
+# Fail-secure: agents fail-closed after 3 consecutive unreachable
+# polls (~15 seconds worst-case). Recovers automatically when the
+# endpoint becomes healthy.
 if client.is_blocked():
     # Kill-switch active OR polling has failed 3+ times —
     # do not proceed with the agent action.
@@ -136,8 +134,8 @@ if client.is_blocked():
 | Risk Scoring | CVSS v3.1, NIST 800-30, MITRE ATT&CK composite |
 | MCP Governance | Layer 13 enforcement — unregistered servers denied |
 | Model Governance | Registry-backed compliance check — SR-11-7, EU AI Act |
-| Kill-Switch | Sub-500ms agent blocking via SNS/SQS |
-| Prompt Injection | 21 detection patterns including encoding detection |
+| Kill-Switch | Poll-based agent blocking, default 5s interval. Server handler p99=17.03ms measured |
+| Prompt Injection | 22 detection patterns including encoding detection |
 | Code Analysis | SQL injection, command injection, credential detection |
 | Supply Chain | CVE detection via NVD/OSV, risk scoring |
 | Audit Trail | Immutable hash-chain, cryptographic verification |

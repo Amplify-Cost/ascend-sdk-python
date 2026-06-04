@@ -1385,7 +1385,8 @@ class AscendClient:
         self,
         action_id: str,
         timeout: int = 60,
-        poll_interval: float = 2.0
+        poll_interval: float = 2.0,
+        on_escalated: Optional[Callable[[str, "AuthorizationDecision"], None]] = None,
     ) -> AuthorizationDecision:
         """
         Wait for an authorization decision.
@@ -1394,6 +1395,11 @@ class AscendClient:
             action_id: The action ID to wait for
             timeout: Maximum time to wait in seconds
             poll_interval: Time between status checks in seconds
+            on_escalated: Optional callback invoked once if the action is
+                escalated to a senior approver (HITL). Receives
+                (action_id, decision). If not provided, a WARNING is logged.
+                Either way the SDK keeps waiting — an escalated action is
+                still pending a human decision, not a final outcome.
 
         Returns:
             Final authorization decision
@@ -1402,10 +1408,30 @@ class AscendClient:
             TimeoutError: If decision not received within timeout
         """
         start_time = time.time()
+        _escalation_surfaced = False
 
         while time.time() - start_time < timeout:
             try:
                 decision = self.get_action_status(action_id)
+
+                # SDK 2.7.1 (EP-003): surface HITL escalation. "escalated"
+                # maps to Decision.PENDING (the action is held for a senior
+                # approver), so we keep waiting — but notify the caller once.
+                if decision.raw_status == "escalated" and not _escalation_surfaced:
+                    _escalation_surfaced = True
+                    if on_escalated is not None:
+                        try:
+                            on_escalated(action_id, decision)
+                        except Exception as _cb_err:  # callback must never break the wait
+                            logger.warning(
+                                f"on_escalated callback raised for action "
+                                f"{action_id}: {_cb_err}"
+                            )
+                    else:
+                        logger.warning(
+                            f"Action {action_id} escalated to senior approver. "
+                            f"Continuing to wait."
+                        )
 
                 if decision.decision != Decision.PENDING:
                     return decision

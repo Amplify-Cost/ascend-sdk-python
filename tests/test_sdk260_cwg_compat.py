@@ -470,8 +470,8 @@ class TestTestConnectionLatency:
 
 class TestVersion:
     def test_module_version(self):
-        assert ascend.__version__ == "2.7.0"
+        assert ascend.__version__ == "2.7.1"
 
     def test_constants_version(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.7.0"
+        assert SDK_VERSION == "2.7.1"

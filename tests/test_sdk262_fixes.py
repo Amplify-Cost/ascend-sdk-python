@@ -381,8 +381,8 @@ class TestContract3DecisionEnumExpansion:
 
 class TestContract4Version:
     def test_version_is_2_6_2(self):
-        assert ascend.__version__ == "2.7.0"
+        assert ascend.__version__ == "2.7.1"
 
     def test_constants_version_matches(self):
         from ascend.constants import SDK_VERSION
-        assert SDK_VERSION == "2.7.0"
+        assert SDK_VERSION == "2.7.1"
